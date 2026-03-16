@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Devglide Design System — Proposition C: Midnight Violet</title>
+  <style>
+    /* ── Keyframes ──────────────────────────────────────────────────── */
+    @keyframes neon-flicker {
+      0%, 95%, 100% { opacity: 1; }
+      96% { opacity: 0.8; }
+      97% { opacity: 1; }
+      98% { opacity: 0.6; }
+      99% { opacity: 0.9; }
+    }
+    @keyframes glow-pulse {
+      0%, 100% { box-shadow: 0 0 8px rgba(167,139,250,.3), 0 0 16px rgba(167,139,250,.1); }
+      50%      { box-shadow: 0 0 14px rgba(167,139,250,.5), 0 0 28px rgba(167,139,250,.2); }
+    }
+    @keyframes scan-line {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
+    @keyframes dot-pulse {
+      0%, 100% { opacity: 0.4; }
+      50%      { opacity: 1; }
+    }
+    @keyframes text-glow {
+      0%, 100% { text-shadow: 0 0 8px rgba(167,139,250,.4), 0 0 16px rgba(167,139,250,.15); }
+      50%      { text-shadow: 0 0 14px rgba(167,139,250,.6), 0 0 24px rgba(167,139,250,.25); }
+    }
+    @keyframes badge-glow {
+      0%, 100% { box-shadow: 0 0 6px rgba(167,139,250,.2); }
+      50%      { box-shadow: 0 0 12px rgba(167,139,250,.4); }
+    }
+    @keyframes stream-scroll {
+      0%   { transform: translateY(0); }
+      100% { transform: translateY(-50%); }
+    }
+
+    /* ── Reset & Base ──────────────────────────────────────────────── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { font-size: 13px; }
+    body {
+      background: #0d0f1a;
+      color: #e2e8f0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      line-height: 1.6;
+      position: relative;
+    }
+    /* Grid overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        repeating-linear-gradient(0deg, transparent, transparent 49px, rgba(167,139,250,.03) 50px),
+        repeating-linear-gradient(90deg, transparent, transparent 49px, rgba(167,139,250,.03) 50px);
+    }
+
+    /* ── Layout ────────────────────────────────────────────────────── */
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+    .mono { font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace; }
+
+    /* ── Sections ──────────────────────────────────────────────────── */
+    .section { margin-bottom: 64px; }
+    .section-label {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #22d3ee;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-label::before { content: '//'; color: #64748b; }
+    .section-title {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #a78bfa;
+      margin-bottom: 8px;
+    }
+    .section-desc {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-bottom: 24px;
+      max-width: 600px;
+      line-height: 1.6;
+    }
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, #a78bfa, #2d3560 40%, transparent);
+      margin-bottom: 24px;
+    }
+
+    /* ── 1. Header ─────────────────────────────────────────────────── */
+    .site-header {
+      text-align: center;
+      padding: 48px 24px 40px;
+      margin-bottom: 48px;
+      position: relative;
+      border-bottom: 1px solid #2d3560;
+      background: linear-gradient(180deg, rgba(167,139,250,.04) 0%, transparent 100%);
+    }
+    .site-header::before {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent 0%, #a78bfa 50%, transparent 100%);
+    }
+    .site-header h1 {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 16px;
+    }
+    .hero-title {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #a78bfa;
+      text-shadow: 0 0 10px rgba(167,139,250,.4), 0 0 30px rgba(167,139,250,.15);
+      animation: text-glow 4s ease-in-out infinite;
+      margin-bottom: 8px;
+    }
+    .hero-sub {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 14px;
+      letter-spacing: 0.08em;
+      color: #22d3ee;
+      text-shadow: 0 0 8px rgba(34,211,238,.3);
+    }
+    .hero-desc {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 16px;
+      max-width: 520px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* ── 2. Color Swatches ─────────────────────────────────────────── */
+    .swatch-group-label {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin: 20px 0 8px;
+    }
+    .swatch-group-label:first-child { margin-top: 0; }
+    .swatch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .swatch { border-radius: 2px; overflow: hidden; border: 1px solid #1e2340; }
+    .swatch-color { height: 52px; }
+    .swatch-info { padding: 6px 8px; background: #141829; }
+    .swatch-name {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 9px;
+      color: #94a3b8;
+    }
+    .swatch-hex {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 10px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    /* ── 3. Typography ─────────────────────────────────────────────── */
+    .type-sample {
+      padding: 16px 0;
+      border-bottom: 1px solid #1e2340;
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+    }
+    .type-sample:last-child { border-bottom: none; }
+    .type-meta {
+      flex-shrink: 0;
+      width: 80px;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 9px;
+      color: #64748b;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .type-font-section { margin-bottom: 32px; }
+    .type-font-label {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #a78bfa;
+      padding: 4px 10px;
+      background: #2e1a5e;
+      display: inline-block;
+      margin-bottom: 16px;
+      clip-path: polygon(4px 0%, calc(100% - 4px) 0%, 100% 4px, 100% calc(100% - 4px),
+        calc(100% - 4px) 100%, 4px 100%, 0% calc(100% - 4px), 0% 4px);
+    }
+    .spacing-label {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 9px;
+      color: #64748b;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin: 24px 0 12px;
+    }
+    .ls-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 8px 0;
+      border-bottom: 1px solid #1e2340;
+    }
+    .ls-row-label {
+      flex-shrink: 0;
+      width: 100px;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 9px;
+      color: #64748b;
+    }
+    .ls-row-preview {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 12px;
+      color: #e2e8f0;
+      text-transform: uppercase;
+    }
+
+    /* ── 4. Spacing ────────────────────────────────────────────────── */
+    .spacing-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .spacing-token {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 10px;
+      color: #64748b;
+      width: 48px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .spacing-bar {
+      height: 20px;
+      background: linear-gradient(90deg, #a78bfa, #7c3aed);
+      box-shadow: 0 0 8px rgba(167,139,250,.2);
+      clip-path: polygon(3px 0%, calc(100% - 3px) 0%, 100% 3px, 100% calc(100% - 3px),
+        calc(100% - 3px) 100%, 3px 100%, 0% calc(100% - 3px), 0% 3px);
+    }
+    .spacing-value {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 10px;
+      color: #94a3b8;
+      width: 40px;
+      flex-shrink: 0;
+    }
+
+    /* ── 5. Buttons ────────────────────────────────────────────────── */
+    .btn-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .btn {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 8px 20px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      clip-path: polygon(6px 0%, calc(100% - 6px) 0%, 100% 6px, 100% calc(100% - 6px),
+        calc(100% - 6px) 100%, 6px 100%, 0% calc(100% - 6px), 0% 6px);
+    }
+    .btn-primary { background: #a78bfa; color: #0d0f1a; }
+    .btn-primary:hover {
+      background: #c4b5fd;
+      box-shadow: 0 0 10px rgba(167,139,250,.4), 0 0 20px rgba(167,139,250,.15);
+    }
+    .btn-secondary { background: transparent; color: #22d3ee; border: 1px solid #22d3ee; clip-path: none; }
+    .btn-secondary:hover {
+      background: rgba(34,211,238,.1);
+      box-shadow: 0 0 10px rgba(34,211,238,.3), 0 0 20px rgba(34,211,238,.1);
+    }
+    .btn-outline { background: transparent; color: #a78bfa; border: 1px solid #a78bfa; clip-path: none; }
+    .btn-outline:hover {
+      background: rgba(167,139,250,.1);
+      box-shadow: 0 0 10px rgba(167,139,250,.3), 0 0 20px rgba(167,139,250,.1);
+    }
+    .btn-ghost { background: transparent; color: #94a3b8; clip-path: none; }
+    .btn-ghost:hover { color: #a78bfa; background: rgba(167,139,250,.06); }
+    .btn-danger { background: #ef4444; color: #0d0f1a; }
+    .btn-danger:hover {
+      background: #f87171;
+      box-shadow: 0 0 10px rgba(239,68,68,.4), 0 0 20px rgba(239,68,68,.15);
+    }
+    .btn-col { display: flex; flex-direction: column; align-items: center; }
+    .btn-label {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 9px;
+      color: #64748b;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      text-align: center;
+      margin-top: 6px;
+    }
+
+    /* ── 6. Form Inputs ────────────────────────────────────────────── */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+    .form-group { margin-bottom: 20px; }
+    .form-label {
+      display: block;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+    .form-input,
+    .form-textarea,
+    .form-select {
+      width: 100%;
+      max-width: 400px;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 12px;
+      color: #e2e8f0;
+      background: #141829;
+      border: 1px solid #2d3560;
+      padding: 10px 12px;
+      outline: none;
+      transition: all 0.2s ease;
+      clip-path: polygon(4px 0%, calc(100% - 4px) 0%, 100% 4px, 100% calc(100% - 4px),
+        calc(100% - 4px) 100%, 4px 100%, 0% calc(100% - 4px), 0% 4px);
+    }
+    .form-input:focus,
+    .form-textarea:focus,
+    .form-select:focus {
+      border-color: #a78bfa;
+      box-shadow: 0 0 8px rgba(167,139,250,.25), 0 0 16px rgba(167,139,250,.08);
+    }
+    .form-input::placeholder,
+    .form-textarea::placeholder { color: #64748b; }
+    .form-textarea { min-height: 80px; resize: vertical; }
+    .form-select {
+      appearance: none;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='%2394a3b8'%3E%3Cpath d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+
+    /* ── 7. Cards ───────────────────────────────────────────────────── */
+    .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    @media (max-width: 700px) { .card-grid { grid-template-columns: 1fr; } }
+    .card {
+      background: #141829;
+      border: 1px solid #2d3560;
+      padding: 20px;
+      position: relative;
+      transition: all 0.25s ease;
+    }
+    .card:hover { border-color: #3d4680; transform: translateY(-2px); }
+    /* Corner bracket decorations */
+    .card::before,
+    .card::after {
+      content: '';
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-color: #a78bfa;
+      border-style: solid;
+      pointer-events: none;
+      opacity: 0.5;
+      transition: opacity 0.25s ease;
+    }
+    .card::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+    .card::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+    .card:hover::before,
+    .card:hover::after { opacity: 1; }
+    .card-violet {
+      border-color: #a78bfa;
+      box-shadow: 0 0 10px rgba(167,139,250,.15), 0 0 20px rgba(167,139,250,.05);
+    }
+    .card-violet:hover {
+      box-shadow: 0 0 14px rgba(167,139,250,.25), 0 0 28px rgba(167,139,250,.1);
+    }
+    .card-cyan .card-header-bar {
+      background: linear-gradient(90deg, #22d3ee, transparent);
+      height: 2px;
+      margin: -20px -20px 16px;
+    }
+    .card-gradient { background: linear-gradient(135deg, #141829 0%, #1a1040 100%); }
+    .card-gradient .card-header-area {
+      background: linear-gradient(180deg, rgba(167,139,250,.08) 0%, transparent 100%);
+      margin: -20px -20px 16px;
+      padding: 16px 20px;
+    }
+    .card-title {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #e2e8f0;
+      margin-bottom: 8px;
+    }
+    .card-text { font-size: 12px; color: #94a3b8; line-height: 1.6; }
+    .card-tag {
+      display: inline-block;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #a78bfa;
+      background: #2e1a5e;
+      padding: 2px 8px;
+      margin-top: 12px;
+      clip-path: polygon(3px 0%, calc(100% - 3px) 0%, 100% 3px, 100% calc(100% - 3px),
+        calc(100% - 3px) 100%, 3px 100%, 0% calc(100% - 3px), 0% 3px);
+    }
+
+    /* ── 8. Badges ──────────────────────────────────────────────────── */
+    .badge-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .badge {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 9px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      clip-path: polygon(3px 0%, calc(100% - 3px) 0%, 100% 3px, 100% calc(100% - 3px),
+        calc(100% - 3px) 100%, 3px 100%, 0% calc(100% - 3px), 0% 3px);
+    }
+    .badge-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .badge-idle        { background: rgba(167,139,250,.15); color: #a78bfa; }
+    .badge-idle .badge-dot { background: #a78bfa; }
+    .badge-active      { background: rgba(139,92,246,.2); color: #c4b5fd; animation: badge-glow 3s ease-in-out infinite; }
+    .badge-active .badge-dot { background: #8b5cf6; }
+    .badge-recording   { background: rgba(239,68,68,.15); color: #ef4444; }
+    .badge-recording .badge-dot { background: #ef4444; }
+    .badge-processing  { background: rgba(245,158,11,.15); color: #f59e0b; }
+    .badge-processing .badge-dot { background: #f59e0b; }
+    .badge-success     { background: rgba(16,185,129,.15); color: #10b981; }
+    .badge-success .badge-dot { background: #10b981; }
+    .badge-error       { background: rgba(239,68,68,.15); color: #ef4444; }
+    .badge-error .badge-dot { background: #ef4444; }
+    .badge-warning     { background: rgba(245,158,11,.15); color: #f59e0b; }
+    .badge-warning .badge-dot { background: #f59e0b; }
+    .badge-info        { background: rgba(34,211,238,.12); color: #22d3ee; }
+    .badge-info .badge-dot { background: #22d3ee; }
+
+    /* ── 9. Status Indicators ──────────────────────────────────────── */
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
+    }
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: #141829;
+      border: 1px solid #1e2340;
+    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .status-dot-idle       { background: #a78bfa; box-shadow: 0 0 6px rgba(167,139,250,.4), 0 0 12px rgba(167,139,250,.15); }
+    .status-dot-active     { background: #8b5cf6; box-shadow: 0 0 8px rgba(139,92,246,.5), 0 0 16px rgba(139,92,246,.2); animation: glow-pulse 2s ease-in-out infinite; }
+    .status-dot-recording  { background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,.5), 0 0 16px rgba(239,68,68,.2); animation: dot-pulse 1s ease-in-out infinite; }
+    .status-dot-processing { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,.4), 0 0 12px rgba(245,158,11,.15); animation: dot-pulse 1.5s ease-in-out infinite; }
+    .status-dot-success    { background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,.4), 0 0 12px rgba(16,185,129,.15); }
+    .status-dot-error      { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,.4), 0 0 12px rgba(239,68,68,.15); }
+    .status-dot-warning    { background: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,.4), 0 0 12px rgba(245,158,11,.15); }
+    .status-label {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+
+    /* ── 10. Animations ────────────────────────────────────────────── */
+    .anim-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    @media (max-width: 600px) { .anim-grid { grid-template-columns: 1fr; } }
+    .anim-box {
+      background: #141829;
+      border: 1px solid #2d3560;
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+      min-height: 120px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+    .anim-label {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      position: relative;
+      z-index: 2;
+    }
+    .anim-desc {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 4px;
+      position: relative;
+      z-index: 2;
+    }
+    .anim-neon-text {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 20px;
+      font-weight: 700;
+      color: #a78bfa;
+      text-shadow: 0 0 6px rgba(167,139,250,.6), 0 0 14px rgba(167,139,250,.3), 0 0 28px rgba(167,139,250,.15);
+      animation: neon-flicker 5s infinite;
+      position: absolute;
+      top: 24px;
+      left: 24px;
+    }
+    .anim-glow-orb {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #a78bfa;
+      animation: glow-pulse 2.5s ease-in-out infinite;
+      position: absolute;
+      top: 20px;
+      left: 24px;
+    }
+    .anim-stream-container {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      display: flex;
+      gap: 20px;
+      padding: 0 24px;
+    }
+    .anim-stream-col {
+      display: flex;
+      flex-direction: column;
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 10px;
+      color: rgba(167,139,250,.3);
+      line-height: 1.6;
+      animation: stream-scroll 8s linear infinite;
+      white-space: nowrap;
+    }
+    .anim-stream-col:nth-child(2) { animation-duration: 6s; color: rgba(34,211,238,.2); }
+    .anim-stream-col:nth-child(3) { animation-duration: 10s; color: rgba(167,139,250,.2); }
+    .anim-stream-col:nth-child(4) { animation-duration: 7s; color: rgba(34,211,238,.15); }
+    .anim-scan-line {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 120px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #a78bfa, transparent);
+      box-shadow: 0 0 8px rgba(167,139,250,.4);
+      animation: scan-line 3s ease-in-out infinite;
+    }
+
+    /* ── 11. App Header ────────────────────────────────────────────── */
+    .app-header-demo {
+      background: #141829;
+      border: 1px solid #2d3560;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 10px;
+      position: relative;
+    }
+    .app-header-demo::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, #a78bfa 0%, transparent 60%);
+    }
+    .app-header-name {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #a78bfa;
+    }
+    .app-header-sep { width: 1px; height: 16px; background: #2d3560; }
+    .app-header-subtitle {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      text-transform: uppercase;
+    }
+    .app-header-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .app-header-status {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #22d3ee;
+      box-shadow: 0 0 4px rgba(34,211,238,.5), 0 0 8px rgba(34,211,238,.2);
+    }
+    .app-header-status-label {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 9px;
+      color: #22d3ee;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    /* ── Footer ────────────────────────────────────────────────────── */
+    .site-footer {
+      margin-top: 64px;
+      padding-top: 24px;
+      border-top: 1px solid #1e2340;
+      text-align: center;
+    }
+    .site-footer p {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      font-size: 9px;
+      color: #64748b;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       1. HEADER
+       ═══════════════════════════════════════════════════════════════════ -->
+  <header class="site-header">
+    <h1>DEVGLIDE DESIGN SYSTEM</h1>
+    <div class="hero-title">MIDNIGHT VIOLET</div>
+    <div class="hero-sub">Proposition C</div>
+    <p class="hero-desc">
+      A cyberpunk-inspired dark theme with violet primary accents and cyan
+      secondary highlights. Dual-accent chromatic system built for next-gen
+      development interfaces.
+    </p>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       2. COLOR PALETTE
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="colors">
+    <div class="section-label">Neural Interface</div>
+    <div class="section-title">Color Matrix</div>
+    <div class="divider"></div>
+    <div class="section-desc">
+      Dual-accent chromatic system. Violet drives primary actions and identity.
+      Cyan marks secondary signals, data, and informational elements.
+    </div>
+
+    <div class="swatch-group-label">// Background layers</div>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-color" style="background:#0d0f1a"></div><div class="swatch-info"><div class="swatch-name">base</div><div class="swatch-hex">#0d0f1a</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#141829"></div><div class="swatch-info"><div class="swatch-name">surface</div><div class="swatch-hex">#141829</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#1e2340"></div><div class="swatch-info"><div class="swatch-name">raised</div><div class="swatch-hex">#1e2340</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#282e52"></div><div class="swatch-info"><div class="swatch-name">overlay</div><div class="swatch-hex">#282e52</div></div></div>
+    </div>
+
+    <div class="swatch-group-label">// Accent — violet</div>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-color" style="background:#2e1a5e"></div><div class="swatch-info"><div class="swatch-name">dim</div><div class="swatch-hex">#2e1a5e</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#7c3aed"></div><div class="swatch-info"><div class="swatch-name">muted</div><div class="swatch-hex">#7c3aed</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#a78bfa"></div><div class="swatch-info"><div class="swatch-name">default</div><div class="swatch-hex">#a78bfa</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#c4b5fd"></div><div class="swatch-info"><div class="swatch-name">bright</div><div class="swatch-hex">#c4b5fd</div></div></div>
+    </div>
+
+    <div class="swatch-group-label">// Accent — cyan</div>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-color" style="background:#0e4f5a"></div><div class="swatch-info"><div class="swatch-name">dim</div><div class="swatch-hex">#0e4f5a</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#22d3ee"></div><div class="swatch-info"><div class="swatch-name">default</div><div class="swatch-hex">#22d3ee</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#67e8f9"></div><div class="swatch-info"><div class="swatch-name">bright</div><div class="swatch-hex">#67e8f9</div></div></div>
+    </div>
+
+    <div class="swatch-group-label">// Text</div>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-color" style="background:#e2e8f0"></div><div class="swatch-info"><div class="swatch-name">primary</div><div class="swatch-hex">#e2e8f0</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#94a3b8"></div><div class="swatch-info"><div class="swatch-name">secondary</div><div class="swatch-hex">#94a3b8</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#64748b"></div><div class="swatch-info"><div class="swatch-name">muted</div><div class="swatch-hex">#64748b</div></div></div>
+    </div>
+
+    <div class="swatch-group-label">// Borders</div>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-color" style="background:#1e2340"></div><div class="swatch-info"><div class="swatch-name">subtle</div><div class="swatch-hex">#1e2340</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#2d3560"></div><div class="swatch-info"><div class="swatch-name">default</div><div class="swatch-hex">#2d3560</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#3d4680"></div><div class="swatch-info"><div class="swatch-name">strong</div><div class="swatch-hex">#3d4680</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#a78bfa"></div><div class="swatch-info"><div class="swatch-name">accent</div><div class="swatch-hex">#a78bfa</div></div></div>
+    </div>
+
+    <div class="swatch-group-label">// States</div>
+    <div class="swatch-grid">
+      <div class="swatch"><div class="swatch-color" style="background:#a78bfa"></div><div class="swatch-info"><div class="swatch-name">idle</div><div class="swatch-hex">#a78bfa</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#8b5cf6"></div><div class="swatch-info"><div class="swatch-name">active</div><div class="swatch-hex">#8b5cf6</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#ef4444"></div><div class="swatch-info"><div class="swatch-name">recording</div><div class="swatch-hex">#ef4444</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#f59e0b"></div><div class="swatch-info"><div class="swatch-name">processing</div><div class="swatch-hex">#f59e0b</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#10b981"></div><div class="swatch-info"><div class="swatch-name">success</div><div class="swatch-hex">#10b981</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#ef4444"></div><div class="swatch-info"><div class="swatch-name">error</div><div class="swatch-hex">#ef4444</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#f59e0b"></div><div class="swatch-info"><div class="swatch-name">warning</div><div class="swatch-hex">#f59e0b</div></div></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       3. TYPOGRAPHY
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="typography">
+    <div class="section-label">System Matrix</div>
+    <div class="section-title">Typography Protocol</div>
+    <div class="divider"></div>
+    <div class="section-desc">
+      Dual-family type system. Monospace for code, labels, and system readouts.
+      Sans-serif for body copy and extended reading.
+    </div>
+
+    <div class="type-font-section">
+      <div class="type-font-label">Monospace — JetBrains Mono</div>
+      <div class="type-sample"><div class="type-meta">3xl / 28px</div><div class="type-preview mono" style="font-size:28px; color:#a78bfa">SYSTEM ONLINE</div></div>
+      <div class="type-sample"><div class="type-meta">2xl / 22px</div><div class="type-preview mono" style="font-size:22px">Neural Interface v2.4</div></div>
+      <div class="type-sample"><div class="type-meta">xl / 18px</div><div class="type-preview mono" style="font-size:18px">Data Stream Active</div></div>
+      <div class="type-sample"><div class="type-meta">lg / 15px</div><div class="type-preview mono" style="font-size:15px">Protocol Layer Engaged</div></div>
+      <div class="type-sample"><div class="type-meta">md / 13px</div><div class="type-preview mono" style="font-size:13px">const matrix = await loadSystem();</div></div>
+      <div class="type-sample"><div class="type-meta">sm / 11px</div><div class="type-preview mono" style="font-size:11px">console.log("Midnight Violet initialized");</div></div>
+      <div class="type-sample"><div class="type-meta">xs / 9px</div><div class="type-preview mono" style="font-size:9px; letter-spacing:.08em; text-transform:uppercase; color:#64748b">SYSTEM TIMESTAMP — 2026.03.10 // BUILD 4.2.7</div></div>
+    </div>
+
+    <div class="type-font-section">
+      <div class="type-font-label">Sans-Serif — Inter</div>
+      <div class="type-sample"><div class="type-meta">3xl / 28px</div><div class="type-preview" style="font-size:28px; font-weight:600">Design System</div></div>
+      <div class="type-sample"><div class="type-meta">2xl / 22px</div><div class="type-preview" style="font-size:22px; font-weight:500">Component Library</div></div>
+      <div class="type-sample"><div class="type-meta">xl / 18px</div><div class="type-preview" style="font-size:18px">Midnight Violet delivers a cyberpunk aesthetic</div></div>
+      <div class="type-sample"><div class="type-meta">lg / 15px</div><div class="type-preview" style="font-size:15px">Dual-accent system with violet primary and cyan secondary.</div></div>
+      <div class="type-sample"><div class="type-meta">md / 13px</div><div class="type-preview" style="font-size:13px">Body text renders in the sans-serif stack for extended readability across all data panels.</div></div>
+      <div class="type-sample"><div class="type-meta">sm / 11px</div><div class="type-preview" style="font-size:11px; color:#94a3b8">Secondary text for descriptions, hints, and meta information.</div></div>
+      <div class="type-sample"><div class="type-meta">xs / 9px</div><div class="type-preview" style="font-size:9px; color:#64748b">Muted caption text for timestamps, footnotes, and tertiary information.</div></div>
+    </div>
+
+    <div class="spacing-label">// Letter Spacing Scale</div>
+    <div class="ls-row"><div class="ls-row-label">tight / 0</div><div class="ls-row-preview" style="letter-spacing:0">Midnight Violet</div></div>
+    <div class="ls-row"><div class="ls-row-label">normal / 0.02em</div><div class="ls-row-preview" style="letter-spacing:.02em">Midnight Violet</div></div>
+    <div class="ls-row"><div class="ls-row-label">wide / 0.08em</div><div class="ls-row-preview" style="letter-spacing:.08em">Midnight Violet</div></div>
+    <div class="ls-row"><div class="ls-row-label">wider / 0.15em</div><div class="ls-row-preview" style="letter-spacing:.15em">Midnight Violet</div></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       4. SPACING SCALE
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="spacing">
+    <div class="section-label">Protocol Layer</div>
+    <div class="section-title">Spacing Grid</div>
+    <div class="divider"></div>
+    <div class="section-desc">
+      Base-4 spatial system governing all internal and external measurements.
+      Consistent rhythm across every interface element.
+    </div>
+
+    <div class="spacing-row"><div class="spacing-token">2px</div><div class="spacing-bar" style="width:2px"></div><div class="spacing-value">2</div></div>
+    <div class="spacing-row"><div class="spacing-token">4px</div><div class="spacing-bar" style="width:4px"></div><div class="spacing-value">4</div></div>
+    <div class="spacing-row"><div class="spacing-token">8px</div><div class="spacing-bar" style="width:8px"></div><div class="spacing-value">8</div></div>
+    <div class="spacing-row"><div class="spacing-token">12px</div><div class="spacing-bar" style="width:12px"></div><div class="spacing-value">12</div></div>
+    <div class="spacing-row"><div class="spacing-token">16px</div><div class="spacing-bar" style="width:16px"></div><div class="spacing-value">16</div></div>
+    <div class="spacing-row"><div class="spacing-token">20px</div><div class="spacing-bar" style="width:20px"></div><div class="spacing-value">20</div></div>
+    <div class="spacing-row"><div class="spacing-token">24px</div><div class="spacing-bar" style="width:24px"></div><div class="spacing-value">24</div></div>
+    <div class="spacing-row"><div class="spacing-token">32px</div><div class="spacing-bar" style="width:32px"></div><div class="spacing-value">32</div></div>
+    <div class="spacing-row"><div class="spacing-token">40px</div><div class="spacing-bar" style="width:40px"></div><div class="spacing-value">40</div></div>
+    <div class="spacing-row"><div class="spacing-token">48px</div><div class="spacing-bar" style="width:48px"></div><div class="spacing-value">48</div></div>
+    <div class="spacing-row"><div class="spacing-token">64px</div><div class="spacing-bar" style="width:64px"></div><div class="spacing-value">64</div></div>
+    <div class="spacing-row"><div class="spacing-token">96px</div><div class="spacing-bar" style="width:96px"></div><div class="spacing-value">96</div></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       5. BUTTONS
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="buttons">
+    <div class="section-label">Data Stream Components</div>
+    <div class="section-title">Action Triggers</div>
+    <div class="divider"></div>
+    <div class="section-desc">
+      Five button variants for distinct interaction hierarchies.
+      Beveled clip-paths with neon glow feedback on hover.
+    </div>
+
+    <div class="btn-row">
+      <div class="btn-col"><button class="btn btn-primary">Execute</button><div class="btn-label">primary</div></div>
+      <div class="btn-col"><button class="btn btn-secondary">Analyze</button><div class="btn-label">secondary</div></div>
+      <div class="btn-col"><button class="btn btn-outline">Configure</button><div class="btn-label">outline</div></div>
+      <div class="btn-col"><button class="btn btn-ghost">Dismiss</button><div class="btn-label">ghost</div></div>
+      <div class="btn-col"><button class="btn btn-danger">Terminate</button><div class="btn-label">danger</div></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       6. FORM INPUTS
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="forms">
+    <div class="section-label">Protocol Layer</div>
+    <div class="section-title">Input Channels</div>
+    <div class="divider"></div>
+    <div class="section-desc">
+      Data entry points with violet accent focus states and subtle neon glow.
+      Softened bevels keep inputs readable while maintaining the angular language.
+    </div>
+
+    <div class="form-grid">
+      <div>
+        <div class="form-group">
+          <label class="form-label">Neural Identifier</label>
+          <input class="form-input" type="text" placeholder="Enter node address..." />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Protocol Type</label>
+          <select class="form-select">
+            <option>Select protocol...</option>
+            <option>TCP/VIOLET</option>
+            <option>UDP/CYAN</option>
+            <option>QUANTUM/HYBRID</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <div class="form-group">
+          <label class="form-label">Transmission Payload</label>
+          <textarea class="form-textarea" placeholder="Enter data stream content..."></textarea>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       7. CARDS
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="cards">
+    <div class="section-label">Data Stream Components</div>
+    <div class="section-title">Information Panels</div>
+    <div class="divider"></div>
+    <div class="section-desc">
+      Three card variants demonstrating surface hierarchy and accent treatments.
+      Corner brackets provide orientation markers.
+    </div>
+
+    <div class="card-grid">
+      <div class="card card-violet">
+        <div class="card-title">Neural Core</div>
+        <div class="card-text">
+          Primary processing node with violet border glow. Active state
+          indicates real-time data processing across the neural mesh.
+        </div>
+        <div class="card-tag">Active</div>
+      </div>
+
+      <div class="card card-cyan">
+        <div class="card-header-bar"></div>
+        <div class="card-title">Data Relay</div>
+        <div class="card-text">
+          Secondary node with cyan accent header bar. Handles auxiliary
+          data streams and inter-module communication protocols.
+        </div>
+        <div class="card-tag" style="background:rgba(34,211,238,.12); color:#22d3ee">Linked</div>
+      </div>
+
+      <div class="card card-gradient">
+        <div class="card-header-area">
+          <div class="card-title" style="margin-bottom:0">Quantum Bridge</div>
+        </div>
+        <div class="card-text">
+          Gradient surface panel with subtle violet-to-transparent header
+          area. Used for elevated content blocks and featured modules.
+        </div>
+        <div class="card-tag">Standby</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       8. BADGES
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="badges">
+    <div class="section-label">System Matrix</div>
+    <div class="section-title">State Badges</div>
+    <div class="divider"></div>
+    <div class="section-desc">
+      Compact state indicators with tinted backgrounds and embedded status
+      dots. Violet and cyan tints for system states, warm tones for alerts.
+    </div>
+
+    <div class="badge-row">
+      <span class="badge badge-idle"><span class="badge-dot"></span>Idle</span>
+      <span class="badge badge-active"><span class="badge-dot"></span>Active</span>
+      <span class="badge badge-recording"><span class="badge-dot"></span>Recording</span>
+      <span class="badge badge-processing"><span class="badge-dot"></span>Processing</span>
+      <span class="badge badge-success"><span class="badge-dot"></span>Success</span>
+      <span class="badge badge-error"><span class="badge-dot"></span>Error</span>
+      <span class="badge badge-warning"><span class="badge-dot"></span>Warning</span>
+      <span class="badge badge-info"><span class="badge-dot"></span>Info</span>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       9. STATUS INDICATORS
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="status">
+    <div class="section-label">Neural Interface</div>
+    <div class="section-title">Status Indicators</div>
+    <div class="divider"></div>
+    <div class="section-desc">
+      Neon-glow status dots with distinct colors per system state.
+      Active and recording states include animated pulses.
+    </div>
+
+    <div class="status-grid">
+      <div class="status-item"><div class="status-dot status-dot-idle"></div><div class="status-label">Idle</div></div>
+      <div class="status-item"><div class="status-dot status-dot-active"></div><div class="status-label">Active</div></div>
+      <div class="status-item"><div class="status-dot status-dot-recording"></div><div class="status-label">Recording</div></div>
+      <div class="status-item"><div class="status-dot status-dot-processing"></div><div class="status-label">Processing</div></div>
+      <div class="status-item"><div class="status-dot status-dot-success"></div><div class="status-label">Success</div></div>
+      <div class="status-item"><div class="status-dot status-dot-error"></div><div class="status-label">Error</div></div>
+      <div class="status-item"><div class="status-dot status-dot-warning"></div><div class="status-label">Warning</div></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       10. ANIMATIONS
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="animations">
+    <div class="section-label">Protocol Layer</div>
+    <div class="section-title">Motion Protocols</div>
+    <div class="divider"></div>
+    <div class="section-desc">
+      Four signature animation patterns that give the interface its living,
+      cyberpunk character. Subtle enough for production use, distinct enough
+      to establish identity.
+    </div>
+
+    <div class="anim-grid">
+      <!-- Neon Flicker -->
+      <div class="anim-box">
+        <div class="anim-neon-text">NEON</div>
+        <div class="anim-label">Neon Flicker</div>
+        <div class="anim-desc">Subtle opacity variation on glowing elements</div>
+      </div>
+
+      <!-- Glow Pulse -->
+      <div class="anim-box">
+        <div class="anim-glow-orb"></div>
+        <div class="anim-label">Glow Pulse</div>
+        <div class="anim-desc">Violet box-shadow breathing for active states</div>
+      </div>
+
+      <!-- Data Stream -->
+      <div class="anim-box" style="min-height:140px">
+        <div class="anim-stream-container">
+          <div class="anim-stream-col">0<br>1<br>0<br>1<br>1<br>0<br>0<br>1<br>0<br>1<br>1<br>0<br>1<br>0<br>0<br>1<br>0<br>1<br>0<br>1<br>1<br>0<br>0<br>1<br>0<br>1<br>1<br>0<br>1<br>0<br>0<br>1</div>
+          <div class="anim-stream-col">:<br>.<br>:<br>.<br>:<br>:<br>.<br>:<br>.<br>.<br>:<br>.<br>:<br>:<br>.<br>:<br>:<br>.<br>:<br>.<br>:<br>:<br>.<br>:<br>.<br>.<br>:<br>.<br>:<br>:<br>.<br>:</div>
+          <div class="anim-stream-col">a<br>f<br>3<br>c<br>9<br>0<br>b<br>7<br>e<br>2<br>d<br>4<br>8<br>1<br>f<br>6<br>a<br>f<br>3<br>c<br>9<br>0<br>b<br>7<br>e<br>2<br>d<br>4<br>8<br>1<br>f<br>6</div>
+          <div class="anim-stream-col">|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|<br>|</div>
+        </div>
+        <div class="anim-label">Data Stream</div>
+        <div class="anim-desc">Scrolling vertical characters for background activity</div>
+      </div>
+
+      <!-- Scanning Line -->
+      <div class="anim-box">
+        <div class="anim-scan-line"></div>
+        <div class="anim-label">Scanning Line</div>
+        <div class="anim-desc">Horizontal violet beam sweeping across surfaces</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       11. SAMPLE APP HEADER
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="app-header">
+    <div class="section-label">Neural Interface</div>
+    <div class="section-title">App Header Bar</div>
+    <div class="divider"></div>
+    <div class="section-desc">
+      Standard 38px application header with violet accent identity,
+      cyan status indicator, and monospace type hierarchy.
+    </div>
+
+    <div class="app-header-demo">
+      <div class="app-header-name">DEVGLIDE</div>
+      <div class="app-header-sep"></div>
+      <div class="app-header-subtitle">Neural Matrix v4.2</div>
+      <div class="app-header-right">
+        <div class="app-header-status-label">Connected</div>
+        <div class="app-header-status"></div>
+      </div>
+    </div>
+
+    <div style="height:12px"></div>
+
+    <div class="app-header-demo" style="background:linear-gradient(90deg, #141829 0%, #1a1040 100%)">
+      <div class="app-header-name" style="color:#22d3ee">CODER</div>
+      <div class="app-header-sep"></div>
+      <div class="app-header-subtitle">Session Active</div>
+      <div class="app-header-right">
+        <div class="app-header-status-label" style="color:#10b981">Synced</div>
+        <div class="app-header-status" style="background:#10b981; box-shadow:0 0 4px rgba(16,185,129,.5), 0 0 8px rgba(16,185,129,.2)"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════════════════════════════════ -->
+  <footer class="site-footer">
+    <p>Devglide Design System // Proposition C: Midnight Violet // 2026</p>
+  </footer>
+
+</div>
+</body>
+</html>

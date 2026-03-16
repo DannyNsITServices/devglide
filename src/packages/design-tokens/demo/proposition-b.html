@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NERV ORANGE — Proposition B — Devglide Design System</title>
+  <style>
+    /* ══════════════════════════════════════════════════════════════════════
+       PROPOSITION B: NERV ORANGE
+       Faithful to the original NGE/NERV voice widget aesthetic.
+       All tokens hardcoded — no external dependencies.
+       ══════════════════════════════════════════════════════════════════════ */
+
+    /* ── Design Tokens ────────────────────────────────────────────────── */
+    :root {
+      /* Backgrounds */
+      --nerv-bg-base:     #0e0800;
+      --nerv-bg-surface:  #1a1000;
+      --nerv-bg-raised:   #2a1a00;
+      --nerv-bg-overlay:  #3a2400;
+
+      /* Accent */
+      --nerv-accent:      #ff8c00;
+      --nerv-accent-bright: #ffaa33;
+      --nerv-accent-dim:  #3d2200;
+      --nerv-accent-muted: #cc6600;
+
+      /* Text */
+      --nerv-text-primary:   #e8d5b0;
+      --nerv-text-secondary: #a89070;
+      --nerv-text-muted:     #6b5840;
+
+      /* Borders */
+      --nerv-border-subtle:  #2a1a00;
+      --nerv-border-default: #3d2800;
+      --nerv-border-strong:  #554000;
+      --nerv-border-accent:  #ff8c00;
+
+      /* States */
+      --nerv-state-idle:       #ff8c00;
+      --nerv-state-active:     #ff6600;
+      --nerv-state-recording:  #ff1500;
+      --nerv-state-processing: #e3b341;
+      --nerv-state-success:    #4ade80;
+      --nerv-state-error:      #ff0000;
+      --nerv-state-warning:    #d29922;
+
+      /* Font */
+      --nerv-font-mono: 'Courier New', Courier, monospace;
+
+      /* Spacing */
+      --nerv-space-px: 1px;
+      --nerv-space-1:  4px;
+      --nerv-space-2:  8px;
+      --nerv-space-3:  12px;
+      --nerv-space-4:  16px;
+      --nerv-space-5:  20px;
+      --nerv-space-6:  24px;
+      --nerv-space-8:  32px;
+      --nerv-space-10: 40px;
+      --nerv-space-12: 48px;
+      --nerv-space-16: 64px;
+      --nerv-space-20: 80px;
+      --nerv-space-24: 96px;
+    }
+
+    /* ── Animations ───────────────────────────────────────────────────── */
+    @keyframes nerv-crt-sweep {
+      0%   { transform: translateY(-100%); }
+      100% { transform: translateY(100vh); }
+    }
+    @keyframes nerv-glow-pulse {
+      0%, 100% { filter: drop-shadow(0 0 6px rgba(255,140,0,0.3)); }
+      50%      { filter: drop-shadow(0 0 16px rgba(255,140,0,0.7)); }
+    }
+    @keyframes nerv-alert-pulse {
+      0%, 100% { box-shadow: 0 0 8px rgba(255,21,0,0.3); }
+      50%      { box-shadow: 0 0 24px rgba(255,21,0,0.9), 0 0 48px rgba(255,0,0,0.4); }
+    }
+    @keyframes nerv-blink {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0; }
+    }
+    @keyframes nerv-hazard-scroll {
+      0%   { background-position: 0 0; }
+      100% { background-position: 28.28px 0; }
+    }
+    @keyframes nerv-at-field-shimmer {
+      0%, 100% { box-shadow: inset 0 0 20px rgba(255,140,0,0.1), 0 0 8px rgba(255,140,0,0.05); }
+      25%      { box-shadow: inset 0 0 30px rgba(255,140,0,0.2), 0 0 12px rgba(255,140,0,0.15); }
+      50%      { box-shadow: inset 0 0 40px rgba(255,140,0,0.25), 0 0 20px rgba(255,140,0,0.2); }
+      75%      { box-shadow: inset 0 0 30px rgba(255,140,0,0.15), 0 0 10px rgba(255,140,0,0.1); }
+    }
+    @keyframes nerv-larson {
+      0%   { left: 0; }
+      50%  { left: calc(100% - 60px); }
+      100% { left: 0; }
+    }
+    @keyframes nerv-recording-pulse {
+      0%, 100% { box-shadow: 0 0 4px rgba(255,21,0,0.4); transform: scale(1); }
+      50%      { box-shadow: 0 0 30px rgba(255,21,0,1), 0 0 60px rgba(255,0,0,0.5); transform: scale(1.05); }
+    }
+    @keyframes nerv-scanline-flicker {
+      0%   { opacity: 0.03; }
+      50%  { opacity: 0.06; }
+      100% { opacity: 0.03; }
+    }
+
+    /* ── Reset ────────────────────────────────────────────────────────── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ── Base ─────────────────────────────────────────────────────────── */
+    html { font-size: 13px; }
+    body {
+      background: var(--nerv-bg-base);
+      color: var(--nerv-text-primary);
+      font-family: var(--nerv-font-mono);
+      min-height: 100vh;
+      line-height: 1.5;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* ── Diagonal Grid Texture Overlay ────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background-image:
+        repeating-linear-gradient(
+          45deg,
+          transparent,
+          transparent 20px,
+          rgba(255,140,0,0.025) 20px,
+          rgba(255,140,0,0.025) 21px
+        ),
+        repeating-linear-gradient(
+          -45deg,
+          transparent,
+          transparent 20px,
+          rgba(255,140,0,0.025) 20px,
+          rgba(255,140,0,0.025) 21px
+        );
+      animation: nerv-scanline-flicker 3s ease-in-out infinite;
+    }
+
+    /* ── CRT Scanline Sweep ───────────────────────────────────────────── */
+    body::after {
+      content: '';
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      height: 120px;
+      background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        rgba(255,140,0,0.04) 40%,
+        rgba(255,140,0,0.07) 50%,
+        rgba(255,140,0,0.04) 60%,
+        transparent 100%
+      );
+      z-index: 9999;
+      pointer-events: none;
+      animation: nerv-crt-sweep 5s linear infinite;
+    }
+
+    /* ── Layout ───────────────────────────────────────────────────────── */
+    .page {
+      position: relative;
+      z-index: 1;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+
+    /* ── Header ───────────────────────────────────────────────────────── */
+    .site-header {
+      border-bottom: 2px solid var(--nerv-border-accent);
+      padding: 32px 24px;
+      margin-bottom: 48px;
+      position: relative;
+      background: var(--nerv-bg-surface);
+      clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+    }
+    /* Thick corner brackets on header */
+    .site-header::before,
+    .site-header::after {
+      content: '';
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-color: var(--nerv-accent);
+      border-style: solid;
+      pointer-events: none;
+      z-index: 2;
+    }
+    .site-header::before { top: 6px; left: 6px; border-width: 3px 0 0 3px; }
+    .site-header::after  { bottom: 6px; right: 6px; border-width: 0 3px 3px 0; }
+
+    .site-header h1 {
+      font-size: 18px;
+      font-weight: normal;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--nerv-accent);
+      filter: drop-shadow(0 0 12px rgba(255,140,0,0.6));
+    }
+    .site-header .sub {
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      color: var(--nerv-text-secondary);
+      text-transform: uppercase;
+      margin-top: 6px;
+    }
+    .site-header .classified {
+      position: absolute;
+      top: 10px;
+      right: 40px;
+      font-size: 9px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: rgba(255,140,0,0.15);
+      transform: rotate(-5deg);
+      pointer-events: none;
+    }
+    .site-header .crt-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 2px,
+        rgba(255,140,0,0.02) 2px,
+        rgba(255,140,0,0.02) 4px
+      );
+      z-index: 1;
+    }
+
+    /* ── Nav ──────────────────────────────────────────────────────────── */
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 48px;
+      border-bottom: 1px solid var(--nerv-border-subtle);
+      padding-bottom: 12px;
+    }
+    .nav a {
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--nerv-text-secondary);
+      text-decoration: none;
+      padding: 4px 10px;
+      border: 1px solid transparent;
+      transition: all 150ms ease;
+    }
+    .nav a:hover {
+      color: var(--nerv-accent);
+      border-color: var(--nerv-border-default);
+      background: rgba(255,140,0,0.05);
+    }
+
+    /* ── Section ──────────────────────────────────────────────────────── */
+    .section { margin-bottom: 64px; }
+    .section-title {
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--nerv-accent);
+      border-left: 3px solid var(--nerv-accent);
+      padding-left: 10px;
+      margin-bottom: 24px;
+      filter: drop-shadow(0 0 6px rgba(255,140,0,0.3));
+    }
+    .section-desc {
+      font-size: 11px;
+      color: var(--nerv-text-secondary);
+      letter-spacing: 0.05em;
+      margin-bottom: 20px;
+      margin-top: -12px;
+    }
+
+    /* ── Panel (angular clip-path card) ───────────────────────────────── */
+    .panel {
+      background: var(--nerv-bg-surface);
+      border: 1px solid var(--nerv-border-default);
+      clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+      padding: 20px 24px;
+      position: relative;
+    }
+
+    /* Corner brackets — thicker, 3px */
+    .brackets { position: relative; }
+    .brackets::before, .brackets::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-color: var(--nerv-accent);
+      border-style: solid;
+      pointer-events: none;
+    }
+    .brackets::before { top: 0; left: 0; border-width: 3px 0 0 3px; }
+    .brackets::after  { bottom: 0; right: 0; border-width: 0 3px 3px 0; }
+
+    /* AT-Field frame effect */
+    .at-field {
+      box-shadow:
+        inset 0 0 1px rgba(255,140,0,0.4),
+        inset 0 0 20px rgba(255,140,0,0.05),
+        0 0 8px rgba(255,140,0,0.1);
+      border: 1px solid var(--nerv-border-accent);
+      animation: nerv-at-field-shimmer 4s ease-in-out infinite;
+    }
+
+    /* ── Color Swatches ───────────────────────────────────────────────── */
+    .swatch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 8px;
+    }
+    .swatch {
+      padding: 12px;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 6px 100%, 0 calc(100% - 6px));
+    }
+    .swatch-label { color: var(--nerv-text-primary); opacity: 0.85; margin-top: 8px; display: block; }
+    .swatch-hex   { color: var(--nerv-text-primary); opacity: 0.5; font-size: 9px; }
+
+    .group-label {
+      font-size: 9px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--nerv-text-muted);
+      margin-bottom: 8px;
+      margin-top: 16px;
+    }
+    .group-label:first-child { margin-top: 0; }
+
+    /* ── Typography ───────────────────────────────────────────────────── */
+    .type-sample {
+      border-bottom: 1px solid var(--nerv-border-subtle);
+      padding: 12px 0;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .type-meta {
+      font-size: 10px;
+      color: var(--nerv-text-muted);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      width: 120px;
+    }
+    .type-specimen {
+      flex: 1;
+      min-width: 200px;
+      text-transform: uppercase;
+    }
+
+    /* ── Spacing Scale ────────────────────────────────────────────────── */
+    .space-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .space-bar {
+      background: linear-gradient(90deg, var(--nerv-accent), var(--nerv-accent-muted));
+      height: 8px;
+      flex-shrink: 0;
+      clip-path: polygon(0 0, calc(100% - 4px) 0, 100% 50%, calc(100% - 4px) 100%, 0 100%);
+    }
+    .space-meta {
+      font-size: 10px;
+      color: var(--nerv-text-secondary);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    /* ── Buttons ──────────────────────────────────────────────────────── */
+    .btn-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .btn {
+      font-family: var(--nerv-font-mono);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      padding: 8px 20px;
+      cursor: pointer;
+      border: 1px solid;
+      transition: all 250ms ease;
+      outline: none;
+      clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+    }
+    .btn-primary {
+      background: var(--nerv-accent);
+      border-color: var(--nerv-accent);
+      color: var(--nerv-bg-base);
+      font-weight: bold;
+    }
+    .btn-primary:hover {
+      background: var(--nerv-accent-bright);
+      box-shadow: 0 0 16px rgba(255,140,0,0.5);
+      filter: drop-shadow(0 0 8px rgba(255,140,0,0.6));
+    }
+    .btn-outline {
+      background: transparent;
+      border-color: var(--nerv-accent);
+      color: var(--nerv-accent);
+    }
+    .btn-outline:hover {
+      background: rgba(255,140,0,0.1);
+      box-shadow: 0 0 12px rgba(255,140,0,0.3);
+    }
+    .btn-ghost {
+      background: transparent;
+      border-color: transparent;
+      color: var(--nerv-text-secondary);
+      clip-path: none;
+    }
+    .btn-ghost:hover {
+      color: var(--nerv-accent);
+      text-shadow: 0 0 8px rgba(255,140,0,0.4);
+    }
+    .btn-danger {
+      background: rgba(255,0,0,0.1);
+      border-color: var(--nerv-state-error);
+      color: var(--nerv-state-error);
+    }
+    .btn-danger:hover {
+      background: repeating-linear-gradient(
+        45deg,
+        rgba(255,0,0,0.15),
+        rgba(255,0,0,0.15) 10px,
+        rgba(26,0,0,0.8) 10px,
+        rgba(26,0,0,0.8) 20px
+      );
+      box-shadow: 0 0 20px rgba(255,0,0,0.4);
+    }
+    .btn:disabled {
+      opacity: 0.25;
+      cursor: not-allowed;
+      filter: grayscale(0.5);
+    }
+
+    /* ── Inputs ───────────────────────────────────────────────────────── */
+    .input-group { display: flex; flex-direction: column; gap: 8px; max-width: 400px; }
+    .input-label {
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--nerv-text-secondary);
+    }
+    .input {
+      background: var(--nerv-bg-surface);
+      border: 1px solid var(--nerv-border-default);
+      color: var(--nerv-text-primary);
+      font-family: var(--nerv-font-mono);
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 250ms ease, box-shadow 250ms ease;
+      clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+    }
+    .input:focus {
+      border-color: var(--nerv-accent);
+      box-shadow: 0 0 12px rgba(255,140,0,0.3), inset 0 0 8px rgba(255,140,0,0.05);
+    }
+    .input::placeholder { color: var(--nerv-text-muted); }
+    select.input {
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ff8c00' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+    textarea.input {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    /* ── Cards ────────────────────────────────────────────────────────── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--nerv-bg-surface);
+      border: 1px solid var(--nerv-border-default);
+      clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+      padding: 24px;
+      position: relative;
+      transition: all 300ms ease;
+    }
+    .card:hover {
+      border-color: var(--nerv-accent-muted);
+      box-shadow: 0 0 20px rgba(255,140,0,0.15);
+    }
+    .card-title {
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--nerv-accent);
+      margin-bottom: 8px;
+    }
+    .card-body {
+      font-size: 12px;
+      color: var(--nerv-text-secondary);
+      letter-spacing: 0.03em;
+      line-height: 1.6;
+    }
+    .card-hazard {
+      border-color: var(--nerv-state-error);
+      background:
+        repeating-linear-gradient(
+          45deg,
+          rgba(255,0,0,0.04),
+          rgba(255,0,0,0.04) 10px,
+          transparent 10px,
+          transparent 20px
+        ),
+        var(--nerv-bg-surface);
+      box-shadow: 0 0 20px rgba(255,0,0,0.2), inset 0 0 30px rgba(255,0,0,0.05);
+    }
+    .card-hazard .card-title { color: var(--nerv-state-error); }
+
+    /* ── Badges ───────────────────────────────────────────────────────── */
+    .badge-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .badge {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border: 1px solid;
+      clip-path: polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 5px 100%, 0 calc(100% - 5px));
+    }
+    .badge-idle       { color: var(--nerv-state-idle);       border-color: var(--nerv-state-idle);       background: rgba(255,140,0,0.08); }
+    .badge-active     { color: var(--nerv-state-active);     border-color: var(--nerv-state-active);     background: rgba(255,102,0,0.08); }
+    .badge-recording  { color: var(--nerv-state-recording);  border-color: var(--nerv-state-recording);  background: rgba(255,21,0,0.1);  animation: nerv-recording-pulse 1s ease-in-out infinite; }
+    .badge-processing { color: var(--nerv-state-processing); border-color: var(--nerv-state-processing); background: rgba(227,179,65,0.08); }
+    .badge-success    { color: var(--nerv-state-success);    border-color: var(--nerv-state-success);    background: rgba(74,222,128,0.08); }
+    .badge-error      { color: var(--nerv-state-error);      border-color: var(--nerv-state-error);      background: rgba(255,0,0,0.1); }
+    .badge-warning    { color: var(--nerv-state-warning);    border-color: var(--nerv-state-warning);    background: rgba(210,153,34,0.08); }
+
+    /* ── State Indicators ─────────────────────────────────────────────── */
+    .state-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+    }
+    .state-card {
+      background: var(--nerv-bg-surface);
+      border: 1px solid var(--nerv-border-default);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+    }
+    .state-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .state-name {
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+    .state-hex {
+      font-size: 9px;
+      color: var(--nerv-text-muted);
+      letter-spacing: 0.1em;
+    }
+
+    /* ── Animations Section ───────────────────────────────────────────── */
+    .anim-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    .anim-card {
+      background: var(--nerv-bg-surface);
+      border: 1px solid var(--nerv-border-default);
+      padding: 28px 20px;
+      text-align: center;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--nerv-text-secondary);
+      position: relative;
+      overflow: hidden;
+      clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+    }
+    .anim-crt::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, transparent 0%, rgba(255,140,0,0.05) 50%, transparent 100%);
+      background-size: 100% 50px;
+      animation: nerv-crt-sweep 4s linear infinite;
+      pointer-events: none;
+    }
+    .anim-glow { animation: nerv-glow-pulse 2s ease-in-out infinite; }
+    .anim-brackets-inner { position: relative; }
+    .anim-brackets-inner::before, .anim-brackets-inner::after {
+      content: '';
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border-color: var(--nerv-accent);
+      border-style: solid;
+      pointer-events: none;
+    }
+    .anim-brackets-inner::before { top: 6px; left: 6px; border-width: 3px 0 0 3px; }
+    .anim-brackets-inner::after  { bottom: 6px; right: 6px; border-width: 0 3px 3px 0; }
+
+    .cursor-blink {
+      display: inline-block;
+      width: 9px;
+      height: 15px;
+      background: var(--nerv-accent);
+      vertical-align: text-bottom;
+      animation: nerv-blink 0.8s step-start infinite;
+      margin-left: 2px;
+    }
+
+    /* Larson Scanner Bar */
+    .larson-track {
+      position: relative;
+      height: 6px;
+      background: var(--nerv-bg-raised);
+      border: 1px solid var(--nerv-border-default);
+      overflow: hidden;
+      margin-top: 12px;
+    }
+    .larson-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 60px;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, var(--nerv-accent), var(--nerv-accent-bright), var(--nerv-accent), transparent);
+      filter: drop-shadow(0 0 8px rgba(255,140,0,0.8));
+      animation: nerv-larson 2s ease-in-out infinite;
+    }
+
+    /* Hazard stripe bar */
+    .hazard-bar {
+      height: 12px;
+      background: repeating-linear-gradient(
+        45deg,
+        #ff0000,
+        #ff0000 10px,
+        #1a0000 10px,
+        #1a0000 20px
+      );
+      background-size: 28.28px 28.28px;
+      animation: nerv-hazard-scroll 0.5s linear infinite;
+      margin-top: 12px;
+    }
+
+    /* ── Sample App Header ────────────────────────────────────────────── */
+    .app-header {
+      height: 38px;
+      background: var(--nerv-bg-surface);
+      border: 1px solid var(--nerv-border-default);
+      border-bottom: 2px solid var(--nerv-accent);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 12px;
+      clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+      position: relative;
+    }
+    .app-header-title {
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--nerv-accent);
+      filter: drop-shadow(0 0 4px rgba(255,140,0,0.4));
+    }
+    .app-header-sep {
+      color: var(--nerv-text-muted);
+      font-size: 11px;
+    }
+    .app-header-label {
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--nerv-text-secondary);
+    }
+    .app-header-status {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .app-header-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--nerv-state-idle);
+      box-shadow: 0 0 6px var(--nerv-state-idle);
+    }
+
+    /* ── Utility Classes ──────────────────────────────────────────────── */
+    .text-accent  { color: var(--nerv-accent); }
+    .text-muted   { color: var(--nerv-text-secondary); }
+    .text-dim     { color: var(--nerv-text-muted); }
+    .text-success { color: var(--nerv-state-success); }
+    .text-error   { color: var(--nerv-state-error); }
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--nerv-border-subtle);
+      margin: 8px 0 24px;
+    }
+
+    /* ── Responsive ───────────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .swatch-grid { grid-template-columns: repeat(2, 1fr); }
+      .card-grid   { grid-template-columns: 1fr; }
+      .state-grid  { grid-template-columns: 1fr; }
+      .anim-grid   { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       01. HEADER
+       ═══════════════════════════════════════════════════════════════════ -->
+  <header class="site-header">
+    <div class="crt-overlay"></div>
+    <div class="classified">CLASSIFIED // NERV // GEHIRN</div>
+    <div style="position:relative;z-index:2">
+      <h1>DEVGLIDE DESIGN SYSTEM &mdash; PROPOSITION B: NERV ORANGE</h1>
+      <div class="sub">MAGI SYSTEM v0.3.0 &middot; 82 TOKENS &middot; EVANGELION TERMINAL AESTHETIC &middot; PATTERN ORANGE</div>
+    </div>
+  </header>
+
+  <!-- Nav -->
+  <nav class="nav">
+    <a href="#colors">MAGI PALETTE</a>
+    <a href="#typography">TYPOGRAPHY</a>
+    <a href="#spacing">SPACING</a>
+    <a href="#buttons">CONTROLS</a>
+    <a href="#inputs">INTERFACE</a>
+    <a href="#cards">PANELS</a>
+    <a href="#badges">STATUS</a>
+    <a href="#states">INDICATORS</a>
+    <a href="#animations">SYNC</a>
+    <a href="#app-header">HEADER</a>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       02. COLOR PALETTE
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="colors">
+    <div class="section-title">01 / MAGI SYSTEM REPORT &mdash; COLOR PALETTE</div>
+    <p class="section-desc">ALL VISUAL WAVELENGTHS CATALOGUED. PATTERN ORANGE CONFIRMED. ENGAGE VISUAL SCAN.</p>
+
+    <div class="group-label">BACKGROUNDS &mdash; TERMINAL DOGMA</div>
+    <div class="swatch-grid">
+      <div class="swatch" style="background:#0e0800;border:1px solid #3d2800">
+        <span class="swatch-label">bg-base</span>
+        <span class="swatch-hex">#0e0800</span>
+      </div>
+      <div class="swatch" style="background:#1a1000;border:1px solid #3d2800">
+        <span class="swatch-label">bg-surface</span>
+        <span class="swatch-hex">#1a1000</span>
+      </div>
+      <div class="swatch" style="background:#2a1a00;border:1px solid #3d2800">
+        <span class="swatch-label">bg-raised</span>
+        <span class="swatch-hex">#2a1a00</span>
+      </div>
+      <div class="swatch" style="background:#3a2400;border:1px solid #554000">
+        <span class="swatch-label">bg-overlay</span>
+        <span class="swatch-hex">#3a2400</span>
+      </div>
+    </div>
+
+    <div class="group-label">ACCENT SCALE &mdash; ABSOLUTE TERROR FIELD</div>
+    <div class="swatch-grid">
+      <div class="swatch" style="background:#3d2200;border:1px solid #554000">
+        <span class="swatch-label">accent-dim</span>
+        <span class="swatch-hex">#3d2200</span>
+      </div>
+      <div class="swatch" style="background:#cc6600;border:1px solid #cc6600">
+        <span class="swatch-label" style="color:#0e0800">accent-muted</span>
+        <span class="swatch-hex" style="color:#0e0800">#cc6600</span>
+      </div>
+      <div class="swatch" style="background:#ff8c00;border:1px solid #ff8c00">
+        <span class="swatch-label" style="color:#0e0800">accent-default</span>
+        <span class="swatch-hex" style="color:#0e0800">#ff8c00</span>
+      </div>
+      <div class="swatch" style="background:#ffaa33;border:1px solid #ffaa33">
+        <span class="swatch-label" style="color:#0e0800">accent-bright</span>
+        <span class="swatch-hex" style="color:#0e0800">#ffaa33</span>
+      </div>
+    </div>
+
+    <div class="group-label">TEXT &mdash; SIGNAL CLARITY</div>
+    <div class="swatch-grid">
+      <div class="swatch" style="background:#2a1a00;border:1px solid #3d2800">
+        <span class="swatch-label" style="color:#e8d5b0">text-primary</span>
+        <span class="swatch-hex" style="color:#e8d5b0">#e8d5b0</span>
+      </div>
+      <div class="swatch" style="background:#2a1a00;border:1px solid #3d2800">
+        <span class="swatch-label" style="color:#a89070">text-secondary</span>
+        <span class="swatch-hex" style="color:#a89070">#a89070</span>
+      </div>
+      <div class="swatch" style="background:#2a1a00;border:1px solid #3d2800">
+        <span class="swatch-label" style="color:#6b5840">text-muted</span>
+        <span class="swatch-hex" style="color:#6b5840">#6b5840</span>
+      </div>
+    </div>
+
+    <div class="group-label">BORDERS &mdash; CONTAINMENT FIELD INTENSITY</div>
+    <div class="swatch-grid">
+      <div class="swatch" style="background:#0e0800;border:3px solid #2a1a00">
+        <span class="swatch-label">border-subtle</span>
+        <span class="swatch-hex">#2a1a00</span>
+      </div>
+      <div class="swatch" style="background:#0e0800;border:3px solid #3d2800">
+        <span class="swatch-label">border-default</span>
+        <span class="swatch-hex">#3d2800</span>
+      </div>
+      <div class="swatch" style="background:#0e0800;border:3px solid #554000">
+        <span class="swatch-label">border-strong</span>
+        <span class="swatch-hex">#554000</span>
+      </div>
+      <div class="swatch" style="background:#0e0800;border:3px solid #ff8c00">
+        <span class="swatch-label" style="color:#ff8c00">border-accent</span>
+        <span class="swatch-hex" style="color:#ff8c00">#ff8c00</span>
+      </div>
+    </div>
+
+    <div class="group-label">STATES &mdash; EVA SYNCHRONIZATION STATUS</div>
+    <div class="swatch-grid">
+      <div class="swatch" style="background:rgba(255,140,0,0.12);border:1px solid #ff8c00">
+        <span class="swatch-label" style="color:#ff8c00">idle</span>
+        <span class="swatch-hex" style="color:#ff8c00">#ff8c00</span>
+      </div>
+      <div class="swatch" style="background:rgba(255,102,0,0.12);border:1px solid #ff6600">
+        <span class="swatch-label" style="color:#ff6600">active</span>
+        <span class="swatch-hex" style="color:#ff6600">#ff6600</span>
+      </div>
+      <div class="swatch" style="background:rgba(255,21,0,0.12);border:1px solid #ff1500">
+        <span class="swatch-label" style="color:#ff1500">recording</span>
+        <span class="swatch-hex" style="color:#ff1500">#ff1500</span>
+      </div>
+      <div class="swatch" style="background:rgba(227,179,65,0.12);border:1px solid #e3b341">
+        <span class="swatch-label" style="color:#e3b341">processing</span>
+        <span class="swatch-hex" style="color:#e3b341">#e3b341</span>
+      </div>
+      <div class="swatch" style="background:rgba(74,222,128,0.12);border:1px solid #4ade80">
+        <span class="swatch-label" style="color:#4ade80">success</span>
+        <span class="swatch-hex" style="color:#4ade80">#4ade80</span>
+      </div>
+      <div class="swatch" style="background:rgba(255,0,0,0.12);border:1px solid #ff0000">
+        <span class="swatch-label" style="color:#ff0000">error</span>
+        <span class="swatch-hex" style="color:#ff0000">#ff0000</span>
+      </div>
+      <div class="swatch" style="background:rgba(210,153,34,0.12);border:1px solid #d29922">
+        <span class="swatch-label" style="color:#d29922">warning</span>
+        <span class="swatch-hex" style="color:#d29922">#d29922</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       03. TYPOGRAPHY
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="typography">
+    <div class="section-title">02 / SYNCHRONIZATION INTERFACE &mdash; TYPOGRAPHY</div>
+    <p class="section-desc">MONOSPACE ONLY. UPPERCASE MANDATORY. ALL TEXT IS MISSION-CRITICAL. ACKNOWLEDGE.</p>
+
+    <div class="type-sample">
+      <div class="type-meta">3XL / 36PX</div>
+      <div class="type-specimen" style="font-size:36px;letter-spacing:0.25em;color:var(--nerv-accent);filter:drop-shadow(0 0 12px rgba(255,140,0,0.5))">NERV SYSTEM</div>
+    </div>
+    <div class="type-sample">
+      <div class="type-meta">2XL / 28PX</div>
+      <div class="type-specimen" style="font-size:28px;letter-spacing:0.25em">EVA UNIT-01</div>
+    </div>
+    <div class="type-sample">
+      <div class="type-meta">XL / 20PX</div>
+      <div class="type-specimen" style="font-size:20px;letter-spacing:0.2em">PATTERN BLUE DETECTED</div>
+    </div>
+    <div class="type-sample">
+      <div class="type-meta">LG / 16PX</div>
+      <div class="type-specimen" style="font-size:16px;letter-spacing:0.18em">SYNCHRONIZATION RATE: 400%</div>
+    </div>
+    <div class="type-sample">
+      <div class="type-meta">MD / 13PX</div>
+      <div class="type-specimen" style="font-size:13px;letter-spacing:0.1em">TERMINAL OUTPUT &mdash; SYSTEM LOG. ENTRY PLUG INSERTED. LCL FLOODING INITIATED.</div>
+    </div>
+    <div class="type-sample">
+      <div class="type-meta">SM / 12PX</div>
+      <div class="type-specimen" style="font-size:12px;letter-spacing:0.08em">METADATA: TIMESTAMPS, PILOT STATS, SECONDARY DIAGNOSTICS, UMBILICAL CABLE STATUS.</div>
+    </div>
+    <div class="type-sample">
+      <div class="type-meta">XS / 10PX</div>
+      <div class="type-specimen" style="font-size:10px;letter-spacing:0.25em">LABELS &middot; BADGES &middot; CAPTIONS &middot; MAGI DESIGNATORS &middot; SECTION IDS</div>
+    </div>
+
+    <br>
+    <div class="panel brackets" style="margin-top:8px">
+      <div style="font-size:10px;letter-spacing:0.25em;text-transform:uppercase;color:var(--nerv-accent);margin-bottom:10px">LETTER-SPACING SCALE &mdash; TRACKING MATRIX</div>
+      <div style="margin-bottom:8px;font-size:12px;letter-spacing:0;text-transform:uppercase;color:var(--nerv-text-secondary)">TIGHT (0) &mdash; TERMINAL OUTPUT, RAW DATA STREAMS</div>
+      <div style="margin-bottom:8px;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:var(--nerv-text-secondary)">NORMAL (0.08EM) &mdash; INTERFACE TEXT, PILOT COMMS</div>
+      <div style="margin-bottom:8px;font-size:12px;letter-spacing:0.15em;text-transform:uppercase;color:var(--nerv-text-secondary)">WIDE (0.15EM) &mdash; SECTION HEADINGS, STATUS LABELS</div>
+      <div style="margin-bottom:8px;font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:var(--nerv-text-primary)">WIDER (0.2EM) &mdash; SECTION TITLES, WARNINGS</div>
+      <div style="font-size:12px;letter-spacing:0.25em;text-transform:uppercase;color:var(--nerv-accent)">WIDEST (0.25EM) &mdash; ALERT HEADERS, CRITICAL DESIGNATORS</div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       04. SPACING SCALE
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="spacing">
+    <div class="section-title">03 / AT-FIELD COMPONENTS &mdash; SPACING SCALE</div>
+    <p class="section-desc">4PX BASE UNIT. 13 INCREMENTS FROM 1PX TO 96PX. MAINTAIN PRECISE FIELD GEOMETRY.</p>
+    <div>
+      <div class="space-row"><div class="space-bar" style="width:1px"></div>  <div class="space-meta">PX &mdash; 1PX</div></div>
+      <div class="space-row"><div class="space-bar" style="width:4px"></div>  <div class="space-meta">1  &mdash; 4PX</div></div>
+      <div class="space-row"><div class="space-bar" style="width:8px"></div>  <div class="space-meta">2  &mdash; 8PX</div></div>
+      <div class="space-row"><div class="space-bar" style="width:12px"></div> <div class="space-meta">3  &mdash; 12PX</div></div>
+      <div class="space-row"><div class="space-bar" style="width:16px"></div> <div class="space-meta">4  &mdash; 16PX</div></div>
+      <div class="space-row"><div class="space-bar" style="width:20px"></div> <div class="space-meta">5  &mdash; 20PX</div></div>
+      <div class="space-row"><div class="space-bar" style="width:24px"></div> <div class="space-meta">6  &mdash; 24PX</div></div>
+      <div class="space-row"><div class="space-bar" style="width:32px"></div> <div class="space-meta">8  &mdash; 32PX</div></div>
+      <div class="space-row"><div class="space-bar" style="width:40px"></div> <div class="space-meta">10 &mdash; 40PX</div></div>
+      <div class="space-row"><div class="space-bar" style="width:48px"></div> <div class="space-meta">12 &mdash; 48PX</div></div>
+      <div class="space-row"><div class="space-bar" style="width:64px"></div> <div class="space-meta">16 &mdash; 64PX</div></div>
+      <div class="space-row"><div class="space-bar" style="width:80px"></div> <div class="space-meta">20 &mdash; 80PX</div></div>
+      <div class="space-row"><div class="space-bar" style="width:96px"></div> <div class="space-meta">24 &mdash; 96PX</div></div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       05. BUTTONS
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="buttons">
+    <div class="section-title">04 / COMMAND CONTROLS &mdash; BUTTONS</div>
+    <p class="section-desc">FOUR VARIANTS. ALL BEVELED. ENGAGE WHEN READY. CONFIRM DIRECTIVE.</p>
+    <div class="btn-row">
+      <button class="btn btn-primary">ENGAGE</button>
+      <button class="btn btn-outline">STANDBY</button>
+      <button class="btn btn-ghost">DETAILS</button>
+      <button class="btn btn-danger">EJECT PLUG</button>
+      <button class="btn btn-primary" disabled>LOCKED</button>
+    </div>
+    <br>
+    <div class="btn-row">
+      <button class="btn btn-primary" style="padding:6px 14px;font-size:10px">SM / INITIATE</button>
+      <button class="btn btn-primary">MD / EXECUTE</button>
+      <button class="btn btn-primary" style="padding:12px 28px;font-size:12px">LG / DEPLOY EVA</button>
+    </div>
+    <br>
+    <div class="panel" style="margin-top:8px">
+      <div style="font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--nerv-text-muted);margin-bottom:6px">NOTE: DANGER VARIANT DISPLAYS HAZARD STRIPES ON HOVER. TEST IT.</div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       06. FORM INPUTS
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="inputs">
+    <div class="section-title">05 / PILOT INTERFACE &mdash; FORM INPUTS</div>
+    <p class="section-desc">ALL INPUTS BEVELED. ORANGE ACCENT ON FOCUS. REPORT DATA ACCURATELY.</p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px">
+      <div class="input-group">
+        <label class="input-label">PILOT DESIGNATION</label>
+        <input class="input" type="text" placeholder="ENTER PILOT NAME..." />
+      </div>
+      <div class="input-group">
+        <label class="input-label">ENTRY PLUG DEPTH</label>
+        <input class="input" type="text" value="DEPTH: 0.000 — LCL NOMINAL" />
+      </div>
+      <div class="input-group">
+        <label class="input-label">EVA UNIT ASSIGNMENT</label>
+        <select class="input">
+          <option>UNIT-00 — PROTOTYPE</option>
+          <option>UNIT-01 — TEST TYPE</option>
+          <option>UNIT-02 — PRODUCTION MODEL</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label class="input-label">MISSION BRIEFING</label>
+        <textarea class="input" placeholder="ENTER MISSION PARAMETERS..."></textarea>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       07. CARDS
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="cards">
+    <div class="section-title">06 / TERMINAL DOGMA &mdash; PANEL CARDS</div>
+    <p class="section-desc">THREE CONFIGURATIONS. STANDARD, ACCENT, AND CRITICAL HAZARD. AT-FIELD ACTIVE.</p>
+
+    <div class="card-grid">
+      <div class="card brackets">
+        <div class="card-title">MAGI CASPAR</div>
+        <div class="card-body">
+          PERSONALITY TRANSPLANT OS. SCIENTIST MODULE. ALL DIAGNOSTIC SYSTEMS NOMINAL.
+          SYNCHRONIZATION RATE: 99.7%. RECOMMEND CONTINUED OPERATION.
+        </div>
+        <div style="margin-top:12px;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:var(--nerv-text-muted)">
+          STATUS: OPERATIONAL &middot; PRIORITY: STANDARD
+        </div>
+      </div>
+
+      <div class="card at-field">
+        <div class="card-title">MAGI BALTHASAR</div>
+        <div class="card-body">
+          MOTHER MODULE ACTIVE. PATTERN ANALYSIS RUNNING. AT-FIELD BARRIER INTEGRITY AT MAXIMUM.
+          NO ANOMALIES DETECTED IN CURRENT SCAN CYCLE.
+        </div>
+        <div style="margin-top:12px;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:var(--nerv-accent)">
+          STATUS: AT-FIELD ACTIVE &middot; PRIORITY: HIGH
+        </div>
+      </div>
+
+      <div class="card card-hazard">
+        <div class="card-title">MAGI MELCHIOR &mdash; CRITICAL</div>
+        <div class="card-body" style="color:var(--nerv-state-error)">
+          WARNING: PATTERN BLUE CONFIRMED. ANGEL DETECTED IN PERIMETER SECTOR 7.
+          ALL PILOTS REPORT TO ENTRY PLUGS IMMEDIATELY. THIS IS NOT A DRILL.
+        </div>
+        <div style="margin-top:12px;font-size:9px;letter-spacing:0.2em;text-transform:uppercase;color:var(--nerv-state-error)">
+          STATUS: ALERT &middot; PRIORITY: ABSOLUTE
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       08. BADGES
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="badges">
+    <div class="section-title">07 / EVA STATUS BADGES &mdash; DESIGNATION MARKERS</div>
+    <p class="section-desc">STATE BADGES. RECORDING BADGE PULSES AT MAXIMUM INTENSITY. MONITOR ALL CHANNELS.</p>
+    <div class="badge-row">
+      <span class="badge badge-idle">IDLE</span>
+      <span class="badge badge-active">ACTIVE</span>
+      <span class="badge badge-recording">RECORDING</span>
+      <span class="badge badge-processing">PROCESSING</span>
+      <span class="badge badge-success">SUCCESS</span>
+      <span class="badge badge-error">ERROR</span>
+      <span class="badge badge-warning">WARNING</span>
+    </div>
+    <br>
+    <div class="badge-row">
+      <span class="badge badge-idle" style="font-size:8px;letter-spacing:0.15em">NERV-01</span>
+      <span class="badge badge-active" style="font-size:8px;letter-spacing:0.15em">UNIT-01</span>
+      <span class="badge badge-success" style="font-size:8px;letter-spacing:0.15em">SYNC: 95.3%</span>
+      <span class="badge badge-warning" style="font-size:8px;letter-spacing:0.15em">LCL: LOW</span>
+      <span class="badge badge-error" style="font-size:8px;letter-spacing:0.15em">AT-FIELD: BREACH</span>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       09. STATUS INDICATORS
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="states">
+    <div class="section-title">08 / SYNCHRONIZATION MATRIX &mdash; STATUS INDICATORS</div>
+    <p class="section-desc">SEVEN OPERATIONAL STATES. DRAMATIC GLOW EFFECTS. ALL SENSORS ACTIVE.</p>
+
+    <div class="state-grid">
+      <div class="state-card">
+        <div class="state-dot" style="background:#ff8c00;box-shadow:0 0 8px #ff8c00, 0 0 20px rgba(255,140,0,0.4)"></div>
+        <div>
+          <div class="state-name" style="color:#ff8c00">IDLE</div>
+          <div class="state-hex">#FF8C00 &mdash; STANDBY MODE</div>
+        </div>
+      </div>
+      <div class="state-card">
+        <div class="state-dot" style="background:#ff6600;box-shadow:0 0 8px #ff6600, 0 0 20px rgba(255,102,0,0.4)"></div>
+        <div>
+          <div class="state-name" style="color:#ff6600">ACTIVE</div>
+          <div class="state-hex">#FF6600 &mdash; ENGAGED</div>
+        </div>
+      </div>
+      <div class="state-card" style="animation:nerv-alert-pulse 1s ease-in-out infinite">
+        <div class="state-dot" style="background:#ff1500;box-shadow:0 0 12px #ff1500, 0 0 30px rgba(255,21,0,0.6)"></div>
+        <div>
+          <div class="state-name" style="color:#ff1500">RECORDING</div>
+          <div class="state-hex">#FF1500 &mdash; NERV RED / PULSING</div>
+        </div>
+      </div>
+      <div class="state-card">
+        <div class="state-dot" style="background:#e3b341;box-shadow:0 0 8px #e3b341, 0 0 20px rgba(227,179,65,0.4)"></div>
+        <div>
+          <div class="state-name" style="color:#e3b341">PROCESSING</div>
+          <div class="state-hex">#E3B341 &mdash; COMPUTATION</div>
+        </div>
+      </div>
+      <div class="state-card">
+        <div class="state-dot" style="background:#4ade80;box-shadow:0 0 8px #4ade80, 0 0 20px rgba(74,222,128,0.4)"></div>
+        <div>
+          <div class="state-name" style="color:#4ade80">SUCCESS</div>
+          <div class="state-hex">#4ADE80 &mdash; MISSION COMPLETE</div>
+        </div>
+      </div>
+      <div class="state-card">
+        <div class="state-dot" style="background:#ff0000;box-shadow:0 0 12px #ff0000, 0 0 24px rgba(255,0,0,0.5)"></div>
+        <div>
+          <div class="state-name" style="color:#ff0000">ERROR</div>
+          <div class="state-hex">#FF0000 &mdash; SYSTEM FAILURE</div>
+        </div>
+      </div>
+      <div class="state-card">
+        <div class="state-dot" style="background:#d29922;box-shadow:0 0 8px #d29922, 0 0 20px rgba(210,153,34,0.4)"></div>
+        <div>
+          <div class="state-name" style="color:#d29922">WARNING</div>
+          <div class="state-hex">#D29922 &mdash; CAUTION</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       10. ANIMATIONS
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="animations">
+    <div class="section-title">09 / INITIATE SEQUENCE &mdash; ANIMATIONS</div>
+    <p class="section-desc">CRT SCANLINE. GLOW PULSE. ALERT PULSE. HAZARD STRIPE. AT-FIELD SHIMMER. LARSON SCANNER.</p>
+
+    <div class="anim-grid">
+      <div class="anim-card anim-crt anim-brackets-inner">
+        CRT SCANLINE<br>
+        <span style="font-size:9px;color:var(--nerv-accent-muted)">ORANGE TINT &middot; 5S LINEAR</span>
+      </div>
+      <div class="anim-card anim-glow anim-brackets-inner" style="color:var(--nerv-accent)">
+        GLOW PULSE<br>
+        <span style="font-size:9px;color:var(--nerv-accent-muted)">NERV ORANGE &middot; 2S EASE</span>
+      </div>
+      <div class="anim-card anim-brackets-inner" style="animation:nerv-alert-pulse 1s ease-in-out infinite;color:var(--nerv-state-recording)">
+        ALERT PULSE<br>
+        <span style="font-size:9px;color:var(--nerv-accent-muted)">NERV RED &middot; 1S &middot; CRITICAL</span>
+      </div>
+      <div class="anim-card" style="letter-spacing:0.2em;font-size:11px;color:var(--nerv-accent)">
+        SYSTEM ONLINE<span class="cursor-blink"></span><br>
+        <span style="font-size:9px;color:var(--nerv-accent-muted)">BLINK &middot; 0.8S STEP</span>
+      </div>
+      <div class="anim-card at-field" style="color:var(--nerv-accent)">
+        AT-FIELD<br>
+        <span style="font-size:9px;color:var(--nerv-accent-muted)">SHIMMER &middot; 4S EASE</span>
+      </div>
+    </div>
+
+    <!-- Hazard Stripe Animation -->
+    <div style="margin-top:20px">
+      <div style="font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--nerv-text-muted);margin-bottom:8px">HAZARD STRIPE ANIMATION &mdash; PATTERN RED</div>
+      <div class="hazard-bar"></div>
+    </div>
+
+    <!-- Larson Scanner -->
+    <div style="margin-top:20px">
+      <div style="font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--nerv-text-muted);margin-bottom:8px">LARSON SCANNER &mdash; PROCESSING INDICATOR</div>
+      <div class="larson-track">
+        <div class="larson-bar"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       11. SAMPLE APP HEADER
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="section" id="app-header">
+    <div class="section-title">10 / COMMAND BRIDGE &mdash; APP HEADER (38PX)</div>
+    <p class="section-desc">STANDARD APPLICATION HEADER. NERV BRANDING LEFT. STATUS INDICATOR RIGHT.</p>
+
+    <div class="app-header">
+      <span class="app-header-title">NERV</span>
+      <span class="app-header-sep">//</span>
+      <span class="app-header-label">CENTRAL DOGMA TERMINAL</span>
+      <div class="app-header-status">
+        <span style="font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:var(--nerv-text-muted)">SYNC: 97.2%</span>
+        <div class="app-header-dot"></div>
+      </div>
+    </div>
+
+    <br>
+
+    <div class="app-header" style="border-bottom-color:var(--nerv-state-recording)">
+      <span class="app-header-title" style="color:var(--nerv-state-recording);filter:drop-shadow(0 0 6px rgba(255,21,0,0.5))">NERV</span>
+      <span class="app-header-sep">//</span>
+      <span class="app-header-label">VOICE INTERCEPT SYSTEM</span>
+      <div class="app-header-status">
+        <span style="font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:var(--nerv-state-recording)">RECORDING</span>
+        <div class="app-header-dot" style="background:var(--nerv-state-recording);box-shadow:0 0 8px var(--nerv-state-recording);animation:nerv-blink 0.6s step-start infinite"></div>
+      </div>
+    </div>
+
+    <br>
+
+    <div class="app-header" style="border-bottom-color:var(--nerv-state-success)">
+      <span class="app-header-title">NERV</span>
+      <span class="app-header-sep">//</span>
+      <span class="app-header-label">WORKFLOW MANAGER</span>
+      <div class="app-header-status">
+        <span style="font-size:9px;letter-spacing:0.15em;text-transform:uppercase;color:var(--nerv-state-success)">ALL SYSTEMS GO</span>
+        <div class="app-header-dot" style="background:var(--nerv-state-success);box-shadow:0 0 6px var(--nerv-state-success)"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       FOOTER
+       ═══════════════════════════════════════════════════════════════════ -->
+  <footer style="border-top:2px solid var(--nerv-border-default);padding-top:20px;margin-top:24px;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--nerv-text-muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <span>NERV // @DEVGLIDE/DESIGN-TOKENS v0.3.0</span>
+    <span>PROPOSITION B &middot; NERV ORANGE &middot; PATTERN CONFIRMED</span>
+  </footer>
+
+</div>
+</body>
+</html>

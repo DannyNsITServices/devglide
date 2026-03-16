@@ -1,0 +1,35 @@
+{
+  "name": "@devglide/test",
+  "version": "0.1.0",
+  "description": "LLM-driven browser UI automation",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "devglide-test": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@devglide/mcp-utils": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "cors": "^2.8.5",
+    "express": "^5.2.1",
+    "@devglide/project-context": "workspace:*",
+    "uuid": "^11.1.0",
+    "zod": "^3.25.49"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.0"
+  }
+}

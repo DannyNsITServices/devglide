@@ -1,0 +1,89 @@
+{
+  "name": "devglide",
+  "version": "0.1.13",
+  "description": "AI workflow toolkit with MCP servers for kanban, shell, testing, workflows, and more — built for Claude Code",
+  "license": "MIT",
+  "author": "Daniel Kutyla",
+  "type": "module",
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DannyNsITServices/devglide.git"
+  },
+  "homepage": "https://github.com/DannyNsITServices/devglide#readme",
+  "bugs": {
+    "url": "https://github.com/DannyNsITServices/devglide/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude-code",
+    "developer-tools",
+    "ai-workflow",
+    "kanban",
+    "terminal",
+    "test-automation",
+    "cli"
+  ],
+  "bin": {
+    "devglide": "./bin/devglide.js"
+  },
+  "files": [
+    "bin/",
+    "src/server.ts",
+    "src/project-context.ts",
+    "src/routers/",
+    "src/public/",
+    "src/apps/",
+    "src/packages/",
+    "turbo.json",
+    "pnpm-workspace.yaml"
+  ],
+  "scripts": {
+    "dev": "turbo dev --concurrency 20",
+    "dev:server": "tsx src/server.ts",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "vitest run",
+    "clean": "turbo clean && rm -rf node_modules"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@paralleldrive/cuid2": "^2.3.1",
+    "better-sqlite3": "^11.10.0",
+    "chokidar": "^4.0.3",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "multer": "1.4.5-lts.2",
+    "node-pty": "^1.1.0",
+    "openai": "^4.104.0",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "uuid": "^11.1.0",
+    "tsx": "^4.19.0",
+    "zod": "^3.25.49"
+  },
+  "devDependencies": {
+    "@devglide/eslint-config": "workspace:*",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.0",
+    "@types/multer": "^1.4.13",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.39.4",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.1.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "node-pty",
+      "better-sqlite3"
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@devglide/vocabulary",
+  "version": "0.1.0",
+  "description": "Project-scoped domain vocabulary for LLM context enrichment",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/src/index.js",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "private": true,
+  "dependencies": {
+    "@devglide/mcp-utils": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.25.49"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.0"
+  }
+}

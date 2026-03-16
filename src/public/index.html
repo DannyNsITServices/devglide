@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Devglide</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5/index.min.css">
+  <link rel="stylesheet" href="/df/tokens.css">
+  <link rel="stylesheet" href="style.css">
+  <!-- Page module styles (scoped via .page-{name}) -->
+  <link rel="stylesheet" href="/app/kanban/page.css">
+  <link rel="stylesheet" href="/app/log/page.css">
+  <link rel="stylesheet" href="/app/test/page.css">
+  <link rel="stylesheet" href="/app/shell/page.css">
+  <link rel="stylesheet" href="/app/coder/page.css">
+  <link rel="stylesheet" href="/app/workflow/page.css">
+  <link rel="stylesheet" href="/app/voice/page.css">
+  <link rel="stylesheet" href="/app/vocabulary/page.css">
+  <link rel="stylesheet" href="/app/keymap/page.css">
+  <link rel="stylesheet" href="/app/prompts/page.css">
+  <link rel="stylesheet" href="/app/documentation/page.css">
+  <script src="/__devtools.js"></script>
+</head>
+<body>
+  <!-- Mobile top bar -->
+  <div class="mobile-topbar">
+    <button id="hamburger" class="hamburger" aria-label="Toggle menu">
+      <span></span><span></span><span></span>
+    </button>
+    <span id="mobile-title" class="mobile-title">Devglide</span>
+  </div>
+
+  <div class="layout">
+    <!-- Overlay for closing drawer on mobile -->
+    <div id="overlay" class="overlay"></div>
+
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-brand">
+        <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" class="brand-icon">
+          <rect width="32" height="32" fill="var(--df-color-bg-base)"/>
+          <rect width="32" height="32" fill="none" stroke="var(--df-color-accent-default)" stroke-width="1.5"/>
+          <path d="M8 10h6a6 6 0 0 1 0 12H8V10z" fill="var(--df-color-accent-default)"/>
+          <rect x="18" y="10" width="6" height="4" fill="var(--df-color-accent-default)" opacity="0.6"/>
+          <rect x="18" y="18" width="6" height="4" fill="var(--df-color-accent-default)" opacity="0.6"/>
+        </svg>
+        <span class="brand-name">Devglide</span>
+        <span id="voice-widget-mount" class="sidebar-voice">
+          <div id="voice-error-popup" class="voice-error-popup hidden" role="alert" aria-live="assertive" aria-atomic="true"></div>
+        </span>
+      </div>
+
+      <div id="project-bar" class="project-bar">
+        <button id="project-selector" class="project-selector" aria-label="Select project" aria-haspopup="listbox">
+          <span id="project-name" class="project-name">No project</span>
+          <span class="project-chevron">&#9662;</span>
+        </button>
+        <div id="project-dropdown" class="project-dropdown" role="listbox" aria-label="Project list"></div>
+      </div>
+
+      <nav id="service-nav" class="service-nav" aria-label="Services"></nav>
+    </aside>
+
+    <main class="content">
+      <div id="app-content" class="app-content"></div>
+    </main>
+  </div>
+
+  <!-- Voice widget + keymap (regular scripts, set globals) -->
+  <script src="/shared-assets/voice-widget.js"></script>
+  <script src="/shared-assets/keymap-registry.js"></script>
+  <!-- Socket.io client (regular script, sets window.io) -->
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- App shell (ES modules) -->
+  <script type="module" src="state.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

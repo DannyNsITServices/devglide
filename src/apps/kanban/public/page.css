@@ -1,0 +1,1010 @@
+.page-kanban {
+  font-family: var(--df-font-mono);
+  background: var(--df-color-bg-base);
+  color: var(--df-color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  font-size: var(--df-font-size-sm);
+  overflow: hidden;
+  position: relative;
+}
+
+.page-kanban a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ── App Header ──────────────────────────────────────────────────────────── */
+
+.page-kanban .app-header {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+  height: 38px;
+  padding: 0 var(--df-space-4);
+  background: var(--df-color-bg-surface);
+  border-bottom: 1px solid var(--df-color-border-default);
+  flex-shrink: 0;
+}
+
+.page-kanban .app-name {
+  font-size: var(--df-font-size-md);
+  font-weight: normal;
+  color: var(--df-color-accent-default);
+  font-family: var(--df-font-mono);
+  letter-spacing: var(--df-letter-spacing-wider);
+  text-transform: uppercase;
+}
+
+.page-kanban .board-edit-btn {
+  background: none;
+  border: none;
+  color: var(--df-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: var(--df-radius-sm);
+  margin-left: var(--df-space-1);
+  transition: color var(--df-duration-fast), background var(--df-duration-fast);
+}
+.page-kanban .board-edit-btn:hover {
+  color: var(--df-text-primary);
+  background: var(--df-bg-hover);
+}
+
+.page-kanban .header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-3);
+}
+
+.page-kanban .back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--df-space-1);
+  background: none;
+  border: none;
+  color: var(--df-color-text-secondary);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-sm);
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--df-duration-fast);
+}
+
+.page-kanban .back-btn:hover {
+  color: var(--df-color-accent-default);
+}
+
+/* ── Sync Badge ──────────────────────────────────────────────────────────── */
+
+.page-kanban .sync-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--df-space-1);
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-state-success);
+  letter-spacing: var(--df-letter-spacing-normal);
+  transition: opacity var(--df-duration-base);
+}
+
+.page-kanban .sync-indicator {
+  position: absolute;
+  bottom: var(--df-space-6);
+  right: var(--df-space-6);
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+  background: var(--df-color-bg-surface);
+  border: 1px solid color-mix(in srgb, var(--df-color-state-success) 30%, transparent);
+  clip-path: var(--df-clip-sm);
+  padding: var(--df-space-2) var(--df-space-3);
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-state-success);
+  letter-spacing: var(--df-letter-spacing-normal);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity var(--df-duration-base), transform var(--df-duration-base);
+  z-index: var(--df-z-index-toast);
+  pointer-events: none;
+}
+
+.page-kanban .sync-indicator.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.page-kanban .sync-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--df-color-state-success);
+  flex-shrink: 0;
+}
+
+/* ── Section Title ───────────────────────────────────────────────────────── */
+
+.page-kanban .section-title {
+  font-size: var(--df-font-size-xs);
+  font-weight: normal;
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wider);
+  color: var(--df-color-text-secondary);
+  margin-bottom: var(--df-space-4);
+}
+
+/* ── Feature List ────────────────────────────────────────────────────────── */
+
+.page-kanban .features-container {
+  max-width: var(--df-max-width-lg);
+  margin: 0 auto;
+  padding: var(--df-space-8) var(--df-space-4);
+  overflow-y: auto;
+  height: calc(100vh - 38px);
+}
+
+.page-kanban .features-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-auto-rows: 140px;
+  gap: var(--df-space-4);
+}
+
+@media (min-width: 640px) {
+  .page-kanban .features-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 1024px) {
+  .page-kanban .features-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ── Feature Card ────────────────────────────────────────────────────────── */
+
+.page-kanban .feature-card {
+  display: flex;
+  flex-direction: column;
+  height: 140px;
+  background: var(--df-color-bg-raised);
+  border: 1px solid var(--df-color-border-default);
+  clip-path: var(--df-clip-sm);
+  padding: var(--df-space-4);
+  cursor: pointer;
+  transition: border-color var(--df-duration-fast), background var(--df-duration-fast);
+  position: relative;
+}
+
+.page-kanban .feature-card:hover {
+  border-color: var(--df-color-accent-default);
+  background: color-mix(in srgb, var(--df-color-accent-default) 4%, var(--df-color-bg-raised));
+}
+
+.page-kanban .feature-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--df-space-3);
+  margin-bottom: var(--df-space-3);
+  min-height: 0;
+  flex: 1;
+}
+
+.page-kanban .feature-card-icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  clip-path: var(--df-clip-sm);
+}
+
+.page-kanban .feature-card-dot {
+  width: 8px;
+  height: 8px;
+}
+
+.page-kanban .feature-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-kanban .feature-card-name {
+  font-size: var(--df-font-size-sm);
+  font-weight: normal;
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wider);
+  color: var(--df-color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page-kanban .feature-card-desc {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-secondary);
+  letter-spacing: var(--df-letter-spacing-normal);
+  line-height: var(--df-line-height-normal);
+  margin-top: var(--df-space-1);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: calc(2 * 1em * var(--df-line-height-normal));
+}
+
+.page-kanban .feature-card-footer {
+  display: flex;
+  align-items: center;
+  padding-top: var(--df-space-3);
+  border-top: 1px solid var(--df-color-border-subtle);
+}
+
+.page-kanban .feature-card-count {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-secondary);
+  letter-spacing: var(--df-letter-spacing-normal);
+}
+
+.page-kanban .feature-delete-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--df-color-text-muted);
+  font-size: var(--df-font-size-lg);
+  cursor: pointer;
+  padding: 0 var(--df-space-1);
+  line-height: 1;
+  transition: color var(--df-duration-fast);
+}
+
+.page-kanban .feature-delete-btn:hover {
+  color: var(--df-color-state-error);
+}
+
+.page-kanban .feature-edit-btn {
+  background: none;
+  border: none;
+  color: var(--df-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: var(--df-radius-sm);
+  opacity: 0;
+  transition: opacity var(--df-duration-fast), color var(--df-duration-fast), background var(--df-duration-fast);
+}
+.page-kanban .feature-card:hover .feature-edit-btn { opacity: 1; }
+.page-kanban .feature-edit-btn:hover {
+  color: var(--df-text-primary);
+  background: var(--df-bg-hover);
+}
+
+/* ── Empty State ─────────────────────────────────────────────────────────── */
+
+.page-kanban .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--df-space-24) 0;
+  gap: var(--df-space-4);
+}
+
+.page-kanban .empty-icon { opacity: 0.5; }
+
+.page-kanban .empty-text {
+  font-size: var(--df-font-size-sm);
+  color: var(--df-color-text-secondary);
+  letter-spacing: var(--df-letter-spacing-normal);
+}
+
+/* ── Search Bar ──────────────────────────────────────────────────────────── */
+
+.page-kanban .board-search {
+  padding: var(--df-space-3) var(--df-space-4) 0;
+}
+
+.page-kanban .search-bar {
+  display: flex;
+  position: relative;
+  max-width: 300px;
+  flex: 1;
+}
+
+.page-kanban .search-input {
+  width: 100%;
+  background: var(--df-color-bg-raised);
+  border: 1px solid var(--df-color-border-default);
+  border-radius: 0;
+  color: var(--df-color-text-primary);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-xs);
+  padding: var(--df-space-1) var(--df-space-3);
+  outline: none;
+  transition: border-color var(--df-duration-fast);
+}
+
+.page-kanban .search-input:focus-visible {
+  border-color: var(--df-color-accent-default);
+  box-shadow: inset 0 0 0 1px var(--df-color-accent-dim);
+}
+
+.page-kanban .search-input::placeholder {
+  color: var(--df-color-text-secondary);
+}
+
+.page-kanban .search-clear {
+  position: absolute;
+  right: var(--df-space-1);
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--df-color-text-muted);
+  font-size: var(--df-font-size-sm);
+  cursor: pointer;
+  padding: 0 var(--df-space-1);
+  line-height: 1;
+  transition: color var(--df-duration-fast);
+}
+
+.page-kanban .search-clear:hover {
+  color: var(--df-color-text-primary);
+}
+
+/* ── Board Columns ───────────────────────────────────────────────────────── */
+
+.page-kanban .board-columns {
+  display: flex;
+  gap: var(--df-space-4);
+  padding: var(--df-space-4);
+  height: calc(100vh - 38px - 38px);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.page-kanban .kanban-column {
+  flex: 1;
+  min-width: 240px;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-kanban .column-header {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+  padding: var(--df-space-2);
+  margin-bottom: var(--df-space-2);
+  flex-shrink: 0;
+}
+
+.page-kanban .column-dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+}
+
+.page-kanban .column-name {
+  font-size: var(--df-font-size-xs);
+  font-weight: normal;
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wider);
+  color: var(--df-color-text-secondary);
+}
+
+.page-kanban .column-count {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-secondary);
+  letter-spacing: var(--df-letter-spacing-normal);
+  margin-left: var(--df-space-1);
+}
+
+/* ── Drop Zone ───────────────────────────────────────────────────────────── */
+
+.page-kanban .column-drop-zone {
+  display: flex;
+  flex-direction: column;
+  gap: var(--df-space-2);
+  min-height: 128px;
+  flex: 1;
+  border: 1px solid var(--df-color-border-subtle);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 50%, transparent);
+  padding: var(--df-space-2);
+  overflow-y: auto;
+  transition: border-color var(--df-duration-fast), background var(--df-duration-fast);
+}
+
+.page-kanban .column-drop-zone.drag-over {
+  border-color: var(--df-color-accent-default);
+  background: color-mix(in srgb, var(--df-color-accent-default) 5%, transparent);
+}
+
+/* ── Add Issue Button ────────────────────────────────────────────────────── */
+
+.page-kanban .add-issue-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--df-color-border-subtle);
+  color: var(--df-color-text-muted);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-xs);
+  letter-spacing: var(--df-letter-spacing-wide);
+  text-transform: uppercase;
+  padding: var(--df-space-2) var(--df-space-3);
+  cursor: pointer;
+  transition: color var(--df-duration-fast), border-color var(--df-duration-fast);
+  margin-top: var(--df-space-2);
+  flex-shrink: 0;
+}
+
+.page-kanban .add-issue-btn:hover {
+  color: var(--df-color-accent-default);
+  border-color: var(--df-color-accent-default);
+}
+
+/* ── Issue Card ──────────────────────────────────────────────────────────── */
+
+.page-kanban .issue-card {
+  background: var(--df-color-bg-raised);
+  border: 1px solid var(--df-color-border-default);
+  clip-path: var(--df-clip-sm);
+  padding: var(--df-space-3);
+  cursor: grab;
+  transition: border-color var(--df-duration-fast), background var(--df-duration-fast), opacity var(--df-duration-fast), transform var(--df-duration-fast);
+  user-select: none;
+}
+
+.page-kanban .issue-card:hover {
+  border-color: var(--df-color-accent-default);
+  background: color-mix(in srgb, var(--df-color-accent-default) 4%, var(--df-color-bg-raised));
+}
+
+.page-kanban .issue-card:active { cursor: grabbing; }
+
+.page-kanban .issue-card.sortable-ghost {
+  opacity: 0.4;
+  transform: scale(0.95);
+}
+
+.page-kanban .issue-card-title {
+  font-size: var(--df-font-size-sm);
+  color: var(--df-color-text-primary);
+  line-height: var(--df-line-height-normal);
+  margin-bottom: var(--df-space-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.page-kanban .issue-card-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
+
+.page-kanban .badge {
+  font-size: var(--df-font-size-xs);
+  font-family: var(--df-font-mono);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wide);
+  clip-path: var(--df-clip-sm);
+  padding: 2px 8px;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.page-kanban .badge-low {
+  background: color-mix(in srgb, var(--df-color-state-info) 10%, transparent);
+  color: var(--df-color-state-info);
+  border: 1px solid color-mix(in srgb, var(--df-color-state-info) 30%, transparent);
+}
+
+.page-kanban .badge-medium {
+  background: color-mix(in srgb, var(--df-color-state-warning) 10%, transparent);
+  color: var(--df-color-state-warning);
+  border: 1px solid color-mix(in srgb, var(--df-color-state-warning) 30%, transparent);
+}
+
+.page-kanban .badge-high {
+  background: color-mix(in srgb, var(--df-color-state-error) 10%, transparent);
+  color: var(--df-color-state-error);
+  border: 1px solid color-mix(in srgb, var(--df-color-state-error) 30%, transparent);
+}
+
+.page-kanban .badge-urgent {
+  background: color-mix(in srgb, var(--df-color-state-error) 15%, transparent);
+  color: var(--df-color-state-error);
+  border: 1px solid color-mix(in srgb, var(--df-color-state-error) 40%, transparent);
+}
+
+.page-kanban .badge-bug {
+  background: color-mix(in srgb, var(--df-color-state-error) 10%, transparent);
+  color: var(--df-color-state-error);
+  border: 1px solid color-mix(in srgb, var(--df-color-state-error) 30%, transparent);
+}
+
+.page-kanban .badge-secondary {
+  background: var(--df-color-bg-overlay);
+  color: var(--df-color-text-secondary);
+  border: 1px solid var(--df-color-border-default);
+}
+
+.page-kanban .badge-due {
+  background: color-mix(in srgb, var(--df-color-state-info) 8%, transparent);
+  color: var(--df-color-state-info);
+  border: 1px solid color-mix(in srgb, var(--df-color-state-info) 25%, transparent);
+}
+
+.page-kanban .badge-due-overdue {
+  background: color-mix(in srgb, var(--df-color-state-error) 10%, transparent);
+  color: var(--df-color-state-error);
+  border: 1px solid color-mix(in srgb, var(--df-color-state-error) 30%, transparent);
+}
+
+.page-kanban .badge-review {
+  background: color-mix(in srgb, #8b5cf6 12%, transparent);
+  color: #8b5cf6;
+  border: 1px solid color-mix(in srgb, #8b5cf6 30%, transparent);
+}
+
+.page-kanban .badge-worklog {
+  background: color-mix(in srgb, #14b8a6 12%, transparent);
+  color: #14b8a6;
+  border: 1px solid color-mix(in srgb, #14b8a6 30%, transparent);
+}
+
+/* ── Forms ────────────────────────────────────────────────────────────────── */
+
+.page-kanban label {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-secondary);
+  letter-spacing: var(--df-letter-spacing-wide);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+}
+
+.page-kanban input[type="text"],
+.page-kanban input[type="date"],
+.page-kanban textarea,
+.page-kanban select {
+  width: 100%;
+  background: var(--df-color-bg-raised);
+  border: 1px solid var(--df-color-border-default);
+  border-radius: 0;
+  color: var(--df-color-text-primary);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-sm);
+  padding: var(--df-space-2) var(--df-space-3);
+  outline: none;
+  transition: border-color var(--df-duration-fast);
+}
+
+.page-kanban textarea {
+  resize: vertical;
+  line-height: var(--df-line-height-normal);
+}
+
+.page-kanban input:focus-visible,
+.page-kanban textarea:focus-visible,
+.page-kanban select:focus-visible {
+  border-color: var(--df-color-accent-default);
+  box-shadow: inset 0 0 0 1px var(--df-color-accent-dim);
+}
+
+.page-kanban input::placeholder,
+.page-kanban textarea::placeholder {
+  color: var(--df-color-text-muted);
+}
+
+.page-kanban select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23636e7b'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: var(--df-space-6);
+}
+
+.page-kanban select option {
+  background: var(--df-color-bg-raised);
+}
+
+/* ── Color Picker ────────────────────────────────────────────────────────── */
+
+.page-kanban .color-picker {
+  display: flex;
+  gap: var(--df-space-2);
+  flex-wrap: wrap;
+}
+
+.page-kanban .color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--df-radius-full);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: border-color var(--df-duration-fast), transform var(--df-duration-fast);
+  outline: none;
+}
+
+.page-kanban .color-swatch:hover { transform: scale(1.15); }
+
+.page-kanban .color-swatch.selected {
+  border-color: var(--df-color-text-primary);
+  box-shadow: 0 0 0 2px var(--df-color-bg-surface), 0 0 0 4px currentColor;
+}
+
+/* ── Description Tabs ────────────────────────────────────────────────────── */
+
+.page-kanban .description-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--df-space-1);
+}
+
+.page-kanban .description-tabs {
+  display: flex;
+  border: 1px solid var(--df-color-border-default);
+  border-bottom: none;
+  overflow: hidden;
+}
+
+.page-kanban .description-tab {
+  padding: var(--df-space-1) 10px;
+  background: var(--df-color-bg-raised);
+  border: none;
+  border-right: 1px solid var(--df-color-border-default);
+  color: var(--df-color-text-secondary);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wider);
+  cursor: pointer;
+  transition: background var(--df-duration-fast), color var(--df-duration-fast);
+}
+
+.page-kanban .description-tab:last-child { border-right: none; }
+.page-kanban .description-tab:hover { color: var(--df-color-text-primary); }
+
+.page-kanban .description-tab.active {
+  background: var(--df-color-accent-default);
+  color: var(--df-color-accent-contrast);
+}
+
+/* ── Markdown Preview ────────────────────────────────────────────────────── */
+
+.page-kanban .markdown-preview {
+  min-height: 160px;
+  border: 1px solid var(--df-color-border-default);
+  background: var(--df-color-bg-raised);
+  padding: var(--df-space-3);
+  font-size: var(--df-font-size-sm);
+  color: var(--df-color-text-primary);
+  line-height: var(--df-line-height-loose);
+  overflow-y: auto;
+}
+
+.page-kanban .markdown-preview h1,
+.page-kanban .markdown-preview h2,
+.page-kanban .markdown-preview h3 {
+  font-size: var(--df-font-size-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wide);
+  color: var(--df-color-text-primary);
+  margin: var(--df-space-3) 0 var(--df-space-1);
+}
+
+.page-kanban .markdown-preview h1:first-child,
+.page-kanban .markdown-preview h2:first-child,
+.page-kanban .markdown-preview h3:first-child { margin-top: 0; }
+
+.page-kanban .markdown-preview p { margin-bottom: var(--df-space-2); }
+
+.page-kanban .markdown-preview code {
+  background: var(--df-color-bg-overlay);
+  padding: 1px var(--df-space-1);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-accent-default);
+}
+
+.page-kanban .markdown-preview pre {
+  background: var(--df-color-bg-overlay);
+  border: 1px solid var(--df-color-border-default);
+  padding: var(--df-space-3);
+  margin: var(--df-space-2) 0;
+  overflow-x: auto;
+}
+
+.page-kanban .markdown-preview pre code { background: none; padding: 0; }
+
+.page-kanban .markdown-preview ul,
+.page-kanban .markdown-preview ol {
+  padding-left: var(--df-space-5);
+  margin-bottom: var(--df-space-2);
+}
+
+.page-kanban .markdown-preview li { margin-bottom: var(--df-space-1); }
+
+.page-kanban .markdown-preview a {
+  color: var(--df-color-text-link);
+  text-decoration: underline;
+}
+
+.page-kanban .markdown-preview blockquote {
+  border-left: 2px solid var(--df-color-accent-default);
+  padding-left: var(--df-space-3);
+  color: var(--df-color-text-secondary);
+  margin: var(--df-space-2) 0;
+}
+
+/* ── Attachment Gallery ──────────────────────────────────────────────────── */
+
+.page-kanban .attachment-gallery {
+  display: flex;
+  gap: var(--df-space-2);
+  flex-wrap: wrap;
+}
+
+.page-kanban .attachment-thumb {
+  width: 80px;
+  height: 80px;
+  border: 1px solid var(--df-color-border-default);
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  transition: border-color var(--df-duration-fast);
+}
+
+.page-kanban .attachment-thumb:hover { border-color: var(--df-color-accent-default); }
+
+.page-kanban .attachment-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.page-kanban .attachment-thumb-delete {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: var(--df-color-bg-base);
+  border: 1px solid var(--df-color-border-default);
+  color: var(--df-color-text-secondary);
+  font-size: var(--df-font-size-xs);
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--df-duration-fast), color var(--df-duration-fast);
+  line-height: 1;
+}
+
+.page-kanban .attachment-thumb:hover .attachment-thumb-delete { opacity: 1; }
+.page-kanban .attachment-thumb-delete:hover { color: var(--df-color-state-error); }
+
+.page-kanban .attachment-drop-zone {
+  border: 1px dashed var(--df-color-border-strong);
+  padding: var(--df-space-4);
+  text-align: center;
+  color: var(--df-color-text-muted);
+  font-size: var(--df-font-size-xs);
+  letter-spacing: var(--df-letter-spacing-normal);
+  cursor: pointer;
+  transition: border-color var(--df-duration-fast), background var(--df-duration-fast);
+}
+
+.page-kanban .attachment-drop-zone:hover,
+.page-kanban .attachment-drop-zone.drag-over {
+  border-color: var(--df-color-accent-default);
+  background: color-mix(in srgb, var(--df-color-accent-default) 4%, transparent);
+}
+
+.page-kanban .attachment-pending {
+  border-style: dashed;
+  border-color: var(--df-color-accent-muted);
+}
+
+.page-kanban .attachment-pending img { opacity: 0.7; }
+
+/* ── Labels ──────────────────────────────────────────────────────────────── */
+
+.page-kanban .labels-list {
+  display: flex;
+  gap: var(--df-space-2);
+  flex-wrap: wrap;
+}
+
+.page-kanban .label-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--df-space-1);
+  font-size: var(--df-font-size-xs);
+  font-family: var(--df-font-mono);
+  letter-spacing: var(--df-letter-spacing-wide);
+  text-transform: uppercase;
+  padding: 2px 8px;
+  background: var(--df-color-bg-overlay);
+  border: 1px solid var(--df-color-border-default);
+  clip-path: var(--df-clip-sm);
+  color: var(--df-color-text-primary);
+}
+
+.page-kanban .label-remove {
+  background: none;
+  border: none;
+  color: var(--df-color-text-muted);
+  font-size: var(--df-font-size-xs);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color var(--df-duration-fast);
+}
+
+.page-kanban .label-remove:hover { color: var(--df-color-state-error); }
+
+.page-kanban .label-input-row {
+  display: flex;
+  gap: var(--df-space-2);
+}
+
+.page-kanban .label-input-row input { flex: 1; }
+
+/* ── Image Preview Overlay ───────────────────────────────────────────────── */
+
+.page-kanban .image-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--df-color-bg-base) 90%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  padding: var(--df-space-8);
+  cursor: zoom-out;
+}
+
+.page-kanban .image-preview-overlay img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border: 1px solid var(--df-color-border-default);
+}
+
+.page-kanban .image-preview-close {
+  position: absolute;
+  top: var(--df-space-4);
+  right: var(--df-space-4);
+  background: var(--df-color-bg-surface);
+  border: 1px solid var(--df-color-border-default);
+  color: var(--df-color-text-primary);
+  font-size: var(--df-font-size-xl);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  clip-path: var(--df-clip-sm);
+  transition: color var(--df-duration-fast), border-color var(--df-duration-fast);
+}
+
+.page-kanban .image-preview-close:hover {
+  color: var(--df-color-accent-default);
+  border-color: var(--df-color-accent-default);
+}
+
+/* ── Versioned Entries ───────────────────────────────────────────────────── */
+
+.page-kanban .versioned-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--df-space-4);
+}
+
+@media (max-width: 640px) {
+  .page-kanban .versioned-columns { grid-template-columns: 1fr; }
+}
+
+.page-kanban .versioned-column-header {
+  font-size: var(--df-font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wider);
+  color: var(--df-color-text-secondary);
+  margin-bottom: var(--df-space-2);
+}
+
+.page-kanban .versioned-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--df-space-2);
+}
+
+.page-kanban .versioned-entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--df-space-2);
+}
+
+.page-kanban .versioned-entry {
+  border: 1px solid var(--df-color-border-default);
+  background: var(--df-color-bg-raised);
+  padding: var(--df-space-4);
+}
+
+.page-kanban .versioned-entry-header {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+  margin-bottom: var(--df-space-2);
+}
+
+.page-kanban .versioned-entry-date {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-muted);
+}
+
+.page-kanban .versioned-entry-content.markdown-preview {
+  min-height: unset;
+  border: none;
+  background: none;
+  padding: var(--df-space-2) var(--df-space-3);
+}
+
+.page-kanban .versioned-entries-empty {
+  color: var(--df-color-text-muted);
+  font-size: var(--df-font-size-xs);
+  padding: var(--df-space-5);
+  text-align: center;
+  border: 1px dashed var(--df-color-border-default);
+}
+
+/* ── Loading ─────────────────────────────────────────────────────────────── */
+
+.page-kanban .loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - 38px);
+  color: var(--df-color-text-muted);
+  font-size: var(--df-font-size-sm);
+  letter-spacing: var(--df-letter-spacing-wider);
+  text-transform: uppercase;
+}
+
+/* ── Misc ────────────────────────────────────────────────────────────────── */
+
+.page-kanban .text-muted { color: var(--df-color-text-muted); }
+
+.page-kanban .hidden { display: none !important; }
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+
+.page-kanban ::-webkit-scrollbar { width: 6px; height: 6px; }
+.page-kanban ::-webkit-scrollbar-track { background: transparent; }
+.page-kanban ::-webkit-scrollbar-thumb { background: var(--df-color-border-default); }
+.page-kanban ::-webkit-scrollbar-thumb:hover { background: var(--df-color-border-strong); }
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 639px) {
+  .page-kanban .board-columns { gap: var(--df-space-3); padding: var(--df-space-3); }
+  .page-kanban .kanban-column { min-width: 200px; }
+  .page-kanban .features-container { padding: var(--df-space-4) var(--df-space-3); }
+}

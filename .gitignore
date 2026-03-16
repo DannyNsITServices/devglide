@@ -1,0 +1,40 @@
+node_modules/
+dist/
+.next/
+.turbo/
+*.tsbuildinfo
+.env
+.env.local
+*.pem
+*.db
+*.log
+
+# Test coverage
+coverage/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Cache
+.cache/
+
+# Per-project devglide data (centralized in ~/.devglide/)
+.devglide/
+
+# Bundled browser binaries (users should install Chrome separately)
+chrome-headless-shell/
+
+# Runtime application state (mutated at runtime, belongs in ~/.devglide/)
+src/apps/voice/data/stats.json
+src/apps/voice/data/config.json
+src/apps/test/data/scenarios.json
+
+# Environment-specific project settings
+.claude/settings.json

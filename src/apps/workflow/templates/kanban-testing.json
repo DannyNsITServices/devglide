@@ -1,0 +1,24 @@
+{
+  "name": "Kanban Auto-Test",
+  "description": "When a kanban item moves to Testing, generate and run test scenarios",
+  "version": 1,
+  "tags": ["kanban", "testing", "automation"],
+  "variables": [],
+  "nodes": [
+    { "id": "trigger-1", "type": "trigger", "label": "Item \u2192 Testing", "config": { "nodeType": "trigger", "triggerType": "kanban-move", "kanbanTargetColumn": "Testing" }, "position": { "x": 400, "y": 0 } },
+    { "id": "llm-1", "type": "action:llm", "label": "Generate Tests", "config": { "nodeType": "action:llm", "promptSource": "inline", "prompt": "Given this feature: {{ trigger.payload.title }}\n\nDescription: {{ trigger.payload.description }}\n\nGenerate browser automation test steps as a JSON array.", "model": "gpt-4o-mini" }, "position": { "x": 400, "y": 150 } },
+    { "id": "test-save", "type": "action:test", "label": "Save Scenario", "config": { "nodeType": "action:test", "operation": "save-scenario", "target": "{{ trigger.payload.target }}", "linkedItemId": "{{ trigger.payload.itemId }}" }, "position": { "x": 400, "y": 300 } },
+    { "id": "test-run", "type": "action:test", "label": "Run Tests", "config": { "nodeType": "action:test", "operation": "run-saved", "scenarioId": "{{ steps.test-save.output.id }}" }, "position": { "x": 400, "y": 450 } },
+    { "id": "decision-1", "type": "decision", "label": "Tests OK?", "config": { "nodeType": "decision", "conditionType": "variable", "variable": "steps.test-run.output.status", "ports": [{ "id": "pass", "label": "Pass" }, { "id": "fail", "label": "Fail" }] }, "position": { "x": 400, "y": 600 } },
+    { "id": "log-pass", "type": "action:kanban", "label": "Log Pass", "config": { "nodeType": "action:kanban", "operation": "append-work-log", "itemId": "{{ trigger.payload.itemId }}", "content": "Automated tests passed" }, "position": { "x": 250, "y": 750 } },
+    { "id": "log-fail", "type": "action:kanban", "label": "Review: Failed", "config": { "nodeType": "action:kanban", "operation": "append-review", "itemId": "{{ trigger.payload.itemId }}", "content": "Automated tests failed. Details: {{ steps.test-run.output }}" }, "position": { "x": 550, "y": 750 } }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trigger-1", "target": "llm-1" },
+    { "id": "e2", "source": "llm-1", "target": "test-save" },
+    { "id": "e3", "source": "test-save", "target": "test-run" },
+    { "id": "e4", "source": "test-run", "target": "decision-1" },
+    { "id": "e5", "source": "decision-1", "target": "log-pass", "sourcePort": "pass" },
+    { "id": "e6", "source": "decision-1", "target": "log-fail", "sourcePort": "fail" }
+  ]
+}

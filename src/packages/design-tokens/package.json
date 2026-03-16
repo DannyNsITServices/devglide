@@ -1,0 +1,25 @@
+{
+  "name": "@devglide/design-tokens",
+  "version": "0.1.0",
+  "description": "Devglide design token system — NGE/NERV aesthetic",
+  "type": "module",
+  "main": "./dist/tokens.js",
+  "types": "./dist/tokens.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/tokens.js",
+      "types": "./dist/tokens.d.ts"
+    },
+    "./css": "./dist/tokens.css",
+    "./tailwind": "./dist/tailwind-preset.js"
+  },
+  "files": [
+    "dist/",
+    "demo/",
+    "tokens.json",
+    "STYLEGUIDE.md"
+  ],
+  "scripts": {
+    "build": "node build.js"
+  }
+}

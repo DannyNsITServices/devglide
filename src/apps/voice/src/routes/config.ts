@@ -1,0 +1,118 @@
+import { Router, type Router as RouterType } from "express";
+import {
+  getProvider,
+  getProviderConfig,
+  invalidateProvider,
+  PROVIDER_META,
+} from "../providers/index.js";
+import { configStore } from "../services/config-store.js";
+import { stats } from "../services/stats.js";
+import { handleTranscribe } from "./transcribe.js";
+
+export const configRouter: RouterType = Router();
+
+configRouter.get("/", (_req, res) => {
+  const cfg = configStore.get();
+  const pc = getProviderConfig();
+  const settings = configStore.getProviderSettings(cfg.provider);
+  res.json({
+    provider: pc.name,
+    displayName: pc.displayName,
+    model: pc.model,
+    baseURL: pc.baseURL ?? null,
+    language: cfg.language,
+    configured: pc.requiresApiKey ? !!pc.apiKey : !!pc.baseURL,
+    requiresApiKey: pc.requiresApiKey,
+    apiKeyMasked: settings.apiKey ? `...${settings.apiKey.slice(-4)}` : null,
+  });
+});
+
+configRouter.get("/providers", (_req, res) => {
+  const cfg = configStore.get();
+  const providers = Object.entries(PROVIDER_META).map(([id, meta]) => {
+    const settings = configStore.getProviderSettings(id);
+    return {
+      id,
+      displayName: meta.displayName,
+      requiresApiKey: meta.requiresApiKey,
+      defaultBaseURL: meta.defaultBaseURL ?? null,
+      defaultModel: meta.defaultModel,
+      currentApiKeyMasked: settings.apiKey ? `...${settings.apiKey.slice(-4)}` : null,
+      currentBaseURL: settings.baseURL ?? null,
+      currentModel: settings.model ?? null,
+    };
+  });
+  res.json({ current: cfg.provider, language: cfg.language, providers });
+});
+
+configRouter.put("/", (req, res) => {
+  const { provider, language, apiKey, baseURL, model } = req.body as Record<
+    string,
+    string | undefined
+  >;
+
+  if (provider && !PROVIDER_META[provider]) {
+    res.status(400).json({ error: `Unknown provider "${provider}"` });
+    return;
+  }
+
+  // Validate language (BCP 47 pattern or "auto")
+  if (language !== undefined) {
+    if (language !== "auto" && !/^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/.test(language)) {
+      res.status(400).json({ error: `Invalid language value "${language}". Use BCP 47 code (e.g. "en", "en-US") or "auto".` });
+      return;
+    }
+  }
+
+  // Validate model is non-empty if provided
+  if (model !== undefined && typeof model === "string" && model.trim() === "") {
+    res.status(400).json({ error: "Model must be a non-empty string if provided." });
+    return;
+  }
+
+  const targetProvider = provider ?? configStore.get().provider;
+  const patch: Parameters<typeof configStore.update>[0] = {};
+
+  if (provider) patch.provider = provider;
+  if (language) patch.language = language;
+
+  if (apiKey !== undefined || baseURL !== undefined || model !== undefined) {
+    const settings: Record<string, string | undefined> = {};
+    if (apiKey !== undefined) settings.apiKey = apiKey || undefined;
+    if (baseURL !== undefined) settings.baseURL = baseURL || undefined;
+    if (model !== undefined) settings.model = model || undefined;
+    patch.providerName = targetProvider;
+    patch.providerSettings = settings;
+  }
+
+  configStore.update(patch);
+  invalidateProvider();
+
+  const updated = getProviderConfig();
+  res.json({ ok: true, provider: updated.name, model: updated.model, baseURL: updated.baseURL ?? null });
+});
+
+configRouter.post("/test", (_req, res) => {
+  try {
+    const provider = getProvider();
+    if (!provider.isConfigured()) {
+      res.json({ ok: false, reason: "Provider is not configured (missing API key or base URL)" });
+      return;
+    }
+    res.json({ ok: true, provider: provider.name, displayName: provider.displayName });
+  } catch (err) {
+    res.json({ ok: false, reason: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+configRouter.delete("/stats", (_req, res) => {
+  stats.reset();
+  res.json({ ok: true });
+});
+
+// Alias for backwards compatibility — delegates to the canonical /api/transcribe handler
+configRouter.post("/test-transcription", handleTranscribe);
+
+configRouter.get("/stats", (_req, res) => {
+  res.json(stats.getStats());
+});

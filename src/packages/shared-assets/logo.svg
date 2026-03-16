@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 32">
+  <rect width="32" height="32" rx="6" fill="#7c3aed"/>
+  <path d="M8 10h6l4 6-4 6H8l4-6-4-6z" fill="#fff"/>
+  <path d="M16 10h6l4 6-4 6h-6l4-6-4-6z" fill="#fff" opacity="0.6"/>
+  <text x="40" y="22" font-family="SF Mono, Cascadia Code, Fira Code, monospace" font-size="16" font-weight="600" fill="#e0e0e0">devglide</text>
+</svg>

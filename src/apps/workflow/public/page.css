@@ -1,0 +1,406 @@
+@keyframes wf-alert-pulse {
+  0%, 100% { box-shadow: var(--df-glow-error); }
+  50%       { box-shadow: 0 0 16px color-mix(in srgb, var(--df-color-state-recording) 80%, transparent); }
+}
+
+.page-workflow {
+  font-family: var(--df-font-mono);
+  background: var(--df-color-bg-base);
+  color: var(--df-color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+
+/* ── Reduced motion ──────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .page-workflow .wfb-node.wfb-status-running { animation: none; }
+}
+
+/* ── Builder layout (mind-map style) ─────────────────────────────── */
+.page-workflow .wf-builder-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+.page-workflow .wb-main-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+.page-workflow .wb-canvas-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--df-color-bg-base);
+}
+.page-workflow .wb-toolbar {
+  position: absolute;
+  top: var(--df-space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+  padding: var(--df-space-2) var(--df-space-4);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 90%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--df-color-border-default);
+  border-radius: 999px;
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--df-color-bg-base) 50%, transparent);
+}
+
+/* ── Node cards (wfb-* classes from editor modules) ──────────────── */
+.page-workflow .wfb-node {
+  width: 220px;
+  min-height: 80px;
+  background: var(--df-color-bg-raised);
+  border: 1.5px solid var(--df-color-border-default);
+  border-radius: 12px;
+  cursor: grab;
+  user-select: none;
+  font-family: var(--df-font-mono);
+  transition: box-shadow var(--df-duration-fast) ease, border-color var(--df-duration-fast) ease;
+  z-index: 1;
+}
+.page-workflow .wfb-node:hover {
+  border-color: var(--df-color-accent-default);
+  box-shadow: 0 2px 16px color-mix(in srgb, var(--df-color-accent-default) 15%, transparent);
+}
+.page-workflow .wfb-node.selected {
+  border-color: var(--df-color-accent-default);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--df-color-accent-default) 25%, transparent),
+              0 4px 20px color-mix(in srgb, var(--df-color-accent-default) 15%, transparent);
+}
+.page-workflow .wfb-node.wfb-status-running {
+  border-color: var(--df-color-state-recording);
+  animation: wf-alert-pulse 1.2s ease-in-out infinite;
+}
+.page-workflow .wfb-node.wfb-status-passed {
+  border-color: var(--df-color-state-success);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--df-color-state-success) 25%, transparent);
+}
+.page-workflow .wfb-node.wfb-status-failed {
+  border-color: var(--df-color-state-error);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--df-color-state-error) 25%, transparent);
+}
+.page-workflow .wfb-node-header {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+  padding: var(--df-space-2) var(--df-space-3);
+  border-left: 3px solid var(--wfb-type-color, var(--df-color-accent-default));
+  border-radius: 12px 12px 0 0;
+  font-size: var(--df-font-size-xs);
+}
+.page-workflow .wfb-node-icon { width: 16px; text-align: center; }
+.page-workflow .wfb-node-label {
+  flex: 1;
+  font-weight: normal;
+  letter-spacing: var(--df-letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--df-color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.page-workflow .wfb-node-body {
+  padding: var(--df-space-1) var(--df-space-3);
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-muted);
+  border-top: 1px solid color-mix(in srgb, var(--df-color-border-default) 50%, transparent);
+  min-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 0 0 12px 12px;
+}
+
+/* ── Ports ────────────────────────────────────────────────────────── */
+.page-workflow .wfb-port {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--df-color-bg-surface);
+  border: 2px solid var(--df-color-border-default);
+  cursor: crosshair;
+  z-index: 1;
+  transition: border-color var(--df-duration-fast) ease, box-shadow var(--df-duration-fast) ease, transform var(--df-duration-fast) ease;
+}
+.page-workflow .wfb-port:hover {
+  border-color: var(--df-color-accent-default);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--df-color-accent-default) 40%, transparent);
+  transform: translateY(-50%) scale(1.3);
+}
+.page-workflow .wfb-port-in { left: -6px; top: 50%; transform: translateY(-50%); }
+.page-workflow .wfb-port-out { right: -6px; top: 50%; transform: translateY(-50%); }
+
+/* ── SVG edges ───────────────────────────────────────────────────── */
+.page-workflow .wfb-edge-path {
+  fill: none;
+  stroke: var(--df-color-border-default);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  cursor: pointer;
+  transition: stroke var(--df-duration-fast) ease, stroke-width var(--df-duration-fast) ease;
+}
+.page-workflow .wfb-edge-path:hover,
+.page-workflow .wfb-edge-path.selected {
+  stroke: var(--df-color-accent-default);
+  stroke-width: 2.5;
+}
+.page-workflow .wfb-edge-path.traversed {
+  stroke: var(--df-color-state-success);
+  stroke-width: 2.5;
+}
+
+/* ── Run view ────────────────────────────────────────────────────── */
+.page-workflow .wb-run-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-3);
+  padding: var(--df-space-2) var(--df-space-4);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 90%, transparent);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--df-color-border-default);
+  font-size: var(--df-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wide);
+}
+.page-workflow .wb-run-log {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: var(--df-space-2) var(--df-space-4);
+  background: var(--df-color-bg-raised);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-sm);
+  color: var(--df-color-text-secondary);
+  white-space: pre-wrap;
+  border-top: 1px solid var(--df-color-border-default);
+}
+
+/* ── Inspector panel (floating) ──────────────────────────────────── */
+.page-workflow .wb-inspector {
+  position: absolute;
+  right: var(--df-space-3);
+  top: 56px;
+  bottom: var(--df-space-3);
+  width: 260px;
+  z-index: 10;
+  background: color-mix(in srgb, var(--df-color-bg-surface) 90%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--df-color-border-default);
+  border-radius: 12px;
+  overflow-y: auto;
+  flex-shrink: 0;
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--df-color-bg-base) 50%, transparent);
+  scrollbar-width: thin;
+  scrollbar-color: var(--df-color-border-default) transparent;
+}
+.page-workflow .wb-inspector-header {
+  padding: var(--df-space-2) var(--df-space-3);
+  font-size: var(--df-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wider);
+  color: var(--df-color-text-muted);
+  border-bottom: 1px solid color-mix(in srgb, var(--df-color-border-default) 50%, transparent);
+}
+.page-workflow .wb-inspector-field {
+  padding: var(--df-space-1) var(--df-space-3);
+}
+.page-workflow .wb-inspector-label {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-muted);
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wide);
+}
+.page-workflow .wb-inspector input,
+.page-workflow .wb-inspector select,
+.page-workflow .wb-inspector textarea {
+  width: 100%;
+  background: color-mix(in srgb, var(--df-color-bg-raised) 70%, transparent);
+  border: 1px solid var(--df-color-border-default);
+  border-radius: 6px;
+  color: var(--df-color-text-primary);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-sm);
+  padding: var(--df-space-1) var(--df-space-2);
+}
+
+/* ── Workflow list ────────────────────────────────────────────────── */
+.page-workflow .wb-wflist-header {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-4);
+  height: 38px;
+  padding: 0 var(--df-space-4);
+  border-bottom: 1px solid var(--df-color-border-default);
+  background: var(--df-color-bg-surface);
+  flex-shrink: 0;
+}
+.page-workflow .wb-wflist-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--df-space-2);
+  padding: var(--df-space-3) var(--df-space-4);
+  overflow-y: auto;
+  flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: var(--df-color-border-default) transparent;
+}
+.page-workflow .wb-wflist-card {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-3);
+  padding: var(--df-space-2) var(--df-space-3);
+  background: var(--df-color-bg-raised);
+  border: 1px solid var(--df-color-border-default);
+  border-radius: 10px;
+  transition: border-color var(--df-duration-fast) ease, box-shadow var(--df-duration-fast) ease;
+}
+.page-workflow .wb-wflist-card:hover {
+  border-color: var(--df-color-accent-default);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--df-color-accent-default) 10%, transparent);
+}
+.page-workflow .wb-wflist-card-body {
+  flex: 1;
+  min-width: 0;
+}
+.page-workflow .wb-wflist-card-title {
+  font-size: var(--df-font-size-sm);
+  color: var(--df-color-text-primary);
+  letter-spacing: var(--df-letter-spacing-wide);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.page-workflow .wb-wflist-card-desc {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.page-workflow .wb-wflist-card-meta {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-muted);
+  margin-top: 3px;
+  display: flex;
+  gap: var(--df-space-1);
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-normal);
+}
+.page-workflow .wb-wflist-card-tags {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+.page-workflow .wb-wflist-card-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.page-workflow .wb-wflist-card-actions button {
+  background: none;
+  border: 1px solid var(--df-color-border-default);
+  color: var(--df-color-text-muted);
+  cursor: pointer;
+  font-size: var(--df-font-size-sm);
+  font-family: var(--df-font-mono);
+  padding: var(--df-space-1) var(--df-space-2);
+  border-radius: 6px;
+  transition: color var(--df-duration-fast) ease, border-color var(--df-duration-fast) ease;
+}
+.page-workflow .wb-wflist-card-actions button:hover {
+  color: var(--df-color-accent-default);
+  border-color: var(--df-color-accent-default);
+}
+.page-workflow .wb-wflist-card-actions .wb-wflist-delete:hover {
+  color: var(--df-color-state-error);
+  border-color: var(--df-color-state-error);
+}
+
+/* ── Node type picker dropdown ────────────────────────────────── */
+.wb-node-picker {
+  background: var(--df-color-bg-overlay);
+  border: 1px solid var(--df-color-border-default);
+  box-shadow: var(--df-shadow-lg);
+  z-index: var(--df-z-index-overlay);
+  min-width: 160px;
+  max-height: 240px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--df-color-border-default) transparent;
+}
+.wb-node-picker-cat {
+  font-size: var(--df-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wide);
+  color: var(--df-color-text-muted);
+  padding: var(--df-space-2) var(--df-space-3) var(--df-space-1);
+}
+.wb-node-picker-item {
+  display: block;
+  width: 100%;
+  padding: var(--df-space-1) var(--df-space-3);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--df-color-border-subtle);
+  color: var(--df-color-text-primary);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-sm);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--df-duration-fast);
+}
+.wb-node-picker-item:last-child {
+  border-bottom: none;
+}
+.wb-node-picker-item:hover {
+  background: color-mix(in srgb, var(--df-color-accent-default) 10%, transparent);
+}
+
+/* ── Toast ────────────────────────────────────────────────────── */
+.page-workflow .wf-toast-container {
+  position: fixed;
+  bottom: var(--df-space-4);
+  right: var(--df-space-4);
+  z-index: calc(var(--df-z-index-modal) + 1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--df-space-2);
+  pointer-events: none;
+}
+.page-workflow .wf-toast {
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wide);
+  padding: var(--df-space-2) var(--df-space-4);
+  border: 1px solid var(--df-color-border-default);
+  background: var(--df-color-bg-surface);
+  color: var(--df-color-text-primary);
+  border-radius: 8px;
+  pointer-events: auto;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--df-color-bg-base) 50%, transparent);
+  transition: opacity var(--df-duration-normal) ease;
+}
+.page-workflow .wf-toast-success {
+  border-color: color-mix(in srgb, var(--df-color-state-success) 40%, transparent);
+  color: var(--df-color-state-success);
+}
+.page-workflow .wf-toast-error {
+  border-color: color-mix(in srgb, var(--df-color-state-error) 40%, transparent);
+  color: var(--df-color-state-error);
+}
