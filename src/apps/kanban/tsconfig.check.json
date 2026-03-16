@@ -1,0 +1,9 @@
+{
+  "extends": "../../packages/tsconfig/node.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "../.."
+  },
+  "include": ["src", "../../packages/paths.ts", "../../packages/project-store.ts", "../../packages/mcp-utils/src"],
+  "exclude": ["node_modules", "dist"]
+}

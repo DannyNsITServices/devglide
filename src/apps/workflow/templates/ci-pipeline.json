@@ -1,0 +1,18 @@
+{
+  "name": "CI Pipeline",
+  "description": "Lint, test, and build pipeline",
+  "version": 1,
+  "tags": ["ci", "pipeline"],
+  "variables": [],
+  "nodes": [
+    { "id": "trigger-1", "type": "trigger", "label": "Manual Trigger", "config": { "nodeType": "trigger", "triggerType": "manual" }, "position": { "x": 400, "y": 0 } },
+    { "id": "lint-1", "type": "action:shell", "label": "Lint", "config": { "nodeType": "action:shell", "command": "npm run lint", "captureOutput": true }, "position": { "x": 400, "y": 150 } },
+    { "id": "test-1", "type": "action:shell", "label": "Test", "config": { "nodeType": "action:shell", "command": "npm test", "captureOutput": true }, "position": { "x": 400, "y": 300 } },
+    { "id": "build-1", "type": "action:shell", "label": "Build", "config": { "nodeType": "action:shell", "command": "npm run build", "captureOutput": true }, "position": { "x": 400, "y": 450 } }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trigger-1", "target": "lint-1" },
+    { "id": "e2", "source": "lint-1", "target": "test-1" },
+    { "id": "e3", "source": "test-1", "target": "build-1" }
+  ]
+}

@@ -1,0 +1,13 @@
+node_modules
+.git
+dist
+*.db
+*.db-journal
+*.db-wal
+.turbo
+.cache
+coverage
+.nyc_output
+.env
+.env.*
+*.log

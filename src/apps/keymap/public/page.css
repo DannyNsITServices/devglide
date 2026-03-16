@@ -1,0 +1,275 @@
+@keyframes page-keymap-slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes page-keymap-kbd-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 4px color-mix(in srgb, var(--df-color-accent-default) 30%, transparent),
+      inset 0 0 2px color-mix(in srgb, var(--df-color-accent-default) 10%, transparent);
+    border-color: var(--df-color-accent-default);
+  }
+  50% {
+    box-shadow:
+      0 0 14px color-mix(in srgb, var(--df-color-accent-default) 60%, transparent),
+      inset 0 0 6px color-mix(in srgb, var(--df-color-accent-default) 20%, transparent);
+    border-color: var(--df-color-accent-bright);
+  }
+}
+
+.page-keymap {
+  font-family: var(--df-font-mono);
+  background: var(--df-color-bg-base);
+  color: var(--df-color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  font-size: var(--df-font-size-md);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+
+/* ── Header (app-specific additions) ──────────────────────────────────── */
+.page-keymap header {
+  flex-shrink: 0;
+}
+
+.page-keymap .toolbar-actions {
+  display: flex;
+  gap: var(--df-space-2);
+}
+
+/* ── Main layout ─────────────────────────────────────────────────────── */
+.page-keymap main {
+  overflow-y: auto;
+  padding: var(--df-space-6) var(--df-space-4);
+  scrollbar-width: thin;
+  scrollbar-color: var(--df-color-border-default) transparent;
+}
+
+.page-keymap .shortcut-groups {
+  max-width: var(--df-max-width-md);
+  margin: 0 auto;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────── */
+.page-keymap .btn {
+  padding: var(--df-space-1) var(--df-space-3);
+  border: 1px solid var(--df-color-border-default);
+  background: var(--df-color-bg-raised);
+  color: var(--df-color-text-primary);
+  cursor: pointer;
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-xs);
+  letter-spacing: var(--df-letter-spacing-wide);
+  text-transform: uppercase;
+  clip-path: var(--df-clip-sm);
+  white-space: nowrap;
+  transition:
+    background var(--df-duration-fast) ease,
+    border-color var(--df-duration-fast) ease,
+    color var(--df-duration-fast) ease;
+}
+
+.page-keymap .btn:hover {
+  background: var(--df-color-bg-overlay);
+  border-color: var(--df-color-accent-default);
+}
+
+.page-keymap .btn:active {
+  background: color-mix(in srgb, var(--df-color-bg-raised) 70%, black);
+}
+
+.page-keymap .btn-sm {
+  padding: 3px 10px;
+}
+
+.page-keymap .btn-danger {
+  border-color: color-mix(in srgb, var(--df-color-state-error) 40%, transparent);
+  color: var(--df-color-state-error);
+}
+
+.page-keymap .btn-danger:hover {
+  border-color: var(--df-color-state-error);
+  background: color-mix(in srgb, var(--df-color-state-error) 12%, var(--df-color-bg-raised));
+}
+
+/* ── Shortcut groups ─────────────────────────────────────────────────── */
+.page-keymap .shortcut-group {
+  margin-bottom: var(--df-space-4);
+  background: var(--df-color-bg-surface);
+  border: 1px solid var(--df-color-border-subtle);
+  clip-path: var(--df-clip-md);
+  overflow: hidden;
+  animation: page-keymap-slide-up var(--df-duration-base) var(--df-easing-default) both;
+}
+
+.page-keymap .group-title {
+  padding: var(--df-space-2) var(--df-space-4);
+  font-size: var(--df-font-size-xs);
+  font-weight: normal;
+  color: var(--df-color-text-muted);
+  letter-spacing: var(--df-letter-spacing-wider);
+  text-transform: uppercase;
+  background: var(--df-color-bg-raised);
+  border-bottom: 1px solid var(--df-color-border-subtle);
+  user-select: none;
+}
+
+/* ── Shortcut rows ───────────────────────────────────────────────────── */
+.page-keymap .shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: var(--df-space-2) var(--df-space-4);
+  border-bottom: 1px solid var(--df-color-border-subtle);
+  transition: background var(--df-duration-fast) ease;
+}
+
+.page-keymap .shortcut-row:last-child {
+  border-bottom: none;
+}
+
+.page-keymap .shortcut-row:hover {
+  background: color-mix(in srgb, var(--df-color-accent-default) 4%, transparent);
+}
+
+.page-keymap .shortcut-desc {
+  font-size: var(--df-font-size-sm);
+  color: var(--df-color-text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: var(--df-space-3);
+}
+
+.page-keymap .shortcut-right {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+  flex-shrink: 0;
+}
+
+/* ── Kbd element ─────────────────────────────────────────────────────── */
+.page-keymap .shortcut-kbd {
+  display: inline-block;
+  min-width: 80px;
+  padding: 4px 10px;
+  background: color-mix(in srgb, var(--df-color-text-primary) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--df-color-text-primary) 15%, transparent);
+  border-radius: var(--df-radius-sm);
+  color: var(--df-color-text-primary);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-xs);
+  letter-spacing: var(--df-letter-spacing-normal);
+  text-align: center;
+  white-space: nowrap;
+  transition:
+    border-color var(--df-duration-fast) ease,
+    box-shadow var(--df-duration-fast) ease,
+    background var(--df-duration-fast) ease;
+}
+
+/* ── Recording state ─────────────────────────────────────────────────── */
+.page-keymap .shortcut-kbd.recording {
+  border-color: var(--df-color-accent-default);
+  background: color-mix(in srgb, var(--df-color-accent-default) 10%, transparent);
+  color: var(--df-color-accent-default);
+  animation: page-keymap-kbd-pulse 1.2s ease-in-out infinite;
+}
+
+/* ── Conflict warning ────────────────────────────────────────────────── */
+.page-keymap .conflict-warning {
+  width: 100%;
+  padding: var(--df-space-2) var(--df-space-4);
+  margin-top: var(--df-space-1);
+  font-size: var(--df-font-size-xs);
+  color: var(--df-primitive-amber-5);
+  background: color-mix(in srgb, var(--df-primitive-amber-3) 12%, transparent);
+  border-left: 3px solid var(--df-primitive-amber-4);
+  border-radius: 0 var(--df-radius-sm) var(--df-radius-sm) 0;
+  letter-spacing: var(--df-letter-spacing-normal);
+  animation: page-keymap-slide-up var(--df-duration-fast) var(--df-easing-default) both;
+}
+
+/* ── Empty state (overrides global .empty-state) ─────────────────────── */
+.page-keymap .empty-state {
+  min-height: 200px;
+  gap: var(--df-space-2);
+  pointer-events: none;
+}
+.page-keymap .empty-state .hint {
+  font-size: 48px;
+  opacity: 0.15;
+}
+.page-keymap .empty-state .sub {
+  font-size: var(--df-font-size-sm);
+  letter-spacing: var(--df-letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+/* ── Stagger animation for groups ────────────────────────────────────── */
+.page-keymap .shortcut-group:nth-child(1) { animation-delay: 0ms; }
+.page-keymap .shortcut-group:nth-child(2) { animation-delay: 60ms; }
+.page-keymap .shortcut-group:nth-child(3) { animation-delay: 120ms; }
+.page-keymap .shortcut-group:nth-child(4) { animation-delay: 180ms; }
+.page-keymap .shortcut-group:nth-child(5) { animation-delay: 240ms; }
+.page-keymap .shortcut-group:nth-child(6) { animation-delay: 300ms; }
+
+/* ── Scrollbar ───────────────────────────────────────────────────────── */
+.page-keymap ::-webkit-scrollbar { width: 8px; }
+.page-keymap ::-webkit-scrollbar-track { background: transparent; }
+.page-keymap ::-webkit-scrollbar-thumb { background: var(--df-color-border-default); border-radius: var(--df-radius-full); }
+.page-keymap ::-webkit-scrollbar-thumb:hover { background: var(--df-color-border-strong); }
+
+/* ── Reduced motion ──────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .page-keymap .shortcut-kbd.recording { animation: none; box-shadow: var(--df-glow-accent); }
+  .page-keymap .shortcut-group { animation: none; }
+  .page-keymap .conflict-warning { animation: none; }
+}
+
+/* ── Mobile / narrow viewports ───────────────────────────────────────── */
+@media (max-width: 639px) {
+  .page-keymap main {
+    padding: var(--df-space-3);
+  }
+
+  .page-keymap .toolbar-actions {
+    gap: var(--df-space-1);
+  }
+
+  .page-keymap .shortcut-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--df-space-2);
+  }
+
+  .page-keymap .shortcut-desc {
+    margin-right: 0;
+    white-space: normal;
+  }
+
+  .page-keymap .shortcut-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .page-keymap .shortcut-kbd {
+    min-width: 60px;
+  }
+}
+
+/* ── Large screens ───────────────────────────────────────────────────── */
+@media (min-width: 1440px) {
+  .page-keymap .shortcut-groups {
+    max-width: var(--df-max-width-lg);
+  }
+
+  .page-keymap .shortcut-row {
+    padding: var(--df-space-3) var(--df-space-5);
+  }
+}

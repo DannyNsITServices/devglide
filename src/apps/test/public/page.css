@@ -1,0 +1,411 @@
+@keyframes alert-pulse {
+  0%, 100% { box-shadow: var(--df-glow-error); }
+  50%       { box-shadow: 0 0 16px color-mix(in srgb, var(--df-color-state-recording) 80%, transparent); }
+}
+
+.page-test {
+  font-family: var(--df-font-mono);
+  background: var(--df-color-bg-base);
+  color: var(--df-color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  font-size: var(--df-font-size-md);
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+
+/* ── Header (app-specific additions) ─────────────────────────────────── */
+.page-test header { flex-shrink: 0; }
+.page-test .app-icon { width: 18px; height: 18px; flex-shrink: 0; color: var(--df-color-accent-default); }
+
+/* ── Badges ──────────────────────────────────────────────────────────── */
+.page-test .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: var(--df-font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--df-letter-spacing-wider);
+  text-transform: uppercase;
+  border: 1px solid;
+  font-family: var(--df-font-mono);
+}
+
+.page-test .badge-idle {
+  color: var(--df-color-state-idle);
+  border-color: var(--df-color-state-idle);
+  background: color-mix(in srgb, var(--df-color-state-idle) 8%, transparent);
+}
+
+.page-test .badge-running {
+  color: var(--df-color-state-recording);
+  border-color: var(--df-color-state-recording);
+  background: color-mix(in srgb, var(--df-color-state-recording) 8%, transparent);
+  animation: alert-pulse 1.2s ease-in-out infinite;
+}
+
+.page-test .badge-success {
+  color: var(--df-color-state-success);
+  border-color: var(--df-color-state-success);
+  background: color-mix(in srgb, var(--df-color-state-success) 8%, transparent);
+}
+
+.page-test .badge-error {
+  color: var(--df-color-state-error);
+  border-color: var(--df-color-state-error);
+  background: color-mix(in srgb, var(--df-color-state-error) 8%, transparent);
+}
+
+/* ── Main layout ─────────────────────────────────────────────────────── */
+.page-test main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  max-width: var(--df-max-width-md);
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--df-space-6);
+  scrollbar-width: thin;
+  scrollbar-color: var(--df-color-border-default) transparent;
+}
+
+.page-test main::-webkit-scrollbar { width: 8px; }
+.page-test main::-webkit-scrollbar-track { background: transparent; }
+.page-test main::-webkit-scrollbar-thumb { background: var(--df-color-border-default); border-radius: var(--df-radius-full); }
+.page-test main::-webkit-scrollbar-thumb:hover { background: var(--df-color-border-strong); }
+
+@media (min-width: 1440px) {
+  .page-test main { max-width: var(--df-max-width-lg); padding: var(--df-space-8); }
+}
+
+@media (min-width: 1920px) {
+  .page-test main { max-width: var(--df-max-width-xl); padding: var(--df-space-10); }
+}
+
+.page-test .section-title {
+  font-size: var(--df-font-size-xs);
+  font-weight: normal;
+  letter-spacing: var(--df-letter-spacing-wider);
+  text-transform: uppercase;
+  color: var(--df-color-accent-default);
+  border-left: 2px solid var(--df-color-accent-default);
+  padding-left: var(--df-space-3);
+  margin-bottom: var(--df-space-4);
+}
+
+/* ── Info card (usage instructions) ──────────────────────────────────── */
+.page-test .info-card-details {
+  margin-bottom: var(--df-space-6);
+}
+
+.page-test .info-card-details summary {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-muted);
+  cursor: pointer;
+  letter-spacing: var(--df-letter-spacing-wider);
+  text-transform: uppercase;
+  padding: var(--df-space-2) 0;
+  user-select: none;
+}
+
+.page-test .info-card-details summary:hover {
+  color: var(--df-color-text-secondary);
+}
+
+.page-test .info-card {
+  background: var(--df-color-bg-surface);
+  border: 1px solid var(--df-color-border-default);
+  clip-path: var(--df-clip-md);
+  padding: var(--df-space-5) var(--df-space-6);
+  margin-top: var(--df-space-2);
+  font-size: var(--df-font-size-sm);
+  line-height: 1.7;
+  color: var(--df-color-text-secondary);
+}
+
+.page-test .info-card code {
+  background: color-mix(in srgb, var(--df-color-accent-default) 10%, transparent);
+  color: var(--df-color-accent-default);
+  padding: 1px 5px;
+  font-size: var(--df-font-size-sm);
+  font-family: var(--df-font-mono);
+}
+
+/* ── Refresh indicator ───────────────────────────────────────────────── */
+.page-test .refresh-indicator {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--df-color-state-success);
+  margin-left: 6px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.page-test .refresh-indicator.flash { opacity: 1; }
+
+/* ── Reduced motion ──────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .page-test .badge-running {
+    animation: none;
+  }
+}
+
+/* ── Saved tests section ─────────────────────────────────────────── */
+.page-test .saved-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--df-space-2);
+}
+
+.page-test .saved-card {
+  background: var(--df-color-bg-surface);
+  border: 1px solid var(--df-color-border-default);
+  clip-path: var(--df-clip-sm);
+  padding: var(--df-space-4) var(--df-space-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--df-space-4);
+  transition: border-color var(--df-duration-base) ease;
+}
+
+.page-test .saved-card:hover {
+  border-color: var(--df-color-border-strong);
+}
+
+.page-test .saved-card.just-triggered {
+  border-color: var(--df-color-state-success);
+}
+
+.page-test .saved-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-test .saved-name {
+  font-size: var(--df-font-size-sm);
+  letter-spacing: var(--df-letter-spacing-wide);
+  text-transform: uppercase;
+  color: var(--df-color-text-primary);
+}
+
+.page-test .saved-details {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-muted);
+  letter-spacing: var(--df-letter-spacing-normal);
+  margin-top: 2px;
+}
+
+.page-test .saved-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+}
+
+.page-test .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: var(--df-font-size-xs);
+  font-weight: 600;
+  font-family: var(--df-font-mono);
+  letter-spacing: var(--df-letter-spacing-wider);
+  text-transform: uppercase;
+  border: 1px solid;
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--df-duration-base) ease, border-color var(--df-duration-base) ease;
+}
+
+.page-test .btn-run {
+  color: var(--df-color-state-success);
+  border-color: var(--df-color-state-success);
+}
+
+.page-test .btn-run:hover {
+  background: color-mix(in srgb, var(--df-color-state-success) 12%, transparent);
+}
+
+.page-test .btn-delete {
+  color: var(--df-color-state-error);
+  border-color: var(--df-color-state-error);
+}
+
+.page-test .btn-delete:hover {
+  background: color-mix(in srgb, var(--df-color-state-error) 12%, transparent);
+}
+
+.page-test .btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.page-test .saved-empty {
+  background: var(--df-color-bg-surface);
+  border: 1px dashed var(--df-color-border-strong);
+  clip-path: var(--df-clip-md);
+  padding: var(--df-space-6);
+  text-align: center;
+  color: var(--df-color-text-secondary);
+  font-size: var(--df-font-size-sm);
+}
+
+.page-test .saved-section {
+  margin-top: var(--df-space-8);
+}
+
+.page-test .saved-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: var(--df-font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--df-letter-spacing-wider);
+  text-transform: uppercase;
+  border: 1px solid;
+  font-family: var(--df-font-mono);
+  color: var(--df-color-text-muted);
+  border-color: var(--df-color-border-default);
+  background: color-mix(in srgb, var(--df-color-text-muted) 5%, transparent);
+}
+
+/* ── Recent runs section ─────────────────────────────────────────── */
+.page-test .results-section {
+  margin-top: var(--df-space-8);
+}
+
+.page-test .results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--df-space-4);
+}
+
+.page-test .results-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--df-space-2);
+}
+
+.page-test .result-card {
+  background: var(--df-color-bg-surface);
+  border: 1px solid var(--df-color-border-default);
+  clip-path: var(--df-clip-sm);
+  padding: var(--df-space-4) var(--df-space-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--df-space-4);
+  transition: border-color var(--df-duration-base) ease;
+}
+
+.page-test .result-card:hover {
+  border-color: var(--df-color-border-strong);
+}
+
+.page-test .result-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-test .result-top-row {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-3);
+}
+
+.page-test .result-id {
+  font-size: var(--df-font-size-sm);
+  letter-spacing: var(--df-letter-spacing-wide);
+  color: var(--df-color-text-primary);
+  font-family: var(--df-font-mono);
+}
+
+.page-test .result-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  font-size: var(--df-font-size-xs);
+  font-weight: 600;
+  letter-spacing: var(--df-letter-spacing-wider);
+  text-transform: uppercase;
+  border: 1px solid;
+  font-family: var(--df-font-mono);
+}
+
+.page-test .result-status.passed {
+  color: var(--df-color-state-success);
+  border-color: var(--df-color-state-success);
+  background: color-mix(in srgb, var(--df-color-state-success) 8%, transparent);
+}
+
+.page-test .result-status.failed {
+  color: var(--df-color-state-error);
+  border-color: var(--df-color-state-error);
+  background: color-mix(in srgb, var(--df-color-state-error) 8%, transparent);
+}
+
+.page-test .result-details {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-muted);
+  letter-spacing: var(--df-letter-spacing-normal);
+  margin-top: 2px;
+}
+
+.page-test .result-error {
+  margin-top: var(--df-space-2);
+  padding: var(--df-space-2) var(--df-space-3);
+  font-size: var(--df-font-size-xs);
+  font-family: var(--df-font-mono);
+  color: var(--df-color-state-error);
+  background: color-mix(in srgb, var(--df-color-state-error) 6%, transparent);
+  border-left: 2px solid var(--df-color-state-error);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.page-test .result-error-toggle {
+  display: inline;
+  background: none;
+  border: none;
+  color: var(--df-color-state-error);
+  font-size: var(--df-font-size-xs);
+  font-family: var(--df-font-mono);
+  cursor: pointer;
+  padding: 0;
+  margin-left: var(--df-space-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  letter-spacing: var(--df-letter-spacing-normal);
+}
+
+.page-test .result-error-toggle:hover {
+  opacity: 0.8;
+}
+
+.page-test .results-empty {
+  background: var(--df-color-bg-surface);
+  border: 1px dashed var(--df-color-border-strong);
+  clip-path: var(--df-clip-md);
+  padding: var(--df-space-6);
+  text-align: center;
+  color: var(--df-color-text-secondary);
+  font-size: var(--df-font-size-sm);
+}
+
+.page-test .btn-clear {
+  color: var(--df-color-text-muted);
+  border-color: var(--df-color-border-default);
+}
+
+.page-test .btn-clear:hover {
+  background: color-mix(in srgb, var(--df-color-text-muted) 8%, transparent);
+  border-color: var(--df-color-border-strong);
+}

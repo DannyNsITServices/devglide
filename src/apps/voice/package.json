@@ -1,0 +1,29 @@
+{
+  "name": "@devglide/voice",
+  "version": "0.1.0",
+  "description": "Speech-to-text with config dashboard",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "mcp": "tsx src/index.ts --stdio",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@devglide/mcp-utils": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "express": "^5.2.1",
+    "msedge-tts": "^2.0.4",
+    "nodejs-whisper": "^0.2.9",
+    "openai": "^4.80.0",
+    "zod": "^3.25.49"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.0"
+  }
+}

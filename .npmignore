@@ -1,0 +1,43 @@
+# Development & build tooling
+.turbo/
+.claude/
+.github/
+.devglide/
+coverage/
+**/*.test.ts
+**/*.test.js
+vitest.config.ts
+eslint.config.js
+tsconfig.base.json
+
+# Documentation & assets (not needed at runtime)
+assets/
+CLAUDE.md
+README.md
+LICENSE
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.pem
+
+# Runtime state (lives in ~/.devglide/)
+src/apps/voice/data/stats.json
+src/apps/voice/data/config.json
+src/apps/test/data/scenarios.json
+**/*.db
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Browser binaries
+chrome-headless-shell/
+
+# MCP config (local dev only)
+.mcp.json

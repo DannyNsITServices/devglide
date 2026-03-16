@@ -1,0 +1,414 @@
+/* Project scoping — hide panes/tabs from other projects */
+.page-shell .project-hidden { display: none !important; }
+
+.page-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--df-color-bg-base);
+  color: var(--df-color-text-primary);
+  font-family: var(--df-font-mono);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ── Header (app-specific additions) ─────────────────────────────── */
+.page-shell header {
+  flex-shrink: 0;
+}
+
+.page-shell .pane-count {
+  color: var(--df-color-text-muted);
+}
+
+/* ── Tab bar ──────────────────────────────────────────────────────── */
+.page-shell .shell-tab-bar {
+  display: flex;
+  align-items: stretch;
+  background: var(--df-color-bg-surface);
+  border-bottom: 1px solid var(--df-color-border-default);
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-shrink: 0;
+  scrollbar-width: none;
+}
+
+.page-shell .shell-tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.page-shell .shell-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--df-color-text-muted);
+  cursor: pointer;
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-sm);
+  letter-spacing: var(--df-letter-spacing-wide);
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color var(--df-duration-fast), border-color var(--df-duration-fast), background var(--df-duration-fast);
+}
+
+.page-shell .shell-tab:hover {
+  color: var(--df-color-text-secondary);
+  background: color-mix(in srgb, var(--df-color-text-primary) 3%, transparent);
+}
+
+.page-shell .shell-tab.active {
+  color: var(--df-color-accent-default);
+  border-bottom-color: var(--df-color-accent-default);
+}
+
+.page-shell .shell-tab-close {
+  font-size: 11px;
+  color: var(--df-color-text-muted);
+  padding: 1px 4px;
+  line-height: 1;
+  transition: color var(--df-duration-fast), background var(--df-duration-fast);
+}
+
+.page-shell .shell-tab-close:hover {
+  color: var(--df-color-state-error);
+  background: color-mix(in srgb, var(--df-color-state-error) 15%, transparent);
+}
+
+/* ── Disconnect banner ────────────────────────────────────────────── */
+.page-shell .shell-disconnect-banner {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: var(--df-color-state-error);
+  color: var(--df-color-bg-invert);
+  padding: 6px 16px;
+  font-size: var(--df-font-size-md);
+  font-weight: 500;
+  z-index: var(--df-z-index-toast);
+  flex-shrink: 0;
+}
+
+/* ── Pane container ───────────────────────────────────────────────── */
+.page-shell .shell-pane-container {
+  display: grid;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+  gap: 4px;
+  padding: 4px;
+  background: var(--df-color-bg-surface);
+}
+
+/* ── Individual pane ──────────────────────────────────────────────── */
+.page-shell .pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--df-color-bg-base);
+  border: 1px solid var(--df-color-border-default);
+  overflow: hidden;
+  position: relative;
+  transition: border-color var(--df-duration-fast);
+}
+
+.page-shell .pane.active {
+  border-color: var(--df-color-accent-default);
+  box-shadow: var(--df-glow-accent);
+}
+
+/* Corner brackets on active pane */
+.page-shell .pane.active::before,
+.page-shell .pane.active::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: var(--df-color-accent-default);
+  border-style: solid;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.page-shell .pane.active::before {
+  top: 0;
+  left: 0;
+  border-width: 2px 0 0 2px;
+}
+
+.page-shell .pane.active::after {
+  bottom: 0;
+  right: 0;
+  border-width: 0 2px 2px 0;
+}
+
+.page-shell .pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: var(--df-color-bg-overlay);
+  border-bottom: 1px solid var(--df-color-border-default);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.page-shell .pane-title {
+  font-size: var(--df-font-size-sm);
+  color: var(--df-color-text-secondary);
+  font-weight: 500;
+  letter-spacing: var(--df-letter-spacing-normal);
+  text-transform: uppercase;
+}
+
+.page-shell .pane-close {
+  background: none;
+  border: none;
+  color: var(--df-color-text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 2px;
+  line-height: 1;
+  transition: color var(--df-duration-fast);
+}
+
+.page-shell .pane-close:hover {
+  color: var(--df-color-state-error);
+}
+
+/* ── Drag-to-reorder panes in grid ────────────────────────────────── */
+.page-shell .pane.drag-over {
+  border-color: var(--df-color-accent-default);
+  box-shadow: var(--df-glow-accent);
+}
+
+.page-shell .pane.dragging {
+  opacity: 0.4;
+}
+
+.page-shell .pane-header[draggable="true"] {
+  cursor: grab;
+}
+
+.page-shell .pane-header[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.page-shell .pane-terminal {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 2px 8px;
+}
+
+/* xterm.js overrides */
+.page-shell .xterm {
+  height: 100%;
+}
+
+.page-shell .xterm-screen {
+  height: 100%;
+}
+
+.page-shell .xterm-viewport {
+  scrollbar-width: none;
+}
+
+.page-shell .xterm-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide xterm.js cursor on alternate screen buffer — TUI apps like
+   Claude Code render their own cursor, so xterm's is a duplicate
+   that appears as a stray bar at the bottom of the terminal. */
+.page-shell .alt-screen .xterm-cursor-layer {
+  display: none !important;
+}
+
+/* Clip the last row — 17px ≈ 14px font × 1.2 line-height */
+.page-shell .alt-screen .xterm-screen {
+  clip-path: inset(0 0 17px 0);
+}
+
+/* ── Browser pane ─────────────────────────────────────────────────── */
+.page-shell .browser-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--df-color-bg-overlay);
+  border-bottom: 1px solid var(--df-color-border-default);
+  flex-shrink: 0;
+}
+
+.page-shell .browser-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--df-color-text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+  transition: background var(--df-duration-fast), color var(--df-duration-fast), border-color var(--df-duration-fast);
+}
+
+.page-shell .browser-nav-btn:hover {
+  background: color-mix(in srgb, var(--df-color-text-primary) 8%, transparent);
+  border-color: var(--df-color-border-default);
+  color: var(--df-color-text-primary);
+}
+
+.page-shell .browser-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.page-shell .browser-url-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  background: var(--df-color-bg-base);
+  border: 1px solid var(--df-color-border-default);
+  color: var(--df-color-text-primary);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-sm);
+  transition: border-color var(--df-duration-fast);
+}
+
+.page-shell .browser-url-input:focus {
+  outline: none;
+  border-color: var(--df-color-accent-default);
+}
+
+.page-shell .browser-url-input::placeholder {
+  color: var(--df-color-text-muted);
+}
+
+.page-shell .browser-viewport {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.page-shell .browser-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+
+.page-shell .browser-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--df-color-bg-base);
+  color: var(--df-color-text-muted);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-md);
+  letter-spacing: var(--df-letter-spacing-wide);
+  text-transform: uppercase;
+  padding: 24px;
+  text-align: center;
+}
+
+/* ── Empty state ──────────────────────────────────────────────────── */
+.page-shell .shell-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--df-color-text-muted);
+  gap: 8px;
+  pointer-events: none;
+  font-family: var(--df-font-mono);
+  letter-spacing: var(--df-letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+.page-shell .shell-empty-state .hint {
+  font-size: 14px;
+}
+
+.page-shell .shell-empty-state .sub {
+  font-size: var(--df-font-size-sm);
+}
+
+/* ── Mobile action buttons (header) ──────────────────────────────── */
+.page-shell .mobile-actions {
+  display: none;
+}
+
+.page-shell .mobile-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: 1px solid var(--df-color-border-default);
+  color: var(--df-color-text-secondary);
+  cursor: pointer;
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-md);
+  line-height: 1;
+  transition: background var(--df-duration-fast), color var(--df-duration-fast), border-color var(--df-duration-fast);
+}
+
+.page-shell .mobile-action-btn:hover,
+.page-shell .mobile-action-btn:active {
+  background: color-mix(in srgb, var(--df-color-accent-default) 15%, transparent);
+  border-color: var(--df-color-accent-default);
+  color: var(--df-color-accent-default);
+}
+
+/* ── Mobile ───────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .page-shell .mobile-actions {
+    display: inline-flex;
+    gap: 6px;
+    margin-left: 8px;
+  }
+
+  .page-shell .shell-tab {
+    padding: 8px 12px;
+    min-height: 38px;
+  }
+
+  .page-shell .shell-pane-container {
+    overflow-y: auto;
+    overflow-x: hidden;
+    align-content: start;
+  }
+
+  .page-shell .pane {
+    min-height: 300px;
+  }
+}
+
+/* ── Large screens ────────────────────────────────────────────────── */
+@media (min-width: 1440px) {
+  .page-shell .shell-pane-container { gap: 6px; padding: 6px; }
+  .page-shell .pane-terminal { padding: 4px 12px; }
+}
+
+@media (min-width: 1920px) {
+  .page-shell .shell-pane-container { gap: 8px; padding: 8px; }
+  .page-shell .pane-header { padding: 6px 12px; }
+  .page-shell .pane-terminal { padding: 4px 16px; }
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .page-shell .pane { transition: none; }
+}

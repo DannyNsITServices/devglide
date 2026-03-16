@@ -1,0 +1,16 @@
+services:
+  devglide:
+    build: .
+    ports:
+      - "${PORT:-7001}:7001"
+    volumes:
+      # Persist devglide data (databases, workflows, configs)
+      - devglide-data:/root/.devglide
+      # Mount project directory for file browsing/editing
+      - ${PROJECT_DIR:-.}:/workspace:ro
+    environment:
+      - PORT=7001
+      - NODE_ENV=production
+
+volumes:
+  devglide-data:

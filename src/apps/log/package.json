@@ -1,0 +1,29 @@
+{
+  "name": "@devglide/log",
+  "version": "0.1.0",
+  "description": "Browser console capture and log monitoring",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@devglide/mcp-utils": "workspace:*",
+    "chokidar": "^4.0.3",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "express": "^5.2.1",
+    "@devglide/project-context": "workspace:*",
+    "zod": "^3.25.49"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

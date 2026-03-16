@@ -1,0 +1,29 @@
+{
+  "name": "@devglide/kanban",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "mcp": "tsx src/index.ts --stdio",
+    "typecheck": "tsc --noEmit -p tsconfig.check.json",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@devglide/mcp-utils": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@paralleldrive/cuid2": "^2.2.2",
+    "better-sqlite3": "^11.10.0",
+    "express": "^5.2.1",
+    "multer": "^1.4.5-lts.2",
+    "zod": "^3.25.49"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.3",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.0"
+  }
+}

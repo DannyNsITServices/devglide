@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Devglide Design System v2.0</title>
+  <link rel="stylesheet" href="../dist/tokens.css">
+  <style>
+    /* ── Reset ─────────────────────────────────────────────────────────── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ── Base ──────────────────────────────────────────────────────────── */
+    html {
+      font-size: 13px;
+      scroll-behavior: smooth;
+      color-scheme: dark;
+    }
+    body {
+      background: var(--df-color-bg-base);
+      color: var(--df-color-text-primary);
+      font-family: var(--df-font-mono);
+      min-height: 100vh;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ── Layout ────────────────────────────────────────────────────────── */
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 24px 96px;
+    }
+
+    /* ── Hero ──────────────────────────────────────────────────────────── */
+    .hero {
+      padding: 80px 0 64px;
+      border-bottom: 1px solid var(--df-color-border-default);
+      margin-bottom: 64px;
+      position: relative;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 30% 20%, color-mix(in srgb, var(--df-color-accent-default) 4%, transparent), transparent 70%);
+      pointer-events: none;
+    }
+    .hero h1 {
+      font-size: 36px;
+      font-weight: normal;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--df-color-accent-default);
+      position: relative;
+    }
+    .hero .sub {
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      color: var(--df-color-text-secondary);
+      text-transform: uppercase;
+      margin-top: 8px;
+      position: relative;
+    }
+    .hero .version {
+      display: inline-block;
+      padding: 2px 8px;
+      border: 1px solid var(--df-color-accent-muted);
+      color: var(--df-color-accent-default);
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      margin-top: 16px;
+      position: relative;
+    }
+    .hero .stats {
+      margin-top: 24px;
+      display: flex;
+      gap: 32px;
+      flex-wrap: wrap;
+      position: relative;
+    }
+    .hero .stat {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--df-color-text-muted);
+    }
+    .hero .stat strong {
+      font-weight: normal;
+      color: var(--df-color-text-primary);
+      font-size: 20px;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    /* ── Nav ───────────────────────────────────────────────────────────── */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: color-mix(in srgb, var(--df-color-bg-base) 90%, transparent);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--df-color-border-subtle);
+      padding: 8px 0;
+      margin-bottom: 64px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px;
+      overflow-x: auto;
+    }
+    .nav a {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--df-color-text-secondary);
+      text-decoration: none;
+      padding: 6px 10px;
+      border: 1px solid transparent;
+      transition: all var(--df-duration-fast) var(--df-easing-default);
+      white-space: nowrap;
+      border-radius: var(--df-radius-xs);
+    }
+    .nav a:hover {
+      color: var(--df-color-accent-default);
+      background: color-mix(in srgb, var(--df-color-accent-default) 6%, transparent);
+    }
+
+    /* ── Section ───────────────────────────────────────────────────────── */
+    .section { margin-bottom: 80px; }
+    .section-title {
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--df-color-accent-default);
+      border-left: 2px solid var(--df-color-accent-default);
+      padding-left: 10px;
+      margin-bottom: 24px;
+    }
+    .section-desc {
+      font-size: 11px;
+      color: var(--df-color-text-secondary);
+      letter-spacing: 0.05em;
+      margin-bottom: 24px;
+      margin-top: -12px;
+      max-width: 700px;
+      line-height: 1.6;
+    }
+    .subsection {
+      margin-top: 32px;
+    }
+    .group-label {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--df-color-text-muted);
+      margin-bottom: 8px;
+      margin-top: 20px;
+    }
+    .group-label:first-child { margin-top: 0; }
+
+    /* ── Interactive Hue Control ───────────────────────────────────────── */
+    .hue-control {
+      background: var(--df-color-bg-surface);
+      border: 1px solid var(--df-color-border-default);
+      padding: 24px;
+      margin-bottom: 40px;
+      clip-path: var(--df-clip-md);
+    }
+    .hue-control label {
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--df-color-text-secondary);
+      display: block;
+      margin-bottom: 12px;
+    }
+    .hue-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .hue-control input[type="range"] {
+      flex: 1;
+      height: 4px;
+      -webkit-appearance: none;
+      background: linear-gradient(to right,
+        oklch(0.83 0.18 0),
+        oklch(0.83 0.18 60),
+        oklch(0.83 0.18 120),
+        oklch(0.83 0.18 180),
+        oklch(0.83 0.18 240),
+        oklch(0.83 0.18 300),
+        oklch(0.83 0.18 360)
+      );
+      border-radius: var(--df-radius-full);
+      outline: none;
+    }
+    .hue-control input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: var(--df-radius-full);
+      background: var(--df-color-accent-default);
+      border: 2px solid var(--df-color-bg-base);
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(126,231,135,0.4);
+    }
+    .hue-preview {
+      width: 32px; height: 32px;
+      border-radius: var(--df-radius-sm);
+      border: 1px solid var(--df-color-border-default);
+      transition: background var(--df-duration-fast);
+    }
+    .hue-value {
+      font-size: 12px;
+      color: var(--df-color-accent-default);
+      min-width: 40px;
+      text-align: right;
+    }
+    .hue-note {
+      font-size: 10px;
+      color: var(--df-color-text-muted);
+      margin-top: 12px;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Color swatches ────────────────────────────────────────────────── */
+    .swatch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 6px;
+    }
+    .swatch-grid-wide {
+      grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    }
+    .swatch {
+      padding: 12px 8px;
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border-radius: var(--df-radius-xs);
+      position: relative;
+    }
+    .swatch-label { opacity: 0.85; display: block; margin-top: 6px; }
+    .swatch-hex   { opacity: 0.5; font-size: 8px; display: block; margin-top: 2px; }
+
+    /* ── Typography ────────────────────────────────────────────────────── */
+    .type-sample {
+      border-bottom: 1px solid var(--df-color-border-subtle);
+      padding: 14px 0;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .type-meta {
+      font-size: 10px;
+      color: var(--df-color-text-muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      width: 100px;
+    }
+    .type-specimen { flex: 1; min-width: 200px; }
+
+    /* ── Spacing ───────────────────────────────────────────────────────── */
+    .space-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+    .space-bar {
+      background: linear-gradient(90deg, var(--df-color-accent-dim), var(--df-color-accent-muted));
+      height: 6px; flex-shrink: 0;
+      border-radius: var(--df-radius-xs);
+    }
+    .space-meta { font-size: 10px; color: var(--df-color-text-secondary); letter-spacing: 0.1em; }
+
+    /* ── Radius / Clip ─────────────────────────────────────────────────── */
+    .shape-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+    .shape-demo {
+      background: var(--df-color-bg-raised);
+      border: 1px solid var(--df-color-border-strong);
+      padding: 20px;
+      text-align: center;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--df-color-text-secondary);
+    }
+
+    /* ── Shadow demos ──────────────────────────────────────────────────── */
+    .shadow-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; }
+    .shadow-demo {
+      background: var(--df-color-bg-surface);
+      border: 1px solid var(--df-color-border-subtle);
+      padding: 24px 16px;
+      text-align: center;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--df-color-text-secondary);
+      border-radius: var(--df-radius-sm);
+    }
+
+    /* ── Buttons ───────────────────────────────────────────────────────── */
+    .btn-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .btn {
+      font-family: var(--df-font-mono);
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 8px 20px;
+      cursor: pointer;
+      border: 1px solid;
+      transition: all var(--df-duration-base) var(--df-easing-spring);
+      outline: none;
+    }
+    .btn:focus-visible {
+      outline: var(--df-focus-ring-width) solid var(--df-focus-ring-color);
+      outline-offset: var(--df-focus-ring-offset);
+    }
+    .btn-primary {
+      background: var(--df-color-accent-default);
+      border-color: var(--df-color-accent-default);
+      color: var(--df-color-text-inverse);
+      clip-path: var(--df-clip-sm);
+    }
+    .btn-primary:hover {
+      background: var(--df-color-accent-bright);
+      box-shadow: var(--df-glow-accent);
+    }
+    .btn-outline {
+      background: transparent;
+      border-color: var(--df-color-border-strong);
+      color: var(--df-color-text-primary);
+      clip-path: var(--df-clip-sm);
+    }
+    .btn-outline:hover {
+      border-color: var(--df-color-accent-default);
+      color: var(--df-color-accent-default);
+    }
+    .btn-ghost {
+      background: transparent;
+      border-color: transparent;
+      color: var(--df-color-text-secondary);
+    }
+    .btn-ghost:hover {
+      color: var(--df-color-accent-default);
+      background: color-mix(in srgb, var(--df-color-accent-default) 6%, transparent);
+    }
+    .btn-danger {
+      background: color-mix(in srgb, var(--df-color-state-error) 10%, transparent);
+      border-color: var(--df-color-state-error);
+      color: var(--df-color-state-error);
+      clip-path: var(--df-clip-sm);
+    }
+    .btn-danger:hover {
+      background: color-mix(in srgb, var(--df-color-state-error) 20%, transparent);
+    }
+    .btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    /* ── Inputs ────────────────────────────────────────────────────────── */
+    .input-group { display: flex; flex-direction: column; gap: 6px; max-width: 360px; }
+    .input-label {
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--df-color-text-secondary);
+    }
+    .input {
+      background: var(--df-color-bg-surface);
+      border: 1px solid var(--df-color-border-default);
+      color: var(--df-color-text-primary);
+      font-family: var(--df-font-mono);
+      font-size: 12px;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color var(--df-duration-fast), box-shadow var(--df-duration-fast);
+      clip-path: var(--df-clip-sm);
+    }
+    .input:focus {
+      border-color: var(--df-color-accent-default);
+      box-shadow: 0 0 8px color-mix(in srgb, var(--df-color-accent-default) 30%, transparent);
+    }
+    .input::placeholder { color: var(--df-color-text-muted); }
+    .input-rounded {
+      clip-path: none;
+      border-radius: var(--df-radius-md);
+    }
+
+    /* ── Badges ────────────────────────────────────────────────────────── */
+    .badge-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .badge {
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border: 1px solid;
+    }
+    .badge-idle       { color: var(--df-color-state-idle);       border-color: var(--df-color-state-idle);       background: color-mix(in srgb, var(--df-color-state-idle) 10%, transparent); }
+    .badge-active     { color: var(--df-color-state-active);     border-color: var(--df-color-state-active);     background: color-mix(in srgb, var(--df-color-state-active) 10%, transparent); }
+    .badge-recording  { color: var(--df-color-state-recording);  border-color: var(--df-color-state-recording);  background: color-mix(in srgb, var(--df-color-state-recording) 10%, transparent); animation: df-alert-pulse 1.2s ease-in-out infinite; }
+    .badge-processing { color: var(--df-color-state-processing); border-color: var(--df-color-state-processing); background: color-mix(in srgb, var(--df-color-state-processing) 10%, transparent); animation: df-processing-pulse 2s ease-in-out infinite; }
+    .badge-success    { color: var(--df-color-state-success);    border-color: var(--df-color-state-success);    background: color-mix(in srgb, var(--df-color-state-success) 10%, transparent); }
+    .badge-error      { color: var(--df-color-state-error);      border-color: var(--df-color-state-error);      background: color-mix(in srgb, var(--df-color-state-error) 10%, transparent); }
+    .badge-warning    { color: var(--df-color-state-warning);    border-color: var(--df-color-state-warning);    background: color-mix(in srgb, var(--df-color-state-warning) 10%, transparent); }
+    .badge-info       { color: var(--df-color-state-info);       border-color: var(--df-color-state-info);       background: color-mix(in srgb, var(--df-color-state-info) 10%, transparent); }
+    .badge-rounded {
+      border-radius: var(--df-radius-full);
+      padding: 3px 12px;
+    }
+
+    /* ── Cards ─────────────────────────────────────────────────────────── */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .card {
+      background: var(--df-color-bg-surface);
+      border: 1px solid var(--df-color-border-default);
+      padding: 20px;
+      transition: border-color var(--df-duration-fast), box-shadow var(--df-duration-base) var(--df-easing-spring);
+    }
+    .card:hover {
+      border-color: var(--df-color-border-strong);
+      box-shadow: var(--df-shadow-md);
+    }
+    .card-clipped { clip-path: var(--df-clip-md); }
+    .card-rounded { border-radius: var(--df-radius-lg); }
+    .card-title {
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--df-color-accent-default);
+      margin-bottom: 8px;
+    }
+    .card-body {
+      font-size: 12px;
+      color: var(--df-color-text-secondary);
+      line-height: 1.6;
+    }
+    .card-footer {
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--df-color-border-subtle);
+      font-size: 10px;
+      color: var(--df-color-text-muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* ── Alerts ────────────────────────────────────────────────────────── */
+    .alert {
+      padding: 12px 16px;
+      border-left: 3px solid;
+      font-size: 12px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .alert-success { border-color: var(--df-color-state-success); background: color-mix(in srgb, var(--df-color-state-success) 6%, var(--df-color-bg-surface)); color: var(--df-color-state-success); }
+    .alert-error   { border-color: var(--df-color-state-error);   background: color-mix(in srgb, var(--df-color-state-error) 6%, var(--df-color-bg-surface));   color: var(--df-color-state-error); }
+    .alert-warning { border-color: var(--df-color-state-warning); background: color-mix(in srgb, var(--df-color-state-warning) 6%, var(--df-color-bg-surface)); color: var(--df-color-state-warning); }
+    .alert-info    { border-color: var(--df-color-state-info);    background: color-mix(in srgb, var(--df-color-state-info) 6%, var(--df-color-bg-surface));    color: var(--df-color-state-info); }
+
+    /* ── State indicators ──────────────────────────────────────────────── */
+    .state-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 8px;
+    }
+    .state-card {
+      background: var(--df-color-bg-surface);
+      border: 1px solid var(--df-color-border-default);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      clip-path: var(--df-clip-sm);
+    }
+    .state-dot { width: 8px; height: 8px; border-radius: var(--df-radius-full); flex-shrink: 0; }
+    .state-name { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; }
+
+    /* ── Animation demos ───────────────────────────────────────────────── */
+    .anim-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+    .anim-card {
+      background: var(--df-color-bg-surface);
+      border: 1px solid var(--df-color-border-default);
+      padding: 28px 20px;
+      text-align: center;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--df-color-text-secondary);
+      position: relative; overflow: hidden;
+      clip-path: var(--df-clip-sm);
+    }
+    .anim-crt::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(to bottom, transparent 0%, rgba(126,231,135,0.03) 50%, transparent 100%);
+      background-size: 100% 40px;
+      animation: df-crt-sweep 4s linear infinite;
+      pointer-events: none;
+    }
+    .anim-glow { animation: df-glow-pulse 2s ease-in-out infinite; }
+    .anim-brackets { position: relative; }
+    .anim-brackets::before, .anim-brackets::after {
+      content: '';
+      position: absolute;
+      width: 12px; height: 12px;
+      border-color: var(--df-color-accent-default);
+      border-style: solid;
+      pointer-events: none;
+    }
+    .anim-brackets::before { top: 6px; left: 6px; border-width: 2px 0 0 2px; }
+    .anim-brackets::after  { bottom: 6px; right: 6px; border-width: 0 2px 2px 0; }
+    .cursor-blink {
+      display: inline-block;
+      width: 8px; height: 14px;
+      background: var(--df-color-accent-default);
+      vertical-align: text-bottom;
+      animation: df-blink 1s step-start infinite;
+      margin-left: 2px;
+    }
+
+    /* Spring animation demo */
+    .spring-demo {
+      display: flex;
+      gap: 16px;
+      align-items: flex-end;
+    }
+    .spring-box {
+      width: 48px; height: 48px;
+      background: var(--df-color-accent-dim);
+      border: 1px solid var(--df-color-accent-muted);
+      border-radius: var(--df-radius-sm);
+      cursor: pointer;
+      transition: transform 500ms var(--df-easing-default);
+    }
+    .spring-box:hover { transform: scale(1.15); }
+    .spring-box[data-easing="spring"] {
+      transition-timing-function: var(--df-easing-spring);
+    }
+    .spring-box[data-easing="spring-bouncy"] {
+      transition-timing-function: var(--df-easing-spring-bouncy);
+    }
+    .spring-label {
+      font-size: 9px;
+      color: var(--df-color-text-muted);
+      text-align: center;
+      margin-top: 4px;
+      letter-spacing: 0.08em;
+    }
+
+    /* ── Focus demo ────────────────────────────────────────────────────── */
+    .focus-demo-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+    .focus-demo-btn {
+      font-family: var(--df-font-mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 8px 16px;
+      background: var(--df-color-bg-raised);
+      border: 1px solid var(--df-color-border-default);
+      color: var(--df-color-text-primary);
+      cursor: pointer;
+    }
+    .focus-demo-btn:focus-visible {
+      outline: var(--df-focus-ring-width) solid var(--df-focus-ring-color);
+      outline-offset: var(--df-focus-ring-offset);
+    }
+
+    /* ── Code block ────────────────────────────────────────────────────── */
+    pre {
+      background: var(--df-color-bg-sunken);
+      border: 1px solid var(--df-color-border-default);
+      border-left: 2px solid var(--df-color-accent-default);
+      padding: 16px 20px;
+      overflow-x: auto;
+      font-size: 11px;
+      line-height: 1.7;
+      color: var(--df-color-text-primary);
+      margin-top: 16px;
+      border-radius: 0 var(--df-radius-sm) var(--df-radius-sm) 0;
+    }
+    code { font-family: var(--df-font-mono); }
+    .c-comment { color: var(--df-color-text-muted); }
+    .c-key     { color: var(--df-color-accent-default); }
+    .c-val     { color: var(--df-color-accent-bright); }
+    .c-str     { color: var(--df-color-state-success); }
+    .c-punct   { color: var(--df-color-text-secondary); }
+    .c-fn      { color: var(--df-color-state-info); }
+
+    /* ── Table ─────────────────────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--df-color-border-subtle); }
+    th { font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--df-color-text-secondary); }
+    tr:hover td { background: var(--df-color-bg-raised); }
+    td code { color: var(--df-color-accent-default); font-size: 10px; }
+    td .swatch-inline { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+
+    /* ── Token search ──────────────────────────────────────────────────── */
+    .token-search {
+      background: var(--df-color-bg-surface);
+      border: 1px solid var(--df-color-border-default);
+      color: var(--df-color-text-primary);
+      font-family: var(--df-font-mono);
+      font-size: 12px;
+      padding: 8px 12px;
+      width: 100%;
+      max-width: 400px;
+      outline: none;
+      margin-bottom: 16px;
+      border-radius: var(--df-radius-sm);
+    }
+    .token-search:focus {
+      border-color: var(--df-color-accent-default);
+      box-shadow: 0 0 8px color-mix(in srgb, var(--df-color-accent-default) 20%, transparent);
+    }
+    .token-search::placeholder { color: var(--df-color-text-muted); }
+
+    /* ── Opacity demos ─────────────────────────────────────────────────── */
+    .opacity-grid {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .opacity-demo {
+      width: 64px; height: 48px;
+      background: var(--df-color-accent-default);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: var(--df-color-text-inverse);
+      border-radius: var(--df-radius-xs);
+    }
+
+    /* ── Architecture diagram ──────────────────────────────────────────── */
+    .arch-layers {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-width: 500px;
+    }
+    .arch-layer {
+      padding: 10px 16px;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .arch-layer-priority {
+      font-size: 9px;
+      color: var(--df-color-text-muted);
+    }
+
+    /* ── Helpers ───────────────────────────────────────────────────────── */
+    .text-accent  { color: var(--df-color-accent-default); }
+    .text-muted   { color: var(--df-color-text-secondary); }
+    .text-dim     { color: var(--df-color-text-muted); }
+    .text-success { color: var(--df-color-state-success); }
+    .text-error   { color: var(--df-color-state-error); }
+    .text-info    { color: var(--df-color-state-info); }
+    .inline-code {
+      background: var(--df-color-bg-raised);
+      padding: 1px 6px;
+      font-size: 11px;
+      color: var(--df-color-accent-default);
+      border-radius: var(--df-radius-xs);
+    }
+    hr {
+      border: none;
+      border-top: 1px solid var(--df-color-border-subtle);
+      margin: 8px 0 24px;
+    }
+    .flex-row { display: flex; flex-wrap: wrap; gap: 12px; }
+    .flex-col { display: flex; flex-direction: column; gap: 12px; }
+
+    /* ── Spinner demo ──────────────────────────────────────────────────── */
+    .df-spinner-demo {
+      width: 20px; height: 20px;
+      border: 2px solid var(--df-color-border-default);
+      border-top-color: var(--df-color-accent-default);
+      border-radius: var(--df-radius-full);
+      animation: df-spin 0.6s linear infinite;
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══════ Hero ══════ -->
+  <header class="hero">
+    <h1>Devglide Design System</h1>
+    <div class="sub">v2.0 — Modern CSS architecture with @layer, OKLCH awareness, spring physics, and WCAG 2.2 focus patterns</div>
+    <div class="version">@devglide/design-tokens</div>
+    <div class="stats">
+      <div class="stat"><strong id="token-count">143</strong>Design tokens</div>
+      <div class="stat"><strong>5</strong>Color scales</div>
+      <div class="stat"><strong>4</strong>CSS layers</div>
+      <div class="stat"><strong>4</strong>Output formats</div>
+    </div>
+  </header>
+
+  <!-- ══════ Nav ══════ -->
+  <nav class="nav" id="nav">
+    <a href="#oklch">OKLCH</a>
+    <a href="#primitives">Primitives</a>
+    <a href="#colors">Colors</a>
+    <a href="#typography">Typography</a>
+    <a href="#spacing">Spacing</a>
+    <a href="#shapes">Shapes</a>
+    <a href="#shadows">Shadows</a>
+    <a href="#states">States</a>
+    <a href="#buttons">Buttons</a>
+    <a href="#inputs">Inputs</a>
+    <a href="#badges">Badges</a>
+    <a href="#cards">Cards</a>
+    <a href="#alerts">Alerts</a>
+    <a href="#motion">Motion</a>
+    <a href="#accessibility">A11y</a>
+    <a href="#architecture">@layer</a>
+    <a href="#tokens">Tokens</a>
+  </nav>
+
+  <!-- ══════ 01 / OKLCH Interactive ══════ -->
+  <section class="section" id="oklch">
+    <div class="section-title">01 / OKLCH Color Exploration</div>
+    <p class="section-desc">
+      OKLCH (Oklch Lightness-Chroma-Hue) is a perceptually uniform color space.
+      Adjusting the hue rotates the entire accent color while maintaining the same perceived brightness and saturation.
+      This is the foundation for building adaptive, themeable design systems.
+    </p>
+
+    <div class="hue-control">
+      <label>Accent hue rotation <span class="text-dim">(OKLCH hue 0-360)</span></label>
+      <div class="hue-row">
+        <input type="range" min="0" max="360" value="150" id="hue-slider" />
+        <div class="hue-preview" id="hue-preview" style="background: oklch(0.83 0.18 150)"></div>
+        <div class="hue-value" id="hue-value">150</div>
+      </div>
+      <div class="hue-note">
+        Default hue: 150 (green). Try 0 (red), 60 (amber), 210 (blue), 280 (violet).
+        The production tokens use hex values for maximum browser compatibility. This demo shows the OKLCH-powered approach for future adoption.
+      </div>
+    </div>
+
+    <div id="oklch-swatches" class="swatch-grid swatch-grid-wide" style="margin-bottom:16px"></div>
+
+    <pre><code><span class="c-comment">/* Define accent with OKLCH — adjust hue to re-theme everything */</span>
+<span class="c-key">@property</span> <span class="c-val">--df-hue</span> <span class="c-punct">{</span>
+  <span class="c-key">syntax</span>: <span class="c-str">'&lt;number&gt;'</span>;
+  <span class="c-key">initial-value</span>: <span class="c-val">150</span>;
+  <span class="c-key">inherits</span>: <span class="c-val">true</span>;
+<span class="c-punct">}</span>
+<span class="c-key">:root</span> <span class="c-punct">{</span>
+  <span class="c-key">--accent</span>: <span class="c-fn">oklch</span>(<span class="c-val">0.83 0.18</span> <span class="c-fn">var</span>(<span class="c-val">--df-hue</span>));
+<span class="c-punct">}</span></code></pre>
+  </section>
+
+  <!-- ══════ 02 / Primitive Palette ══════ -->
+  <section class="section" id="primitives">
+    <div class="section-title">02 / Primitive Palette</div>
+    <p class="section-desc">
+      Raw color scales organized by hue family. Primitives are the foundation from which semantic tokens are derived.
+      13-step neutral scale + 4 chromatic scales (green, red, amber, blue).
+    </p>
+
+    <div class="group-label">Neutral (0-12)</div>
+    <div id="neutral-swatches" class="swatch-grid swatch-grid-wide"></div>
+
+    <div class="group-label">Green (1-9)</div>
+    <div id="green-swatches" class="swatch-grid swatch-grid-wide"></div>
+
+    <div class="group-label">Red (1-6)</div>
+    <div id="red-swatches" class="swatch-grid swatch-grid-wide"></div>
+
+    <div class="group-label">Amber (1-6)</div>
+    <div id="amber-swatches" class="swatch-grid swatch-grid-wide"></div>
+
+    <div class="group-label">Blue (1-5)</div>
+    <div id="blue-swatches" class="swatch-grid swatch-grid-wide"></div>
+  </section>
+
+  <!-- ══════ 03 / Semantic Colors ══════ -->
+  <section class="section" id="colors">
+    <div class="section-title">03 / Semantic Colors</div>
+    <p class="section-desc">
+      Semantic tokens map primitives to UI roles. Apps reference these — never primitives directly.
+      This indirection enables theme switching without touching component code.
+    </p>
+
+    <div class="group-label">Backgrounds</div>
+    <div class="swatch-grid">
+      <div class="swatch" style="background:var(--df-color-bg-sunken);border:1px solid var(--df-color-border-default)"><span class="swatch-label">bg-sunken</span><span class="swatch-hex" data-var="--df-color-bg-sunken"></span></div>
+      <div class="swatch" style="background:var(--df-color-bg-base);border:1px solid var(--df-color-border-default)"><span class="swatch-label">bg-base</span><span class="swatch-hex" data-var="--df-color-bg-base"></span></div>
+      <div class="swatch" style="background:var(--df-color-bg-surface);border:1px solid var(--df-color-border-default)"><span class="swatch-label">bg-surface</span><span class="swatch-hex" data-var="--df-color-bg-surface"></span></div>
+      <div class="swatch" style="background:var(--df-color-bg-raised);border:1px solid var(--df-color-border-default)"><span class="swatch-label">bg-raised</span><span class="swatch-hex" data-var="--df-color-bg-raised"></span></div>
+      <div class="swatch" style="background:var(--df-color-bg-overlay);border:1px solid var(--df-color-border-default)"><span class="swatch-label">bg-overlay</span><span class="swatch-hex" data-var="--df-color-bg-overlay"></span></div>
+    </div>
+
+    <div class="group-label">Accent Scale</div>
+    <div class="swatch-grid">
+      <div class="swatch" style="background:var(--df-color-accent-subtle);border:1px solid var(--df-color-border-default)"><span class="swatch-label">accent-subtle</span><span class="swatch-hex" data-var="--df-color-accent-subtle"></span></div>
+      <div class="swatch" style="background:var(--df-color-accent-dim);border:1px solid var(--df-color-border-default)"><span class="swatch-label">accent-dim</span><span class="swatch-hex" data-var="--df-color-accent-dim"></span></div>
+      <div class="swatch" style="background:var(--df-color-accent-muted);border:1px solid var(--df-color-border-default)"><span class="swatch-label">accent-muted</span><span class="swatch-hex" data-var="--df-color-accent-muted"></span></div>
+      <div class="swatch" style="background:var(--df-color-accent-default);border:1px solid var(--df-color-accent-default)"><span class="swatch-label" style="color:var(--df-color-text-inverse)">accent-default</span><span class="swatch-hex" style="color:var(--df-color-text-inverse)" data-var="--df-color-accent-default"></span></div>
+      <div class="swatch" style="background:var(--df-color-accent-bright);border:1px solid var(--df-color-accent-bright)"><span class="swatch-label" style="color:var(--df-color-text-inverse)">accent-bright</span><span class="swatch-hex" style="color:var(--df-color-text-inverse)" data-var="--df-color-accent-bright"></span></div>
+    </div>
+
+    <div class="group-label">Text</div>
+    <div class="swatch-grid">
+      <div class="swatch" style="background:var(--df-color-bg-surface);border:1px solid var(--df-color-border-default)">
+        <span style="color:var(--df-color-text-primary)">Primary text</span><span class="swatch-hex" data-var="--df-color-text-primary"></span>
+      </div>
+      <div class="swatch" style="background:var(--df-color-bg-surface);border:1px solid var(--df-color-border-default)">
+        <span style="color:var(--df-color-text-secondary)">Secondary text</span><span class="swatch-hex" data-var="--df-color-text-secondary"></span>
+      </div>
+      <div class="swatch" style="background:var(--df-color-bg-surface);border:1px solid var(--df-color-border-default)">
+        <span style="color:var(--df-color-text-muted)">Muted text</span><span class="swatch-hex" data-var="--df-color-text-muted"></span>
+      </div>
+      <div class="swatch" style="background:var(--df-color-bg-surface);border:1px solid var(--df-color-border-default)">
+        <span style="color:var(--df-color-text-accent)">Accent text</span><span class="swatch-hex" data-var="--df-color-text-accent"></span>
+      </div>
+      <div class="swatch" style="background:var(--df-color-bg-surface);border:1px solid var(--df-color-border-default)">
+        <span style="color:var(--df-color-text-link)">Link text</span><span class="swatch-hex" data-var="--df-color-text-link"></span>
+      </div>
+    </div>
+
+    <div class="group-label">State Colors</div>
+    <div class="swatch-grid">
+      <div class="swatch" style="background:color-mix(in srgb, var(--df-color-state-idle) 15%, transparent);border:1px solid var(--df-color-state-idle)"><span class="swatch-label" style="color:var(--df-color-state-idle)">idle</span><span class="swatch-hex" style="color:var(--df-color-state-idle)" data-var="--df-color-state-idle"></span></div>
+      <div class="swatch" style="background:color-mix(in srgb, var(--df-color-state-success) 15%, transparent);border:1px solid var(--df-color-state-success)"><span class="swatch-label" style="color:var(--df-color-state-success)">success</span><span class="swatch-hex" style="color:var(--df-color-state-success)" data-var="--df-color-state-success"></span></div>
+      <div class="swatch" style="background:color-mix(in srgb, var(--df-color-state-error) 15%, transparent);border:1px solid var(--df-color-state-error)"><span class="swatch-label" style="color:var(--df-color-state-error)">error</span><span class="swatch-hex" style="color:var(--df-color-state-error)" data-var="--df-color-state-error"></span></div>
+      <div class="swatch" style="background:color-mix(in srgb, var(--df-color-state-warning) 15%, transparent);border:1px solid var(--df-color-state-warning)"><span class="swatch-label" style="color:var(--df-color-state-warning)">warning</span><span class="swatch-hex" style="color:var(--df-color-state-warning)" data-var="--df-color-state-warning"></span></div>
+      <div class="swatch" style="background:color-mix(in srgb, var(--df-color-state-info) 15%, transparent);border:1px solid var(--df-color-state-info)"><span class="swatch-label" style="color:var(--df-color-state-info)">info</span><span class="swatch-hex" style="color:var(--df-color-state-info)" data-var="--df-color-state-info"></span></div>
+      <div class="swatch" style="background:color-mix(in srgb, var(--df-color-state-recording) 15%, transparent);border:1px solid var(--df-color-state-recording)"><span class="swatch-label" style="color:var(--df-color-state-recording)">recording</span><span class="swatch-hex" style="color:var(--df-color-state-recording)" data-var="--df-color-state-recording"></span></div>
+      <div class="swatch" style="background:color-mix(in srgb, var(--df-color-state-processing) 15%, transparent);border:1px solid var(--df-color-state-processing)"><span class="swatch-label" style="color:var(--df-color-state-processing)">processing</span><span class="swatch-hex" style="color:var(--df-color-state-processing)" data-var="--df-color-state-processing"></span></div>
+    </div>
+
+    <div class="group-label">Borders</div>
+    <div class="swatch-grid">
+      <div class="swatch" style="background:var(--df-color-bg-base);border:2px solid var(--df-color-border-subtle)"><span class="swatch-label">border-subtle</span><span class="swatch-hex" data-var="--df-color-border-subtle"></span></div>
+      <div class="swatch" style="background:var(--df-color-bg-base);border:2px solid var(--df-color-border-default)"><span class="swatch-label">border-default</span><span class="swatch-hex" data-var="--df-color-border-default"></span></div>
+      <div class="swatch" style="background:var(--df-color-bg-base);border:2px solid var(--df-color-border-strong)"><span class="swatch-label">border-strong</span><span class="swatch-hex" data-var="--df-color-border-strong"></span></div>
+      <div class="swatch" style="background:var(--df-color-bg-base);border:2px solid var(--df-color-border-accent)"><span class="swatch-label">border-accent</span><span class="swatch-hex" data-var="--df-color-border-accent"></span></div>
+    </div>
+  </section>
+
+  <!-- ══════ 04 / Typography ══════ -->
+  <section class="section" id="typography">
+    <div class="section-title">04 / Typography</div>
+    <p class="section-desc">
+      Three font stacks: <span class="inline-code">mono</span> (Courier New) for terminal UI,
+      <span class="inline-code">ui</span> (system-ui) for body copy,
+      <span class="inline-code">display</span> (Inter Variable) for marketing/headings.
+      Uppercase labels with wide letter-spacing define the design language.
+    </p>
+
+    <div class="type-sample"><div class="type-meta">3xl / 36px</div><div class="type-specimen" style="font-size:36px;letter-spacing:0.2em;text-transform:uppercase;color:var(--df-color-accent-default)">DEVGLIDE</div></div>
+    <div class="type-sample"><div class="type-meta">2xl / 28px</div><div class="type-specimen" style="font-size:28px;letter-spacing:0.2em;text-transform:uppercase">System Ready</div></div>
+    <div class="type-sample"><div class="type-meta">xl / 20px</div><div class="type-specimen" style="font-size:20px;letter-spacing:0.15em;text-transform:uppercase">Project Title</div></div>
+    <div class="type-sample"><div class="type-meta">lg / 16px</div><div class="type-specimen" style="font-size:16px;letter-spacing:0.12em">Section heading — all caps labels</div></div>
+    <div class="type-sample"><div class="type-meta">md / 13px</div><div class="type-specimen" style="font-size:13px;letter-spacing:0.05em">Body text — readable paragraph copy. Terminal output and log lines.</div></div>
+    <div class="type-sample"><div class="type-meta">sm / 12px</div><div class="type-specimen" style="font-size:12px;letter-spacing:0.05em">Small text — metadata, timestamps, labels.</div></div>
+    <div class="type-sample"><div class="type-meta">xs / 10px</div><div class="type-specimen" style="font-size:10px;letter-spacing:0.2em;text-transform:uppercase">XS — badges, captions, section headers</div></div>
+
+    <div class="subsection">
+      <div class="group-label">Letter Spacing Scale</div>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+        <div style="font-size:12px;letter-spacing:0">Tight (0) — terminal output, code</div>
+        <div style="font-size:12px;letter-spacing:0.05em">Normal (0.05em) — body text</div>
+        <div style="font-size:12px;letter-spacing:0.12em">Wide (0.12em) — labels, sub-headings</div>
+        <div style="font-size:12px;letter-spacing:0.2em;text-transform:uppercase">Wider (0.2em) — section titles, badges</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════ 05 / Spacing ══════ -->
+  <section class="section" id="spacing">
+    <div class="section-title">05 / Spacing</div>
+    <p class="section-desc">4px base unit. 13 steps from 1px to 96px. Use the scale consistently for padding, margins, and gaps.</p>
+    <div>
+      <div class="space-row"><div class="space-bar" style="width:1px"></div><div class="space-meta">px — 1px</div></div>
+      <div class="space-row"><div class="space-bar" style="width:4px"></div><div class="space-meta">1 — 4px</div></div>
+      <div class="space-row"><div class="space-bar" style="width:8px"></div><div class="space-meta">2 — 8px</div></div>
+      <div class="space-row"><div class="space-bar" style="width:12px"></div><div class="space-meta">3 — 12px</div></div>
+      <div class="space-row"><div class="space-bar" style="width:16px"></div><div class="space-meta">4 — 16px</div></div>
+      <div class="space-row"><div class="space-bar" style="width:20px"></div><div class="space-meta">5 — 20px</div></div>
+      <div class="space-row"><div class="space-bar" style="width:24px"></div><div class="space-meta">6 — 24px</div></div>
+      <div class="space-row"><div class="space-bar" style="width:32px"></div><div class="space-meta">8 — 32px</div></div>
+      <div class="space-row"><div class="space-bar" style="width:40px"></div><div class="space-meta">10 — 40px</div></div>
+      <div class="space-row"><div class="space-bar" style="width:48px"></div><div class="space-meta">12 — 48px</div></div>
+      <div class="space-row"><div class="space-bar" style="width:64px"></div><div class="space-meta">16 — 64px</div></div>
+      <div class="space-row"><div class="space-bar" style="width:80px"></div><div class="space-meta">20 — 80px</div></div>
+      <div class="space-row"><div class="space-bar" style="width:96px"></div><div class="space-meta">24 — 96px</div></div>
+    </div>
+  </section>
+
+  <!-- ══════ 06 / Shapes (Radius + Clips) ══════ -->
+  <section class="section" id="shapes">
+    <div class="section-title">06 / Shapes — Radius &amp; Clip Panels</div>
+    <p class="section-desc">
+      Two shape systems: standard <span class="inline-code">border-radius</span> for rounded elements,
+      and angular <span class="inline-code">clip-path</span> bevels for the signature Devglide aesthetic.
+    </p>
+
+    <div class="group-label">Border Radius</div>
+    <div class="shape-grid">
+      <div class="shape-demo" style="border-radius:0">none<br><span class="text-dim" style="font-size:9px">0</span></div>
+      <div class="shape-demo" style="border-radius:var(--df-radius-xs)">xs<br><span class="text-dim" style="font-size:9px">2px</span></div>
+      <div class="shape-demo" style="border-radius:var(--df-radius-sm)">sm<br><span class="text-dim" style="font-size:9px">4px</span></div>
+      <div class="shape-demo" style="border-radius:var(--df-radius-md)">md<br><span class="text-dim" style="font-size:9px">6px</span></div>
+      <div class="shape-demo" style="border-radius:var(--df-radius-lg)">lg<br><span class="text-dim" style="font-size:9px">8px</span></div>
+      <div class="shape-demo" style="border-radius:var(--df-radius-xl)">xl<br><span class="text-dim" style="font-size:9px">12px</span></div>
+      <div class="shape-demo" style="border-radius:var(--df-radius-full);width:80px;height:80px;display:flex;align-items:center;justify-content:center">full<br><span class="text-dim" style="font-size:9px">pill</span></div>
+    </div>
+
+    <div class="group-label" style="margin-top:32px">Angular Clip Panels</div>
+    <div class="shape-grid">
+      <div class="shape-demo" style="clip-path:var(--df-clip-sm)">clip-sm<br><span class="text-dim" style="font-size:9px">8px bevel</span></div>
+      <div class="shape-demo" style="clip-path:var(--df-clip-md);border-color:var(--df-color-accent-dim)">clip-md<br><span class="text-dim" style="font-size:9px">12px bevel</span></div>
+      <div class="shape-demo" style="clip-path:var(--df-clip-lg);border-color:var(--df-color-accent-muted)">clip-lg<br><span class="text-dim" style="font-size:9px">16px bevel</span></div>
+      <div class="shape-demo" style="clip-path:var(--df-clip-xl);border-color:var(--df-color-accent-default);color:var(--df-color-accent-default)">clip-xl<br><span style="font-size:9px">24px bevel</span></div>
+    </div>
+  </section>
+
+  <!-- ══════ 07 / Shadows & Glows ══════ -->
+  <section class="section" id="shadows">
+    <div class="section-title">07 / Shadows &amp; Glows</div>
+    <p class="section-desc">Dark-optimized shadows with high opacity for visibility on dark backgrounds. Accent glows for interactive state feedback.</p>
+
+    <div class="group-label">Shadows</div>
+    <div class="shadow-grid">
+      <div class="shadow-demo" style="box-shadow:var(--df-shadow-sm)">shadow-sm</div>
+      <div class="shadow-demo" style="box-shadow:var(--df-shadow-md)">shadow-md</div>
+      <div class="shadow-demo" style="box-shadow:var(--df-shadow-lg)">shadow-lg</div>
+      <div class="shadow-demo" style="box-shadow:var(--df-shadow-xl)">shadow-xl</div>
+    </div>
+
+    <div class="group-label">Glows</div>
+    <div class="shadow-grid">
+      <div class="shadow-demo" style="box-shadow:var(--df-glow-accent);border-color:var(--df-color-accent-dim)">glow-accent</div>
+      <div class="shadow-demo" style="box-shadow:var(--df-glow-accent-strong);border-color:var(--df-color-accent-muted)">glow-accent-strong</div>
+      <div class="shadow-demo" style="box-shadow:var(--df-glow-error);border-color:color-mix(in srgb, var(--df-color-state-error) 40%, transparent)">glow-error</div>
+      <div class="shadow-demo" style="box-shadow:var(--df-glow-success);border-color:color-mix(in srgb, var(--df-color-state-success) 40%, transparent)">glow-success</div>
+      <div class="shadow-demo" style="box-shadow:var(--df-glow-processing);border-color:color-mix(in srgb, var(--df-color-state-processing) 40%, transparent)">glow-processing</div>
+    </div>
+
+    <div class="group-label">Opacity Scale</div>
+    <div class="opacity-grid">
+      <div><div class="opacity-demo" style="opacity:var(--df-opacity-5)">5%</div><div class="spring-label">0.05</div></div>
+      <div><div class="opacity-demo" style="opacity:var(--df-opacity-10)">10%</div><div class="spring-label">0.1</div></div>
+      <div><div class="opacity-demo" style="opacity:var(--df-opacity-20)">20%</div><div class="spring-label">0.2</div></div>
+      <div><div class="opacity-demo" style="opacity:var(--df-opacity-40)">40%</div><div class="spring-label">0.4</div></div>
+      <div><div class="opacity-demo" style="opacity:var(--df-opacity-60)">60%</div><div class="spring-label">0.6</div></div>
+      <div><div class="opacity-demo" style="opacity:var(--df-opacity-80)">80%</div><div class="spring-label">0.8</div></div>
+    </div>
+  </section>
+
+  <!-- ══════ 08 / States ══════ -->
+  <section class="section" id="states">
+    <div class="section-title">08 / State System</div>
+    <p class="section-desc">Eight states with distinct colors and glow values. Used for UI elements reflecting system or recording status.</p>
+    <div class="state-grid">
+      <div class="state-card"><div class="state-dot" style="background:var(--df-color-state-idle);box-shadow:0 0 6px var(--df-color-state-idle)"></div><div><div class="state-name" style="color:var(--df-color-state-idle)">Idle</div><div style="font-size:9px;color:var(--df-color-text-muted);letter-spacing:0.1em" data-var="--df-color-state-idle"></div></div></div>
+      <div class="state-card"><div class="state-dot" style="background:var(--df-color-state-active);box-shadow:0 0 6px var(--df-color-state-active)"></div><div><div class="state-name" style="color:var(--df-color-state-active)">Active</div><div style="font-size:9px;color:var(--df-color-text-muted);letter-spacing:0.1em" data-var="--df-color-state-active"></div></div></div>
+      <div class="state-card" style="animation:df-alert-pulse 1.2s ease-in-out infinite"><div class="state-dot" style="background:var(--df-color-state-recording);box-shadow:0 0 8px var(--df-color-state-recording)"></div><div><div class="state-name" style="color:var(--df-color-state-recording)">Recording</div><div style="font-size:9px;color:var(--df-color-text-muted);letter-spacing:0.1em"><span data-var="--df-color-state-recording"></span> &middot; pulsing</div></div></div>
+      <div class="state-card" style="animation:df-processing-pulse 2s ease-in-out infinite"><div class="state-dot" style="background:var(--df-color-state-processing);box-shadow:0 0 6px var(--df-color-state-processing)"></div><div><div class="state-name" style="color:var(--df-color-state-processing)">Processing</div><div style="font-size:9px;color:var(--df-color-text-muted);letter-spacing:0.1em" data-var="--df-color-state-processing"></div></div></div>
+      <div class="state-card"><div class="state-dot" style="background:var(--df-color-state-success);box-shadow:0 0 6px var(--df-color-state-success)"></div><div><div class="state-name" style="color:var(--df-color-state-success)">Success</div><div style="font-size:9px;color:var(--df-color-text-muted);letter-spacing:0.1em" data-var="--df-color-state-success"></div></div></div>
+      <div class="state-card"><div class="state-dot" style="background:var(--df-color-state-error);box-shadow:0 0 6px var(--df-color-state-error)"></div><div><div class="state-name" style="color:var(--df-color-state-error)">Error</div><div style="font-size:9px;color:var(--df-color-text-muted);letter-spacing:0.1em" data-var="--df-color-state-error"></div></div></div>
+      <div class="state-card"><div class="state-dot" style="background:var(--df-color-state-warning);box-shadow:0 0 6px var(--df-color-state-warning)"></div><div><div class="state-name" style="color:var(--df-color-state-warning)">Warning</div><div style="font-size:9px;color:var(--df-color-text-muted);letter-spacing:0.1em" data-var="--df-color-state-warning"></div></div></div>
+      <div class="state-card"><div class="state-dot" style="background:var(--df-color-state-info);box-shadow:0 0 6px var(--df-color-state-info)"></div><div><div class="state-name" style="color:var(--df-color-state-info)">Info</div><div style="font-size:9px;color:var(--df-color-text-muted);letter-spacing:0.1em" data-var="--df-color-state-info"></div></div></div>
+    </div>
+  </section>
+
+  <!-- ══════ 09 / Buttons ══════ -->
+  <section class="section" id="buttons">
+    <div class="section-title">09 / Buttons</div>
+    <p class="section-desc">Angular clip-path on interactive buttons. Spring physics easing on hover transitions. Four variants: primary, outline, ghost, danger.</p>
+    <div class="btn-row">
+      <button class="btn btn-primary">Execute</button>
+      <button class="btn btn-outline">Cancel</button>
+      <button class="btn btn-ghost">Details</button>
+      <button class="btn btn-danger">Destroy</button>
+      <button class="btn btn-primary" disabled>Disabled</button>
+    </div>
+    <pre><code><span class="c-comment">/* Spring-eased transitions on buttons */</span>
+<span class="c-key">.btn</span> <span class="c-punct">{</span>
+  <span class="c-key">transition</span>: <span class="c-val">all var(--df-duration-base) var(--df-easing-spring)</span>;
+  <span class="c-key">clip-path</span>: <span class="c-val">var(--df-clip-sm)</span>;
+<span class="c-punct">}</span>
+<span class="c-key">.btn:focus-visible</span> <span class="c-punct">{</span>
+  <span class="c-key">outline</span>: <span class="c-val">var(--df-focus-ring-width) solid var(--df-focus-ring-color)</span>;
+  <span class="c-key">outline-offset</span>: <span class="c-val">var(--df-focus-ring-offset)</span>;
+<span class="c-punct">}</span></code></pre>
+  </section>
+
+  <!-- ══════ 10 / Inputs ══════ -->
+  <section class="section" id="inputs">
+    <div class="section-title">10 / Inputs</div>
+    <p class="section-desc">Two styles: angular clip-path (default) and rounded. Accent focus glow with <span class="inline-code">color-mix()</span> for theme-aware transparency.</p>
+    <div class="flex-row">
+      <div class="input-group">
+        <label class="input-label">Angular (default)</label>
+        <input class="input" type="text" placeholder="Search issues..." />
+      </div>
+      <div class="input-group">
+        <label class="input-label">Rounded variant</label>
+        <input class="input input-rounded" type="text" placeholder="Filter by name..." />
+      </div>
+    </div>
+    <pre><code><span class="c-comment">/* color-mix() for theme-aware focus glow */</span>
+<span class="c-key">.input:focus</span> <span class="c-punct">{</span>
+  <span class="c-key">border-color</span>: <span class="c-val">var(--df-color-accent-default)</span>;
+  <span class="c-key">box-shadow</span>: 0 0 8px <span class="c-fn">color-mix</span>(<span class="c-val">in srgb</span>, <span class="c-val">var(--df-color-accent-default) 30%</span>, <span class="c-val">transparent</span>);
+<span class="c-punct">}</span></code></pre>
+  </section>
+
+  <!-- ══════ 11 / Badges ══════ -->
+  <section class="section" id="badges">
+    <div class="section-title">11 / Badges</div>
+    <p class="section-desc">Status badges with <span class="inline-code">color-mix()</span> backgrounds. Two shapes: angular (default) and rounded pill.</p>
+
+    <div class="group-label">Angular</div>
+    <div class="badge-row">
+      <span class="badge badge-idle">Idle</span>
+      <span class="badge badge-active">Active</span>
+      <span class="badge badge-recording">Recording</span>
+      <span class="badge badge-processing">Processing</span>
+      <span class="badge badge-success">Success</span>
+      <span class="badge badge-error">Error</span>
+      <span class="badge badge-warning">Warning</span>
+      <span class="badge badge-info">Info</span>
+    </div>
+
+    <div class="group-label">Rounded Pill</div>
+    <div class="badge-row">
+      <span class="badge badge-rounded badge-success">Online</span>
+      <span class="badge badge-rounded badge-error">Offline</span>
+      <span class="badge badge-rounded badge-processing">Syncing</span>
+      <span class="badge badge-rounded badge-info">v2.0</span>
+    </div>
+  </section>
+
+  <!-- ══════ 12 / Cards ══════ -->
+  <section class="section" id="cards">
+    <div class="section-title">12 / Cards &amp; Panels</div>
+    <p class="section-desc">Content containers with hover elevation using spring-eased transitions. Angular and rounded variants.</p>
+    <div class="card-grid">
+      <div class="card card-clipped">
+        <div class="card-title">Angular Panel</div>
+        <div class="card-body">The signature Devglide card style with clip-path bevels and border elevation on hover.</div>
+        <div class="card-footer">clip-path: var(--df-clip-md)</div>
+      </div>
+      <div class="card card-rounded">
+        <div class="card-title">Rounded Card</div>
+        <div class="card-body">Alternative style for contexts where rounded corners are preferred, like settings panels.</div>
+        <div class="card-footer">border-radius: var(--df-radius-lg)</div>
+      </div>
+      <div class="card card-clipped df-brackets" style="border-color:var(--df-color-accent-dim)">
+        <div class="card-title">Bracketed Panel</div>
+        <div class="card-body">Corner brackets add emphasis for active or selected state. Uses <code class="inline-code">.df-brackets</code> utility.</div>
+        <div class="card-footer">accent corner decorations</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════ 13 / Alerts ══════ -->
+  <section class="section" id="alerts">
+    <div class="section-title">13 / Alerts &amp; Toasts</div>
+    <p class="section-desc">Contextual messages with left border accent and <span class="inline-code">color-mix()</span> tinted backgrounds.</p>
+    <div style="max-width:600px">
+      <div class="alert alert-success">Transcription completed successfully (2.4s)</div>
+      <div class="alert alert-error">Connection to faster-whisper server failed</div>
+      <div class="alert alert-warning">API key expires in 3 days</div>
+      <div class="alert alert-info">New model available: whisper-large-v3-turbo</div>
+    </div>
+    <pre><code><span class="c-comment">/* color-mix() for theme-aware alert backgrounds */</span>
+<span class="c-key">.alert-error</span> <span class="c-punct">{</span>
+  <span class="c-key">border-color</span>: <span class="c-val">var(--df-color-state-error)</span>;
+  <span class="c-key">background</span>: <span class="c-fn">color-mix</span>(<span class="c-val">in srgb</span>, <span class="c-val">var(--df-color-state-error) 6%</span>, <span class="c-val">var(--df-color-bg-surface)</span>);
+<span class="c-punct">}</span></code></pre>
+  </section>
+
+  <!-- ══════ 14 / Motion ══════ -->
+  <section class="section" id="motion">
+    <div class="section-title">14 / Motion &amp; Animation</div>
+    <p class="section-desc">
+      Spring physics via <span class="inline-code">linear()</span> easing function.
+      CRT scanline sweep, accent glow pulse, cursor blink, and loading spinners.
+      All animations respect <span class="inline-code">prefers-reduced-motion</span>.
+    </p>
+
+    <div class="group-label">Spring Physics (hover the boxes)</div>
+    <div class="spring-demo" style="margin-bottom:24px">
+      <div>
+        <div class="spring-box" data-easing="ease" style="background:var(--df-color-bg-overlay);border-color:var(--df-color-border-strong)"></div>
+        <div class="spring-label">ease</div>
+      </div>
+      <div>
+        <div class="spring-box" data-easing="spring" style="background:var(--df-color-accent-dim);border-color:var(--df-color-accent-muted)"></div>
+        <div class="spring-label">spring</div>
+      </div>
+      <div>
+        <div class="spring-box" data-easing="spring-bouncy" style="background:var(--df-color-accent-dim);border-color:var(--df-color-accent-default)"></div>
+        <div class="spring-label">bouncy</div>
+      </div>
+    </div>
+
+    <div class="group-label">Signature Animations</div>
+    <div class="anim-grid">
+      <div class="anim-card anim-crt anim-brackets">CRT Scanline<br><span class="text-muted" style="font-size:9px">4s linear infinite</span></div>
+      <div class="anim-card anim-glow anim-brackets" style="color:var(--df-color-accent-default)">Glow Pulse<br><span style="font-size:9px;color:var(--df-color-accent-muted)">2s ease infinite</span></div>
+      <div class="anim-card" style="letter-spacing:0.2em;font-size:11px">SYSTEM READY<span class="cursor-blink"></span><br><span class="text-dim" style="font-size:9px">1s step-start blink</span></div>
+      <div class="anim-card" style="display:flex;align-items:center;justify-content:center;gap:10px"><div class="df-spinner-demo"></div><span>Loading</span><br><span class="text-dim" style="font-size:9px">0.6s linear spin</span></div>
+    </div>
+
+    <pre><code><span class="c-comment">/* Spring easing via linear() — native CSS, no JS needed */</span>
+<span class="c-key">--df-easing-spring</span>: <span class="c-fn">linear</span>(<span class="c-val">0, 0.009, 0.035 2.1%, 0.141 4.4%, ...</span>);
+
+<span class="c-comment">/* Use it on any transition */</span>
+<span class="c-key">.element</span> <span class="c-punct">{</span>
+  <span class="c-key">transition</span>: <span class="c-val">transform 300ms var(--df-easing-spring)</span>;
+<span class="c-punct">}</span>
+
+<span class="c-comment">/* Respect user motion preferences */</span>
+<span class="c-key">@media</span> (<span class="c-val">prefers-reduced-motion: reduce</span>) <span class="c-punct">{</span>
+  <span class="c-key">.df-crt::after</span> <span class="c-punct">{</span> <span class="c-key">animation</span>: <span class="c-val">none</span>; <span class="c-punct">}</span>
+<span class="c-punct">}</span></code></pre>
+  </section>
+
+  <!-- ══════ 15 / Accessibility ══════ -->
+  <section class="section" id="accessibility">
+    <div class="section-title">15 / Accessibility</div>
+    <p class="section-desc">
+      WCAG 2.2 AA compliant focus indicators using <span class="inline-code">:focus-visible</span>.
+      Screen reader utilities. Reduced motion support. Semantic color contrast ratios.
+    </p>
+
+    <div class="group-label">Focus Ring (Tab through these buttons)</div>
+    <div class="focus-demo-row">
+      <button class="focus-demo-btn">Tab to me</button>
+      <button class="focus-demo-btn" style="clip-path:var(--df-clip-sm)">Clipped button</button>
+      <button class="focus-demo-btn" style="border-radius:var(--df-radius-md)">Rounded button</button>
+    </div>
+
+    <pre><code><span class="c-comment">/* WCAG 2.2 compliant focus ring */</span>
+<span class="c-key">:focus-visible</span> <span class="c-punct">{</span>
+  <span class="c-key">outline</span>: <span class="c-val">var(--df-focus-ring-width) solid var(--df-focus-ring-color)</span>;   <span class="c-comment">/* 2px green */</span>
+  <span class="c-key">outline-offset</span>: <span class="c-val">var(--df-focus-ring-offset)</span>;                          <span class="c-comment">/* 2px gap */</span>
+<span class="c-punct">}</span>
+
+<span class="c-comment">/* Screen reader only */</span>
+<span class="c-key">.df-sr-only</span> <span class="c-punct">{</span>
+  <span class="c-key">position</span>: <span class="c-val">absolute</span>; <span class="c-key">width</span>: <span class="c-val">1px</span>; <span class="c-key">height</span>: <span class="c-val">1px</span>;
+  <span class="c-key">clip</span>: <span class="c-fn">rect</span>(<span class="c-val">0, 0, 0, 0</span>); <span class="c-key">overflow</span>: <span class="c-val">hidden</span>;
+<span class="c-punct">}</span></code></pre>
+  </section>
+
+  <!-- ══════ 16 / CSS Architecture ══════ -->
+  <section class="section" id="architecture">
+    <div class="section-title">16 / CSS Architecture</div>
+    <p class="section-desc">
+      Tokens are organized using <span class="inline-code">@layer</span> cascade layers for predictable specificity.
+      <span class="inline-code">@property</span> declarations enable animatable custom properties.
+    </p>
+
+    <div class="group-label">Layer Stack (lowest to highest priority)</div>
+    <div class="arch-layers">
+      <div class="arch-layer" style="background:color-mix(in srgb, var(--df-color-state-info) 8%, var(--df-color-bg-surface));border-left:3px solid var(--df-color-state-info)">
+        <span>df-tokens</span><span class="arch-layer-priority">Custom properties + @property</span>
+      </div>
+      <div class="arch-layer" style="background:color-mix(in srgb, var(--df-color-accent-default) 8%, var(--df-color-bg-surface));border-left:3px solid var(--df-color-accent-default)">
+        <span>df-keyframes</span><span class="arch-layer-priority">@keyframes definitions</span>
+      </div>
+      <div class="arch-layer" style="background:color-mix(in srgb, var(--df-color-state-processing) 8%, var(--df-color-bg-surface));border-left:3px solid var(--df-color-state-processing)">
+        <span>df-components</span><span class="arch-layer-priority">.df-crt, .df-brackets, .df-panel</span>
+      </div>
+      <div class="arch-layer" style="background:color-mix(in srgb, var(--df-color-state-warning) 8%, var(--df-color-bg-surface));border-left:3px solid var(--df-color-state-warning)">
+        <span>df-utilities</span><span class="arch-layer-priority">.df-sr-only, reduced-motion</span>
+      </div>
+    </div>
+
+    <pre><code><span class="c-comment">/* CSS @layer declaration order — tokens.css */</span>
+<span class="c-key">@layer</span> <span class="c-val">df-tokens, df-keyframes, df-components, df-utilities</span>;
+
+<span class="c-comment">/* Your app styles cascade ABOVE all token layers */</span>
+<span class="c-comment">/* No !important needed — layers handle specificity cleanly */</span>
+
+<span class="c-comment">/* @property makes custom props animatable */</span>
+<span class="c-key">@property</span> <span class="c-val">--df-hue</span> <span class="c-punct">{</span>
+  <span class="c-key">syntax</span>: <span class="c-str">'&lt;number&gt;'</span>;
+  <span class="c-key">initial-value</span>: <span class="c-val">150</span>;
+  <span class="c-key">inherits</span>: <span class="c-val">true</span>;
+<span class="c-punct">}</span></code></pre>
+  </section>
+
+  <!-- ══════ 17 / Token Reference ══════ -->
+  <section class="section" id="tokens">
+    <div class="section-title">17 / Token Reference</div>
+    <p class="section-desc">All <span id="semantic-count"></span> CSS custom properties. Import <span class="inline-code">@devglide/design-tokens/css</span> to use them.</p>
+    <input type="text" class="token-search" id="token-search" placeholder="Search tokens..." />
+    <table>
+      <thead><tr><th>Token</th><th>Value</th></tr></thead>
+      <tbody id="token-table"></tbody>
+    </table>
+  </section>
+
+  <!-- Footer -->
+  <footer style="border-top:1px solid var(--df-color-border-subtle);padding-top:20px;margin-top:24px;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--df-color-text-muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <span>@devglide/design-tokens v2.0</span>
+    <span id="footer-count"></span>
+  </footer>
+
+</div>
+
+<script>
+  // ── OKLCH hue slider ──────────────────────────────────────────────────────
+  var hueSlider = document.getElementById('hue-slider');
+  var huePreview = document.getElementById('hue-preview');
+  var hueValue = document.getElementById('hue-value');
+  var oklchContainer = document.getElementById('oklch-swatches');
+
+  function updateHue(h) {
+    hueValue.textContent = h;
+    huePreview.style.background = 'oklch(0.83 0.18 ' + h + ')';
+    // Generate lightness scale for current hue
+    var html = '';
+    var steps = [0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.83, 0.90];
+    var chroma = [0.04, 0.06, 0.08, 0.12, 0.14, 0.16, 0.18, 0.18, 0.12];
+    for (var i = 0; i < steps.length; i++) {
+      var c = 'oklch(' + steps[i] + ' ' + chroma[i] + ' ' + h + ')';
+      var textColor = steps[i] > 0.6 ? 'var(--df-color-text-inverse)' : 'var(--df-color-text-primary)';
+      html += '<div class="swatch" style="background:' + c + ';border:1px solid rgba(255,255,255,0.08);color:' + textColor + '">';
+      html += '<span class="swatch-label">L' + Math.round(steps[i]*100) + '</span>';
+      html += '<span class="swatch-hex" style="color:' + textColor + '">' + steps[i].toFixed(2) + '</span>';
+      html += '</div>';
+    }
+    oklchContainer.innerHTML = html;
+  }
+
+  hueSlider.addEventListener('input', function(e) { updateHue(e.target.value); });
+  updateHue(150);
+
+  // ── Primitive palette renderer ────────────────────────────────────────────
+  function renderPrimitivePalette(containerId, prefix, count) {
+    var container = document.getElementById(containerId);
+    var style = getComputedStyle(document.documentElement);
+    var html = '';
+    var keys = [];
+    // Collect all matching vars
+    for (var i = 0; i <= 12; i++) {
+      var varName = '--df-primitive-' + prefix + '-' + i;
+      var val = style.getPropertyValue(varName).trim();
+      if (val) keys.push({ key: i, val: val, varName: varName });
+    }
+    for (var j = 0; j < keys.length; j++) {
+      var item = keys[j];
+      var lum = relativeLuminance(item.val);
+      var textColor = lum > 0.18 ? 'var(--df-color-text-inverse)' : 'var(--df-color-text-primary)';
+      html += '<div class="swatch" style="background:' + item.val + ';border:1px solid rgba(255,255,255,0.06);color:' + textColor + '">';
+      html += '<span class="swatch-label">' + item.key + '</span>';
+      html += '<span class="swatch-hex" style="color:' + textColor + '">' + item.val + '</span>';
+      html += '</div>';
+    }
+    container.innerHTML = html;
+  }
+
+  function relativeLuminance(hex) {
+    if (!hex || hex.charAt(0) !== '#') return 0;
+    var r = parseInt(hex.slice(1,3), 16) / 255;
+    var g = parseInt(hex.slice(3,5), 16) / 255;
+    var b = parseInt(hex.slice(5,7), 16) / 255;
+    r = r <= 0.03928 ? r/12.92 : Math.pow((r+0.055)/1.055, 2.4);
+    g = g <= 0.03928 ? g/12.92 : Math.pow((g+0.055)/1.055, 2.4);
+    b = b <= 0.03928 ? b/12.92 : Math.pow((b+0.055)/1.055, 2.4);
+    return 0.2126*r + 0.7152*g + 0.0722*b;
+  }
+
+  renderPrimitivePalette('neutral-swatches', 'neutral', 13);
+  renderPrimitivePalette('green-swatches', 'green', 9);
+  renderPrimitivePalette('red-swatches', 'red', 6);
+  renderPrimitivePalette('amber-swatches', 'amber', 6);
+  renderPrimitivePalette('blue-swatches', 'blue', 5);
+
+  // ── Dynamic values ────────────────────────────────────────────────────────
+  function updateDynamicValues() {
+    var style = getComputedStyle(document.documentElement);
+    document.querySelectorAll('[data-var]').forEach(function(el) {
+      var val = style.getPropertyValue(el.dataset.var).trim();
+      el.textContent = val;
+    });
+  }
+
+  // ── Token table with search ───────────────────────────────────────────────
+  function buildTokenTable(filter) {
+    var style = getComputedStyle(document.documentElement);
+    // Get all --df- variables from the stylesheet
+    var allVars = [];
+    for (var i = 0; i < document.styleSheets.length; i++) {
+      try {
+        var rules = document.styleSheets[i].cssRules;
+        for (var j = 0; j < rules.length; j++) {
+          var rule = rules[j];
+          // Check in @layer rules
+          if (rule.cssRules) {
+            for (var k = 0; k < rule.cssRules.length; k++) {
+              var innerRule = rule.cssRules[k];
+              if (innerRule.selectorText === ':root' && innerRule.style) {
+                for (var l = 0; l < innerRule.style.length; l++) {
+                  var prop = innerRule.style[l];
+                  if (prop.startsWith('--df-')) allVars.push(prop);
+                }
+              }
+            }
+          }
+          if (rule.selectorText === ':root' && rule.style) {
+            for (var m = 0; m < rule.style.length; m++) {
+              var prop2 = rule.style[m];
+              if (prop2.startsWith('--df-')) allVars.push(prop2);
+            }
+          }
+        }
+      } catch(e) {}
+    }
+
+    // Dedupe and sort
+    allVars = Array.from(new Set(allVars)).sort();
+
+    var tbody = document.getElementById('token-table');
+    tbody.innerHTML = '';
+    var filterLower = (filter || '').toLowerCase();
+    var count = 0;
+
+    for (var n = 0; n < allVars.length; n++) {
+      var name = allVars[n];
+      if (filterLower && name.toLowerCase().indexOf(filterLower) === -1) continue;
+      var v = style.getPropertyValue(name).trim();
+      var isColor = v.startsWith('#') || v.startsWith('rgb');
+      var preview = isColor
+        ? '<span class="swatch-inline" style="background:' + v + ';border:1px solid rgba(255,255,255,.1)"></span>' + v
+        : '<span style="color:var(--df-color-text-secondary)">' + (v.length > 80 ? v.substring(0,80) + '...' : v) + '</span>';
+      tbody.insertAdjacentHTML('beforeend', '<tr><td><code>' + name + '</code></td><td>' + preview + '</td></tr>');
+      count++;
+    }
+
+    document.getElementById('token-count').textContent = allVars.length;
+    document.getElementById('semantic-count').textContent = count + ' of ' + allVars.length;
+    document.getElementById('footer-count').textContent = allVars.length + ' tokens \u00b7 4 @layers \u00b7 5 color scales';
+  }
+
+  // Search
+  document.getElementById('token-search').addEventListener('input', function(e) {
+    buildTokenTable(e.target.value);
+  });
+
+  // Initial render
+  updateDynamicValues();
+  buildTokenTable();
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "Code Review",
+  "description": "Auto-review: run tests, check diff, log results",
+  "version": 1,
+  "tags": ["git", "review"],
+  "variables": [],
+  "nodes": [
+    { "id": "trigger-1", "type": "trigger", "label": "Git Push", "config": { "nodeType": "trigger", "triggerType": "git-event", "gitEvent": "push" }, "position": { "x": 400, "y": 0 } },
+    { "id": "diff-1", "type": "action:git", "label": "Get Diff", "config": { "nodeType": "action:git", "operation": "diff" }, "position": { "x": 400, "y": 150 } },
+    { "id": "test-1", "type": "action:shell", "label": "Run Tests", "config": { "nodeType": "action:shell", "command": "npm test", "captureOutput": true }, "position": { "x": 400, "y": 300 } },
+    { "id": "decision-1", "type": "decision", "label": "Tests Passed?", "config": { "nodeType": "decision", "conditionType": "exit-code", "ports": [{ "id": "yes", "label": "Passed" }, { "id": "no", "label": "Failed" }] }, "position": { "x": 400, "y": 450 } },
+    { "id": "log-pass", "type": "action:log", "label": "Log Success", "config": { "nodeType": "action:log", "operation": "write", "message": "Code review passed: all tests green" }, "position": { "x": 250, "y": 600 } },
+    { "id": "log-fail", "type": "action:log", "label": "Log Failure", "config": { "nodeType": "action:log", "operation": "write", "message": "Code review failed: tests did not pass" }, "position": { "x": 550, "y": 600 } }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trigger-1", "target": "diff-1" },
+    { "id": "e2", "source": "diff-1", "target": "test-1" },
+    { "id": "e3", "source": "test-1", "target": "decision-1" },
+    { "id": "e4", "source": "decision-1", "target": "log-pass", "sourcePort": "yes" },
+    { "id": "e5", "source": "decision-1", "target": "log-fail", "sourcePort": "no" }
+  ]
+}

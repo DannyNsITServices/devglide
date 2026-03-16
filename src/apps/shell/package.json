@@ -1,0 +1,28 @@
+{
+  "name": "@devglide/shell",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Multi-terminal dashboard with speech-to-text",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "mcp": "tsx src/index.ts --stdio",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "private": true,
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "express": "^5.2.1",
+    "node-pty": "^1.1.0",
+    "@devglide/mcp-utils": "workspace:*",
+    "zod": "^3.25.49"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.0"
+  }
+}

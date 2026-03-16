@@ -1,0 +1,322 @@
+
+  .page-log {
+    font-family: var(--df-font-mono);
+    background: var(--df-color-bg-base);
+    color: var(--df-color-text-primary);
+    -webkit-font-smoothing: antialiased;
+    font-size: var(--df-font-size-md);
+    min-height: 100vh;
+    background-image: none;
+  }
+
+  /* -- Header (app-specific additions) -------------------------------- */
+  .page-log .brand {
+    cursor: pointer;
+  }
+
+  /* -- Badge ---------------------------------------------------------- */
+  .page-log .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    font-size: var(--df-font-size-xs);
+    font-weight: 600;
+    font-family: var(--df-font-mono);
+    background: color-mix(in srgb, var(--df-color-accent-default) 12%, transparent);
+    color: var(--df-color-accent-default);
+    border: 1px solid color-mix(in srgb, var(--df-color-accent-default) 25%, transparent);
+    text-transform: uppercase;
+    letter-spacing: var(--df-letter-spacing-wider);
+  }
+
+  .page-log .source-badge {
+    display: inline-flex;
+    padding: 1px 5px;
+    font-size: var(--df-font-size-xs);
+    font-weight: 700;
+    font-family: var(--df-font-mono);
+    letter-spacing: 0.05em;
+  }
+  .page-log .source-badge.browser { background: color-mix(in srgb, var(--df-color-state-warning) 25%, transparent); color: var(--df-color-state-warning); }
+  .page-log .source-badge.server  { background: color-mix(in srgb, var(--df-color-accent-muted) 25%, transparent); color: var(--df-color-accent-muted); }
+  .page-log .source-badge.file    { background: color-mix(in srgb, var(--df-color-state-success) 25%, transparent); color: var(--df-color-state-success); }
+
+  /* -- Buttons -------------------------------------------------------- */
+  .page-log .btn-danger {
+    padding: 3px 8px;
+    border: 1px solid color-mix(in srgb, var(--df-color-state-error) 40%, transparent);
+    background: color-mix(in srgb, var(--df-color-state-error) 8%, transparent);
+    color: var(--df-color-state-error);
+    font-size: var(--df-font-size-xs);
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--df-font-mono);
+    text-transform: uppercase;
+    letter-spacing: var(--df-letter-spacing-wide);
+    transition: background var(--df-duration-fast), border-color var(--df-duration-fast);
+  }
+  .page-log .btn-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--df-color-state-error) 18%, transparent);
+    border-color: color-mix(in srgb, var(--df-color-state-error) 60%, transparent);
+  }
+  .page-log .btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .page-log .btn-secondary {
+    padding: 3px 8px;
+    border: 1px solid var(--df-color-border-default);
+    background: var(--df-color-bg-surface);
+    color: var(--df-color-text-secondary);
+    font-size: var(--df-font-size-xs);
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--df-font-mono);
+    text-transform: uppercase;
+    letter-spacing: var(--df-letter-spacing-wide);
+    transition: background var(--df-duration-fast), color var(--df-duration-fast);
+  }
+  .page-log .btn-secondary:hover { background: var(--df-color-bg-raised); color: var(--df-color-text-primary); }
+
+  /* -- Refresh indicator ---------------------------------------------- */
+  .page-log .refresh-indicator {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: var(--df-color-state-success);
+    margin-left: 6px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .page-log .refresh-indicator.flash { opacity: 1; }
+
+  /* -- Layout --------------------------------------------------------- */
+  .page-log main {
+    max-width: var(--df-max-width-md);
+    margin: 0 auto;
+    padding: var(--df-space-6);
+  }
+
+  @media (min-width: 1440px) {
+    .page-log main { max-width: var(--df-max-width-lg); padding: var(--df-space-8); }
+  }
+
+  @media (min-width: 1920px) {
+    .page-log main { max-width: var(--df-max-width-xl); padding: var(--df-space-10); }
+    .page-log .log-entry { grid-template-columns: 22px 100px auto 1fr; }
+  }
+
+  .page-log .section-title {
+    font-size: var(--df-font-size-xs);
+    letter-spacing: var(--df-letter-spacing-wider);
+    text-transform: uppercase;
+    color: var(--df-color-text-secondary);
+    margin-bottom: var(--df-space-3);
+  }
+
+  .page-log .hidden { display: none !important; }
+
+  /* -- Empty state ---------------------------------------------------- */
+  .page-log .empty {
+    background: var(--df-color-bg-surface);
+    border: 1px dashed var(--df-color-border-default);
+    padding: var(--df-space-10);
+    text-align: center;
+    color: var(--df-color-text-secondary);
+    font-size: var(--df-font-size-sm);
+    line-height: var(--df-line-height-loose);
+    text-transform: uppercase;
+    letter-spacing: var(--df-letter-spacing-wide);
+  }
+  .page-log .empty code {
+    color: var(--df-color-accent-default);
+    font-family: var(--df-font-mono);
+    text-transform: none;
+  }
+
+  /* -- File list ------------------------------------------------------ */
+  .page-log .file-list { display: flex; flex-direction: column; gap: var(--df-space-2); }
+
+  .page-log .file-card {
+    background: var(--df-color-bg-surface);
+    border: 1px solid var(--df-color-border-default);
+    clip-path: var(--df-clip-md);
+    padding: var(--df-space-3) var(--df-space-4);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: start;
+    gap: var(--df-space-3);
+    transition: border-color var(--df-duration-fast);
+    cursor: pointer;
+  }
+  .page-log .file-card:hover {
+    border-color: color-mix(in srgb, var(--df-color-accent-default) 50%, transparent);
+  }
+
+  /* -- Status dots ---------------------------------------------------- */
+  .page-log .status-dot { width: 8px; height: 8px; margin-top: 3px; flex-shrink: 0; }
+  .page-log .status-dot.active { background: var(--df-color-state-success); box-shadow: 0 0 6px var(--df-color-state-success); }
+  .page-log .status-dot.idle   { background: var(--df-color-state-warning); }
+  .page-log .status-dot.stale  { background: var(--df-color-text-secondary); }
+
+  /* -- File content --------------------------------------------------- */
+  .page-log .file-main { min-width: 0; }
+  .page-log .file-name {
+    font-size: var(--df-font-size-sm);
+    color: var(--df-color-text-primary);
+    text-transform: uppercase;
+    letter-spacing: var(--df-letter-spacing-wide);
+    margin-bottom: 2px;
+  }
+  .page-log .file-path {
+    font-size: var(--df-font-size-xs);
+    color: var(--df-color-text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .page-log .file-sources {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+  .page-log .file-source-item {
+    font-size: var(--df-font-size-xs);
+    color: var(--df-color-text-muted);
+    padding: 0 4px;
+    border: 1px solid color-mix(in srgb, var(--df-color-border-default) 60%, transparent);
+  }
+  .page-log .file-source-item.browser { border-color: color-mix(in srgb, var(--df-color-state-warning) 40%, transparent); color: var(--df-color-state-warning); }
+  .page-log .file-source-item.server  { border-color: color-mix(in srgb, var(--df-color-accent-muted) 40%, transparent); color: var(--df-color-accent-muted); }
+  .page-log .file-source-item.file    { border-color: color-mix(in srgb, var(--df-color-state-success) 40%, transparent); color: var(--df-color-state-success); }
+
+  .page-log .file-stats { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; white-space: nowrap; }
+  .page-log .stat {
+    font-size: var(--df-font-size-xs);
+    color: var(--df-color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: var(--df-letter-spacing-wide);
+  }
+  .page-log .stat.has-errors { color: var(--df-color-state-error); }
+  .page-log .last-seen { font-size: var(--df-font-size-xs); color: var(--df-color-text-muted); }
+
+  /* -- Log Viewer ----------------------------------------------------- */
+  .page-log .viewer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--df-space-3);
+    margin-bottom: var(--df-space-3);
+    flex-wrap: wrap;
+  }
+  .page-log .viewer-header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--df-space-3);
+  }
+  .page-log .viewer-title {
+    font-size: var(--df-font-size-sm);
+    color: var(--df-color-text-primary);
+    text-transform: uppercase;
+    letter-spacing: var(--df-letter-spacing-wide);
+  }
+
+  /* -- Filter pills --------------------------------------------------- */
+  .page-log .filter-bar {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: var(--df-space-3);
+  }
+  .page-log .filter-pill {
+    padding: 2px 8px;
+    font-size: var(--df-font-size-xs);
+    font-family: var(--df-font-mono);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: 1px solid var(--df-color-border-default);
+    background: transparent;
+    color: var(--df-color-text-secondary);
+    cursor: pointer;
+    transition: all var(--df-duration-fast);
+  }
+  .page-log .filter-pill:hover { border-color: var(--df-color-text-secondary); color: var(--df-color-text-secondary); }
+  .page-log .filter-pill.active { border-color: var(--df-color-accent-default); color: var(--df-color-accent-default); background: color-mix(in srgb, var(--df-color-accent-default) 10%, transparent); }
+  .page-log .filter-pill.active.red { border-color: var(--df-color-state-error); color: var(--df-color-state-error); background: color-mix(in srgb, var(--df-color-state-error) 10%, transparent); }
+  .page-log .filter-pill.active.yellow { border-color: var(--df-color-state-warning); color: var(--df-color-state-warning); background: color-mix(in srgb, var(--df-color-state-warning) 10%, transparent); }
+
+  /* -- Source toggle -------------------------------------------------- */
+  .page-log .source-toggle {
+    display: flex;
+    gap: 0;
+    margin-bottom: var(--df-space-3);
+  }
+  .page-log .source-toggle button {
+    padding: 2px 10px;
+    font-size: var(--df-font-size-xs);
+    font-family: var(--df-font-mono);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border: 1px solid var(--df-color-border-default);
+    background: transparent;
+    color: var(--df-color-text-muted);
+    cursor: pointer;
+    transition: all var(--df-duration-fast);
+  }
+  .page-log .source-toggle button:not(:last-child) { border-right: none; }
+  .page-log .source-toggle button:hover { color: var(--df-color-text-secondary); }
+  .page-log .source-toggle button.active { background: color-mix(in srgb, var(--df-color-accent-default) 10%, transparent); color: var(--df-color-accent-default); border-color: var(--df-color-accent-default); }
+
+  /* -- Log entries ----------------------------------------------------- */
+  .page-log .log-entries {
+    background: var(--df-color-bg-surface);
+    border: 1px solid var(--df-color-border-default);
+    max-height: 70vh;
+    overflow-y: auto;
+    font-size: var(--df-font-size-sm);
+    line-height: 1.6;
+  }
+
+  .page-log .log-entry {
+    display: grid;
+    grid-template-columns: 18px 90px auto 1fr;
+    gap: 0 var(--df-space-2, 8px);
+    padding: 2px var(--df-space-2);
+    border-bottom: 1px solid color-mix(in srgb, var(--df-color-border-default) 40%, transparent);
+    align-items: baseline;
+  }
+  .page-log .log-entry:hover { background: color-mix(in srgb, var(--df-color-accent-default) 5%, transparent); }
+
+  .page-log .log-src {
+    font-size: var(--df-font-size-xs);
+    font-weight: 700;
+    text-align: center;
+  }
+  .page-log .log-src.browser { color: var(--df-color-state-warning); }
+  .page-log .log-src.server  { color: var(--df-color-accent-muted); }
+  .page-log .log-src.file    { color: var(--df-color-state-success); }
+
+  .page-log .log-time { color: var(--df-color-text-secondary); font-size: var(--df-font-size-xs); white-space: nowrap; }
+
+  .page-log .log-level {
+    font-size: var(--df-font-size-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0 4px;
+    white-space: nowrap;
+  }
+  .page-log .log-level.LOG, .page-log .log-level.SERVER_LOG, .page-log .log-level.FILE_LOG, .page-log .log-level.INFO, .page-log .log-level.DEBUG, .page-log .log-level.FILE_DEBUG { color: var(--df-color-text-secondary); }
+  .page-log .log-level.WARN, .page-log .log-level.SERVER_WARN, .page-log .log-level.FILE_WARN { color: var(--df-color-state-warning); }
+  .page-log .log-level.ERROR, .page-log .log-level.WINDOW_ERROR, .page-log .log-level.UNHANDLED_REJECTION, .page-log .log-level.SERVER_ERROR, .page-log .log-level.FILE_ERROR { color: var(--df-color-state-error); }
+  .page-log .log-level.SESSION_START, .page-log .log-level.FILE_SESSION_START { color: var(--df-color-accent-default); }
+
+  .page-log .log-message {
+    color: var(--df-color-text-primary);
+    white-space: pre-wrap;
+    word-break: break-all;
+    overflow: hidden;
+  }
+  .page-log .log-entry-error .log-message { color: var(--df-color-state-error); }
