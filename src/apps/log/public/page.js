@@ -27,7 +27,7 @@ const HTML = `
       <div id="file-list" class="file-list">
         <div class="empty" id="empty-state">
           No log files visible.<br/>
-          Add <code>&lt;script src="http://localhost:7000/devtools.js?target=/path/to/app"&gt;&lt;/script&gt;</code> to any external app, or use the devtools middleware for DevGlide monorepo apps.
+          Add <code>&lt;script src="http://localhost:7000/devtools.js"&gt;&lt;/script&gt;</code> to any external app, or use the devtools middleware for DevGlide monorepo apps.
         </div>
       </div>
     </div>
@@ -154,7 +154,7 @@ function renderSessions(sessions) {
   const list = $('#file-list');
 
   if (apps.length === 0) {
-    list.innerHTML = '<div class="empty" id="empty-state">No log files visible.<br/>Add <code>&lt;script src="http://localhost:7000/devtools.js?target=/path/to/app"&gt;&lt;/script&gt;</code> to any external app, or use the devtools middleware for DevGlide monorepo apps.</div>';
+    list.innerHTML = '<div class="empty" id="empty-state">No log files visible.<br/>Add <code>&lt;script src="http://localhost:7000/devtools.js"&gt;&lt;/script&gt;</code> to any external app, or use the devtools middleware for DevGlide monorepo apps.</div>';
     return;
   }
 

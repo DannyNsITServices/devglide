@@ -61,8 +61,8 @@ const BODY_HTML = `
         <code>POST /api/trigger/scenarios</code> REST endpoint or the
         <code>test_run_scenario</code> MCP tool, and watch them run in real time.<br/><br/>
         <strong>Setup:</strong> For external apps, add one script tag to enable both automation and log capture:<br/>
-        <code>&lt;script src="http://localhost:7000/devtools.js?target=/path/to/app"&gt;&lt;/script&gt;</code><br/>
-        The <code>?target</code> param is required — it sets the app directory for log capture and test scenarios.<br/><br/>
+        <code>&lt;script src="http://localhost:7000/devtools.js"&gt;&lt;/script&gt;</code><br/>
+        The active project context provides the target automatically — no query param needed.<br/><br/>
         DevGlide monorepo apps use the shared middleware and need no manual setup.<br/>
         Use simple app names as targets (e.g. <code>"kanban"</code>, <code>"dashboard"</code>) — absolute paths also work.<br/><br/>
         <strong>Tip:</strong> Prefer clicking links and buttons over using <code>navigate</code>.

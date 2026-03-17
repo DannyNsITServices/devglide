@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createDevglideMcpServer } from "../../../packages/mcp-utils/src/index.js";
 import { ScenarioManager } from "./services/scenario-manager.js";
 import { ScenarioStore } from "./services/scenario-store.js";
+import { getActiveProject } from "../../../project-context.js";
 
 const UNIFIED_BASE = `http://localhost:${process.env.PORT || 7000}`;
 
@@ -20,7 +21,8 @@ export function createTestMcpServer() {
     "devglide-test",
     "0.1.0",
     "Browser UI automation and scenario execution. " +
-    "External apps enable automation via <script src=\"http://localhost:7000/devtools.js?target=/path/to/app\"></script>. " +
+    "External apps enable automation via <script src=\"http://localhost:7000/devtools.js\"></script> — " +
+    "the active project context provides the target automatically. " +
     "DevGlide monorepo apps are handled by the unified server and need no setup. " +
     "Targets can be absolute paths or simple app names (e.g. 'kanban', 'dashboard') " +
     "which are resolved automatically from known polling browsers."
@@ -41,7 +43,7 @@ export function createTestMcpServer() {
 
   server.tool(
     "test_run_scenario",
-    "Submit a UI automation scenario for browser execution. The browser must have devtools.js loaded (via the unified server's devtools.js?target= endpoint).",
+    "Submit a UI automation scenario for browser execution. The browser must have devtools.js loaded (via <script src=\"http://localhost:7000/devtools.js\"></script>).",
     {
       name: z.string().optional().describe("Scenario name"),
       description: z.string().optional().describe("Scenario description"),
@@ -49,7 +51,7 @@ export function createTestMcpServer() {
         .string()
         .optional()
         .describe(
-          "Target identifier — can be an absolute path (matches devtools.js?target= param) or a simple app name (e.g. 'kanban', 'dashboard') which is resolved automatically"
+          "Target identifier — defaults to active project. Can be an absolute path or a simple app name (e.g. 'kanban', 'dashboard') which is resolved automatically"
         ),
       steps: z
         .array(
@@ -86,8 +88,9 @@ export function createTestMcpServer() {
       description: z.string().optional().describe("Scenario description"),
       target: z
         .string()
+        .optional()
         .describe(
-          "Target identifier — can be an absolute path (matches devtools.js?target= param) or a simple app name (e.g. 'kanban', 'dashboard')"
+          "Target identifier — defaults to active project name. Can be an absolute path or a simple app name (e.g. 'kanban', 'dashboard')"
         ),
       steps: z
         .array(
@@ -106,7 +109,8 @@ export function createTestMcpServer() {
         .describe("Steps to execute sequentially"),
     },
     async ({ name, description, target, steps }) => {
-      const saved = await ScenarioStore.getInstance().save({ name, description, target, steps });
+      const effectiveTarget = target || getActiveProject()?.name || '';
+      const saved = await ScenarioStore.getInstance().save({ name, description, target: effectiveTarget, steps });
       return {
         content: [{ type: "text" as const, text: JSON.stringify(saved, null, 2) }],
       };
@@ -115,14 +119,15 @@ export function createTestMcpServer() {
 
   server.tool(
     "test_list_saved",
-    "List saved scenarios for a specific target app or path",
+    "List saved scenarios — defaults to active project when no target is given",
     {
-      target: z.string().describe(
-        "Target to filter by — app name (e.g. 'devglide', 'kanban') or absolute path. Required."
+      target: z.string().optional().describe(
+        "Target to filter by — app name (e.g. 'devglide', 'kanban') or absolute path. Defaults to active project."
       ),
     },
     async ({ target }) => {
-      const scenarios = await ScenarioStore.getInstance().list(target);
+      const effectiveTarget = target || getActiveProject()?.name || getActiveProject()?.path || '';
+      const scenarios = await ScenarioStore.getInstance().list(effectiveTarget);
       return {
         content: [{ type: "text" as const, text: JSON.stringify(scenarios, null, 2) }],
       };

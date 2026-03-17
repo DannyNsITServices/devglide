@@ -28,9 +28,9 @@ export function createLogMcpServer() {
     "devglide-log",
     "0.1.0",
     "Browser console capture and log streaming. " +
-    "The unified server serves GET /devtools.js?target=/path/to/app — a central bootstrap for external apps. " +
-    "Add <script src=\"http://localhost:7000/devtools.js?target=/path/to/app\"></script> to any external app " +
-    "to inject console-sniffer and scenario-runner. The ?target param is required — it identifies the app directory for log capture and test scenarios."
+    "The unified server serves GET /devtools.js — a central bootstrap for external apps. " +
+    "Add <script src=\"http://localhost:7000/devtools.js\"></script> to any external app " +
+    "to inject console-sniffer and scenario-runner. The active project context provides the target automatically."
   );
 
   server.tool(

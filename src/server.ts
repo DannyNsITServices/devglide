@@ -195,21 +195,21 @@ app.get('/__devtools.js', (_req, res) => {
 });
 
 app.get('/devtools.js', (req, res) => {
-  const dir = (req.query.target as string) || getActiveProject()?.path;
-  if (!dir) {
+  const project = getActiveProject();
+  if (!project) {
     return res.type('application/javascript').send('/* devtools: no target */');
   }
 
   let script = `window.__devglideSnifferConfig=${JSON.stringify({
     serverOrigin: `http://localhost:${PORT}`,
-    targetPath: path.join(LOGS_DIR, path.basename(dir) + '-console.log'),
+    targetPath: path.join(LOGS_DIR, project.name + '-console.log'),
     persistent: true,
     allowedTypes: {},
   })};\n`;
 
   script += `window.__devglideRunnerConfig=${JSON.stringify({
     serverOrigin: `http://localhost:${PORT}`,
-    target: dir,
+    target: project.path,
   })};\n`;
 
   script += snifferSource + '\n' + runnerSource;

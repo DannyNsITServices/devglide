@@ -230,14 +230,15 @@ export class ScenarioManager {
         "Console Trigger DSL — commands for browser UI automation via POST /api/trigger/scenarios",
       usage:
         "POST a JSON object with 'name' (string), optional 'description' (string), " +
-        "'target' (string), and 'steps' (array of command objects). Each step " +
+        "optional 'target' (string), and 'steps' (array of command objects). Each step " +
         "must have a 'command' field plus the required parameters listed below. Steps " +
         "execute sequentially; execution stops on first failure. The 'target' field " +
-        "identifies which browser should run the scenario. It can be an absolute " +
-        "filesystem path (matching the devtools.js?target= query param, " +
-        "e.g. \"/home/user/devglide/apps/kanban\") or a simple app name " +
+        "identifies which browser should run the scenario — it defaults to the active project " +
+        "when omitted. It can be an absolute filesystem path " +
+        "(e.g. \"/home/user/devglide/apps/kanban\") or a simple app name " +
         "(e.g. \"kanban\", \"dashboard\") which is automatically resolved to the " +
         "full path once the browser has polled at least once. " +
+        "External apps enable automation via a bare <script src=\"http://localhost:7000/devtools.js\"></script> include. " +
         "Use 'logPath' to check the current URL, 'logBody' and 'logHead' to inspect " +
         "the rendered HTML (captured by console-sniffer from devglide-log). " +
         "IMPORTANT: Prefer interacting with HTML elements (clicking links, buttons, nav items) " +

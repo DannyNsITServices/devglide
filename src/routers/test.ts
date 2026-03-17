@@ -32,7 +32,7 @@ const saveScenarioSchema = z.object({
   name: z.string().min(1, 'name is required'),
   description: z.string().optional(),
   steps: z.array(scenarioStepSchema).min(1, 'At least one step is required'),
-  target: z.string().min(1, 'target is required'),
+  target: z.string().optional(),
 });
 
 const scenarioResultSchema = z.object({
@@ -79,7 +79,9 @@ triggerRouter.post('/scenarios', (req: Request, res: Response) => {
     return;
   }
 
-  const saved = scenarioManager.submitScenario(parsed.data);
+  const data = parsed.data;
+  if (!data.target) data.target = getActiveProject()?.path;
+  const saved = scenarioManager.submitScenario(data);
   if (saved.target) {
     broadcaster.broadcast(scenarioManager.resolveTargetKey(saved.target), saved);
   }
@@ -99,7 +101,7 @@ triggerRouter.get('/scenarios/results', (req: Request, res: Response) => {
  * GET /api/test/trigger/scenarios/stream?target=... — SSE stream for scenario delivery.
  */
 triggerRouter.get('/scenarios/stream', (req: Request, res: Response) => {
-  const target = (req.query.target as string) || '';
+  const target = (req.query.target as string) || getActiveProject()?.path || '';
 
   scenarioManager.registerTarget(target);
 
@@ -122,7 +124,7 @@ triggerRouter.get('/scenarios/stream', (req: Request, res: Response) => {
  * GET /api/test/trigger/scenarios/poll?target=... — Check for a queued scenario.
  */
 triggerRouter.get('/scenarios/poll', (req: Request, res: Response) => {
-  const target = (req.query.target as string) || '';
+  const target = (req.query.target as string) || getActiveProject()?.path || '';
 
   const queued = scenarioManager.dequeueScenario(target);
   if (queued) {
@@ -179,7 +181,16 @@ triggerRouter.get('/scenarios/saved', async (req: Request, res: Response) => {
     const seen = new Set(byPath.map((s) => s.id));
     res.json([...byPath, ...byName.filter((s) => !seen.has(s.id))]);
   } else {
-    res.json([]);
+    const activeProjectPath = getActiveProject()?.path;
+    if (activeProjectPath) {
+      const basename = path.basename(activeProjectPath);
+      const byPath = await scenarioStore.list(activeProjectPath);
+      const byName = basename !== activeProjectPath ? await scenarioStore.list(basename) : [];
+      const seen = new Set(byPath.map((s) => s.id));
+      res.json([...byPath, ...byName.filter((s) => !seen.has(s.id))]);
+    } else {
+      res.json([]);
+    }
   }
 });
 
@@ -196,7 +207,7 @@ triggerRouter.post('/scenarios/save', async (req: Request, res: Response) => {
   const saved = await scenarioStore.save({
     name: parsed.data.name,
     description: parsed.data.description,
-    target: parsed.data.target,
+    target: parsed.data.target || getActiveProject()?.name || '',
     steps: parsed.data.steps,
   });
   res.status(201).json(saved);
