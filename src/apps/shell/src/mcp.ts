@@ -59,7 +59,7 @@ export function createShellMcpServer(state: McpState): McpServer {
     'Create a new terminal pane (uses system default shell, or specify bash/cmd)',
     {
       shellType: z
-        .enum(['default', 'bash', 'cmd', 'git-bash'])
+        .enum(['default', 'bash', 'cmd'])
         .optional()
         .describe('Shell type (default: system shell from $SHELL, cmd on Windows)'),
       cwd: z.string().optional().describe('Working directory'),

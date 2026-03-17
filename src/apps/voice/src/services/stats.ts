@@ -3,8 +3,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { VOICE_DIR } from "../../../../packages/paths.js";
 
-const DATA_DIR = VOICE_DIR;
-const STATS_FILE = join(DATA_DIR, "stats.json");
+let _dataDir = VOICE_DIR;
+function statsFile(): string { return join(_dataDir, "stats.json"); }
 
 export interface VoiceStats {
   provider: string;
@@ -24,16 +24,17 @@ interface PersistedStats {
 
 function loadStats(): PersistedStats {
   try {
-    if (existsSync(STATS_FILE)) {
-      return JSON.parse(readFileSync(STATS_FILE, "utf-8"));
+    const file = statsFile();
+    if (existsSync(file)) {
+      return JSON.parse(readFileSync(file, "utf-8"));
     }
   } catch {}
   return { totalTranscriptions: 0, totalDurationSec: 0, totalErrors: 0, lastTranscriptionAt: null };
 }
 
 function saveStats(data: PersistedStats): void {
-  mkdirSync(DATA_DIR, { recursive: true });
-  writeFileSync(STATS_FILE, JSON.stringify(data, null, 2));
+  mkdirSync(_dataDir, { recursive: true });
+  writeFileSync(statsFile(), JSON.stringify(data, null, 2));
 }
 
 class StatsTracker {
@@ -102,6 +103,16 @@ class StatsTracker {
         ? "configured"
         : "not_configured",
     };
+  }
+
+  /** Switch to a new data directory (e.g. per-project) and reload stats. */
+  switchDataDir(dir: string): void {
+    _dataDir = dir;
+    const persisted = loadStats();
+    this.totalTranscriptions = persisted.totalTranscriptions;
+    this.totalDurationSec = persisted.totalDurationSec;
+    this.totalErrors = persisted.totalErrors;
+    this.lastTranscriptionAt = persisted.lastTranscriptionAt ? new Date(persisted.lastTranscriptionAt) : null;
   }
 }
 

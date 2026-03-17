@@ -242,6 +242,7 @@ triggerRouter.post("/scenarios/save", async (req: Request, res: Response) => {
     description: body.description,
     target: body.target,
     steps: body.steps,
+    projectId: undefined, // standalone mode has no project context
   });
   res.status(201).json(saved);
 });
@@ -275,7 +276,7 @@ triggerRouter.post("/scenarios/saved/:id/run", async (req: Request, res: Respons
   const queued = scenarioManager.submitScenario({
     name: scenario.name,
     steps: scenario.steps,
-    target: scenario.target,
+    target: scenario.target || '', // standalone mode — no project fallback
   });
   // Broadcast to any SSE clients listening for this target
   if (queued.target) {

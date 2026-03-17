@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { VOICE_DIR } from "../../../../packages/paths.js";
 
-const DATA_DIR = VOICE_DIR;
-const CONFIG_FILE = join(DATA_DIR, "config.json");
+let _dataDir = VOICE_DIR;
+function configFile(): string { return join(_dataDir, "config.json"); }
 
 export interface PerProviderConfig {
   apiKey?: string;
@@ -18,25 +18,26 @@ export interface PersistentConfig {
 }
 
 function loadFile(): Partial<PersistentConfig> {
+  const file = configFile();
   try {
-    if (existsSync(CONFIG_FILE)) {
-      const raw = readFileSync(CONFIG_FILE, "utf-8");
+    if (existsSync(file)) {
+      const raw = readFileSync(file, "utf-8");
       try {
         return JSON.parse(raw) as Partial<PersistentConfig>;
       } catch (parseErr) {
-        console.error(`[voice] corrupt config file at ${CONFIG_FILE} — ignoring and using defaults. Parse error:`, parseErr);
+        console.error(`[voice] corrupt config file at ${file} — ignoring and using defaults. Parse error:`, parseErr);
         return {};
       }
     }
   } catch (e) {
-    console.error(`[voice] failed to read config file at ${CONFIG_FILE}:`, e);
+    console.error(`[voice] failed to read config file at ${file}:`, e);
   }
   return {};
 }
 
 function saveFile(config: PersistentConfig): void {
-  mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
-  writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), { mode: 0o600 });
+  mkdirSync(_dataDir, { recursive: true, mode: 0o700 });
+  writeFileSync(configFile(), JSON.stringify(config, null, 2), { mode: 0o600 });
 }
 
 function fromEnv(): PersistentConfig {
@@ -123,6 +124,24 @@ class ConfigStore {
 
   getProviderSettings(name: string): PerProviderConfig {
     return this.config.providers[name] ?? {};
+  }
+
+  /** Switch to a new data directory (e.g. per-project) and reload config. */
+  switchDataDir(dir: string): void {
+    _dataDir = dir;
+    const env = fromEnv();
+    const file = loadFile();
+    this.config = {
+      provider: file.provider ?? env.provider,
+      language: file.language ?? env.language,
+      providers: {},
+    };
+    for (const key of Object.keys(env.providers)) {
+      this.config.providers[key] = {
+        ...env.providers[key],
+        ...(file.providers?.[key] ?? {}),
+      };
+    }
   }
 }
 

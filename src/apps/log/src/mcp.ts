@@ -4,9 +4,9 @@ import path from "path";
 import { createDevglideMcpServer } from "../../../packages/mcp-utils/src/index.js";
 import { LogWriter } from "./services/log-writer.js";
 import { getTargetPaths } from "./routes/log.js";
-import { LOGS_DIR } from "../../../packages/paths.js";
+import { DEVGLIDE_DIR } from "../../../packages/paths.js";
 
-const LOG_ROOT = LOGS_DIR;
+const LOG_ROOT = DEVGLIDE_DIR;
 const ALLOWED_EXTENSIONS = new Set(['.log', '.jsonl']);
 
 function safeLogPath(targetPath: string): string {

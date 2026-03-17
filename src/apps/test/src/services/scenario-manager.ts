@@ -198,10 +198,9 @@ export class ScenarioManager {
     if (!target) return "";
     // Already an absolute path — use as-is
     if (path.isAbsolute(target)) return target;
-    // App name — search knownTargets for a path ending with /<target>
-    const suffix = `/${target}`;
+    // App name — find a known target whose basename matches
     for (const known of this.knownTargets) {
-      if (known.endsWith(suffix)) return known;
+      if (path.basename(known) === target) return known;
     }
     // No match yet — return the app name as-is (fallback at dequeue time)
     return target;
@@ -301,6 +300,13 @@ export class ScenarioManager {
         cmd(
           "assertExists",
           "Assert that an element currently exists in the DOM. Fails immediately if not found.",
+          {
+            selector: param("string", true, "CSS selector to check"),
+          }
+        ),
+        cmd(
+          "assertNotExists",
+          "Assert that an element does NOT exist in the DOM. Fails if the element is found.",
           {
             selector: param("string", true, "CSS selector to check"),
           }

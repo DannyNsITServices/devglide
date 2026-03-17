@@ -7,6 +7,12 @@ import { join } from 'path';
 import { homedir } from 'os';
 
 export const DEVGLIDE_DIR: string = join(homedir(), '.devglide');
+export const PROJECTS_DIR: string = join(DEVGLIDE_DIR, 'projects');
+/** Per-project data dir: ~/.devglide/projects/{projectId}/{sub} */
+export function projectDataDir(projectId: string, sub: string): string {
+  return join(PROJECTS_DIR, projectId, sub);
+}
+// Legacy flat dirs — kept for global (non-project-scoped) data
 export const DATABASES_DIR: string = join(DEVGLIDE_DIR, 'databases');
 export const WORKFLOWS_DIR: string = join(DEVGLIDE_DIR, 'workflows');
 export const INSTRUCTIONS_DIR: string = join(DEVGLIDE_DIR, 'instructions');

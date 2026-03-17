@@ -14,7 +14,7 @@ import { fileURLToPath } from 'url';
 
 // Shared packages
 import { isLocalhostOrigin } from './packages/auth-middleware.js';
-import { LOGS_DIR } from './packages/paths.js';
+import { LOGS_DIR, projectDataDir } from './packages/paths.js';
 import { snifferSource, runnerSource } from './packages/devtools-middleware.js';
 import { initServerSniffer, shutdownServerSniffer } from './packages/server-sniffer.js';
 import { mountMcpHttp } from './packages/mcp-utils/src/index.js';
@@ -202,7 +202,7 @@ app.get('/devtools.js', (req, res) => {
 
   let script = `window.__devglideSnifferConfig=${JSON.stringify({
     serverOrigin: `http://localhost:${PORT}`,
-    targetPath: path.join(LOGS_DIR, project.name + '-console.log'),
+    targetPath: path.join(projectDataDir(project.id, 'logs'), project.name + '-console.log'),
     persistent: true,
     allowedTypes: {},
   })};\n`;

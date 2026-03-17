@@ -8,6 +8,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { getActiveProject } from '../project-context.js';
+import { PROJECTS_DIR } from './paths.js';
 
 /** Minimal shape every entity must have. */
 export interface BaseEntity {
@@ -55,18 +56,56 @@ export abstract class JsonFileStore<T extends BaseEntity> {
 
   // ── Directory helpers ──────────────────────────────────────────────────
 
+  /** ~/.devglide/projects/{projectId}/{featureName}/ */
+  protected getDirForProject(projectId: string): string {
+    return path.join(PROJECTS_DIR, projectId, path.basename(this.baseDir));
+  }
+
   protected getProjectDir(): string | null {
     const ap = getActiveProject();
     if (!ap) return null;
-    return path.join(this.baseDir, ap.id);
-  }
-
-  protected getDirForProject(projectId: string): string {
-    return path.join(this.baseDir, projectId);
+    return this.getDirForProject(ap.id);
   }
 
   protected getGlobalDir(): string {
     return this.baseDir;
+  }
+
+  /** Old path before project-dir reorganization: baseDir/{projectId}/ */
+  private getLegacyProjectDir(projectId: string): string {
+    return path.join(this.baseDir, projectId);
+  }
+
+  /**
+   * Move entity files from the legacy baseDir/{projectId}/ layout to
+   * ~/.devglide/projects/{projectId}/{feature}/ on first write per project.
+   */
+  protected async migrateProjectDir(projectId: string): Promise<void> {
+    const legacyDir = this.getLegacyProjectDir(projectId);
+    const newDir = this.getDirForProject(projectId);
+    let entries: string[];
+    try {
+      entries = await fs.readdir(legacyDir);
+    } catch {
+      return; // nothing to migrate
+    }
+    await this.ensureDir(newDir);
+    for (const entry of entries) {
+      if (!entry.endsWith('.json')) continue;
+      const src = path.join(legacyDir, entry);
+      const dest = path.join(newDir, entry);
+      try {
+        await fs.access(dest);
+        // dest already exists — skip
+      } catch {
+        await fs.rename(src, dest);
+      }
+    }
+    // Remove legacy dir if now empty
+    try {
+      const remaining = await fs.readdir(legacyDir);
+      if (remaining.length === 0) await fs.rmdir(legacyDir);
+    } catch { /* ignore */ }
   }
 
   protected async ensureDir(dir: string): Promise<void> {
@@ -114,12 +153,19 @@ export abstract class JsonFileStore<T extends BaseEntity> {
 
   /** Search all project subdirectories for an entity by ID. */
   private async findInAllDirs(id: string): Promise<T | null> {
-    let names: string[];
-    try {
-      names = await fs.readdir(this.baseDir);
-    } catch {
-      return null;
+    const featureName = path.basename(this.baseDir);
+
+    // New project dirs: ~/.devglide/projects/{projectId}/{feature}/
+    let projectIds: string[];
+    try { projectIds = await fs.readdir(PROJECTS_DIR); } catch { projectIds = []; }
+    for (const projectId of projectIds) {
+      const entity = await this.readEntityFile(path.join(PROJECTS_DIR, projectId, featureName, `${id}.json`));
+      if (entity) return entity;
     }
+
+    // Legacy project dirs: baseDir/{projectId}/
+    let names: string[];
+    try { names = await fs.readdir(this.baseDir); } catch { return null; }
     for (const name of names) {
       if (name.endsWith('.json')) continue;
       const entity = await this.readEntityFile(path.join(this.baseDir, name, `${id}.json`));
@@ -147,6 +193,9 @@ export abstract class JsonFileStore<T extends BaseEntity> {
 
   /** Determine target dir and write the entity JSON file. */
   protected async writeEntity(entity: T, scope: 'project' | 'global', projectId?: string): Promise<void> {
+    if (scope === 'project' && projectId) {
+      await this.migrateProjectDir(projectId);
+    }
     const targetDir = scope === 'project' && projectId
       ? this.getDirForProject(projectId)
       : this.getGlobalDir();
@@ -186,39 +235,37 @@ export abstract class JsonFileStore<T extends BaseEntity> {
   }
 
   /**
-   * Scan the base dir AND all project subdirectories.
+   * Scan the global dir AND all project subdirs under PROJECTS_DIR.
    * Used when no active project is set (e.g. stdio MCP mode) to ensure
    * all entries are discoverable regardless of which project created them.
    */
   protected async scanAllDirs(): Promise<T[]> {
     const results: T[] = [];
     const seen = new Set<string>();
+    const featureName = path.basename(this.baseDir);
 
-    let names: string[];
-    try {
-      names = await fs.readdir(this.baseDir);
-    } catch {
-      return [];
+    const addAll = async (dir: string) => {
+      for (const e of await this.scanDirFull(dir)) {
+        if (!seen.has(e.id)) { seen.add(e.id); results.push(e); }
+      }
+    };
+
+    // Global entries (JSON files directly in baseDir)
+    await addAll(this.baseDir);
+
+    // New project entries: ~/.devglide/projects/{projectId}/{feature}/
+    let projectIds: string[];
+    try { projectIds = await fs.readdir(PROJECTS_DIR); } catch { projectIds = []; }
+    for (const id of projectIds) {
+      await addAll(path.join(PROJECTS_DIR, id, featureName));
     }
 
-    for (const name of names) {
-      const fullPath = path.join(this.baseDir, name);
-      if (name.endsWith('.json')) {
-        // JSON file in the global root
-        const entity = await this.readEntityFile(fullPath);
-        if (entity && !seen.has(entity.id)) {
-          seen.add(entity.id);
-          results.push(entity);
-        }
-      } else {
-        // Likely a project subdirectory — scan it
-        for (const e of await this.scanDirFull(fullPath)) {
-          if (!seen.has(e.id)) {
-            seen.add(e.id);
-            results.push(e);
-          }
-        }
-      }
+    // Legacy project entries: baseDir/{projectId}/ (pre-migration)
+    let legacyNames: string[];
+    try { legacyNames = await fs.readdir(this.baseDir); } catch { legacyNames = []; }
+    for (const name of legacyNames) {
+      if (name.endsWith('.json')) continue; // already scanned above
+      await addAll(path.join(this.baseDir, name));
     }
 
     return results;

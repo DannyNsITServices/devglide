@@ -110,7 +110,10 @@ export function createTestMcpServer() {
     },
     async ({ name, description, target, steps }) => {
       const effectiveTarget = target || getActiveProject()?.name || '';
-      const saved = await ScenarioStore.getInstance().save({ name, description, target: effectiveTarget, steps });
+      const saved = await ScenarioStore.getInstance().save({
+        name, description, target: effectiveTarget, steps,
+        projectId: getActiveProject()?.id,
+      });
       return {
         content: [{ type: "text" as const, text: JSON.stringify(saved, null, 2) }],
       };
@@ -127,7 +130,10 @@ export function createTestMcpServer() {
     },
     async ({ target }) => {
       const effectiveTarget = target || getActiveProject()?.name || getActiveProject()?.path || '';
-      const scenarios = await ScenarioStore.getInstance().list(effectiveTarget);
+      const store = ScenarioStore.getInstance();
+      const scenarios = effectiveTarget
+        ? await store.list(effectiveTarget)
+        : await store.listAll();
       return {
         content: [{ type: "text" as const, text: JSON.stringify(scenarios, null, 2) }],
       };

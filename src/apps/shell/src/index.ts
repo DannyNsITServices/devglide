@@ -48,6 +48,7 @@ const SHELL_CONFIGS: Record<string, ShellConfig> = {
     args: [],
     env: safeEnv()
   },
+  default: { command: 'cmd.exe', args: [], env: safeEnv() },
 };
 
 // ── Global shared state (survives individual socket disconnects) ───────────────

@@ -4,10 +4,11 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import fsp from "fs/promises";
-import { fileURLToPath } from "url";
+import { PROJECTS_DIR } from "../../../../packages/paths.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsDir = path.join(__dirname, "..", "..", "uploads");
+function getUploadsDir(projectId: string): string {
+  return path.join(PROJECTS_DIR, projectId, 'uploads');
+}
 
 /**
  * Sanitize a filename to prevent Content-Disposition header injection.
@@ -75,10 +76,9 @@ attachmentsRouter.post("/", upload.single("file"), async (req: Request, res: Res
     const safeFilename = sanitizeFilename(file.originalname);
     const ext = path.extname(safeFilename);
 
-    // Ensure uploads directory exists
+    const uploadsDir = getUploadsDir(req.projectId ?? 'default');
     await fsp.mkdir(uploadsDir, { recursive: true });
 
-    // Save file to disk
     const filePath = path.join(uploadsDir, `${id}${ext}`);
     await fsp.writeFile(filePath, file.buffer);
 
@@ -108,7 +108,7 @@ attachmentsRouter.get("/:id", (req: Request, res: Response) => {
     }
 
     const ext = path.extname(row.filename);
-    const filePath = path.join(uploadsDir, `${id}${ext}`);
+    const filePath = path.join(getUploadsDir(req.projectId ?? 'default'), `${id}${ext}`);
 
     if (!fs.existsSync(filePath)) {
       res.status(404).json({ error: "Attachment file not found on disk" });
@@ -144,7 +144,7 @@ attachmentsRouter.delete("/:id", (req: Request, res: Response) => {
 
     // Delete file from disk (ignore errors)
     const ext = path.extname(row.filename);
-    const filePath = path.join(uploadsDir, `${id}${ext}`);
+    const filePath = path.join(getUploadsDir(req.projectId ?? 'default'), `${id}${ext}`);
     try {
       fs.unlinkSync(filePath);
     } catch {

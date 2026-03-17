@@ -209,6 +209,7 @@ triggerRouter.post('/scenarios/save', async (req: Request, res: Response) => {
     description: parsed.data.description,
     target: parsed.data.target || getActiveProject()?.name || '',
     steps: parsed.data.steps,
+    projectId: getActiveProject()?.id,
   });
   res.status(201).json(saved);
 });
@@ -242,7 +243,7 @@ triggerRouter.post('/scenarios/saved/:id/run', async (req: Request, res: Respons
   const queued = scenarioManager.submitScenario({
     name: scenario.name,
     steps: scenario.steps,
-    target: scenario.target,
+    target: scenario.target || getActiveProject()?.path || '',
   });
   if (queued.target) {
     broadcaster.broadcast(scenarioManager.resolveTargetKey(queued.target), queued);
@@ -256,7 +257,7 @@ router.use('/trigger', triggerRouter);
 
 export async function initTest(): Promise<void> {
   scenarioManager.startCleanup();
-  await scenarioStore.load();
+  await scenarioStore.init();
 }
 
 export function shutdownTest(): void {

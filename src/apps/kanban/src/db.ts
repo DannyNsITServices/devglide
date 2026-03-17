@@ -3,7 +3,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { existsSync, mkdirSync, copyFileSync, readdirSync } from "fs";
 import path from "path";
 import { readActiveProjectId } from "../../../packages/project-store.js";
-import { DEVGLIDE_DIR, DATABASES_DIR } from "../../../packages/paths.js";
+import { DEVGLIDE_DIR, DATABASES_DIR, PROJECTS_DIR } from "../../../packages/paths.js";
 
 // Re-export for consumers that import from db.ts
 export { DEVGLIDE_DIR, DATABASES_DIR };
@@ -73,6 +73,10 @@ export function nowIso(): string {
 // ── Database path helpers ────────────────────────────────────────────────────
 
 function getDbPath(projectId: string): string {
+  return path.join(PROJECTS_DIR, projectId, 'kanban.db');
+}
+
+function getLegacyDbPath(projectId: string): string {
   return path.join(DATABASES_DIR, `${projectId}.db`);
 }
 
@@ -263,19 +267,28 @@ function migrateEscapeSequences(db: Database.Database): void {
  */
 function ensureDb(projectId: string): void {
   const file = getDbPath(projectId);
+  const projectDir = path.dirname(file);
   const isNew = !existsSync(file);
 
   if (isNew) {
-    mkdirSync(DATABASES_DIR, { recursive: true });
+    mkdirSync(projectDir, { recursive: true });
 
-    // Migrate legacy dev.db only once — for the very first project database
-    // created. After that, all new projects get fresh empty databases.
-    const existingDbs = readdirSync(DATABASES_DIR).filter((f) => f.endsWith(".db"));
-    if (existingDbs.length === 0) {
-      const legacyDb = findLegacyDb();
-      if (legacyDb) {
-        copyFileSync(legacyDb, file);
-        console.log(`[kanban] Migrated legacy database to ${file}`);
+    // Migrate from old databases/{projectId}.db location
+    const legacyNew = getLegacyDbPath(projectId);
+    if (existsSync(legacyNew)) {
+      copyFileSync(legacyNew, file);
+      console.log(`[kanban] Migrated database ${legacyNew} → ${file}`);
+    } else {
+      // Migrate legacy prisma dev.db only once — for the very first project database
+      const existingDbs = existsSync(DATABASES_DIR)
+        ? readdirSync(DATABASES_DIR).filter((f) => f.endsWith(".db"))
+        : [];
+      if (existingDbs.length === 0) {
+        const legacyDb = findLegacyDb();
+        if (legacyDb) {
+          copyFileSync(legacyDb, file);
+          console.log(`[kanban] Migrated legacy database to ${file}`);
+        }
       }
     }
 

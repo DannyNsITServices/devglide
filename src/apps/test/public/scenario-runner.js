@@ -210,6 +210,14 @@
       return Promise.resolve();
     },
 
+    assertNotExists: function (step) {
+      var el = document.querySelector(step.selector);
+      if (el) {
+        throw new Error('assertNotExists failed: element "' + step.selector + '" exists');
+      }
+      return Promise.resolve();
+    },
+
     assertText: function (step) {
       var el = resolveElement(step.selector);
       var actual = (el.textContent || '').trim();

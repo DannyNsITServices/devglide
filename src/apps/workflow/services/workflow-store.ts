@@ -3,7 +3,7 @@ import path from 'path';
 import { z } from 'zod';
 import type { Workflow } from '../types.js';
 import { getActiveProject } from '../../../project-context.js';
-import { WORKFLOWS_DIR, INSTRUCTIONS_DIR } from '../../../packages/paths.js';
+import { WORKFLOWS_DIR, INSTRUCTIONS_DIR, PROJECTS_DIR, projectDataDir } from '../../../packages/paths.js';
 import { JsonFileStore } from '../../../packages/json-file-store.js';
 
 // ── Zod schema for validating workflow JSON files from disk ──────────────────
@@ -218,10 +218,16 @@ export class WorkflowStore extends JsonFileStore<Workflow> {
 
   async generateInstructionsFile(projectId?: string): Promise<void> {
     const markdown = await this.buildInstructionsMarkdown(projectId);
-    const dirPath = INSTRUCTIONS_DIR;
-    await this.ensureDir(dirPath);
-    const filename = projectId || '_global';
-    await fs.writeFile(path.join(dirPath, `${filename}.md`), markdown);
+    if (projectId) {
+      // ~/.devglide/projects/{projectId}/instructions.md
+      const dir = projectDataDir(projectId, '');
+      await this.ensureDir(dir);
+      await fs.writeFile(path.join(dir, 'instructions.md'), markdown);
+    } else {
+      // Global: ~/.devglide/instructions/_global.md
+      await this.ensureDir(INSTRUCTIONS_DIR);
+      await fs.writeFile(path.join(INSTRUCTIONS_DIR, '_global.md'), markdown);
+    }
   }
 
   async getCompiledInstructions(projectId?: string): Promise<string> {
