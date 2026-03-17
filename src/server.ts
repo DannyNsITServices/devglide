@@ -188,6 +188,7 @@ app.get('/__devtools.js', (_req, res) => {
   script += `window.__devglideRunnerConfig=${JSON.stringify({
     serverOrigin: `http://localhost:${PORT}`,
     target: ROOT,
+    spaMode: true,
   })};\n`;
 
   script += snifferSource + '\n' + runnerSource;

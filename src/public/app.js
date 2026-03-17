@@ -696,6 +696,9 @@ if (typeof VoiceWidget !== 'undefined') {
   });
 }
 
+// Expose SPA navigate for scenario-runner (spaMode)
+window.__devglideSpaNavigate = selectApp;
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 // Initial selectApp is deferred to the first onProjectChange callback
 // so the project guard has accurate data from the socket.

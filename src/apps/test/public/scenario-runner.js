@@ -3,12 +3,13 @@
 
   // ---- 1. Extract config — injected global or script-tag src ----
 
-  var serverOrigin, targetPath;
+  var serverOrigin, targetPath, spaMode;
 
   var _cfg = window.__devglideRunnerConfig;
   if (_cfg) {
     serverOrigin = _cfg.serverOrigin;
     targetPath   = _cfg.target;
+    spaMode      = !!_cfg.spaMode;
     delete window.__devglideRunnerConfig;
   } else {
     var scriptEl = document.currentScript;
@@ -253,6 +254,19 @@
     navigate: function (step, scenario, stepIndex) {
       if (typeof step.path !== 'string' || !step.path.startsWith('/') || step.path.indexOf('//') !== -1) {
         return Promise.reject(new Error('navigate: invalid path "' + step.path + '". Must be a relative path starting with "/" and must not contain "//"'));
+      }
+      // SPA mode: use the app shell's router instead of full page reload
+      if (spaMode && typeof window.__devglideSpaNavigate === 'function') {
+        // Extract app id from path like "/app/kanban" or just "/"
+        var appMatch = step.path.match(/^\/app\/([^\/]+)/);
+        if (appMatch) {
+          window.__devglideSpaNavigate(appMatch[1]);
+          return Promise.resolve();
+        }
+        // "/" navigates to the default app — just resolve (already on the dashboard)
+        if (step.path === '/') {
+          return Promise.resolve();
+        }
       }
       saveProgress(scenario, stepIndex + 1);
       window.location.href = step.path;
