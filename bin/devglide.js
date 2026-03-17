@@ -102,6 +102,18 @@ function runMcpServer(name) {
     process.exit(1);
   }
 
+  // Prefer pre-built bundle (1 process) over tsx (3+ processes)
+  const bundle = resolve(root, `dist/mcp/${name}.mjs`);
+  if (existsSync(bundle)) {
+    const child = spawn(process.execPath, [bundle, "--stdio"], {
+      stdio: "inherit",
+      env: process.env,
+    });
+    child.on("exit", (code) => process.exit(code ?? 1));
+    return;
+  }
+
+  // Dev fallback: use tsx
   const cwd = resolve(root, server.cwd);
   const entry = resolve(cwd, server.entry);
 
@@ -208,13 +220,26 @@ function stopServer() {
 function runSetup() {
   console.log("\n  Setting up DevGlide...\n");
 
-  const devglideBin = resolve(__dirname, "devglide.js");
+  // Build MCP bundles first
+  const buildScript = resolve(root, "scripts/build-mcp.mjs");
+  if (existsSync(buildScript)) {
+    console.log("  Building MCP bundles...\n");
+    try {
+      execSync(`${process.execPath} ${buildScript}`, { cwd: root, stdio: "inherit" });
+      console.log();
+    } catch {
+      console.error("  ✗ Bundle build failed — falling back to tsx registration\n");
+    }
+  }
 
   console.log("  Registering MCP servers in Claude Code...\n");
 
   let failed = false;
   for (const name of Object.keys(mcpServers)) {
     const mcpName = `devglide-${name}`;
+    const bundle = resolve(root, `dist/mcp/${name}.mjs`);
+    const useBundle = existsSync(bundle);
+
     try {
       // Remove existing registration if any
       try {
@@ -222,11 +247,22 @@ function runSetup() {
       } catch {
         // Not registered yet — that's fine
       }
-      execSync(
-        `claude mcp add --transport stdio ${mcpName} --scope user -- ${process.execPath} ${devglideBin} mcp ${name}`,
-        { stdio: "inherit" }
-      );
-      console.log(`  ✓ ${mcpName} registered globally`);
+
+      if (useBundle) {
+        // Register bundle directly — 1 process per server
+        execSync(
+          `claude mcp add --transport stdio ${mcpName} --scope user -- ${process.execPath} ${bundle} --stdio`,
+          { stdio: "inherit" }
+        );
+      } else {
+        // Fallback: register via devglide.js mcp launcher
+        const devglideBin = resolve(__dirname, "devglide.js");
+        execSync(
+          `claude mcp add --transport stdio ${mcpName} --scope user -- ${process.execPath} ${devglideBin} mcp ${name}`,
+          { stdio: "inherit" }
+        );
+      }
+      console.log(`  ✓ ${mcpName} registered${useBundle ? " (bundled)" : " (tsx fallback)"}`);
     } catch {
       console.error(`  ✗ ${mcpName} failed to register`);
       failed = true;

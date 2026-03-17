@@ -33,6 +33,8 @@
   },
   "files": [
     "bin/",
+    "dist/",
+    "scripts/",
     "src/server.ts",
     "src/project-context.ts",
     "src/routers/",
@@ -49,6 +51,7 @@
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "test": "vitest run",
+    "build:mcp": "node scripts/build-mcp.mjs",
     "clean": "turbo clean && rm -rf node_modules"
   },
   "dependencies": {
@@ -69,6 +72,7 @@
   },
   "devDependencies": {
     "@devglide/eslint-config": "workspace:*",
+    "esbuild": "^0.27.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.0",
