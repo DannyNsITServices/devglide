@@ -486,14 +486,14 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
 
   let disposed = false;
 
-  // Alternate screen buffer detection
-  term.buffer.onBufferChange((buf) => {
-    if (buf.type === 'alternate') {
-      termDiv.classList.add('alt-screen');
-    } else {
-      termDiv.classList.remove('alt-screen');
-    }
-  });
+  // Alternate screen buffer detection — sync class on buffer change events
+  // AND on incoming data, because the onBufferChange event can be missed if
+  // the alt-screen escape sequence was already baked into restored scrollback.
+  function syncAltScreen() {
+    const isAlt = term.buffer.active.type === 'alternate';
+    termDiv.classList.toggle('alt-screen', isAlt);
+  }
+  term.buffer.onBufferChange(syncAltScreen);
 
   // Fallback copy
   function _fallbackCopy(text) {
@@ -604,6 +604,7 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
   function writeData(data) {
     if (disposed) return;
     term.write(data);
+    syncAltScreen();
     autoScroll();
   }
 
@@ -689,13 +690,7 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
   function writeScrollback(data) {
     if (!data) return;
     term.write(data, () => {
-      // Sync alt-screen class after replay — the onBufferChange event may have
-      // been missed if the alt-screen entry sequence was truncated from scrollback.
-      if (term.buffer.active.type === 'alternate') {
-        termDiv.classList.add('alt-screen');
-      } else {
-        termDiv.classList.remove('alt-screen');
-      }
+      syncAltScreen();
 
       // During batch restore, skip — centralized fit + scroll happens after grid is set
       if (_restoring || disposed) return;
