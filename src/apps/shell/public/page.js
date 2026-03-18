@@ -18,6 +18,7 @@ let _mountedOnce = false;
 let _restoring = false;  // true during snapshot batch restore — suppresses premature fits
 let _fitGeneration = 0;  // coalesce overlapping fit cycles — incremented on each relayout
 let _relayoutTimer = null; // coalesce rapid relayout() calls into a single rAF+fonts.ready cycle
+const _autoFocus = false; // DEBUG: disable all auto-focus to diagnose duplicate cursor
 
 const panes = new Map();   // id -> pane object
 const pendingData = new Map();   // id -> string[] — buffers terminal data for panes not yet created
@@ -44,6 +45,12 @@ const TERMINAL_THEME = {
 
 const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 const isMobile = () => window.innerWidth <= 640;
+
+/** Focus a terminal pane's input — no-op when _autoFocus is disabled. */
+function focusPane(paneId) {
+  if (!_autoFocus) return;
+  panes.get(paneId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
+}
 const isMobileDevice = 'ontouchstart' in window;
 
 function makeLabel(num, folder) {
@@ -243,7 +250,7 @@ function _applyActiveTab(refs, tabId) {
     // Focus after relayout settles (relayout is coalesced into next frame)
     if (!isMobile() && activePaneId) {
       requestAnimationFrame(() => {
-        panes.get(activePaneId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
+        focusPane(activePaneId);
       });
     }
   } else {
@@ -262,9 +269,7 @@ function _applyActiveTab(refs, tabId) {
         const pane = panes.get(tabId);
         pane?.fit();
         pane?.scrollToBottom();
-        if (!isMobile()) {
-          pane?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
-        }
+        if (!isMobile()) focusPane(tabId);
       });
     });
   }
@@ -1074,7 +1079,7 @@ async function _addPaneFromServer(refs, { id, shellType, title, num, cwd, url, p
     socket.emit('state:set-active-pane', { paneId: focusedId });
     if (switching) panes.get(focusedId)?.scrollToBottom();
     if (!isTouch) {
-      panes.get(focusedId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
+      focusPane(focusedId);
     }
   };
 
@@ -1139,7 +1144,7 @@ function _removePaneLocal(refs, id) {
 
   if (activePaneId && activeTab === 'grid') {
     setTimeout(() => {
-      panes.get(activePaneId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
+      focusPane(activePaneId);
     }, 50);
   }
 }
@@ -1271,7 +1276,7 @@ function wireSocketEvents(refs) {
 
         // Focus the active pane after content is written
         if (ap && !isMobile() && (at || 'grid') === 'grid') {
-          panes.get(ap)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
+          focusPane(ap);
         }
       });
     });
@@ -1308,7 +1313,7 @@ function wireSocketEvents(refs) {
     setActivePaneHighlight(paneId);
     if (paneId && activeTab === 'grid') {
       setTimeout(() => {
-        panes.get(paneId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
+        focusPane(paneId);
       }, 50);
     }
   };
@@ -1435,7 +1440,7 @@ export async function mount(container, ctx) {
         if (!isMobile()) {
           const focusId = activeTab !== 'grid' ? activeTab : activePaneId;
           if (focusId) {
-            panes.get(focusId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
+            focusPane(focusId);
           }
         }
       });
@@ -1464,7 +1469,7 @@ export async function mount(container, ctx) {
     if (target !== container && target !== refs.paneContainer && !target.matches('.shell-empty-state, .shell-empty-state *')) return;
     const focusId = activeTab !== 'grid' ? activeTab : activePaneId;
     if (focusId) {
-      panes.get(focusId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
+      focusPane(focusId);
     }
   });
 
@@ -1514,7 +1519,7 @@ export async function mount(container, ctx) {
         setActivePaneHighlight(targetId);
         socket.emit('state:set-active-pane', { paneId: targetId });
         panes.get(targetId)?.scrollToBottom();
-        panes.get(targetId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
+        focusPane(targetId);
         break;
       }
       case 'shell:new-terminal': {
