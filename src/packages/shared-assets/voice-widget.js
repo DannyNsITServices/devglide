@@ -407,19 +407,19 @@
           var name = err.name || '';
           var msg;
           if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-            msg = 'Microphone permission denied — check browser site settings';
+            msg = 'Microphone access denied. Check: browser permission popup, and Windows Settings > Privacy > Microphone';
           } else if (name === 'AbortError') {
             msg = 'Microphone permission dismissed — click the mic and allow access';
-          } else if (name === 'NotFoundError') {
-            msg = 'No microphone found — connect a mic and retry';
+          } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+            msg = 'No microphone detected. Check: device is connected, and Windows Settings > Privacy > Microphone is enabled';
           } else if (name === 'NotReadableError') {
             msg = 'Microphone is in use by another application';
           } else if (name === 'SecurityError') {
-            msg = 'Microphone requires a secure (HTTPS) connection';
+            msg = 'Microphone requires a secure (HTTPS) connection or localhost';
           } else if (name === 'TypeError') {
-            msg = 'Microphone API not available — check browser compatibility';
+            msg = 'Microphone API not available — requires HTTPS or localhost';
           } else {
-            msg = 'Microphone unavailable — check permissions and try again';
+            msg = 'Microphone unavailable — check browser permissions and Windows privacy settings';
           }
           handleError(new Error(msg));
         });

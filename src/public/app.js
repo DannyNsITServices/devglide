@@ -668,8 +668,7 @@ if (typeof VoiceWidget !== 'undefined') {
     },
     onError(err) {
       const msg = err.message || 'Voice error';
-      const isNoMic = /microphone|mic|NotFound|DevicesNotFound/i.test(msg);
-      showVoiceError(isNoMic ? 'No microphone found — connect a mic and try again.' : msg);
+      showVoiceError(msg);
     },
   });
 
