@@ -214,13 +214,20 @@ const BODY_HTML = `
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label for="tts-rate-input">Rate</label>
-            <input type="text" id="tts-rate-input" placeholder="+12%" spellcheck="false">
+            <label for="tts-edge-rate-input">Edge Rate</label>
+            <input type="text" id="tts-edge-rate-input" placeholder="+12%" spellcheck="false">
           </div>
           <div class="form-group">
-            <label for="tts-pitch-input">Pitch</label>
-            <input type="text" id="tts-pitch-input" placeholder="+1Hz" spellcheck="false">
+            <label for="tts-edge-pitch-input">Edge Pitch</label>
+            <input type="text" id="tts-edge-pitch-input" placeholder="+1Hz" spellcheck="false">
           </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="tts-fallback-rate-input">Fallback WPM <span class="field-hint">(SAPI/say)</span></label>
+            <input type="number" id="tts-fallback-rate-input" min="50" max="400" value="200">
+          </div>
+          <div class="form-group"></div>
         </div>
         <div class="form-actions">
           <button type="button" id="tts-test-btn" class="btn btn-secondary">
@@ -615,12 +622,14 @@ async function loadProviders() {
       if (ttsStatusEl) ttsStatusEl.textContent = ttsToggle.checked ? 'on' : 'off';
       const vi = $('#tts-voice-input');
       const vol = $('#tts-volume-input');
-      const ri = $('#tts-rate-input');
-      const pi = $('#tts-pitch-input');
+      const eri = $('#tts-edge-rate-input');
+      const epi = $('#tts-edge-pitch-input');
+      const fri = $('#tts-fallback-rate-input');
       if (vi) vi.value = data.tts.voice ?? '';
       if (vol) vol.value = data.tts.volume ?? 80;
-      if (ri) ri.value = data.tts.rate ?? '';
-      if (pi) pi.value = data.tts.pitch ?? '';
+      if (eri) eri.value = data.tts.edgeRate ?? '';
+      if (epi) epi.value = data.tts.edgePitch ?? '';
+      if (fri) fri.value = data.tts.fallbackRate ?? 200;
     }
 
     // Load cleanup state
@@ -1248,8 +1257,9 @@ function wireEvents() {
             tts: {
               enabled: ttsToggle?.checked ?? true,
               voice: $('#tts-voice-input')?.value.trim() || undefined,
-              rate: $('#tts-rate-input')?.value.trim() || undefined,
-              pitch: $('#tts-pitch-input')?.value.trim() || undefined,
+              edgeRate: $('#tts-edge-rate-input')?.value.trim() || undefined,
+              edgePitch: $('#tts-edge-pitch-input')?.value.trim() || undefined,
+              fallbackRate: parseInt($('#tts-fallback-rate-input')?.value) || 200,
               volume: parseInt($('#tts-volume-input')?.value) || 80,
             },
           }),

@@ -178,17 +178,19 @@ function speakFallback(text: string): void {
   const cfg = configStore.get();
   const ttsConfig = cfg.tts;
   const volume = ttsConfig?.volume ?? 80;
+  const wpm = ttsConfig?.fallbackRate ?? 200;
 
   try {
     if (os === "win32" || wsl) {
       // Windows or WSL: PowerShell SAPI
+      // SAPI Rate: -10 to +10, where 0 ≈ 200 WPM
       const psExe = wsl ? "powershell.exe" : "powershell";
       const escaped = text.replace(/'/g, "''").replace(/"/g, '`"');
-      const rate = Math.max(-10, Math.min(10, Math.round((185 - 200) / 20)));
+      const sapiRate = Math.max(-10, Math.min(10, Math.round((wpm - 200) / 20)));
       const psCmd =
         `Add-Type -AssemblyName System.Speech; ` +
         `$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; ` +
-        `$s.Rate = ${rate}; $s.Volume = ${volume}; ` +
+        `$s.Rate = ${sapiRate}; $s.Volume = ${volume}; ` +
         `$s.Speak('${escaped}')`;
       _activeProcess = safeProc(
         spawn(psExe, ["-NoProfile", "-Command", psCmd], {
@@ -198,19 +200,21 @@ function speakFallback(text: string): void {
       );
     } else if (os === "darwin") {
       _activeProcess = safeProc(
-        spawn("say", ["-r", "185", "-v", "Daniel", text], { stdio: "ignore" })
+        spawn("say", ["-r", String(wpm), "-v", "Daniel", text], { stdio: "ignore" })
       );
     } else {
       // Linux (non-WSL)
       if (commandExists("espeak-ng")) {
         _activeProcess = safeProc(
-          spawn("espeak-ng", ["-s", "185", "-a", String(Math.min(200, volume * 2)), text], {
+          spawn("espeak-ng", ["-s", String(wpm), "-a", String(Math.min(200, volume * 2)), text], {
             stdio: "ignore",
           })
         );
       } else if (commandExists("spd-say")) {
+        // spd-say rate: -100 to +100, 0 = default (~200 WPM)
+        const spdRate = String(Math.max(-100, Math.min(100, wpm - 200)));
         _activeProcess = safeProc(
-          spawn("spd-say", ["-r", "-15", text], { stdio: "ignore" })
+          spawn("spd-say", ["-r", spdRate, text], { stdio: "ignore" })
         );
       } else {
         console.error("[voice:tts] no fallback TTS engine found");
@@ -236,15 +240,15 @@ export async function speak(text: string): Promise<void> {
     stop();
 
     const voice = ttsConfig?.voice || "en-GB-RyanNeural";
-    const rate = ttsConfig?.rate || "+12%";
-    const pitch = ttsConfig?.pitch || "+1Hz";
+    const edgeRate = ttsConfig?.edgeRate || "+12%";
+    const edgePitch = ttsConfig?.edgePitch || "+1Hz";
     // edge-tts volume requires +N% or -N% format (relative to default)
     const volNum = ttsConfig?.volume ?? 80;
-    const volume = `${volNum >= 0 ? "+" : ""}${volNum - 100}%`;
+    const edgeVolume = `${volNum >= 0 ? "+" : ""}${volNum - 100}%`;
 
     // Try edge-tts Python CLI first
     if (commandExists("edge-tts")) {
-      const mp3Path = await generateEdgeTts(text, voice, rate, pitch, volume);
+      const mp3Path = await generateEdgeTts(text, voice, edgeRate, edgePitch, edgeVolume);
       if (mp3Path) {
         _tmpFile = mp3Path;
         _activeProcess = playMp3(mp3Path);

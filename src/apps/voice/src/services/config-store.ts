@@ -22,8 +22,9 @@ export interface CleanupConfig {
 export interface TtsConfig {
   enabled: boolean;
   voice?: string;
-  rate?: string;
-  pitch?: string;
+  edgeRate?: string;
+  edgePitch?: string;
+  fallbackRate?: number;
   volume?: number;
 }
 
@@ -97,7 +98,7 @@ function fromEnv(): PersistentConfig {
     vocabBiasing: false,
     customVocabulary: [],
     cleanup: { enabled: false },
-    tts: { enabled: true, voice: "en-GB-RyanNeural", rate: "+12%", pitch: "+1Hz", volume: 80 },
+    tts: { enabled: true, voice: "en-GB-RyanNeural", edgeRate: "+12%", edgePitch: "+1Hz", fallbackRate: 200, volume: 80 },
   };
 }
 
