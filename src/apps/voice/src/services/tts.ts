@@ -13,7 +13,7 @@
  * since Linux audio binaries aren't typically available in WSL.
  */
 
-import { unlinkSync, readFileSync, existsSync, copyFileSync } from "fs";
+import { unlinkSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { platform } from "os";
@@ -22,6 +22,10 @@ import { configStore } from "./config-store.js";
 
 let _activeProcess: ChildProcess | null = null;
 let _tmpFile: string | null = null;
+/** Temp files created during chunked playback. */
+let _chunkFiles: string[] = [];
+/** Stop flag — set to true to abort chunked playback between chunks. */
+let _stopRequested = false;
 
 /** Remove a file silently. */
 function safeUnlink(path: string | null): void {
@@ -29,10 +33,12 @@ function safeUnlink(path: string | null): void {
   try { unlinkSync(path); } catch { /* already gone */ }
 }
 
-/** Clean up all temp files from TTS. */
+/** Clean up all temp files from TTS (including chunk files). */
 function cleanupTempFiles(): void {
   safeUnlink(_tmpFile);
   _tmpFile = null;
+  for (const f of _chunkFiles) safeUnlink(f);
+  _chunkFiles = [];
 }
 
 // Lazy-loaded msedge-tts
@@ -148,6 +154,7 @@ function safeProc(proc: ChildProcess | null): ChildProcess | null {
 
 /** Stop any active TTS playback and clean up all temp files. */
 export function stop(): void {
+  _stopRequested = true;
   if (_activeProcess) {
     try {
       _activeProcess.kill();
@@ -376,6 +383,135 @@ function speakFallback(text: string): void {
   }
 }
 
+// ── Chunked TTS helpers ─────────────────────────────────────────────────────
+
+/** Default chunk threshold in characters. */
+const DEFAULT_CHUNK_THRESHOLD = 100;
+
+/**
+ * Split text into sentences for chunked playback.
+ * Splits on sentence-ending punctuation followed by whitespace.
+ * Merges very short fragments (<30 chars) with the previous sentence.
+ */
+function splitSentences(text: string): string[] {
+  const parts = text.trim().split(/(?<=[.!?])\s+/);
+  const sentences: string[] = [];
+  for (const part of parts) {
+    if (sentences.length > 0 && sentences[sentences.length - 1].length < 30) {
+      sentences[sentences.length - 1] += " " + part;
+    } else {
+      sentences.push(part);
+    }
+  }
+  return sentences.filter((s) => s.trim());
+}
+
+/**
+ * Group sentences into chunks of approximately `targetLen` characters (2-3 sentences).
+ */
+function groupChunks(sentences: string[], targetLen = 150): string[] {
+  const chunks: string[] = [];
+  let current: string[] = [];
+  let currentLen = 0;
+  for (const s of sentences) {
+    current.push(s);
+    currentLen += s.length;
+    if (currentLen >= targetLen) {
+      chunks.push(current.join(" "));
+      current = [];
+      currentLen = 0;
+    }
+  }
+  if (current.length > 0) {
+    chunks.push(current.join(" "));
+  }
+  return chunks;
+}
+
+/**
+ * Play an MP3 and return a promise that resolves when playback finishes.
+ * Resolves to true if playback completed, false if it failed or was stopped.
+ */
+function playMp3Blocking(mp3Path: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const proc = playMp3(mp3Path);
+    if (!proc) {
+      resolve(false);
+      return;
+    }
+    _activeProcess = proc;
+    let settled = false;
+    const done = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      if (_activeProcess === proc) _activeProcess = null;
+      resolve(ok);
+    };
+    proc.on("exit", (code) => done(code === 0));
+    proc.on("error", () => done(false));
+  });
+}
+
+/**
+ * Chunked TTS: split text into rolling chunks, generate first chunk,
+ * then pipeline generation + playback so speech starts almost immediately.
+ */
+async function speakChunked(
+  text: string,
+  voice: string,
+  rate: string,
+  pitch: string,
+): Promise<boolean> {
+  const sentences = splitSentences(text);
+  if (sentences.length === 0) return false;
+
+  const chunks = groupChunks(sentences);
+  if (chunks.length === 0) return false;
+
+  console.error(`[voice:tts] chunked: ${chunks.length} chunks from ${sentences.length} sentences`);
+
+  // Resolved paths for each chunk — filled in as generation completes.
+  // generateEdgeTts writes to a random temp name, so we track what it returns.
+  const resolvedPaths: (string | null)[] = new Array(chunks.length).fill(null);
+
+  // Generate first chunk before entering the pipeline loop
+  const gen0 = await generateEdgeTts(chunks[0], voice, rate, pitch);
+  if (!gen0 || _stopRequested) return false;
+  resolvedPaths[0] = gen0;
+  _chunkFiles.push(gen0);
+
+  for (let i = 0; i < chunks.length; i++) {
+    if (_stopRequested) return false;
+
+    const currentPath = resolvedPaths[i];
+    if (!currentPath || !existsSync(currentPath)) {
+      console.error(`[voice:tts] chunk ${i} file missing, aborting chunked playback`);
+      return false;
+    }
+
+    // Start generating next chunk in parallel while current one plays
+    let nextGenPromise: Promise<string | null> | null = null;
+    if (i + 1 < chunks.length) {
+      nextGenPromise = generateEdgeTts(chunks[i + 1], voice, rate, pitch);
+    }
+
+    // Play current chunk (blocking)
+    console.error(`[voice:tts] playing chunk ${i + 1}/${chunks.length}`);
+    await playMp3Blocking(currentPath);
+
+    // Wait for next chunk to finish generating
+    if (nextGenPromise) {
+      const genResult = await nextGenPromise;
+      if (genResult && !_stopRequested) {
+        resolvedPaths[i + 1] = genResult;
+        _chunkFiles.push(genResult);
+      }
+    }
+  }
+
+  return true;
+}
+
 /**
  * Speak text — fire-and-forget, cancels previous speech.
  * This function NEVER throws or rejects. All errors are logged to stderr.
@@ -387,14 +523,28 @@ export async function speak(text: string): Promise<void> {
     if (ttsConfig && !ttsConfig.enabled) return;
     if (!text?.trim()) return;
 
-    // Cancel previous speech
+    // Cancel previous speech and reset stop flag
     stop();
+    _stopRequested = false;
 
     const voice = ttsConfig?.voice || "en-GB-RyanNeural";
     const edgeRate = ttsConfig?.edgeRate || "+5%";
     const edgePitch = ttsConfig?.edgePitch || "-2Hz";
+    const chunkThreshold = ttsConfig?.chunkThreshold ?? DEFAULT_CHUNK_THRESHOLD;
 
-    // Try msedge-tts (pure Node.js) first
+    // Long text → chunked playback (generate + play in rolling pipeline)
+    if (text.length > chunkThreshold) {
+      console.error(`[voice:tts] text length ${text.length} > threshold ${chunkThreshold}, using chunked playback`);
+      const ok = await speakChunked(text, voice, edgeRate, edgePitch);
+      if (ok || _stopRequested) {
+        cleanupTempFiles();
+        return;
+      }
+      // Chunked failed — fall through to single-shot, then platform fallback
+      console.error("[voice:tts] chunked playback failed, trying single-shot");
+    }
+
+    // Short text (or chunked fallback): generate and play in one shot
     console.error(`[voice:tts] generating: voice=${voice} rate=${edgeRate} pitch=${edgePitch} tmpdir=${tmpdir()}`);
     const mp3Path = await generateEdgeTts(text, voice, edgeRate, edgePitch);
     console.error(`[voice:tts] mp3Path=${mp3Path}`);

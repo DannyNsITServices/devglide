@@ -207,7 +207,10 @@ const BODY_HTML = `
             <label for="tts-fallback-rate-input">Fallback WPM <span class="field-hint">(SAPI/say)</span></label>
             <input type="number" id="tts-fallback-rate-input" min="50" max="400" value="200">
           </div>
-          <div class="form-group"></div>
+          <div class="form-group">
+            <label for="tts-chunk-threshold-input">Chunk Threshold <span class="field-hint">(chars)</span></label>
+            <input type="number" id="tts-chunk-threshold-input" min="0" max="5000" value="100">
+          </div>
         </div>
         <div class="form-actions">
           <button type="button" id="tts-test-btn" class="btn btn-secondary">
@@ -613,6 +616,8 @@ async function loadProviders() {
       if (eri) eri.value = data.tts.edgeRate ?? '';
       if (epi) epi.value = data.tts.edgePitch ?? '';
       if (fri) fri.value = data.tts.fallbackRate ?? 200;
+      const cti = $('#tts-chunk-threshold-input');
+      if (cti) cti.value = data.tts.chunkThreshold ?? 100;
     }
 
     // Load cleanup state
@@ -1227,6 +1232,7 @@ function wireEvents() {
               edgePitch: $('#tts-edge-pitch-input')?.value.trim() || undefined,
               fallbackRate: parseInt($('#tts-fallback-rate-input')?.value) || 200,
               volume: parseInt($('#tts-volume-input')?.value) || 80,
+              chunkThreshold: parseInt($('#tts-chunk-threshold-input')?.value) || 100,
             },
           }),
         });
