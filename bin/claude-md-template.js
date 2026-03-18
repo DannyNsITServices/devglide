@@ -1,7 +1,7 @@
 // Managed CLAUDE.md section for DevGlide onboarding instructions.
 // Installed by `devglide setup`, removed by `devglide teardown`.
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 const BEGIN = `<!-- DEVGLIDE:BEGIN v${VERSION} -->`;
 const END = "<!-- DEVGLIDE:END -->";
 
@@ -9,34 +9,73 @@ export function getClaudeMdContent() {
   return `${BEGIN}
 # DevGlide — AI Workflow Toolkit
 
-DevGlide gives you MCP tools for kanban boards, shell automation, test runners,
-workflows, vocabulary, voice, prompts, logging, and documentation — all wired
-into your coding assistant. Follow the rules below so the tools work together.
+DevGlide provides MCP (Model Context Protocol) tools for kanban boards, shell
+automation, test runners, workflows, vocabulary, voice, prompts, and logging.
+These tools are available to any LLM that supports MCP tool calling. Each tool
+is prefixed with its server name (e.g. \`kanban_list_items\`, \`shell_run_command\`).
+Follow the rules below so the tools work together correctly.
 
-## Priority Rules
+## Priority Rules (execute in order)
 
 1. **Always call \`workflow_match\`** with the user's prompt before responding.
-   If a workflow matches, follow its instructions exactly.
+   If a workflow matches, follow the returned instructions exactly.
+   Skip only if the request is a simple question with no actionable task.
 2. **Call \`vocabulary_lookup\`** when you encounter unfamiliar or ambiguous terms
    that could be domain jargon, project names, or abbreviations.
-3. **Update kanban status** — move items to In Progress when starting work,
-   to In Review / Testing when done. Never move items to Done (only the user can).
+3. **Update kanban status** when working on tracked tasks:
+   - \`kanban_move_item\` → In Progress when starting work.
+   - \`kanban_move_item\` → In Review or Testing when work is complete.
+   - **Never** move items to Done — only the user can mark items as done.
 4. **Append a work log** via \`kanban_append_work_log\` after completing work
-   on any kanban task.
-5. **Pick tasks from the Todo column** by default unless told otherwise.
+   on any kanban task. Describe what was changed and verified.
 
-## MCP Servers
+## MCP Servers and Tools
 
-| Server          | Purpose                                      |
-|-----------------|----------------------------------------------|
-| devglide-kanban | Task boards — features, items, reviews, logs |
-| devglide-shell  | Terminal pane management and command execution|
-| devglide-test   | Browser automation test scenarios            |
-| devglide-workflow | Reusable workflow templates and matching    |
-| devglide-vocabulary | Domain term definitions and lookups       |
-| devglide-voice  | Voice transcription                          |
-| devglide-log    | Structured logging                           |
-| devglide-prompts | Prompt templates                            |
+### devglide-kanban — Task boards
+Manage features (product initiatives) and their kanban items (tasks/bugs).
+- \`kanban_list_features\`, \`kanban_create_feature\` — manage feature boards
+- \`kanban_list_items\`, \`kanban_create_item\`, \`kanban_get_item\` — manage tasks/bugs
+- \`kanban_move_item\` — change task status (column)
+- \`kanban_append_work_log\` — record what was done on a task
+- \`kanban_append_review\` — add review feedback to a task
+
+### devglide-workflow — Reusable workflow templates
+- \`workflow_match\` — match a user prompt to an existing workflow (call this first!)
+- \`workflow_list\`, \`workflow_get\` — browse and inspect workflows
+- \`workflow_get_instructions\` — get compiled instructions from all enabled workflows
+- \`workflow_create\`, \`workflow_toggle\` — create or enable/disable workflows
+
+### devglide-shell — Terminal pane management
+Run shell commands in managed terminal panes. Useful for builds, tests, and server management.
+- \`shell_create_pane\` — open a new terminal pane
+- \`shell_run_command\` — execute a command in a pane
+- \`shell_get_scrollback\` — read terminal output
+- \`shell_list_panes\`, \`shell_close_pane\` — manage panes
+
+### devglide-test — Browser UI automation
+Run browser automation scenarios for testing web UIs.
+- \`test_list_saved\`, \`test_run_saved\` — list and run saved test scenarios
+- \`test_run_scenario\` — run an ad-hoc test scenario
+- \`test_save_scenario\` — save a reusable test scenario
+- \`test_get_result\` — check test results
+
+### devglide-vocabulary — Domain term dictionary
+- \`vocabulary_lookup\` — expand a term by name or alias
+- \`vocabulary_list\`, \`vocabulary_context\` — browse all terms
+- \`vocabulary_add\`, \`vocabulary_update\`, \`vocabulary_remove\` — manage terms
+
+### devglide-prompts — Prompt template library
+- \`prompts_list\`, \`prompts_render\` — reuse existing prompt templates
+- \`prompts_add\`, \`prompts_update\`, \`prompts_remove\` — manage templates
+
+### devglide-voice — Voice transcription
+- \`voice_transcribe\` — transcribe audio input
+- \`voice_status\` — check transcription service status
+
+### devglide-log — Structured logging
+- \`log_write\` — write a structured log entry
+- \`log_read\` — read log entries
+- \`log_clear\`, \`log_clear_all\` — clear logs
 
 ## Common Patterns
 
