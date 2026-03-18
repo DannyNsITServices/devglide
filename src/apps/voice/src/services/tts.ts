@@ -52,6 +52,11 @@ function isWSL(): boolean {
   }
 }
 
+/** Detect Git Bash / MSYS2 / Cygwin on Windows. */
+function isGitBash(): boolean {
+  return platform() === "win32" && !!(process.env.MSYSTEM || process.env.MINGW_PREFIX || process.env.CYGPATH);
+}
+
 /** Check if a command exists on PATH. */
 function commandExists(cmd: string): boolean {
   try {
@@ -63,6 +68,52 @@ function commandExists(cmd: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Get a Windows-native temp directory path.
+ * On Git Bash, tmpdir() returns POSIX paths like /tmp which PowerShell can't read.
+ * Use process.env.TEMP (always a Windows path) as fallback.
+ */
+function getWindowsTempDir(): string {
+  if (isGitBash() || isWSL()) {
+    // Use Windows %TEMP% directly
+    const winTemp = process.env.TEMP || process.env.TMP;
+    if (winTemp && /^[A-Z]:\\/i.test(winTemp)) return winTemp;
+    // For WSL, query from powershell
+    if (isWSL()) {
+      try {
+        return execSync("powershell.exe -NoProfile -Command \"Write-Host $env:TEMP\"")
+          .toString().trim();
+      } catch { /* fall through */ }
+    }
+  }
+  return tmpdir();
+}
+
+/**
+ * Convert a path to Windows format for PowerShell.
+ * Handles: Git Bash POSIX paths (cygpath), WSL paths (wslpath), native Windows paths (passthrough).
+ */
+function toWindowsPath(filePath: string): string {
+  // Already a Windows path
+  if (/^[A-Z]:\\/i.test(filePath)) return filePath;
+
+  // Git Bash / MSYS2: use cygpath
+  if (isGitBash()) {
+    try {
+      return execSync(`cygpath -w "${filePath}"`).toString().trim();
+    } catch { /* fall through */ }
+  }
+
+  // WSL: use wslpath
+  if (isWSL()) {
+    try {
+      return execSync(`wslpath -w "${filePath}"`).toString().trim();
+    } catch { /* fall through */ }
+  }
+
+  return filePath;
 }
 
 /** Attach error handler to a child process so it can't crash Node. */
@@ -102,17 +153,17 @@ function playMp3(mp3Path: string): ChildProcess | null {
       const psExe = wsl ? "powershell.exe" : "powershell";
       let winPath: string;
       if (wsl) {
-        // Copy MP3 to Windows temp — UNC \\wsl.localhost paths don't work
-        // reliably with WMPlayer COM object
-        const winTemp = execSync("powershell.exe -NoProfile -Command \"Write-Host $env:TEMP\"")
-          .toString().trim();
-        const winDest = `${winTemp}\\devglide-tts.mp3`;
-        const wslDest = execSync(`wslpath -u "${winTemp}"`).toString().trim() + "/devglide-tts.mp3";
-        copyFileSync(mp3Path, wslDest);
-        _wslCopyFile = wslDest;
-        winPath = winDest;
+        // WSL: copy to Windows temp — UNC \\wsl.localhost paths don't work
+        // reliably with WMPlayer COM
+        const winTempDir = getWindowsTempDir();
+        const wslTempDir = execSync(`wslpath -u "${winTempDir}"`).toString().trim();
+        const copyDest = join(wslTempDir, "devglide-tts.mp3");
+        copyFileSync(mp3Path, copyDest);
+        _wslCopyFile = copyDest;
+        winPath = `${winTempDir}\\devglide-tts.mp3`;
       } else {
-        winPath = mp3Path;
+        // Native Windows or Git Bash: convert path for PowerShell
+        winPath = toWindowsPath(mp3Path);
       }
       const psCmd =
         `$mp = New-Object -ComObject WMPlayer.OCX; ` +
@@ -165,7 +216,8 @@ async function generateEdgeTts(
     const tts = new _MsEdgeTTS();
     await tts.setMetadata(voice, _OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
 
-    const outDir = tmpdir();
+    // Use Windows-native temp dir on Git Bash/WSL so PowerShell can access the file
+    const outDir = (platform() === "win32" || isWSL()) ? getWindowsTempDir() : tmpdir();
     const { audioFilePath } = await tts.toFile(outDir, text, { rate, pitch });
 
     if (audioFilePath && existsSync(audioFilePath)) {
@@ -178,10 +230,12 @@ async function generateEdgeTts(
   }
 }
 
-/** Speak text using platform native TTS as fallback (no edge-tts). */
+/** Speak text using platform native TTS as fallback (no msedge-tts). */
 function speakFallback(text: string): void {
   const os = platform();
   const wsl = isWSL();
+  // Git Bash: powershell is available but may need full path
+  const gitBash = isGitBash();
   const cfg = configStore.get();
   const ttsConfig = cfg.tts;
   const volume = ttsConfig?.volume ?? 80;

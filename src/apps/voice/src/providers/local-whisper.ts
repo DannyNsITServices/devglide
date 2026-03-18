@@ -1,6 +1,7 @@
 import { writeFileSync, unlinkSync, mkdirSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
+import { platform } from "os";
 import { randomBytes } from "crypto";
 import { execSync } from "child_process";
 import type {
@@ -14,6 +15,31 @@ const FFMPEG_INSTALL_HINT =
   "  Windows:  winget install ffmpeg  (or choco install ffmpeg)\n" +
   "  macOS:    brew install ffmpeg\n" +
   "  Linux:    sudo apt install ffmpeg  (or your distro's package manager)";
+
+const WHISPER_CLI_INSTALL_HINT =
+  "The local whisper provider requires the whisper.cpp CLI binary.\n" +
+  "Install whisper.cpp:\n" +
+  "  Windows:  Download pre-built binaries from https://github.com/ggerganov/whisper.cpp/releases\n" +
+  "            or build from source: git clone https://github.com/ggerganov/whisper.cpp && cd whisper.cpp && cmake -B build && cmake --build build --config Release\n" +
+  "  macOS:    brew install whisper-cpp\n" +
+  "  Linux:    Build from source or install via package manager";
+
+/** Check whether whisper CLI binary is available on PATH. */
+export function checkWhisperCli(): { ok: boolean; error?: string } {
+  const names = platform() === "win32"
+    ? ["whisper-cli", "whisper", "main"]
+    : ["whisper-cli", "whisper", "whisper.cpp", "main"];
+  for (const name of names) {
+    try {
+      const cmd = platform() === "win32" ? `where ${name}` : `which ${name}`;
+      execSync(cmd, { stdio: ["pipe", "pipe", "pipe"], timeout: 3000 });
+      return { ok: true };
+    } catch {
+      // try next
+    }
+  }
+  return { ok: false, error: `whisper.cpp CLI not found on PATH. ${WHISPER_CLI_INSTALL_HINT}` };
+}
 
 /** Check whether ffmpeg is available on PATH. */
 export function checkFfmpeg(): { ok: boolean; version?: string; error?: string } {
@@ -57,6 +83,12 @@ export class LocalWhisperProvider implements TranscriptionProvider {
     const ffmpeg = checkFfmpeg();
     if (!ffmpeg.ok) {
       throw new Error(ffmpeg.error!);
+    }
+
+    // Verify whisper.cpp CLI is available
+    const whisperCli = checkWhisperCli();
+    if (!whisperCli.ok) {
+      throw new Error(whisperCli.error!);
     }
 
     // Write audio buffer to a temp file (nodejs-whisper needs a file path)
