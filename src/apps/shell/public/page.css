@@ -219,18 +219,15 @@
    the CDN stylesheet loads late or specificity conflicts arise, the textarea
    becomes visible as a "Terminal input" bar at the bottom of the pane.
    Duplicate the hiding here with !important as a guaranteed fallback. */
+/* xterm.js repositions the helper textarea via inline styles on focus
+   (to track the cursor), overriding width/height/left.  We can't fight
+   its positioning — instead clip the element to zero visual area while
+   letting xterm manage its position freely. clip-path is not overridden
+   by inline styles so it works reliably on focus. */
 .page-shell .xterm-helper-textarea {
-  position: absolute !important;
-  left: -9999em !important;
-  top: 0 !important;
-  width: 0 !important;
-  height: 0 !important;
+  clip-path: inset(50%) !important;
   opacity: 0 !important;
-  border: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
   overflow: hidden !important;
-  resize: none !important;
 }
 
 .page-shell .xterm-helper-textarea:focus,
