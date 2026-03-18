@@ -308,7 +308,10 @@ const BODY_HTML = `
         <span id="transcribe-status" class="field-hint"></span>
       </div>
       <div id="transcription-result" class="result-box hidden">
-        <div id="result-meta" class="result-meta"></div>
+        <div class="result-header">
+          <div id="result-meta" class="result-meta"></div>
+          <button type="button" id="result-clear-btn" class="btn-link btn-link--sm" title="Clear transcription">Clear</button>
+        </div>
         <p id="result-text"></p>
         <div id="result-cleaned" class="result-cleaned hidden">
           <div class="result-cleaned-label">AI Cleaned</div>
@@ -801,7 +804,7 @@ async function handleRecordedBlob(blob) {
     const data = await fetchTranscription({ audioBase64: base64, filename: 'recording.webm', mode });
 
     if (data.ok) {
-      showTranscriptionResult(data);
+      showTranscriptionResult(data, { append: true });
       if (statusEl) statusEl.textContent = '';
       await fetchStats();
       await fetchHistory();
@@ -832,10 +835,16 @@ function setAudioFile(file) {
 
 // ── Transcription result display ────────────────────────────────────
 
-function showTranscriptionResult(data) {
+function showTranscriptionResult(data, { append = false } = {}) {
   const resultBox = $('#transcription-result');
   const resultText = $('#result-text');
-  if (resultText) resultText.textContent = data.text;
+  if (resultText) {
+    if (append && resultText.textContent) {
+      resultText.textContent = resultText.textContent + ' ' + data.text;
+    } else {
+      resultText.textContent = data.text;
+    }
+  }
   const meta = [];
   if (data.language) meta.push(`language: ${data.language}`);
   if (data.duration != null) meta.push(`duration: ${data.duration.toFixed(1)}s`);
@@ -847,13 +856,30 @@ function showTranscriptionResult(data) {
   const cleanedBox = $('#result-cleaned');
   const cleanedText = $('#result-cleaned-text');
   if (data.cleanedText && cleanedBox && cleanedText) {
-    cleanedText.textContent = data.cleanedText;
+    if (append && cleanedText.textContent) {
+      cleanedText.textContent = cleanedText.textContent + ' ' + data.cleanedText;
+    } else {
+      cleanedText.textContent = data.cleanedText;
+    }
     cleanedBox.classList.remove('hidden');
   } else if (cleanedBox) {
     cleanedBox.classList.add('hidden');
   }
 
   if (resultBox) resultBox.classList.remove('hidden');
+}
+
+function clearTranscriptionResult() {
+  const resultBox = $('#transcription-result');
+  const resultText = $('#result-text');
+  const resultMeta = $('#result-meta');
+  const cleanedBox = $('#result-cleaned');
+  const cleanedText = $('#result-cleaned-text');
+  if (resultText) resultText.textContent = '';
+  if (resultMeta) resultMeta.textContent = '';
+  if (cleanedText) cleanedText.textContent = '';
+  if (cleanedBox) cleanedBox.classList.add('hidden');
+  if (resultBox) resultBox.classList.add('hidden');
 }
 
 // ── Event wiring ────────────────────────────────────────────────────
@@ -1087,6 +1113,12 @@ function wireEvents() {
         startRecording();
       }
     });
+  }
+
+  // Clear transcription result
+  const clearResultBtn = $('#result-clear-btn');
+  if (clearResultBtn) {
+    clearResultBtn.addEventListener('click', clearTranscriptionResult);
   }
 
   // Vocab biasing toggle
