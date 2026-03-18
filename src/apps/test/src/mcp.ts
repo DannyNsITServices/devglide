@@ -4,7 +4,7 @@ import { ScenarioManager } from "./services/scenario-manager.js";
 import { ScenarioStore } from "./services/scenario-store.js";
 import { getActiveProject } from "../../../project-context.js";
 
-const UNIFIED_BASE = `http://localhost:${process.env.PORT || 7000}`;
+const UNIFIED_BASE = `http://localhost:${process.env.PORT ?? 7000}`;
 
 /** POST/GET helper that proxies to the unified server's HTTP API */
 async function unifiedFetch(path: string, method: "GET" | "POST" = "GET", body?: unknown): Promise<Response> {
