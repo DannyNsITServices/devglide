@@ -19,7 +19,7 @@ mkdirSync(pidDir, { recursive: true });
 mkdirSync(logDir, { recursive: true });
 
 // Unified server (single process, all apps on one port)
-const SERVER_PORT = 7000;
+const SERVER_PORT = parseInt(process.env.DEVGLIDE_PORT || '7000', 10);
 
 const [command, ...args] = process.argv.slice(2);
 
