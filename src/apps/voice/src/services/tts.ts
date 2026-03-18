@@ -39,31 +39,30 @@ function cleanupTempFiles(): void {
 let _MsEdgeTTS: any = null;
 let _OUTPUT_FORMAT: any = null;
 
-// Process-level safety net — catch both unhandled rejections AND uncaught exceptions
-// from msedge-tts. The ws (WebSocket) package emits EventEmitter 'error' events that
-// become uncaughtException (not unhandledRejection), which crashes Node.js.
+// Process-level safety net — catch unhandled rejections and uncaught exceptions
+// from msedge-tts WebSocket errors that would otherwise crash the process and
+// drop the MCP stdio connection.  We absorb ALL errors here instead of re-throwing,
+// because a re-throw from uncaughtException kills the process immediately.
 let _safetyInstalled = false;
 function installSafetyNet(): void {
   if (_safetyInstalled) return;
   _safetyInstalled = true;
-  const handler = (reason: unknown) => {
+
+  process.on("unhandledRejection", (reason: unknown) => {
     const msg = reason instanceof Error ? reason.message : String(reason);
-    if (/msedge|tts|websocket|speech\.platform|Unexpected server|ws|ECONNRESET|ENOTFOUND|audio/i.test(msg)) {
-      console.error("[voice:tts] caught process error:", msg);
-      // Absorb — don't crash
-      return;
+    // Only log TTS-related errors to avoid noise
+    if (/msedge|tts|websocket|speech\.platform|Unexpected server|ECONNRESET|ENOTFOUND|audio/i.test(msg)) {
+      process.stderr.write(`[voice:tts] unhandled rejection: ${msg}\n`);
     }
-  };
-  process.on("unhandledRejection", handler);
+    // Absorb all — never crash the MCP process
+  });
+
   process.on("uncaughtException", (err) => {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/msedge|tts|websocket|speech\.platform|Unexpected server|ws|ECONNRESET|ENOTFOUND|audio/i.test(msg)) {
-      console.error("[voice:tts] caught uncaught exception:", msg);
-      // Absorb — don't crash
-      return;
-    }
-    // Not TTS-related — re-throw to let Node's default handler crash
-    throw err;
+    process.stderr.write(`[voice:tts] uncaught exception: ${msg}\n`);
+    // Absorb — do NOT re-throw.  Re-throwing from uncaughtException kills the
+    // process, which drops the MCP stdio connection.  The MCP transport has its
+    // own error handling; a stray WebSocket error should never take it down.
   });
 }
 
