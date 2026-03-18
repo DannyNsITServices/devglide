@@ -41,12 +41,6 @@
   background: color-mix(in srgb, var(--df-color-state-idle) 8%, transparent);
 }
 
-.page-test .badge-pending {
-  color: var(--df-color-state-processing);
-  border-color: var(--df-color-state-processing);
-  background: color-mix(in srgb, var(--df-color-state-processing) 8%, transparent);
-}
-
 .page-test .badge-running {
   color: var(--df-color-state-recording);
   border-color: var(--df-color-state-recording);
@@ -141,87 +135,6 @@
   font-family: var(--df-font-mono);
 }
 
-/* ── Empty state ─────────────────────────────────────────────────────── */
-.page-test .empty {
-  background: var(--df-color-bg-surface);
-  border: 1px dashed var(--df-color-border-strong);
-  clip-path: var(--df-clip-md);
-  padding: var(--df-space-10);
-  text-align: center;
-  color: var(--df-color-text-secondary);
-  font-size: var(--df-font-size-sm);
-  letter-spacing: var(--df-letter-spacing-normal);
-  line-height: 1.7;
-}
-
-.page-test .empty code {
-  color: var(--df-color-accent-default);
-  font-family: var(--df-font-mono);
-}
-
-/* ── Scenario cards ──────────────────────────────────────────────────── */
-.page-test .scenario-card {
-  background: var(--df-color-bg-surface);
-  border: 1px solid var(--df-color-border-default);
-  clip-path: var(--df-clip-sm);
-  padding: var(--df-space-4) var(--df-space-5);
-  margin-bottom: var(--df-space-2);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--df-space-4);
-  transition: border-color var(--df-duration-base) ease;
-}
-
-.page-test .scenario-card:hover {
-  border-color: var(--df-color-border-strong);
-}
-
-.page-test .scenario-card.running {
-  border-color: var(--df-color-state-recording);
-  animation: alert-pulse 1.2s ease-in-out infinite;
-  position: relative;
-}
-
-/* Corner brackets for running scenario */
-.page-test .scenario-card.running::before,
-.page-test .scenario-card.running::after {
-  content: '';
-  position: absolute;
-  width: 12px; height: 12px;
-  border-color: var(--df-color-state-recording);
-  border-style: solid;
-  pointer-events: none;
-}
-.page-test .scenario-card.running::before { top: 0; left: 0; border-width: 2px 0 0 2px; }
-.page-test .scenario-card.running::after  { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
-
-.page-test .scenario-name {
-  font-size: var(--df-font-size-sm);
-  letter-spacing: var(--df-letter-spacing-wide);
-  text-transform: uppercase;
-  color: var(--df-color-text-primary);
-}
-
-.page-test .scenario-target {
-  font-size: var(--df-font-size-xs);
-  color: var(--df-color-text-muted);
-  letter-spacing: var(--df-letter-spacing-normal);
-}
-
-.page-test .scenario-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--df-space-3);
-}
-
-.page-test .scenario-steps {
-  font-size: var(--df-font-size-xs);
-  color: var(--df-color-text-muted);
-  letter-spacing: var(--df-letter-spacing-wide);
-  text-transform: uppercase;
-}
-
 /* ── Refresh indicator ───────────────────────────────────────────────── */
 .page-test .refresh-indicator {
   display: inline-block;
@@ -237,8 +150,7 @@
 
 /* ── Reduced motion ──────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .page-test .badge-running,
-  .page-test .scenario-card.running {
+  .page-test .badge-running {
     animation: none;
   }
 }

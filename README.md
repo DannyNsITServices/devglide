@@ -34,7 +34,7 @@ Claude Code is powerful on its own, but it operates in a text-only terminal. Dev
 
 **Plan** — Kanban boards with features, tasks, bugs, work logs, and review feedback. Claude picks up tasks, updates progress, and records what was done.
 
-**Test** — Browser automation that runs UI scenarios against your live app. Build regression suites that Claude executes before every commit.
+**Test** — Describe what to test in natural language and Claude generates browser automation scenarios automatically. Build regression suites that run before every commit.
 
 **Automate** — Visual DAG workflows with shell commands, decisions, loops, and integrations. Define processes once, trigger them by prompt or event.
 
@@ -73,9 +73,9 @@ Multi-pane terminal dashboard with PTY emulation and 200KB scrollback per pane. 
 
 <img src="assets/screenshots/shell.png" alt="Four terminal panes with an embedded browser view" width="800" />
 
-### Test — Browser UI Automation
+### Test — AI-Driven Browser Automation
 
-LLM-driven browser automation with a saved scenario library. Write test sequences using commands like `click`, `type`, `assertText`, and `waitFor`. Claude runs them before every commit to catch regressions.
+Describe what to test in plain English and Claude generates browser automation scenarios automatically. Build a saved scenario library and run regression suites before every commit to catch breakages.
 
 <img src="assets/screenshots/test.png" alt="Test runner with saved scenarios and run history" width="800" />
 

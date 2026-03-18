@@ -52,8 +52,8 @@ Run shell commands in managed terminal panes. Useful for builds, tests, and serv
 - \`shell_get_scrollback\` — read terminal output
 - \`shell_list_panes\`, \`shell_close_pane\` — manage panes
 
-### devglide-test — Browser UI automation
-Run browser automation scenarios for testing web UIs.
+### devglide-test — AI-driven browser test automation
+Describe what to test in natural language and scenarios are generated automatically.
 - \`test_list_saved\`, \`test_run_saved\` — list and run saved test scenarios
 - \`test_run_scenario\` — run an ad-hoc test scenario
 - \`test_save_scenario\` — save a reusable test scenario
@@ -92,9 +92,10 @@ Run browser automation scenarios for testing web UIs.
 5. \`kanban_move_item\` to In Review or Testing
 
 ### Running tests
-1. \`test_list_saved\` — see existing test scenarios
-2. \`test_run_saved\` — run a saved scenario, or \`test_run_scenario\` for ad-hoc
-3. \`test_get_result\` — check results
+1. Describe what to test in natural language — Claude generates scenarios automatically
+2. \`test_list_saved\` — see existing test scenarios
+3. \`test_run_saved\` — run a saved scenario, or \`test_run_scenario\` for ad-hoc
+4. \`test_get_result\` — check results
 ${END}`;
 }
 

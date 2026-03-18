@@ -17,10 +17,7 @@ const BODY_HTML = `
       Test
     </div>
     <div class="header-meta">
-      <span id="pending-badge" class="badge badge-pending" role="status" aria-live="polite" style="display:none">
-        <span id="pending-count">0</span> pending
-      </span>
-      <span class="badge badge-idle" id="status-badge">ready</span>
+      <span class="badge badge-idle" id="status-badge" role="status" aria-live="polite">idle</span>
       <span>
         auto-refresh 5s
         <span class="refresh-indicator" id="refresh-dot"></span>
@@ -46,29 +43,21 @@ const BODY_HTML = `
       </div>
     </div>
 
-    <div class="section-title">Pending Scenarios</div>
-    <div id="pending-list">
-      <div class="empty" id="empty-state">
-        No pending scenarios.
-      </div>
-    </div>
-
     <details class="info-card-details">
       <summary>Setup &amp; Usage</summary>
       <div class="info-card">
-        Automated browser testing that executes real user interactions — clicks, typing, navigation,
-        and assertions — against a live app. Submit test scenarios via the
-        <code>POST /api/trigger/scenarios</code> REST endpoint or the
-        <code>test_run_scenario</code> MCP tool, and watch them run in real time.<br/><br/>
-        <strong>Setup:</strong> For external apps, add one script tag to enable both automation and log capture:<br/>
+        <strong>Ask your AI to write tests for you.</strong> Describe what to test in natural language
+        and Claude will generate and run browser automation scenarios automatically.<br/><br/>
+        <em>Example prompts:</em><br/>
+        &bull; "Write a test that creates a kanban task and verifies it appears in the Todo column"<br/>
+        &bull; "Test that the shell pane opens and runs a command"<br/>
+        &bull; "Create a regression suite for the voice transcription settings page"<br/><br/>
+        <strong>Setup for external apps:</strong> Add one script tag to enable automation:<br/>
         <code>&lt;script src="http://localhost:7000/devtools.js"&gt;&lt;/script&gt;</code><br/>
-        The active project context provides the target automatically — no query param needed.<br/><br/>
-        DevGlide monorepo apps use the shared middleware and need no manual setup.<br/>
-        Use simple app names as targets (e.g. <code>"kanban"</code>, <code>"dashboard"</code>) — absolute paths also work.<br/><br/>
-        <strong>Tip:</strong> Prefer clicking links and buttons over using <code>navigate</code>.
-        The <code>navigate</code> command should only be used when no interactive element is available
-        (e.g. initial deep-link before a test starts). Overusing it bypasses the UI layer and can
-        cause false positives.
+        DevGlide monorepo apps need no manual setup.<br/><br/>
+        <strong>Manual usage:</strong> Submit scenarios via <code>POST /api/trigger/scenarios</code>
+        or the <code>test_run_scenario</code> MCP tool. Use simple app names as targets
+        (e.g. <code>"kanban"</code>, <code>"dashboard"</code>) — absolute paths also work.
       </div>
     </details>
   </main>
@@ -96,12 +85,13 @@ async function refresh() {
     if (!res.ok) return;
     const { pendingScenarios } = await res.json();
 
-    const pendingBadge = _container.querySelector('#pending-badge');
+    const statusBadge = _container.querySelector('#status-badge');
     if (pendingScenarios > 0) {
-      _container.querySelector('#pending-count').textContent = pendingScenarios;
-      pendingBadge.style.display = '';
+      statusBadge.textContent = 'running ' + pendingScenarios;
+      statusBadge.className = 'badge badge-running';
     } else {
-      pendingBadge.style.display = 'none';
+      statusBadge.textContent = 'idle';
+      statusBadge.className = 'badge badge-idle';
     }
 
     flash();

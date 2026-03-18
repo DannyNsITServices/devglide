@@ -98,7 +98,7 @@ const HOME_HTML = `
       <div class="dc-pillar">
         <div class="dc-pillar-icon">\u2713</div>
         <h3>Test</h3>
-        <p>Browser automation that clicks, types, and asserts against your live UI. Build regression suites that run before every commit.</p>
+        <p>Describe what to test in plain English — Claude generates and runs browser automation scenarios automatically. Build regression suites before every commit.</p>
       </div>
       <div class="dc-pillar">
         <div class="dc-pillar-icon">\u2942</div>
@@ -114,7 +114,7 @@ const HOME_HTML = `
     <p class="dc-section-desc">Every module exposes MCP tools that Claude Code calls directly. The dashboard shows the same data visually.</p>
     <div class="dc-modules">
       <div class="dc-module"><div class="dc-module-icon">\u25A6</div><h3>Kanban</h3><p>Features, tasks, bugs, columns, work logs, review feedback. 14 MCP tools.</p></div>
-      <div class="dc-module"><div class="dc-module-icon">\u2713</div><h3>Test</h3><p>Browser UI automation with saved scenarios and regression suites. 7 MCP tools.</p></div>
+      <div class="dc-module"><div class="dc-module-icon">\u2713</div><h3>Test</h3><p>AI-driven browser test automation with saved scenarios and regression suites. 7 MCP tools.</p></div>
       <div class="dc-module"><div class="dc-module-icon">\u2942</div><h3>Workflow</h3><p>Visual DAG builder with 12 node types, prompt matching, compiled instructions. 6 tools.</p></div>
       <div class="dc-module"><div class="dc-module-icon">\u276F</div><h3>Shell</h3><p>Terminal multiplexer with named panes, scrollback capture, command execution. 5 tools.</p></div>
       <div class="dc-module"><div class="dc-module-icon">\u2261</div><h3>Log</h3><p>Real-time browser console capture with JSONL session storage. 4 MCP tools.</p></div>
@@ -194,7 +194,7 @@ const GETTING_STARTED_HTML = `
       <p>Once connected, Claude Code can:</p>
       <ul class="dc-list">
         <li>Manage tasks and features on the <strong>Kanban</strong> board</li>
-        <li>Run <strong>browser automation tests</strong> against your UI</li>
+        <li>Generate and run <strong>browser tests</strong> from natural language descriptions</li>
         <li>Execute <strong>shell commands</strong> in managed terminal panes</li>
         <li>Build and run <strong>workflows</strong> (multi-step DAG automations)</li>
         <li>Capture and read <strong>browser console logs</strong></li>
@@ -228,8 +228,8 @@ const GETTING_STARTED_HTML = `
       <h2>Your First Test Scenario</h2>
       <div class="dc-numbered-steps">
         <div class="dc-ns"><span class="dc-ns-num">1</span><p>Click <strong>Test</strong> in the sidebar</p></div>
-        <div class="dc-ns"><span class="dc-ns-num">2</span><p>The test runner connects to your browser via a lightweight devtools script</p></div>
-        <div class="dc-ns"><span class="dc-ns-num">3</span><p>Write scenarios with commands: <code>click</code>, <code>waitFor</code>, <code>assertText</code>, <code>assertExists</code></p></div>
+        <div class="dc-ns"><span class="dc-ns-num">2</span><p>Ask Claude to write a test: <em>"Write a test that creates a task and verifies it appears"</em></p></div>
+        <div class="dc-ns"><span class="dc-ns-num">3</span><p>Claude generates a scenario with commands like <code>click</code>, <code>waitFor</code>, <code>assertText</code> and runs it</p></div>
         <div class="dc-ns"><span class="dc-ns-num">4</span><p>Save scenarios to build a regression suite that runs before every commit</p></div>
       </div>
     </div>
@@ -260,20 +260,19 @@ const MODULES_HTML = `
 
     <div class="dc-card" id="mod-test">
       <div class="dc-card-header"><span class="dc-card-icon">\u2713</span><h2>Test</h2><span class="dc-tool-count">7 tools</span></div>
-      <p>Browser UI automation test runner with saved scenarios and regression suites.</p>
+      <p>AI-driven browser test automation. Describe what to test in natural language and Claude generates scenarios automatically.</p>
+      <h3>How to Use</h3>
+      <ul class="dc-list">
+        <li><strong>Ask Claude</strong> &mdash; "Write a test that creates a kanban task and verifies it appears in the Todo column"</li>
+        <li><strong>Save &amp; reuse</strong> &mdash; Build a library of saved scenarios for regression testing before commits.</li>
+        <li><strong>Run manually</strong> &mdash; Use <code>test_run_saved</code> or the Run button in the dashboard.</li>
+      </ul>
       <h3>Key Concepts</h3>
       <ul class="dc-list">
         <li><strong>Scenarios</strong> &mdash; Named sequences of browser automation steps targeting a specific app.</li>
         <li><strong>Commands</strong> &mdash; click, type, waitFor, waitForHidden, assertExists, assertText, navigate, wait, select, dblclick.</li>
         <li><strong>Targets</strong> &mdash; Which browser tab runs the scenario (matched by app name or path).</li>
         <li><strong>Results</strong> &mdash; Pass/fail status with failed step index, error message, and duration.</li>
-      </ul>
-      <h3>Writing Effective Scenarios</h3>
-      <ul class="dc-list">
-        <li>Use <code>waitFor</code> with timeouts before interacting with async-loaded elements.</li>
-        <li>Prefer <code>click</code> on real UI elements over <code>navigate</code> for realistic user flow testing.</li>
-        <li>Use <code>assertText</code> with <code>contains: true</code> for partial text matching.</li>
-        <li>Keep scenarios focused on one feature path &mdash; smaller scenarios are easier to debug.</li>
       </ul>
       <h3>MCP Tools</h3>
       <p class="dc-tools-list">test_commands, test_run_scenario, test_save_scenario, test_list_saved, test_run_saved, test_delete_saved, test_get_result</p>
@@ -511,7 +510,7 @@ const CHANGELOG_HTML = `
       <h3>New Features</h3>
       <ul class="dc-list">
         <li><strong>Kanban</strong> &mdash; Full project management with features, columns, tasks, bugs, work logs, and review feedback. 14 MCP tools.</li>
-        <li><strong>Test</strong> &mdash; Browser UI automation with saved scenarios, regression suites, and execution results. 7 MCP tools.</li>
+        <li><strong>Test</strong> &mdash; AI-driven browser test automation with saved scenarios, regression suites, and execution results. 7 MCP tools.</li>
         <li><strong>Workflow</strong> &mdash; Visual DAG workflow builder with 12 node types, prompt matching, and compiled instructions. 6 MCP tools.</li>
         <li><strong>Shell</strong> &mdash; Terminal multiplexer with named panes, scrollback capture, and command execution. 5 MCP tools.</li>
         <li><strong>Log</strong> &mdash; Real-time browser console capture with JSONL session storage. 4 MCP tools.</li>

@@ -20,12 +20,12 @@ export function createTestMcpServer() {
   const server = createDevglideMcpServer(
     "devglide-test",
     "0.1.0",
-    "Browser UI automation and scenario execution. " +
+    "AI-driven browser test automation. Describe what to test in natural language and " +
+    "scenarios are generated and executed automatically against your live UI. " +
     "External apps enable automation via <script src=\"http://localhost:7000/devtools.js\"></script> — " +
     "the active project context provides the target automatically. " +
-    "DevGlide monorepo apps are handled by the unified server and need no setup. " +
-    "Targets can be absolute paths or simple app names (e.g. 'kanban', 'dashboard') " +
-    "which are resolved automatically from known polling browsers."
+    "DevGlide monorepo apps need no setup. " +
+    "Targets can be absolute paths or simple app names (e.g. 'kanban', 'dashboard')."
   );
   const scenarioManager = ScenarioManager.getInstance();
 
@@ -43,7 +43,7 @@ export function createTestMcpServer() {
 
   server.tool(
     "test_run_scenario",
-    "Submit a UI automation scenario for browser execution. The browser must have devtools.js loaded (via <script src=\"http://localhost:7000/devtools.js\"></script>).",
+    "Generate and run a browser test scenario from a natural language description or explicit steps. The browser must have devtools.js loaded (via <script src=\"http://localhost:7000/devtools.js\"></script>).",
     {
       name: z.string().optional().describe("Scenario name"),
       description: z.string().optional().describe("Scenario description"),
