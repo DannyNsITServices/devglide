@@ -450,7 +450,7 @@
   font-size: var(--df-font-size-sm);
   line-height: 1.6;
   color: var(--df-color-text-primary);
-  white-space: pre-wrap;
+  white-space: normal;
 }
 
 .page-voice .result-cleaned {
@@ -510,7 +510,7 @@
   font-size: var(--df-font-size-xs);
   color: var(--df-color-text-primary);
   line-height: 1.5;
-  white-space: pre-wrap;
+  white-space: normal;
   word-break: break-word;
 }
 
@@ -518,7 +518,7 @@
   font-size: var(--df-font-size-xs);
   color: var(--df-color-state-success);
   line-height: 1.5;
-  white-space: pre-wrap;
+  white-space: normal;
   word-break: break-word;
   margin-top: var(--df-space-1);
   padding-top: var(--df-space-1);
