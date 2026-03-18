@@ -1,6 +1,6 @@
 {
   "name": "devglide",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "AI workflow toolkit with MCP servers for kanban, shell, testing, workflows, and more — built for Claude Code",
   "license": "MIT",
   "author": "Daniel Kutyla",
