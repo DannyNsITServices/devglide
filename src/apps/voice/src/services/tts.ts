@@ -176,12 +176,20 @@ function playMp3(mp3Path: string): ChildProcess | null {
         spawn("powershell.exe", ["-NoProfile", "-Command", psCmd], { stdio: "ignore" })
       );
     } else if (os === "win32") {
-      // Native Windows (cmd or Git Bash): convert path if needed, play directly
+      // Native Windows: prefer ffplay/mpv (reliable), fall back to WMPlayer.OCX
       const winPath = toWindowsPath(mp3Path);
+      if (commandExists("ffplay")) {
+        return safeProc(spawn("ffplay", ["-nodisp", "-autoexit", winPath], { stdio: "ignore", windowsHide: true }));
+      }
+      if (commandExists("mpv")) {
+        return safeProc(spawn("mpv", ["--no-video", winPath], { stdio: "ignore", windowsHide: true }));
+      }
+      // Fallback: WMPlayer.OCX (broken on some Windows 11 builds — stays in playState 9)
       const psCmd =
         `$mp = New-Object -ComObject WMPlayer.OCX; ` +
         `$mp.URL = '${winPath.replace(/'/g, "''")}'; ` +
-        `Start-Sleep -Milliseconds 200; ` +
+        `Start-Sleep -Milliseconds 500; ` +
+        `$timeout = 0; while ($mp.playState -ne 3 -and $timeout -lt 30) { Start-Sleep -Milliseconds 100; $timeout++ }; ` +
         `while ($mp.playState -eq 3) { Start-Sleep -Milliseconds 50 }; ` +
         `$mp.close()`;
       return safeProc(

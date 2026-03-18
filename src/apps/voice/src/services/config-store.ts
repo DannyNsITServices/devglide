@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { VOICE_DIR } from "../../../../packages/paths.js";
 
-let _dataDir = VOICE_DIR;
+const _dataDir = VOICE_DIR;
 function configFile(): string { return join(_dataDir, "config.json"); }
 
 export interface PerProviderConfig {
