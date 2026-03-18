@@ -16,6 +16,8 @@ let _keydownHandler = null;
 let _xtermLoaded = false;
 let _mountedOnce = false;
 let _restoring = false;  // true during snapshot batch restore — suppresses premature fits
+let _fitGeneration = 0;  // coalesce overlapping fit cycles — incremented on each relayout
+let _relayoutTimer = null; // coalesce rapid relayout() calls into a single rAF+fonts.ready cycle
 
 const panes = new Map();   // id -> pane object
 const pendingData = new Map();   // id -> string[] — buffers terminal data for panes not yet created
@@ -238,11 +240,11 @@ function _applyActiveTab(refs, tabId) {
       if (!pane.element.classList.contains('project-hidden')) pane.element.style.display = '';
     }
     relayout(refs);
-    // Focus the active pane's terminal in grid view (delayed to avoid double-cursor flicker)
+    // Focus after relayout settles (relayout is coalesced into next frame)
     if (!isMobile() && activePaneId) {
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         panes.get(activePaneId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
-      }, 300);
+      });
     }
   } else {
     for (const [id, pane] of panes) {
@@ -252,8 +254,11 @@ function _applyActiveTab(refs, tabId) {
     refs.paneContainer.style.gridTemplateColumns = '1fr';
     refs.paneContainer.style.gridTemplateRows = '1fr';
     setActivePaneHighlight(tabId);
+    const gen = ++_fitGeneration;
     requestAnimationFrame(() => {
+      if (gen !== _fitGeneration) return;
       document.fonts.ready.then(() => {
+        if (gen !== _fitGeneration) return;
         const pane = panes.get(tabId);
         pane?.fit();
         pane?.scrollToBottom();
@@ -268,6 +273,13 @@ function _applyActiveTab(refs, tabId) {
 // ── Layout ──────────────────────────────────────────────────────────
 
 function relayout(refs) {
+  // Coalesce rapid relayout calls (e.g. tab switch + project filter + pane add)
+  // into a single rAF+fonts.ready cycle to prevent cascading fits and flicker.
+  clearTimeout(_relayoutTimer);
+  _relayoutTimer = setTimeout(() => _relayoutNow(refs), 16);
+}
+
+function _relayoutNow(refs) {
   updatePaneCount(refs);
   const visiblePanes = [...panes.values()].filter(p => !p.element.classList.contains('project-hidden'));
   const count = visiblePanes.length;
@@ -289,10 +301,15 @@ function relayout(refs) {
   refs.paneContainer.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
   refs.paneContainer.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
 
+  // Bump generation — any in-flight fit cycle from a previous relayout is stale.
+  const gen = ++_fitGeneration;
+
   // Wait for DOM to settle and fonts to load before fitting terminals.
   // rAF ensures layout is flushed, fonts.ready ensures correct metrics.
   requestAnimationFrame(() => {
+    if (gen !== _fitGeneration) return; // superseded by newer relayout
     document.fonts.ready.then(() => {
+      if (gen !== _fitGeneration) return;
       for (const pane of visiblePanes) {
         pane.fit();
       }
@@ -589,8 +606,10 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
     if (data) socket.emit('terminal:input', { id, data });
   });
 
-  // Resize observer — suppressed during batch restore to prevent premature fits
+  // Resize observer — suppressed during batch restore to prevent premature fits.
+  // 200ms debounce prevents cascading fits when grid layout shifts multiple panes.
   let roTimer;
+  let _prevCols = 0, _prevRows = 0;
   const ro = new ResizeObserver(() => {
     if (disposed || _restoring) return;
     clearTimeout(roTimer);
@@ -598,10 +617,15 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
       if (disposed || _restoring) return;
       try {
         fitAddon.fit();
+        // Only emit resize + scroll if dimensions actually changed
+        if (term.cols !== _prevCols || term.rows !== _prevRows) {
+          _prevCols = term.cols;
+          _prevRows = term.rows;
+          socket.emit('terminal:resize', { id, cols: term.cols, rows: term.rows });
+        }
         autoScroll();
-        socket.emit('terminal:resize', { id, cols: term.cols, rows: term.rows });
       } catch {}
-    }, 100);
+    }, 200);
   });
   ro.observe(termDiv);
 
@@ -670,17 +694,9 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
 
       // During batch restore, skip — centralized fit + scroll happens after grid is set
       if (_restoring || disposed) return;
-      requestAnimationFrame(() => {
-        document.fonts.ready.then(() => {
-          if (disposed) return;
-          if (termDiv.offsetWidth > 0 && termDiv.offsetHeight > 0) {
-            fitAddon.fit();
-            socket.emit('terminal:resize', { id, cols: term.cols, rows: term.rows });
-          }
-          _atBottom = true;
-          term.scrollToBottom();
-        });
-      });
+      // Scrollback written after relayout already fitted — just scroll, skip redundant fit.
+      _atBottom = true;
+      term.scrollToBottom();
     });
   }
 
@@ -1102,15 +1118,6 @@ async function _addPaneFromServer(refs, { id, shellType, title, num, cwd, url, p
   if (scrollback) pane.writeScrollback(scrollback);
 
   if (!skipRelayout) relayout(refs);
-
-  // On Windows, xterm needs a delayed fit + repaint after the pane is in the
-  // DOM to get correct dimensions and force visible content.
-  if (shellType !== 'browser') {
-    setTimeout(() => {
-      pane.fit();
-      pane.refresh();
-    }, 500);
-  }
 }
 
 function _removePaneLocal(refs, id) {
@@ -1245,38 +1252,29 @@ function wireSocketEvents(refs) {
     _applyProjectFilter(refs);
     _applyActiveTab(refs, at || 'grid');
 
-    // Phase 3: Write scrollback AFTER terminals are fit to correct dimensions.
-    // This prevents xterm from baking content at 80×24 (wrong line wrapping).
-    // Wait for relayout's deferred fit (rAF → fonts.ready) to complete first.
+    if (ap) setActivePaneHighlight(ap);
+
+    // Phase 3: Single consolidated fit + scrollback write.
+    // Wait for layout to settle (rAF) and fonts to load before fitting once,
+    // then write scrollback at the correct dimensions. No secondary re-fits.
+    const gen = ++_fitGeneration;
     requestAnimationFrame(() => {
+      if (gen !== _fitGeneration) return;
       document.fonts.ready.then(() => {
-        // Fit one more time to be sure dimensions are correct before writing
+        if (gen !== _fitGeneration || !_container) return;
         for (const pane of panes.values()) pane.fit();
 
         for (const paneData of serverPanes) {
           const sb = scrollbacks?.[paneData.id];
           if (sb) panes.get(paneData.id)?.writeScrollback(sb);
         }
+
+        // Focus the active pane after content is written
+        if (ap && !isMobile() && (at || 'grid') === 'grid') {
+          panes.get(ap)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
+        }
       });
     });
-
-    // Safety re-fit + repaint after layout fully settles
-    setTimeout(() => {
-      if (!_container) return;
-      for (const pane of panes.values()) {
-        pane.fit();
-        pane.refresh?.();
-      }
-    }, 300);
-
-    if (ap) {
-      setActivePaneHighlight(ap);
-      if ((at || 'grid') === 'grid') {
-        setTimeout(() => {
-          panes.get(ap)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
-        }, 100);
-      }
-    }
   };
 
   _socketHandlers['terminal:data'] = ({ id, data }) => {
@@ -1424,20 +1422,20 @@ export async function mount(container, ctx) {
     _applyProjectFilter(refs);
     _applyActiveTab(refs, activeTab);
 
-    // Re-fit after reattachment and auto-focus the active terminal
+    // Re-fit after reattachment — single rAF cycle, no extra delayed fits
+    const gen = ++_fitGeneration;
     requestAnimationFrame(() => {
+      if (gen !== _fitGeneration) return;
       document.fonts.ready.then(() => {
+        if (gen !== _fitGeneration) return;
         for (const pane of panes.values()) {
           pane.fit();
           pane.scrollToBottom();
         }
-        // Delayed focus to avoid double-cursor flicker with apps like Claude Code
         if (!isMobile()) {
           const focusId = activeTab !== 'grid' ? activeTab : activePaneId;
           if (focusId) {
-            setTimeout(() => {
-              panes.get(focusId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
-            }, 300);
+            panes.get(focusId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
           }
         }
       });
@@ -1466,9 +1464,7 @@ export async function mount(container, ctx) {
     if (target !== container && target !== refs.paneContainer && !target.matches('.shell-empty-state, .shell-empty-state *')) return;
     const focusId = activeTab !== 'grid' ? activeTab : activePaneId;
     if (focusId) {
-      setTimeout(() => {
-        panes.get(focusId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
-      }, 300);
+      panes.get(focusId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
     }
   });
 
@@ -1575,7 +1571,7 @@ export async function mount(container, ctx) {
   // 11. Window resize handler
   const resizeHandler = () => {
     clearTimeout(_resizeTimer);
-    _resizeTimer = setTimeout(() => relayout(refs), 100);
+    _resizeTimer = setTimeout(() => relayout(refs), 200);
   };
   window.addEventListener('resize', resizeHandler);
   // Store for cleanup
