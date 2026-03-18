@@ -219,10 +219,11 @@
    the CDN stylesheet loads late or specificity conflicts arise, the textarea
    becomes visible as a "Terminal input" bar at the bottom of the pane.
    Duplicate the hiding here with !important as a guaranteed fallback. */
-/* Hide the unfocused outline cursor on inactive panes — when running
-   a nested TUI (e.g. Claude Code) inside a shell pane, the outer
-   terminal's gray outline cursor overlaps with the inner cursor. */
-.page-shell .pane:not(.active) .xterm-cursor-outline {
+/* Hide the outline cursor globally — in normal shells it sits at the
+   prompt (harmless) but in TUI apps like Claude Code it appears at the
+   bottom of the screen, far from the actual input area.  The blinking
+   block cursor still shows the active position when focused. */
+.page-shell .xterm-cursor-outline {
   display: none !important;
 }
 
