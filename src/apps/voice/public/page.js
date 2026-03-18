@@ -120,7 +120,8 @@ const BODY_HTML = `
         </div>
 
         <div id="local-info" class="form-hint hidden">
-          Runs whisper.cpp locally — no server needed. Model downloads automatically on first use. Requires FFmpeg.
+          Runs whisper.cpp locally — no server needed. Model downloads automatically on first use.
+          <div id="ffmpeg-status" class="ffmpeg-status"></div>
         </div>
 
         <div class="form-actions">
@@ -405,6 +406,33 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// ── FFmpeg check ────────────────────────────────────────────────────
+
+async function checkFfmpeg() {
+  const el = $('#ffmpeg-status');
+  if (!el) return;
+  el.textContent = 'Checking FFmpeg...';
+  el.className = 'ffmpeg-status';
+  try {
+    const res = await fetch('/api/voice/config/check-ffmpeg');
+    const data = await res.json();
+    if (data.ok) {
+      el.textContent = `FFmpeg ${data.version} found`;
+      el.className = 'ffmpeg-status ffmpeg-status--ok';
+    } else {
+      el.innerHTML =
+        '<b>FFmpeg not found.</b> Required for audio conversion.<br>' +
+        'Install: <code>winget install ffmpeg</code> (Windows) · ' +
+        '<code>brew install ffmpeg</code> (macOS) · ' +
+        '<code>sudo apt install ffmpeg</code> (Linux)';
+      el.className = 'ffmpeg-status ffmpeg-status--error';
+    }
+  } catch {
+    el.textContent = 'Could not check FFmpeg status';
+    el.className = 'ffmpeg-status';
+  }
+}
+
 // ── Status badge ────────────────────────────────────────────────────
 
 function updateStatusBadge(configured) {
@@ -463,10 +491,11 @@ function updateFormForProvider(provider) {
     modelInput.placeholder = provider.defaultModel;
   }
 
-  // Local provider: no API key, no base URL, show info
+  // Local provider: no API key, no base URL, show info + check FFmpeg
   const isLocal = provider.id === 'local';
   localInfo.classList.toggle('hidden', !isLocal);
   testBtn.classList.toggle('hidden', isLocal);
+  if (isLocal) checkFfmpeg();
 
   if (provider.requiresApiKey) {
     apiKeyGroup.classList.remove('hidden');

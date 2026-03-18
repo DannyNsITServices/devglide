@@ -189,6 +189,29 @@
   margin: var(--df-space-2) 0;
 }
 
+.page-voice .ffmpeg-status {
+  margin-top: var(--df-space-2);
+  font-size: var(--df-font-size-xs);
+  line-height: 1.6;
+}
+
+.page-voice .ffmpeg-status code {
+  background: var(--df-color-bg-raised);
+  padding: 1px var(--df-space-1);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-xs);
+}
+
+.page-voice .ffmpeg-status--ok {
+  color: var(--df-color-state-success);
+}
+
+.page-voice .ffmpeg-status--error {
+  color: var(--df-color-state-error);
+  border-top: 1px solid color-mix(in srgb, var(--df-color-state-error) 20%, transparent);
+  padding-top: var(--df-space-2);
+}
+
 /* ── Toggle label ────────────────────────────────────────────────── */
 .page-voice .toggle-label {
   display: flex;

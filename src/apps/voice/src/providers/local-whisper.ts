@@ -2,11 +2,32 @@ import { writeFileSync, unlinkSync, mkdirSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { randomBytes } from "crypto";
+import { execSync } from "child_process";
 import type {
   TranscriptionProvider,
   TranscribeOptions,
   TranscriptionResult,
 } from "./types.js";
+
+const FFMPEG_INSTALL_HINT =
+  "Install FFmpeg:\n" +
+  "  Windows:  winget install ffmpeg  (or choco install ffmpeg)\n" +
+  "  macOS:    brew install ffmpeg\n" +
+  "  Linux:    sudo apt install ffmpeg  (or your distro's package manager)";
+
+/** Check whether ffmpeg is available on PATH. */
+export function checkFfmpeg(): { ok: boolean; version?: string; error?: string } {
+  try {
+    const out = execSync("ffmpeg -version", {
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 5000,
+    }).toString();
+    const match = out.match(/ffmpeg version (\S+)/);
+    return { ok: true, version: match?.[1] ?? "unknown" };
+  } catch {
+    return { ok: false, error: `FFmpeg not found on PATH. ${FFMPEG_INSTALL_HINT}` };
+  }
+}
 
 export class LocalWhisperProvider implements TranscriptionProvider {
   readonly name = "local";
@@ -30,6 +51,12 @@ export class LocalWhisperProvider implements TranscriptionProvider {
       throw new Error(
         "Local whisper provider requires the 'nodejs-whisper' package. Install it with: pnpm add nodejs-whisper"
       );
+    }
+
+    // Verify FFmpeg is available before attempting transcription
+    const ffmpeg = checkFfmpeg();
+    if (!ffmpeg.ok) {
+      throw new Error(ffmpeg.error!);
     }
 
     // Write audio buffer to a temp file (nodejs-whisper needs a file path)

@@ -8,6 +8,7 @@ import {
 import { configStore } from "../services/config-store.js";
 import { stats } from "../services/stats.js";
 import { handleTranscribe } from "./transcribe.js";
+import { checkFfmpeg } from "../providers/local-whisper.js";
 
 export const configRouter: RouterType = Router();
 
@@ -115,6 +116,10 @@ configRouter.post("/test", (_req, res) => {
   } catch (err) {
     res.json({ ok: false, reason: err instanceof Error ? err.message : String(err) });
   }
+});
+
+configRouter.get("/check-ffmpeg", (_req, res) => {
+  res.json(checkFfmpeg());
 });
 
 configRouter.delete("/stats", (_req, res) => {
