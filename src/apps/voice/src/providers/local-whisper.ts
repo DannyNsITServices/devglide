@@ -1,7 +1,6 @@
 import { writeFileSync, unlinkSync, mkdirSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import { platform } from "os";
 import { randomBytes } from "crypto";
 import { execSync } from "child_process";
 import type {
@@ -16,30 +15,13 @@ const FFMPEG_INSTALL_HINT =
   "  macOS:    brew install ffmpeg\n" +
   "  Linux:    sudo apt install ffmpeg  (or your distro's package manager)";
 
-const WHISPER_CLI_INSTALL_HINT =
-  "The local whisper provider requires the whisper.cpp CLI binary.\n" +
-  "Install whisper.cpp:\n" +
-  "  Windows:  Download pre-built binaries from https://github.com/ggerganov/whisper.cpp/releases\n" +
-  "            or build from source: git clone https://github.com/ggerganov/whisper.cpp && cd whisper.cpp && cmake -B build && cmake --build build --config Release\n" +
-  "  macOS:    brew install whisper-cpp\n" +
-  "  Linux:    Build from source or install via package manager";
-
-/** Check whether whisper CLI binary is available on PATH. */
-export function checkWhisperCli(): { ok: boolean; error?: string } {
-  const names = platform() === "win32"
-    ? ["whisper-cli", "whisper", "main"]
-    : ["whisper-cli", "whisper", "whisper.cpp", "main"];
-  for (const name of names) {
-    try {
-      const cmd = platform() === "win32" ? `where ${name}` : `which ${name}`;
-      execSync(cmd, { stdio: ["pipe", "pipe", "pipe"], timeout: 3000 });
-      return { ok: true };
-    } catch {
-      // try next
-    }
-  }
-  return { ok: false, error: `whisper.cpp CLI not found on PATH. ${WHISPER_CLI_INSTALL_HINT}` };
-}
+const BUILD_TOOLS_HINT =
+  "The local whisper provider uses nodejs-whisper which compiles whisper.cpp from source.\n" +
+  "This requires C++ build tools:\n" +
+  "  Windows:  Install Visual Studio Build Tools (winget install Microsoft.VisualStudio.2022.BuildTools)\n" +
+  "            or install CMake + MinGW (winget install Kitware.CMake && winget install MSYS2.MSYS2)\n" +
+  "  macOS:    xcode-select --install\n" +
+  "  Linux:    sudo apt install build-essential cmake  (or your distro's equivalent)";
 
 /** Check whether ffmpeg is available on PATH. */
 export function checkFfmpeg(): { ok: boolean; version?: string; error?: string } {
@@ -85,12 +67,6 @@ export class LocalWhisperProvider implements TranscriptionProvider {
       throw new Error(ffmpeg.error!);
     }
 
-    // Verify whisper.cpp CLI is available
-    const whisperCli = checkWhisperCli();
-    if (!whisperCli.ok) {
-      throw new Error(whisperCli.error!);
-    }
-
     // Write audio buffer to a temp file (nodejs-whisper needs a file path)
     const tmpDir = join(tmpdir(), "devglide-voice");
     mkdirSync(tmpDir, { recursive: true });
@@ -102,23 +78,35 @@ export class LocalWhisperProvider implements TranscriptionProvider {
 
       const startTime = Date.now();
 
-      const result = await nodeWhisper(tmpFile, {
-        modelName: this.model as any,
-        autoDownloadModelName: this.model as any,
-        removeWavFileAfterTranscription: true,
-        whisperOptions: {
-          outputInText: false,
-          outputInVtt: false,
-          outputInSrt: false,
-          outputInCsv: false,
-          translateToEnglish: false,
-          wordTimestamps: false,
-          timestamps_length: 60,
-          splitOnWord: true,
-          ...(options.language ? { language: options.language } : {}),
-          ...(options.prompt ? { prompt: options.prompt } : {}),
-        },
-      });
+      let result;
+      try {
+        result = await nodeWhisper(tmpFile, {
+          modelName: this.model as any,
+          autoDownloadModelName: this.model as any,
+          removeWavFileAfterTranscription: true,
+          whisperOptions: {
+            outputInText: false,
+            outputInVtt: false,
+            outputInSrt: false,
+            outputInCsv: false,
+            translateToEnglish: false,
+            wordTimestamps: false,
+            timestamps_length: 60,
+            splitOnWord: true,
+            ...(options.language ? { language: options.language } : {}),
+            ...(options.prompt ? { prompt: options.prompt } : {}),
+          },
+        });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // Detect whisper binary / build tool issues and provide actionable guidance
+        if (/whisper.*not found|executable not found|ENOENT|cmake|build|compile/i.test(msg)) {
+          throw new Error(
+            `Local whisper transcription failed: ${msg}\n\n${BUILD_TOOLS_HINT}`
+          );
+        }
+        throw err;
+      }
 
       const durationSec = (Date.now() - startTime) / 1000;
 

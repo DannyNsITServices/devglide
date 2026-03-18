@@ -8,7 +8,7 @@ import {
 import { configStore } from "../services/config-store.js";
 import { stats } from "../services/stats.js";
 import { handleTranscribe } from "./transcribe.js";
-import { checkFfmpeg, checkWhisperCli } from "../providers/local-whisper.js";
+import { checkFfmpeg } from "../providers/local-whisper.js";
 import { speak, stop as ttsStop, listVoices } from "../services/tts.js";
 
 export const configRouter: RouterType = Router();
@@ -124,10 +124,6 @@ configRouter.post("/test", (_req, res) => {
 
 configRouter.get("/check-ffmpeg", (_req, res) => {
   res.json(checkFfmpeg());
-});
-
-configRouter.get("/check-whisper-cli", (_req, res) => {
-  res.json(checkWhisperCli());
 });
 
 // ── TTS endpoints ────────────────────────────────────────────────────

@@ -121,7 +121,6 @@ const BODY_HTML = `
 
         <div id="local-info" class="form-hint hidden">
           Runs whisper.cpp locally — no server needed. Model downloads automatically on first use.
-          <div id="whisper-cli-status" class="ffmpeg-status"></div>
           <div id="ffmpeg-status" class="ffmpeg-status"></div>
         </div>
 
@@ -470,30 +469,6 @@ function escapeHtml(str) {
 
 // ── Dependency checks ────────────────────────────────────────────────
 
-async function checkWhisperCli() {
-  const el = $('#whisper-cli-status');
-  if (!el) return;
-  el.textContent = 'Checking whisper.cpp CLI...';
-  el.className = 'ffmpeg-status';
-  try {
-    const res = await fetch('/api/voice/config/check-whisper-cli');
-    const data = await res.json();
-    if (data.ok) {
-      el.textContent = 'whisper.cpp CLI found';
-      el.className = 'ffmpeg-status ffmpeg-status--ok';
-    } else {
-      el.innerHTML =
-        '<b>whisper.cpp CLI not found.</b> Required for local transcription.<br>' +
-        'Install: download from <code>github.com/ggerganov/whisper.cpp/releases</code><br>' +
-        'or build from source: <code>git clone ... && cmake -B build && cmake --build build</code>';
-      el.className = 'ffmpeg-status ffmpeg-status--error';
-    }
-  } catch {
-    el.textContent = 'Could not check whisper.cpp CLI';
-    el.className = 'ffmpeg-status';
-  }
-}
-
 async function checkFfmpeg() {
   const el = $('#ffmpeg-status');
   if (!el) return;
@@ -581,7 +556,7 @@ function updateFormForProvider(provider) {
   const isLocal = provider.id === 'local';
   localInfo.classList.toggle('hidden', !isLocal);
   testBtn.classList.toggle('hidden', isLocal);
-  if (isLocal) { checkWhisperCli(); checkFfmpeg(); }
+  if (isLocal) checkFfmpeg();
 
   if (provider.requiresApiKey) {
     apiKeyGroup.classList.remove('hidden');
