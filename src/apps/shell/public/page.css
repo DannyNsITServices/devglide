@@ -222,9 +222,16 @@
   display: none;
 }
 
-/* Hide xterm.js cursor layer on alternate screen buffer */
+/* Hide xterm.js cursor on alternate screen buffer — TUI apps like
+   Claude Code render their own cursor, so xterm's is a duplicate
+   that appears as a stray bar at the bottom of the terminal. */
 .page-shell .alt-screen .xterm-cursor-layer {
   display: none !important;
+}
+
+/* Clip the last row — 17px ≈ 14px font × 1.2 line-height */
+.page-shell .alt-screen .xterm-screen {
+  clip-path: inset(0 0 17px 0);
 }
 
 /* ── Browser pane ─────────────────────────────────────────────────── */
