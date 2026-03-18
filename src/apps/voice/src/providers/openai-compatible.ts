@@ -64,6 +64,7 @@ export class OpenAICompatibleProvider implements TranscriptionProvider {
         model: this.config.model,
         language: options.language,
         response_format: options.responseFormat || "verbose_json",
+        ...(options.prompt ? { prompt: options.prompt } : {}),
       });
     } catch (err: unknown) {
       if (err != null && typeof err === 'object' && 'status' in err && (err as { status: number }).status === 404) {

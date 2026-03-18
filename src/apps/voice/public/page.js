@@ -10,6 +10,13 @@ let allProviders = [];
 let currentProviderId = 'openai';
 let audioFile = null;
 
+// Recording state
+let _mediaRecorder = null;
+let _recordingChunks = [];
+let _recordingTimer = null;
+let _recordingStartTime = 0;
+const MAX_RECORDING_SECONDS = 300; // 5 min
+
 // ── HTML ─────────────────────────────────────────────────────────────
 
 const BODY_HTML = `
@@ -74,9 +81,14 @@ const BODY_HTML = `
           </div>
         </div>
 
-        <div class="form-group">
+        <!-- Model: text input (default) or dropdown (for providers with model list) -->
+        <div id="model-text-group" class="form-group">
           <label for="voice-model-input">Model</label>
           <input type="text" id="voice-model-input" placeholder="e.g. whisper-1" spellcheck="false">
+        </div>
+        <div id="model-select-group" class="form-group hidden">
+          <label for="voice-model-select">Model</label>
+          <select id="voice-model-select"></select>
         </div>
 
         <div id="api-key-group" class="form-group hidden">
@@ -107,6 +119,10 @@ const BODY_HTML = `
           <input type="url" id="voice-base-url-input" placeholder="http://localhost:8080" spellcheck="false">
         </div>
 
+        <div id="local-info" class="form-hint hidden">
+          Runs whisper.cpp locally — no server needed. Model downloads automatically on first use. Requires FFmpeg.
+        </div>
+
         <div class="form-actions">
           <button type="button" id="test-btn" class="btn btn-secondary">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -118,6 +134,60 @@ const BODY_HTML = `
           <button type="submit" id="save-btn" class="btn btn-primary">Save</button>
         </div>
       </form>
+    </section>
+
+    <!-- Vocabulary Biasing -->
+    <section class="card">
+      <div class="card-header">
+        <h2>Vocabulary Biasing</h2>
+        <label class="toggle-label">
+          <input type="checkbox" id="vocab-biasing-toggle">
+          <span class="toggle-text" id="vocab-biasing-status">off</span>
+        </label>
+      </div>
+      <p class="card-desc">Improve accuracy for developer terminology by injecting a vocabulary prompt into Whisper. Built-in terms (AWS, Kubernetes, TypeScript, etc.) are included automatically.</p>
+      <div class="form-group">
+        <label for="custom-vocab-input">Custom Terms <span class="field-hint">(one per line)</span></label>
+        <textarea id="custom-vocab-input" rows="4" placeholder="MyCompanyName&#10;InternalAPIName&#10;ProjectCodename" spellcheck="false"></textarea>
+      </div>
+      <div class="form-actions">
+        <button type="button" id="save-vocab-btn" class="btn btn-primary">Save</button>
+      </div>
+    </section>
+
+    <!-- AI Text Cleanup -->
+    <section class="card">
+      <div class="card-header">
+        <h2>AI Text Cleanup</h2>
+        <label class="toggle-label">
+          <input type="checkbox" id="cleanup-toggle">
+          <span class="toggle-text" id="cleanup-status">off</span>
+        </label>
+      </div>
+      <p class="card-desc">Transform rambling voice input into polished text via LLM post-processing. Removes filler words, fixes grammar, preserves technical terms.</p>
+      <div id="cleanup-config" class="hidden">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cleanup-provider-input">Provider</label>
+            <input type="text" id="cleanup-provider-input" placeholder="openai" spellcheck="false">
+          </div>
+          <div class="form-group">
+            <label for="cleanup-model-input">Model</label>
+            <input type="text" id="cleanup-model-input" placeholder="gpt-4o-mini" spellcheck="false">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="cleanup-api-key-input">API Key</label>
+          <input type="password" id="cleanup-api-key-input" placeholder="API key for cleanup LLM" autocomplete="new-password" spellcheck="false">
+        </div>
+        <div class="form-group">
+          <label for="cleanup-base-url-input">Base URL <span class="field-hint">(optional)</span></label>
+          <input type="url" id="cleanup-base-url-input" placeholder="https://api.openai.com/v1" spellcheck="false">
+        </div>
+        <div class="form-actions">
+          <button type="button" id="save-cleanup-btn" class="btn btn-primary">Save</button>
+        </div>
+      </div>
     </section>
 
     <!-- Statistics -->
@@ -144,11 +214,48 @@ const BODY_HTML = `
           <span class="stat-label">Last Transcription</span>
         </div>
       </div>
+      <!-- Analytics mini-dashboard -->
+      <div id="analytics-section" class="analytics-section hidden">
+        <div class="stats-grid" style="margin-top: var(--df-space-3);">
+          <div class="stat-card">
+            <span class="stat-value" id="avg-wpm">0</span>
+            <span class="stat-label">Avg WPM</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-value" id="total-words">0</span>
+            <span class="stat-label">Total Words</span>
+          </div>
+        </div>
+        <div id="top-fillers" class="filler-list"></div>
+      </div>
     </section>
 
     <!-- Test Transcription -->
     <section class="card">
       <h2>Test Transcription</h2>
+      <!-- Mode selector -->
+      <div class="mode-selector">
+        <label class="mode-option">
+          <input type="radio" name="transcribe-mode" value="raw" checked> Raw
+        </label>
+        <label class="mode-option">
+          <input type="radio" name="transcribe-mode" value="cleanup"> AI Cleanup
+        </label>
+      </div>
+      <!-- Mic recording -->
+      <div class="record-row">
+        <button type="button" id="record-btn" class="btn btn-record" title="Record from microphone">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+          <span id="record-btn-text">Record</span>
+        </button>
+        <span id="record-timer" class="record-timer hidden">0:00</span>
+        <span id="record-status" class="field-hint"></span>
+      </div>
       <div class="upload-area" id="upload-area" aria-label="Audio file upload drop zone">
         <input type="file" id="audio-file" accept="audio/*,.wav,.mp3,.m4a,.ogg,.flac,.webm" class="hidden">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="upload-icon">
@@ -169,6 +276,24 @@ const BODY_HTML = `
       <div id="transcription-result" class="result-box hidden">
         <div id="result-meta" class="result-meta"></div>
         <p id="result-text"></p>
+        <div id="result-cleaned" class="result-cleaned hidden">
+          <div class="result-cleaned-label">AI Cleaned</div>
+          <p id="result-cleaned-text"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- History -->
+    <section class="card">
+      <div class="card-header">
+        <h2>History</h2>
+        <button id="clear-history-btn" class="btn btn-secondary">Clear</button>
+      </div>
+      <div id="history-list" class="history-list">
+        <p class="empty-state">No transcriptions yet.</p>
+      </div>
+      <div id="history-more" class="hidden" style="text-align:center; margin-top: var(--df-space-2);">
+        <button id="history-load-more" class="btn btn-secondary">Load more</button>
       </div>
     </section>
 
@@ -183,6 +308,14 @@ const BODY_HTML = `
         <div class="tool">
           <code>voice_status</code>
           <span>Check service status and statistics</span>
+        </div>
+        <div class="tool">
+          <code>voice_history</code>
+          <span>List transcription history with text analysis</span>
+        </div>
+        <div class="tool">
+          <code>voice_analytics</code>
+          <span>Get transcription analytics (WPM, filler words)</span>
         </div>
       </div>
     </section>
@@ -206,6 +339,33 @@ function isAudioFile(file) {
   return AUDIO_EXTENSIONS.some(ext => file.name.toLowerCase().endsWith(ext));
 }
 
+// 5 min timeout for local provider (model download + compile), 60s for remote
+function getTranscriptionTimeout() {
+  return currentProviderId === 'local' ? 300_000 : 60_000;
+}
+
+function getTranscriptionStatusText() {
+  return currentProviderId === 'local'
+    ? 'Transcribing (local model may download on first use)...'
+    : 'Transcribing...';
+}
+
+async function fetchTranscription(body) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), getTranscriptionTimeout());
+  try {
+    const res = await fetch('/api/voice/config/test-transcription', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    return await res.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function setLoading(btn, loading) {
   btn.disabled = loading;
   btn.dataset.originalText = btn.dataset.originalText ?? btn.textContent.trim();
@@ -226,6 +386,23 @@ function showToast(message, type = 'info') {
     const fallback = setTimeout(() => toast.remove(), 500);
     toast.addEventListener('transitionend', () => { clearTimeout(fallback); toast.remove(); }, { once: true });
   }, 3200);
+}
+
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 // ── Status badge ────────────────────────────────────────────────────
@@ -261,15 +438,35 @@ function populateProviderDropdown() {
 function updateFormForProvider(provider) {
   const apiKeyGroup = $('#api-key-group');
   const baseUrlGroup = $('#base-url-group');
+  const modelTextGroup = $('#model-text-group');
+  const modelSelectGroup = $('#model-select-group');
   const modelInput = $('#voice-model-input');
+  const modelSelect = $('#voice-model-select');
   const apiKeyInput = $('#voice-api-key-input');
   const baseUrlInput = $('#voice-base-url-input');
   const apiKeyHint = $('#api-key-current');
+  const localInfo = $('#local-info');
+  const testBtn = $('#test-btn');
 
   if (!modelInput) return;
 
-  modelInput.value = provider.currentModel ?? provider.defaultModel;
-  modelInput.placeholder = provider.defaultModel;
+  // Model: dropdown if provider has models list, text input otherwise
+  if (provider.models && provider.models.length > 0) {
+    modelTextGroup.classList.add('hidden');
+    modelSelectGroup.classList.remove('hidden');
+    modelSelect.innerHTML = provider.models.map(m => `<option value="${m}">${m}</option>`).join('');
+    modelSelect.value = provider.currentModel ?? provider.defaultModel;
+  } else {
+    modelTextGroup.classList.remove('hidden');
+    modelSelectGroup.classList.add('hidden');
+    modelInput.value = provider.currentModel ?? provider.defaultModel;
+    modelInput.placeholder = provider.defaultModel;
+  }
+
+  // Local provider: no API key, no base URL, show info
+  const isLocal = provider.id === 'local';
+  localInfo.classList.toggle('hidden', !isLocal);
+  testBtn.classList.toggle('hidden', isLocal);
 
   if (provider.requiresApiKey) {
     apiKeyGroup.classList.remove('hidden');
@@ -281,11 +478,14 @@ function updateFormForProvider(provider) {
     apiKeyHint.textContent = provider.currentApiKeyMasked
       ? `Current: ${provider.currentApiKeyMasked}`
       : '';
-  } else {
+  } else if (!isLocal) {
     apiKeyGroup.classList.add('hidden');
     baseUrlGroup.classList.remove('hidden');
     baseUrlInput.value = provider.currentBaseURL ?? provider.defaultBaseURL ?? '';
     baseUrlInput.placeholder = provider.defaultBaseURL ?? 'http://localhost:8080';
+  } else {
+    apiKeyGroup.classList.add('hidden');
+    baseUrlGroup.classList.add('hidden');
   }
 }
 
@@ -311,6 +511,34 @@ async function loadProviders() {
     if (toolDesc && provider) {
       toolDesc.textContent = `Transcribe base64 audio via ${provider.displayName}`;
     }
+
+    // Load vocab biasing state
+    const vocabToggle = $('#vocab-biasing-toggle');
+    const vocabStatus = $('#vocab-biasing-status');
+    if (vocabToggle) {
+      vocabToggle.checked = data.vocabBiasing ?? false;
+      if (vocabStatus) vocabStatus.textContent = vocabToggle.checked ? 'on' : 'off';
+    }
+    const customVocab = $('#custom-vocab-input');
+    if (customVocab && data.customVocabulary) {
+      customVocab.value = data.customVocabulary.join('\n');
+    }
+
+    // Load cleanup state
+    const cleanupToggle = $('#cleanup-toggle');
+    const cleanupStatus = $('#cleanup-status');
+    const cleanupConfig = $('#cleanup-config');
+    if (cleanupToggle && data.cleanup) {
+      cleanupToggle.checked = data.cleanup.enabled ?? false;
+      if (cleanupStatus) cleanupStatus.textContent = cleanupToggle.checked ? 'on' : 'off';
+      if (cleanupConfig) cleanupConfig.classList.toggle('hidden', !cleanupToggle.checked);
+      const cpInput = $('#cleanup-provider-input');
+      const cmInput = $('#cleanup-model-input');
+      const cuInput = $('#cleanup-base-url-input');
+      if (cpInput) cpInput.value = data.cleanup.provider ?? '';
+      if (cmInput) cmInput.value = data.cleanup.model ?? '';
+      if (cuInput) cuInput.value = data.cleanup.baseURL ?? '';
+    }
   } catch {
     updateStatusBadge(null);
   }
@@ -320,7 +548,12 @@ async function fetchStatus() {
   try {
     const res = await fetch('/api/voice/config');
     const cfg = await res.json();
-    updateStatusBadge(cfg.configured);
+    // Local provider is always "configured"
+    if (cfg.provider === 'local') {
+      updateStatusBadge(true);
+    } else {
+      updateStatusBadge(cfg.configured);
+    }
   } catch {
     updateStatusBadge(null);
   }
@@ -345,6 +578,61 @@ async function fetchStats() {
   } catch {
     // ignore
   }
+
+  // Fetch analytics
+  try {
+    const res = await fetch('/api/voice/history/analytics');
+    const analytics = await res.json();
+    const section = $('#analytics-section');
+    if (analytics.totalTranscriptions > 0 && section) {
+      section.classList.remove('hidden');
+      const avgWpm = $('#avg-wpm');
+      if (avgWpm) avgWpm.textContent = analytics.avgWPM;
+      const totalWords = $('#total-words');
+      if (totalWords) totalWords.textContent = analytics.totalWords;
+      const fillerEl = $('#top-fillers');
+      if (fillerEl && analytics.topFillerWords.length > 0) {
+        fillerEl.innerHTML = '<span class="filler-title">Top Filler Words</span> ' +
+          analytics.topFillerWords.slice(0, 5).map(f =>
+            `<span class="filler-tag">${escapeHtml(f.word)} <b>${f.count}</b></span>`
+          ).join(' ');
+      } else if (fillerEl) {
+        fillerEl.innerHTML = '';
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+async function fetchHistory() {
+  if (!_container) return;
+  try {
+    const res = await fetch('/api/voice/history?limit=10');
+    const data = await res.json();
+    const list = $('#history-list');
+    if (!list) return;
+    if (data.entries.length === 0) {
+      list.innerHTML = '<p class="empty-state">No transcriptions yet.</p>';
+      return;
+    }
+    list.innerHTML = data.entries.map(e => `
+      <div class="history-entry" data-id="${e.id}">
+        <div class="history-entry-header">
+          <span class="history-meta">${escapeHtml(e.provider)} / ${escapeHtml(e.model)} \u00b7 ${timeAgo(e.timestamp)}</span>
+          <span class="history-stats">${e.wordCount}w${e.wpm > 0 ? ` \u00b7 ${e.wpm} WPM` : ''}${e.duration ? ` \u00b7 ${e.duration.toFixed(1)}s` : ''}</span>
+        </div>
+        <p class="history-text">${escapeHtml(e.text.slice(0, 200))}${e.text.length > 200 ? '...' : ''}</p>
+        ${e.cleanedText ? `<p class="history-cleaned">${escapeHtml(e.cleanedText.slice(0, 200))}${e.cleanedText.length > 200 ? '...' : ''}</p>` : ''}
+        ${e.fillerWords.length > 0 ? `<div class="history-fillers">${e.fillerWords.slice(0, 3).map(f => `<span class="filler-tag filler-tag--sm">${escapeHtml(f.word)} ${f.count}</span>`).join('')}</div>` : ''}
+      </div>
+    `).join('');
+
+    const moreBtn = $('#history-more');
+    if (moreBtn) moreBtn.classList.toggle('hidden', data.total <= 10);
+  } catch {
+    // ignore
+  }
 }
 
 // ── Microphone check ────────────────────────────────────────────────
@@ -352,6 +640,7 @@ async function fetchStats() {
 async function checkMicrophone() {
   if (!navigator.mediaDevices?.getUserMedia) {
     showMicModal('Your browser does not support microphone access.');
+    disableRecordBtn();
     return;
   }
   try {
@@ -369,6 +658,7 @@ async function checkMicrophone() {
       message = err.message || 'Microphone is unavailable.';
     }
     showMicModal(message);
+    disableRecordBtn();
   }
 }
 
@@ -377,6 +667,88 @@ function showMicModal(message) {
   const modal = $('#mic-modal');
   if (detail) detail.textContent = message;
   if (modal) modal.classList.remove('hidden');
+}
+
+function disableRecordBtn() {
+  const btn = $('#record-btn');
+  if (btn) { btn.disabled = true; btn.title = 'Microphone unavailable'; }
+}
+
+// ── Recording ───────────────────────────────────────────────────────
+
+function startRecording() {
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    _recordingChunks = [];
+    _mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+    _mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) _recordingChunks.push(e.data);
+    };
+
+    _mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(_recordingChunks, { type: 'audio/webm' });
+      _recordingChunks = [];
+      handleRecordedBlob(blob);
+    };
+
+    _mediaRecorder.start(250); // collect chunks every 250ms
+    _recordingStartTime = Date.now();
+
+    const btn = $('#record-btn');
+    const btnText = $('#record-btn-text');
+    const timer = $('#record-timer');
+    if (btn) btn.classList.add('btn-record--active');
+    if (btnText) btnText.textContent = 'Stop';
+    if (timer) { timer.classList.remove('hidden'); timer.textContent = '0:00'; }
+
+    _recordingTimer = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - _recordingStartTime) / 1000);
+      if (timer) {
+        const m = Math.floor(elapsed / 60);
+        const s = String(elapsed % 60).padStart(2, '0');
+        timer.textContent = `${m}:${s}`;
+      }
+      if (elapsed >= MAX_RECORDING_SECONDS) stopRecording();
+    }, 500);
+  }).catch(() => {
+    showToast('Could not access microphone', 'error');
+  });
+}
+
+function stopRecording() {
+  if (_recordingTimer) { clearInterval(_recordingTimer); _recordingTimer = null; }
+  if (_mediaRecorder && _mediaRecorder.state !== 'inactive') {
+    _mediaRecorder.stop();
+  }
+  const btn = $('#record-btn');
+  const btnText = $('#record-btn-text');
+  if (btn) btn.classList.remove('btn-record--active');
+  if (btnText) btnText.textContent = 'Record';
+}
+
+async function handleRecordedBlob(blob) {
+  const statusEl = $('#record-status');
+  if (statusEl) statusEl.textContent = getTranscriptionStatusText();
+
+  try {
+    const buffer = await blob.arrayBuffer();
+    const base64 = arrayBufferToBase64(buffer);
+    const mode = _container?.querySelector('input[name="transcribe-mode"]:checked')?.value ?? 'raw';
+
+    const data = await fetchTranscription({ audioBase64: base64, filename: 'recording.webm', mode });
+
+    if (data.ok) {
+      showTranscriptionResult(data);
+      if (statusEl) statusEl.textContent = '';
+      await fetchStats();
+      await fetchHistory();
+    } else {
+      if (statusEl) statusEl.textContent = `Error: ${data.error}`;
+    }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = err?.name === 'AbortError' ? 'Request timed out' : 'Network error';
+  }
 }
 
 // ── Audio file handling ─────────────────────────────────────────────
@@ -396,6 +768,32 @@ function setAudioFile(file) {
   if (statusEl) statusEl.textContent = '';
 }
 
+// ── Transcription result display ────────────────────────────────────
+
+function showTranscriptionResult(data) {
+  const resultBox = $('#transcription-result');
+  const resultText = $('#result-text');
+  if (resultText) resultText.textContent = data.text;
+  const meta = [];
+  if (data.language) meta.push(`language: ${data.language}`);
+  if (data.duration != null) meta.push(`duration: ${data.duration.toFixed(1)}s`);
+  if (data.historyId) meta.push(`id: ${data.historyId}`);
+  const resultMeta = $('#result-meta');
+  if (resultMeta) resultMeta.textContent = meta.join(' \u00b7 ');
+
+  // Show cleaned text if available
+  const cleanedBox = $('#result-cleaned');
+  const cleanedText = $('#result-cleaned-text');
+  if (data.cleanedText && cleanedBox && cleanedText) {
+    cleanedText.textContent = data.cleanedText;
+    cleanedBox.classList.remove('hidden');
+  } else if (cleanedBox) {
+    cleanedBox.classList.add('hidden');
+  }
+
+  if (resultBox) resultBox.classList.remove('hidden');
+}
+
 // ── Event wiring ────────────────────────────────────────────────────
 
 function wireEvents() {
@@ -413,13 +811,19 @@ function wireEvents() {
       const body = {
         provider: currentProviderId,
         language: $('#voice-language-select')?.value,
-        model: $('#voice-model-input')?.value.trim() || undefined,
       };
+
+      // Model: from dropdown or text input
+      if (provider?.models?.length > 0) {
+        body.model = $('#voice-model-select')?.value || undefined;
+      } else {
+        body.model = $('#voice-model-input')?.value.trim() || undefined;
+      }
 
       if (provider?.requiresApiKey) {
         const key = $('#voice-api-key-input')?.value.trim();
         if (key) body.apiKey = key;
-      } else {
+      } else if (provider?.id !== 'local') {
         const url = $('#voice-base-url-input')?.value.trim();
         if (url) body.baseURL = url;
       }
@@ -486,12 +890,14 @@ function wireEvents() {
       const provider = getSelectedProvider();
       const testBody = {
         provider: currentProviderId,
-        model: $('#voice-model-input')?.value.trim() || undefined,
+        model: provider?.models?.length > 0
+          ? ($('#voice-model-select')?.value || undefined)
+          : ($('#voice-model-input')?.value.trim() || undefined),
       };
       if (provider?.requiresApiKey) {
         const key = $('#voice-api-key-input')?.value.trim();
         if (key) testBody.apiKey = key;
-      } else {
+      } else if (provider?.id !== 'local') {
         const url = $('#voice-base-url-input')?.value.trim();
         if (url) testBody.baseURL = url;
       }
@@ -580,41 +986,43 @@ function wireEvents() {
       const statusEl = $('#transcribe-status');
       const resultBox = $('#transcription-result');
       setLoading(transcribeBtn, true);
-      if (statusEl) statusEl.textContent = 'Transcribing...';
+      if (statusEl) { statusEl.textContent = getTranscriptionStatusText(); statusEl.style.color = ''; }
       if (resultBox) resultBox.classList.add('hidden');
 
       try {
         const buffer = await audioFile.arrayBuffer();
         const base64 = arrayBufferToBase64(buffer);
+        const mode = _container?.querySelector('input[name="transcribe-mode"]:checked')?.value ?? 'raw';
 
-        const res = await fetch('/api/voice/config/test-transcription', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ audioBase64: base64, filename: audioFile.name }),
-        });
-        const data = await res.json();
+        const data = await fetchTranscription({ audioBase64: base64, filename: audioFile.name, mode });
 
         if (data.ok) {
-          const resultText = $('#result-text');
-          if (resultText) resultText.textContent = data.text;
-          const meta = [];
-          if (data.language) meta.push(`language: ${data.language}`);
-          if (data.duration != null) meta.push(`duration: ${data.duration.toFixed(1)}s`);
-          const resultMeta = $('#result-meta');
-          if (resultMeta) resultMeta.textContent = meta.join(' \u00b7 ');
-          if (resultBox) resultBox.classList.remove('hidden');
+          showTranscriptionResult(data);
           if (statusEl) statusEl.textContent = '';
           await fetchStats();
+          await fetchHistory();
         } else {
           if (statusEl) {
             statusEl.textContent = `Error: ${data.error}`;
             statusEl.style.color = 'var(--df-color-state-error)';
           }
         }
-      } catch {
-        if (statusEl) statusEl.textContent = 'Network error';
+      } catch (err) {
+        if (statusEl) statusEl.textContent = err?.name === 'AbortError' ? 'Request timed out' : 'Network error';
       } finally {
         setLoading(transcribeBtn, false);
+      }
+    });
+  }
+
+  // Record button
+  const recordBtn = $('#record-btn');
+  if (recordBtn) {
+    recordBtn.addEventListener('click', () => {
+      if (_mediaRecorder && _mediaRecorder.state === 'recording') {
+        stopRecording();
+      } else {
+        startRecording();
       }
     });
   }
@@ -638,6 +1046,102 @@ function wireEvents() {
     }
   };
   document.addEventListener('keydown', _escapeHandler);
+
+  // Vocab biasing toggle
+  const vocabToggle = $('#vocab-biasing-toggle');
+  if (vocabToggle) {
+    vocabToggle.addEventListener('change', () => {
+      const status = $('#vocab-biasing-status');
+      if (status) status.textContent = vocabToggle.checked ? 'on' : 'off';
+    });
+  }
+
+  // Save vocab
+  const saveVocabBtn = $('#save-vocab-btn');
+  if (saveVocabBtn) {
+    saveVocabBtn.addEventListener('click', async () => {
+      setLoading(saveVocabBtn, true);
+      const vocabToggle = $('#vocab-biasing-toggle');
+      const customVocab = $('#custom-vocab-input');
+      const terms = (customVocab?.value ?? '').split('\n').map(t => t.trim()).filter(Boolean);
+      try {
+        const res = await fetch('/api/voice/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vocabBiasing: vocabToggle?.checked ?? false,
+            customVocabulary: terms,
+          }),
+        });
+        const data = await res.json();
+        if (data.ok) showToast('Vocabulary saved', 'ok');
+        else showToast(data.error ?? 'Save failed', 'error');
+      } catch {
+        showToast('Network error', 'error');
+      } finally {
+        setLoading(saveVocabBtn, false);
+      }
+    });
+  }
+
+  // Cleanup toggle
+  const cleanupToggle = $('#cleanup-toggle');
+  if (cleanupToggle) {
+    cleanupToggle.addEventListener('change', () => {
+      const status = $('#cleanup-status');
+      const config = $('#cleanup-config');
+      if (status) status.textContent = cleanupToggle.checked ? 'on' : 'off';
+      if (config) config.classList.toggle('hidden', !cleanupToggle.checked);
+    });
+  }
+
+  // Save cleanup
+  const saveCleanupBtn = $('#save-cleanup-btn');
+  if (saveCleanupBtn) {
+    saveCleanupBtn.addEventListener('click', async () => {
+      setLoading(saveCleanupBtn, true);
+      const cleanupToggle = $('#cleanup-toggle');
+      try {
+        const res = await fetch('/api/voice/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cleanup: {
+              enabled: cleanupToggle?.checked ?? false,
+              provider: $('#cleanup-provider-input')?.value.trim() || undefined,
+              model: $('#cleanup-model-input')?.value.trim() || undefined,
+              apiKey: $('#cleanup-api-key-input')?.value.trim() || undefined,
+              baseURL: $('#cleanup-base-url-input')?.value.trim() || undefined,
+            },
+          }),
+        });
+        const data = await res.json();
+        if (data.ok) showToast('Cleanup config saved', 'ok');
+        else showToast(data.error ?? 'Save failed', 'error');
+      } catch {
+        showToast('Network error', 'error');
+      } finally {
+        setLoading(saveCleanupBtn, false);
+      }
+    });
+  }
+
+  // Clear history
+  const clearHistoryBtn = $('#clear-history-btn');
+  if (clearHistoryBtn) {
+    clearHistoryBtn.addEventListener('click', async () => {
+      setLoading(clearHistoryBtn, true);
+      try {
+        await fetch('/api/voice/history', { method: 'DELETE' });
+        await fetchHistory();
+        showToast('History cleared', 'ok');
+      } catch {
+        showToast('Clear failed', 'error');
+      } finally {
+        setLoading(clearHistoryBtn, false);
+      }
+    });
+  }
 }
 
 // ── Stats polling ───────────────────────────────────────────────────
@@ -661,6 +1165,8 @@ export function mount(container, ctx) {
   allProviders = [];
   currentProviderId = 'openai';
   audioFile = null;
+  _mediaRecorder = null;
+  _recordingChunks = [];
 
   // 1. Scope the container
   container.classList.add('page-voice');
@@ -682,37 +1188,48 @@ export function mount(container, ctx) {
   loadProviders();
   fetchStatus();
   startStatsPoll();
+  fetchHistory();
   checkMicrophone();
 }
 
 export function unmount(container) {
-  // 1. Stop stats polling
+  // 1. Stop recording if active
+  stopRecording();
+
+  // 2. Stop stats polling
   stopStatsPoll();
 
-  // 2. Remove visibility handler
+  // 3. Remove visibility handler
   if (_visibilityHandler) {
     document.removeEventListener('visibilitychange', _visibilityHandler);
     _visibilityHandler = null;
   }
 
-  // 3. Remove escape handler
+  // 4. Remove escape handler
   if (_escapeHandler) {
     document.removeEventListener('keydown', _escapeHandler);
     _escapeHandler = null;
   }
 
-  // 4. Remove scope class & clear HTML
+  // 5. Remove scope class & clear HTML
   if (container) {
     container.classList.remove('page-voice');
     container.innerHTML = '';
   }
 
-  // 5. Clear module references
+  // 6. Clear module references
   _container = null;
   audioFile = null;
+  _mediaRecorder = null;
+  _recordingChunks = [];
 }
 
 export function onProjectChange(project) {
-  // Voice config is global (not per-project), so no action needed.
-  // Kept for interface compliance.
+  // Reload data when project changes (history, config may differ per project)
+  if (_container) {
+    loadProviders();
+    fetchStatus();
+    fetchStats();
+    fetchHistory();
+  }
 }

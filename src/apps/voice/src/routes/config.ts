@@ -37,18 +37,26 @@ configRouter.get("/providers", (_req, res) => {
       requiresApiKey: meta.requiresApiKey,
       defaultBaseURL: meta.defaultBaseURL ?? null,
       defaultModel: meta.defaultModel,
+      models: meta.models ?? null,
       currentApiKeyMasked: settings.apiKey ? `...${settings.apiKey.slice(-4)}` : null,
       currentBaseURL: settings.baseURL ?? null,
       currentModel: settings.model ?? null,
     };
   });
-  res.json({ current: cfg.provider, language: cfg.language, providers });
+  res.json({
+    current: cfg.provider,
+    language: cfg.language,
+    providers,
+    vocabBiasing: cfg.vocabBiasing ?? false,
+    customVocabulary: cfg.customVocabulary ?? [],
+    cleanup: cfg.cleanup ?? { enabled: false },
+  });
 });
 
 configRouter.put("/", (req, res) => {
-  const { provider, language, apiKey, baseURL, model } = req.body as Record<
+  const { provider, language, apiKey, baseURL, model, vocabBiasing, customVocabulary, cleanup } = req.body as Record<
     string,
-    string | undefined
+    any
   >;
 
   if (provider && !PROVIDER_META[provider]) {
@@ -84,6 +92,10 @@ configRouter.put("/", (req, res) => {
     patch.providerName = targetProvider;
     patch.providerSettings = settings;
   }
+
+  if (vocabBiasing !== undefined) patch.vocabBiasing = !!vocabBiasing;
+  if (Array.isArray(customVocabulary)) patch.customVocabulary = customVocabulary.map(String);
+  if (cleanup && typeof cleanup === "object") patch.cleanup = cleanup;
 
   configStore.update(patch);
   invalidateProvider();

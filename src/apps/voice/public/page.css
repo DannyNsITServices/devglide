@@ -115,6 +115,13 @@
 
 .page-voice .card-header h2 { margin-bottom: 0; }
 
+.page-voice .card-desc {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-secondary);
+  line-height: 1.5;
+  margin-bottom: var(--df-space-3);
+}
+
 /* ── Form ─────────────────────────────────────────────────────────── */
 .page-voice label {
   font-size: var(--df-font-size-xs);
@@ -129,7 +136,8 @@
 .page-voice input[type="text"],
 .page-voice input[type="password"],
 .page-voice input[type="url"],
-.page-voice select {
+.page-voice select,
+.page-voice textarea {
   width: 100%;
   background: var(--df-color-bg-raised);
   border: 1px solid var(--df-color-border-default);
@@ -142,8 +150,14 @@
   transition: border-color var(--df-duration-fast);
 }
 
+.page-voice textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
 .page-voice input:focus-visible,
-.page-voice select:focus-visible {
+.page-voice select:focus-visible,
+.page-voice textarea:focus-visible {
   border-color: var(--df-color-accent-default);
   box-shadow: inset 0 0 0 1px var(--df-color-accent-dim);
 }
@@ -163,6 +177,37 @@
 .page-voice .field-hint {
   font-size: var(--df-font-size-xs);
   color: var(--df-color-text-secondary);
+}
+
+.page-voice .form-hint {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-secondary);
+  line-height: 1.5;
+  padding: var(--df-space-2) 0;
+  border-left: 2px solid var(--df-color-accent-dim);
+  padding-left: var(--df-space-3);
+  margin: var(--df-space-2) 0;
+}
+
+/* ── Toggle label ────────────────────────────────────────────────── */
+.page-voice .toggle-label {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+  cursor: pointer;
+  text-transform: none;
+}
+
+.page-voice .toggle-label input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--df-color-accent-default);
+}
+
+.page-voice .toggle-text {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-secondary);
+  letter-spacing: var(--df-letter-spacing-wide);
+  text-transform: uppercase;
 }
 
 /* ── Button extensions (voice-specific) ───────────────────────────── */
@@ -216,6 +261,112 @@
   font-size: var(--df-font-size-xs);
   color: var(--df-color-text-secondary);
   text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wide);
+}
+
+/* ── Analytics ────────────────────────────────────────────────────── */
+.page-voice .analytics-section {
+  margin-top: var(--df-space-3);
+  border-top: 1px solid var(--df-color-border-subtle);
+  padding-top: var(--df-space-3);
+}
+
+.page-voice .filler-list {
+  margin-top: var(--df-space-2);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--df-space-2);
+}
+
+.page-voice .filler-title {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wide);
+}
+
+.page-voice .filler-tag {
+  font-size: var(--df-font-size-xs);
+  background: var(--df-color-bg-raised);
+  border: 1px solid var(--df-color-border-default);
+  padding: 2px var(--df-space-2);
+  clip-path: var(--df-clip-sm);
+  color: var(--df-color-text-secondary);
+}
+
+.page-voice .filler-tag b {
+  color: var(--df-color-accent-default);
+  font-weight: 600;
+}
+
+.page-voice .filler-tag--sm {
+  font-size: 10px;
+  padding: 1px var(--df-space-1);
+}
+
+/* ── Mode selector ───────────────────────────────────────────────── */
+.page-voice .mode-selector {
+  display: flex;
+  gap: var(--df-space-4);
+  margin-bottom: var(--df-space-3);
+}
+
+.page-voice .mode-option {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-1);
+  cursor: pointer;
+  text-transform: none;
+}
+
+.page-voice .mode-option input[type="radio"] {
+  width: auto;
+  accent-color: var(--df-color-accent-default);
+}
+
+/* ── Record button ───────────────────────────────────────────────── */
+.page-voice .record-row {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-3);
+  margin-bottom: var(--df-space-3);
+}
+
+.page-voice .btn-record {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+  background: var(--df-color-bg-raised);
+  border: 1px solid var(--df-color-border-default);
+  color: var(--df-color-text-primary);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-sm);
+  padding: var(--df-space-2) var(--df-space-3);
+  cursor: pointer;
+  transition: border-color var(--df-duration-fast), background var(--df-duration-fast);
+}
+
+.page-voice .btn-record:not(:disabled):hover {
+  border-color: var(--df-color-accent-default);
+}
+
+.page-voice .btn-record--active {
+  background: color-mix(in srgb, var(--df-color-state-error) 15%, transparent);
+  border-color: var(--df-color-state-error);
+  color: var(--df-color-state-error);
+  animation: voice-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes voice-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.page-voice .record-timer {
+  font-size: var(--df-font-size-sm);
+  color: var(--df-color-state-error);
+  font-variant-numeric: tabular-nums;
   letter-spacing: var(--df-letter-spacing-wide);
 }
 
@@ -276,6 +427,84 @@
   line-height: 1.6;
   color: var(--df-color-text-primary);
   white-space: pre-wrap;
+}
+
+.page-voice .result-cleaned {
+  margin-top: var(--df-space-3);
+  padding-top: var(--df-space-3);
+  border-top: 1px solid var(--df-color-border-subtle);
+}
+
+.page-voice .result-cleaned-label {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-state-success);
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wide);
+  margin-bottom: var(--df-space-1);
+}
+
+/* ── History ──────────────────────────────────────────────────────── */
+.page-voice .history-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--df-space-2);
+}
+
+.page-voice .empty-state {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-secondary);
+  text-align: center;
+  padding: var(--df-space-4);
+}
+
+.page-voice .history-entry {
+  background: var(--df-color-bg-raised);
+  border: 1px solid var(--df-color-border-default);
+  clip-path: var(--df-clip-sm);
+  padding: var(--df-space-3);
+}
+
+.page-voice .history-entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--df-space-1);
+}
+
+.page-voice .history-meta {
+  font-size: 10px;
+  color: var(--df-color-text-secondary);
+  letter-spacing: var(--df-letter-spacing-normal);
+}
+
+.page-voice .history-stats {
+  font-size: 10px;
+  color: var(--df-color-accent-default);
+}
+
+.page-voice .history-text {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-primary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.page-voice .history-cleaned {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-state-success);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-top: var(--df-space-1);
+  padding-top: var(--df-space-1);
+  border-top: 1px solid var(--df-color-border-subtle);
+}
+
+.page-voice .history-fillers {
+  display: flex;
+  gap: var(--df-space-1);
+  margin-top: var(--df-space-1);
 }
 
 /* ── MCP Tools ────────────────────────────────────────────────────── */
