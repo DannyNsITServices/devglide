@@ -26,6 +26,8 @@ export interface TtsConfig {
   edgePitch?: string;
   fallbackRate?: number;
   volume?: number;
+  /** Texts longer than this (chars) are split into rolling chunks. Default 100. */
+  chunkThreshold?: number;
 }
 
 export interface PersistentConfig {
