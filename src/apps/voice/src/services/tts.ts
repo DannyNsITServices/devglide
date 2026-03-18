@@ -1,16 +1,16 @@
 /**
- * Text-to-Speech service — neural TTS via edge-tts Python CLI, fire-and-forget.
- * JARVIS-style: en-GB-RyanNeural, fast & crisp.
+ * Text-to-Speech service — neural TTS via msedge-tts (pure Node.js).
+ * JARVIS-style: en-GB-RyanNeural, +5% rate, -2Hz pitch.
  *
  * IMPORTANT: This module must NEVER crash the process. All errors are
  * caught and logged to stderr. speak() never rejects.
  *
  * TTS chain:
- *   1. edge-tts Python CLI (actively maintained, works cross-platform)
+ *   1. msedge-tts (Node.js, Microsoft Edge Read Aloud API)
  *   2. Platform fallback: powershell.exe SAPI (WSL/Windows), say (macOS), espeak-ng (Linux)
  *
- * Audio playback on WSL routes through powershell.exe since Linux audio
- * binaries aren't typically available in WSL.
+ * Audio playback on WSL copies to Windows %TEMP% then plays via powershell.exe
+ * since Linux audio binaries aren't typically available in WSL.
  */
 
 import { unlinkSync, readFileSync, existsSync, copyFileSync } from "fs";
@@ -22,6 +22,10 @@ import { configStore } from "./config-store.js";
 
 let _activeProcess: ChildProcess | null = null;
 let _tmpFile: string | null = null;
+
+// Lazy-loaded msedge-tts
+let _MsEdgeTTS: any = null;
+let _OUTPUT_FORMAT: any = null;
 
 /** Detect WSL environment. */
 function isWSL(): boolean {
@@ -79,7 +83,7 @@ export function stop(): void {
 
 /**
  * Play an MP3 file in the background via the appropriate platform player.
- * On WSL, routes through powershell.exe to access Windows audio.
+ * On WSL, copies to Windows %TEMP% and plays via powershell.exe.
  */
 function playMp3(mp3Path: string): ChildProcess | null {
   const os = platform();
@@ -133,7 +137,7 @@ function playMp3(mp3Path: string): ChildProcess | null {
 }
 
 /**
- * Generate MP3 using edge-tts Python CLI.
+ * Generate MP3 using msedge-tts (pure Node.js).
  * Returns the path to the generated MP3, or null on failure.
  */
 async function generateEdgeTts(
@@ -141,39 +145,28 @@ async function generateEdgeTts(
   voice: string,
   rate: string,
   pitch: string,
-  volume: string,
 ): Promise<string | null> {
-  const mp3Path = join(tmpdir(), `devglide-tts-${Date.now()}.mp3`);
+  try {
+    if (!_MsEdgeTTS) {
+      const mod = await import("msedge-tts");
+      _MsEdgeTTS = mod.MsEdgeTTS;
+      _OUTPUT_FORMAT = mod.OUTPUT_FORMAT;
+    }
 
-  return new Promise<string | null>((resolve) => {
-    const args = [
-      "--text", text,
-      "--voice", voice,
-      "--rate", rate,
-      "--pitch", pitch,
-      "--volume", volume,
-      "--write-media", mp3Path,
-    ];
+    const tts = new _MsEdgeTTS();
+    await tts.setMetadata(voice, _OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
 
-    const proc = spawn("edge-tts", args, { stdio: ["pipe", "pipe", "pipe"] });
+    const outDir = tmpdir();
+    const { audioFilePath } = await tts.toFile(outDir, text, { rate, pitch });
 
-    let stderr = "";
-    proc.stderr?.on("data", (data: Buffer) => { stderr += data.toString(); });
-
-    proc.on("error", (err) => {
-      console.error("[voice:tts] edge-tts CLI error:", err.message);
-      resolve(null);
-    });
-
-    proc.on("close", (code) => {
-      if (code === 0 && existsSync(mp3Path)) {
-        resolve(mp3Path);
-      } else {
-        console.error("[voice:tts] edge-tts CLI failed (code", code + "):", stderr.trim());
-        resolve(null);
-      }
-    });
-  });
+    if (audioFilePath && existsSync(audioFilePath)) {
+      return audioFilePath;
+    }
+    return null;
+  } catch (err) {
+    console.error("[voice:tts] msedge-tts failed:", err instanceof Error ? err.message : err);
+    return null;
+  }
 }
 
 /** Speak text using platform native TTS as fallback (no edge-tts). */
@@ -216,7 +209,6 @@ function speakFallback(text: string): void {
           })
         );
       } else if (commandExists("spd-say")) {
-        // spd-say rate: -100 to +100, 0 = default (~200 WPM)
         const spdRate = String(Math.max(-100, Math.min(100, wpm - 200)));
         _activeProcess = safeProc(
           spawn("spd-say", ["-r", spdRate, text], { stdio: "ignore" })
@@ -247,29 +239,24 @@ export async function speak(text: string): Promise<void> {
     const voice = ttsConfig?.voice || "en-GB-RyanNeural";
     const edgeRate = ttsConfig?.edgeRate || "+5%";
     const edgePitch = ttsConfig?.edgePitch || "-2Hz";
-    // edge-tts volume requires +N% or -N% format (relative to default)
-    const volNum = ttsConfig?.volume ?? 80;
-    const edgeVolume = `${volNum >= 0 ? "+" : ""}${volNum - 100}%`;
 
-    // Try edge-tts Python CLI first
-    if (commandExists("edge-tts")) {
-      const mp3Path = await generateEdgeTts(text, voice, edgeRate, edgePitch, edgeVolume);
-      if (mp3Path) {
-        _tmpFile = mp3Path;
-        _activeProcess = playMp3(mp3Path);
-        if (_activeProcess) {
-          _activeProcess.on("exit", () => {
-            try { unlinkSync(mp3Path); } catch { /* already gone */ }
-            if (_tmpFile === mp3Path) _tmpFile = null;
-            _activeProcess = null;
-          });
-        }
-        return;
+    // Try msedge-tts (pure Node.js) first
+    const mp3Path = await generateEdgeTts(text, voice, edgeRate, edgePitch);
+    if (mp3Path) {
+      _tmpFile = mp3Path;
+      _activeProcess = playMp3(mp3Path);
+      if (_activeProcess) {
+        _activeProcess.on("exit", () => {
+          try { unlinkSync(mp3Path); } catch { /* already gone */ }
+          if (_tmpFile === mp3Path) _tmpFile = null;
+          _activeProcess = null;
+        });
       }
+      return;
     }
 
     // Fallback to platform native TTS
-    console.error("[voice:tts] edge-tts not available, trying platform fallback");
+    console.error("[voice:tts] msedge-tts failed, trying platform fallback");
     speakFallback(text);
   } catch (err) {
     // Absolute last resort — never let anything escape
@@ -277,39 +264,26 @@ export async function speak(text: string): Promise<void> {
   }
 }
 
-/** List available edge-tts voices via Python CLI. */
+/** List available edge-tts voices. */
 export async function listVoices(): Promise<
   Array<{ name: string; shortName: string; gender: string; locale: string }>
 > {
-  if (!commandExists("edge-tts")) return [];
+  try {
+    if (!_MsEdgeTTS) {
+      const mod = await import("msedge-tts");
+      _MsEdgeTTS = mod.MsEdgeTTS;
+      _OUTPUT_FORMAT = mod.OUTPUT_FORMAT;
+    }
 
-  return new Promise((resolve) => {
-    const proc = spawn("edge-tts", ["--list-voices"], { stdio: ["pipe", "pipe", "pipe"] });
-    let stdout = "";
-
-    proc.stdout?.on("data", (data: Buffer) => { stdout += data.toString(); });
-
-    proc.on("error", () => resolve([]));
-
-    proc.on("close", (code) => {
-      if (code !== 0) { resolve([]); return; }
-      try {
-        // Parse tabular output: Name, Gender, ContentCategories, VoicePersonalities
-        const lines = stdout.trim().split("\n").slice(1); // skip header
-        const voices = lines
-          .map((line) => {
-            const parts = line.split(/\s{2,}/);
-            if (parts.length < 2) return null;
-            const shortName = parts[0].trim();
-            const gender = parts[1].trim();
-            const locale = shortName.split("-").slice(0, 2).join("-");
-            return { name: shortName, shortName, gender, locale };
-          })
-          .filter(Boolean) as Array<{ name: string; shortName: string; gender: string; locale: string }>;
-        resolve(voices);
-      } catch {
-        resolve([]);
-      }
-    });
-  });
+    const tts = new _MsEdgeTTS();
+    const voices = await tts.getVoices();
+    return voices.map((v: any) => ({
+      name: v.FriendlyName ?? v.ShortName,
+      shortName: v.ShortName,
+      gender: v.Gender,
+      locale: v.Locale,
+    }));
+  } catch {
+    return [];
+  }
 }
