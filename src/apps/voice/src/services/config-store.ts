@@ -26,8 +26,6 @@ export interface TtsConfig {
   edgePitch?: string;
   fallbackRate?: number;
   volume?: number;
-  /** Custom shell command for audio playback. Use %FILE% as placeholder for the MP3 path. */
-  playerCommand?: string;
 }
 
 export interface PersistentConfig {
@@ -185,12 +183,6 @@ class ConfigStore {
 
   getProviderSettings(name: string): PerProviderConfig {
     return this.config.providers[name] ?? {};
-  }
-
-  /** Switch to a new data directory (e.g. per-project) and reload config. */
-  switchDataDir(dir: string): void {
-    _dataDir = dir;
-    this.reload();
   }
 }
 

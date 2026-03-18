@@ -99,5 +99,4 @@ These rules are intentional — do not change an app's scoping without discussio
 ### Windows TTS Playback
 On native Windows, TTS audio playback prefers `ffplay` or `mpv` (reliable cross-format
 players) over `WMPlayer.OCX`, which is broken on some Windows 11 builds (stuck in
-`playState 9`). The custom `playerCommand` config option (if set) takes highest priority
-and must support MP3 format — `Media.SoundPlayer` is WAV-only and will silently fail.
+`playState 9`). `Media.SoundPlayer` is WAV-only and will silently fail on MP3 files.
