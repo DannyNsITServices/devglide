@@ -19,6 +19,15 @@ export interface CleanupConfig {
   apiKey?: string;
 }
 
+export interface TtsConfig {
+  enabled: boolean;
+  voice?: string;
+  edgeRate?: string;
+  edgePitch?: string;
+  fallbackRate?: number;
+  volume?: number;
+}
+
 export interface PersistentConfig {
   provider: string;
   language: string;
@@ -26,6 +35,7 @@ export interface PersistentConfig {
   vocabBiasing?: boolean;
   customVocabulary?: string[];
   cleanup?: CleanupConfig;
+  tts?: TtsConfig;
 }
 
 function loadFile(): Partial<PersistentConfig> {
@@ -88,6 +98,7 @@ function fromEnv(): PersistentConfig {
     vocabBiasing: false,
     customVocabulary: [],
     cleanup: { enabled: false },
+    tts: { enabled: true, voice: "en-GB-RyanNeural", edgeRate: "+5%", edgePitch: "-2Hz", fallbackRate: 200, volume: 80 },
   };
 }
 
@@ -105,6 +116,7 @@ class ConfigStore {
       vocabBiasing: file.vocabBiasing ?? env.vocabBiasing,
       customVocabulary: file.customVocabulary ?? env.customVocabulary,
       cleanup: file.cleanup ?? env.cleanup,
+      tts: file.tts ?? env.tts,
     };
     for (const key of Object.keys(env.providers)) {
       this.config.providers[key] = {
@@ -141,6 +153,7 @@ class ConfigStore {
     vocabBiasing?: boolean;
     customVocabulary?: string[];
     cleanup?: Partial<CleanupConfig>;
+    tts?: Partial<TtsConfig>;
   }): void {
     if (patch.provider != null) this.config.provider = patch.provider;
     if (patch.language != null) this.config.language = patch.language;
@@ -154,6 +167,9 @@ class ConfigStore {
     if (patch.customVocabulary != null) this.config.customVocabulary = patch.customVocabulary;
     if (patch.cleanup) {
       this.config.cleanup = { ...this.config.cleanup, ...patch.cleanup } as CleanupConfig;
+    }
+    if (patch.tts) {
+      this.config.tts = { ...this.config.tts, ...patch.tts } as TtsConfig;
     }
     saveFile(this.config);
   }
@@ -174,6 +190,7 @@ class ConfigStore {
       vocabBiasing: file.vocabBiasing ?? env.vocabBiasing,
       customVocabulary: file.customVocabulary ?? env.customVocabulary,
       cleanup: file.cleanup ?? env.cleanup,
+      tts: file.tts ?? env.tts,
     };
     for (const key of Object.keys(env.providers)) {
       this.config.providers[key] = {

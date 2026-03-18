@@ -136,6 +136,7 @@
 .page-voice input[type="text"],
 .page-voice input[type="password"],
 .page-voice input[type="url"],
+.page-voice input[type="number"],
 .page-voice select,
 .page-voice textarea {
   width: 100%;

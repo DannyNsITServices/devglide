@@ -1,7 +1,7 @@
 // Managed CLAUDE.md section for DevGlide onboarding instructions.
 // Installed by `devglide setup`, removed by `devglide teardown`.
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.1";
 const BEGIN = `<!-- DEVGLIDE:BEGIN v${VERSION} -->`;
 const END = "<!-- DEVGLIDE:END -->";
 
@@ -68,9 +68,18 @@ Describe what to test in natural language and scenarios are generated automatica
 - \`prompts_list\`, \`prompts_render\` — reuse existing prompt templates
 - \`prompts_add\`, \`prompts_update\`, \`prompts_remove\` — manage templates
 
-### devglide-voice — Voice transcription
-- \`voice_transcribe\` — transcribe audio input
-- \`voice_status\` — check transcription service status
+### devglide-voice — Speech-to-text and text-to-speech
+- \`voice_transcribe\` — transcribe audio (supports vocab biasing via \`prompt\`, \`cleanup\` mode for AI post-processing)
+- \`voice_speak\` — speak text aloud (JARVIS-style neural TTS, fire-and-forget)
+- \`voice_stop\` — stop current speech playback
+- \`voice_history\` — list/search transcription history with text analysis (WPM, filler words)
+- \`voice_analytics\` — get aggregated transcription analytics
+- \`voice_status\` — check transcription service status and statistics
+- **REST API** (base: \`/api/voice\`):
+  - Transcribe: \`POST /transcribe\` body \`{ audioBase64, filename, language?, mode? }\`
+  - TTS: \`POST /config/tts/speak\` body \`{ text }\` · \`POST /config/tts/stop\` · \`GET /config/tts/voices\`
+  - History: \`GET /history\` · \`GET /history/search?q=\` · \`GET /history/analytics\` · \`DELETE /history\`
+  - Config: \`GET /config\` · \`GET /config/providers\` · \`PUT /config\` · \`POST /config/test\`
 
 ### devglide-log — Structured logging
 - \`log_write\` — write a structured log entry
