@@ -88,23 +88,30 @@ function commandExists(cmd: string): boolean {
 }
 
 /**
- * Get a Windows-native temp directory path.
- * On Git Bash, tmpdir() returns POSIX paths like /tmp which PowerShell can't read.
- * Use process.env.TEMP (always a Windows path) as fallback.
+ * Get a reliable temp directory path that works for PowerShell playback.
+ * On any Windows variant (cmd, Git Bash, MSYS2): use process.env.TEMP.
+ * On WSL: query Windows %TEMP% via powershell.exe.
+ * Validates the result exists before returning.
  */
 function getWindowsTempDir(): string {
-  if (isGitBash() || isWSL()) {
-    // Use Windows %TEMP% directly
-    const winTemp = process.env.TEMP || process.env.TMP;
-    if (winTemp && /^[A-Z]:\\/i.test(winTemp)) return winTemp;
-    // For WSL, query from powershell
-    if (isWSL()) {
-      try {
-        return execSync("powershell.exe -NoProfile -Command \"Write-Host $env:TEMP\"")
-          .toString().trim();
-      } catch { /* fall through */ }
-    }
+  const os = platform();
+
+  // Windows (cmd, Git Bash, MSYS2): prefer %TEMP% env var
+  if (os === "win32") {
+    const winTemp = process.env.TEMP || process.env.TMP || process.env.USERPROFILE;
+    if (winTemp && existsSync(winTemp)) return winTemp;
   }
+
+  // WSL: query Windows temp from powershell
+  if (isWSL()) {
+    try {
+      const winTemp = execSync("powershell.exe -NoProfile -Command \"Write-Host $env:TEMP\"")
+        .toString().trim();
+      if (winTemp && /^[A-Z]:\\/i.test(winTemp)) return winTemp;
+    } catch { /* fall through */ }
+  }
+
+  // Fallback: os.tmpdir() — always valid on the current platform
   return tmpdir();
 }
 
