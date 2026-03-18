@@ -8,7 +8,38 @@ import { configStore } from "./services/config-store.js";
 import { speak, stop as ttsStop } from "./services/tts.js";
 
 export function createVoiceMcpServer() {
-  const server = createDevglideMcpServer("devglide-voice", "0.1.0");
+  const server = createDevglideMcpServer(
+    "devglide-voice",
+    "0.1.0",
+    "Speech-to-text transcription and text-to-speech synthesis",
+    {
+      instructions: [
+        "## Voice — Usage Conventions",
+        "",
+        "### Speech-to-text (STT)",
+        "- Use `voice_transcribe` to convert audio to text. Accepts base64-encoded audio.",
+        "- Supports vocabulary biasing via `prompt` parameter to improve accuracy for developer terminology.",
+        "- Two modes: `raw` (default) returns transcription as-is, `cleanup` applies AI post-processing to remove filler words and fix grammar.",
+        "- Provider is configurable (OpenAI, Groq, local whisper.cpp, and more).",
+        "",
+        "### Text-to-speech (TTS)",
+        "- Use `voice_speak` to speak text aloud. Fire-and-forget — cancels any previous speech.",
+        "- Use `voice_stop` to cancel current speech playback.",
+        "- Uses JARVIS-style neural voice (en-GB-RyanNeural) by default. Configurable via dashboard.",
+        "- Use TTS to give the user audible feedback when completing tasks or reporting results.",
+        "",
+        "### History and analytics",
+        "- Every transcription is automatically recorded in history with text analysis (word count, WPM, filler words).",
+        "- Use `voice_history` to list or search past transcriptions.",
+        "- Use `voice_analytics` to get aggregated stats (average WPM, top filler words, totals).",
+        "",
+        "### Quick reference",
+        "- `voice_transcribe(audioBase64, ...)` — `audioBase64` is required. Optional: `filename`, `language`, `prompt`, `mode`.",
+        "- `voice_speak(text)` — `text` is the string to speak aloud.",
+        "- `voice_history(limit?, offset?, search?)` — returns newest first. Use `search` to filter by text content.",
+      ],
+    }
+  );
 
   server.tool(
     "voice_transcribe",
