@@ -5,6 +5,7 @@ import { stats } from "./services/stats.js";
 import { historyStore } from "./services/history-store.js";
 import { mimeFromFilename } from "./utils/mime.js";
 import { configStore } from "./services/config-store.js";
+import { speak, stop as ttsStop } from "./services/tts.js";
 
 export function createVoiceMcpServer() {
   const server = createDevglideMcpServer("devglide-voice", "0.1.0");
@@ -112,6 +113,39 @@ export function createVoiceMcpServer() {
       return {
         content: [
           { type: "text" as const, text: JSON.stringify(analytics, null, 2) },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "voice_speak",
+    "Speak text aloud using text-to-speech (JARVIS-style neural voice). Use this to give the user audible feedback when you complete a task. Fire-and-forget — cancels any previous speech.",
+    {
+      text: z.string().describe("Text to speak aloud"),
+    },
+    async ({ text }) => {
+      await speak(text);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ ok: true, chars: text.length }),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "voice_stop",
+    "Stop any currently playing text-to-speech audio.",
+    {},
+    async () => {
+      ttsStop();
+      return {
+        content: [
+          { type: "text" as const, text: JSON.stringify({ ok: true }) },
         ],
       };
     }

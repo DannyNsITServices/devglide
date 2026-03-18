@@ -191,6 +191,52 @@ const BODY_HTML = `
       </div>
     </section>
 
+    <!-- Text-to-Speech -->
+    <section class="card">
+      <div class="card-header">
+        <h2>Text-to-Speech</h2>
+        <label class="toggle-label">
+          <input type="checkbox" id="tts-toggle">
+          <span class="toggle-text" id="tts-status">on</span>
+        </label>
+      </div>
+      <p class="card-desc">JARVIS-style neural voice for Claude to speak results aloud. Uses Microsoft Edge TTS (free, no API key).</p>
+      <div id="tts-config">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="tts-voice-input">Voice</label>
+            <input type="text" id="tts-voice-input" placeholder="en-GB-RyanNeural" spellcheck="false">
+          </div>
+          <div class="form-group">
+            <label for="tts-volume-input">Volume <span class="field-hint">(0-100)</span></label>
+            <input type="number" id="tts-volume-input" min="0" max="100" value="80">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="tts-rate-input">Rate</label>
+            <input type="text" id="tts-rate-input" placeholder="+12%" spellcheck="false">
+          </div>
+          <div class="form-group">
+            <label for="tts-pitch-input">Pitch</label>
+            <input type="text" id="tts-pitch-input" placeholder="+1Hz" spellcheck="false">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" id="tts-test-btn" class="btn btn-secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            </svg>
+            Test Voice
+          </button>
+          <button type="button" id="tts-stop-btn" class="btn btn-secondary hidden">Stop</button>
+          <span id="tts-test-result" class="field-hint"></span>
+          <button type="button" id="save-tts-btn" class="btn btn-primary">Save</button>
+        </div>
+      </div>
+    </section>
+
     <!-- Statistics -->
     <section class="card">
       <div class="card-header">
@@ -317,6 +363,14 @@ const BODY_HTML = `
         <div class="tool">
           <code>voice_analytics</code>
           <span>Get transcription analytics (WPM, filler words)</span>
+        </div>
+        <div class="tool">
+          <code>voice_speak</code>
+          <span>Speak text aloud (JARVIS-style neural TTS)</span>
+        </div>
+        <div class="tool">
+          <code>voice_stop</code>
+          <span>Stop current speech playback</span>
         </div>
       </div>
     </section>
@@ -551,6 +605,22 @@ async function loadProviders() {
     const customVocab = $('#custom-vocab-input');
     if (customVocab && data.customVocabulary) {
       customVocab.value = data.customVocabulary.join('\n');
+    }
+
+    // Load TTS state
+    const ttsToggle = $('#tts-toggle');
+    const ttsStatusEl = $('#tts-status');
+    if (ttsToggle && data.tts) {
+      ttsToggle.checked = data.tts.enabled ?? true;
+      if (ttsStatusEl) ttsStatusEl.textContent = ttsToggle.checked ? 'on' : 'off';
+      const vi = $('#tts-voice-input');
+      const vol = $('#tts-volume-input');
+      const ri = $('#tts-rate-input');
+      const pi = $('#tts-pitch-input');
+      if (vi) vi.value = data.tts.voice ?? '';
+      if (vol) vol.value = data.tts.volume ?? 80;
+      if (ri) ri.value = data.tts.rate ?? '';
+      if (pi) pi.value = data.tts.pitch ?? '';
     }
 
     // Load cleanup state
@@ -1152,6 +1222,83 @@ function wireEvents() {
       } finally {
         setLoading(saveCleanupBtn, false);
       }
+    });
+  }
+
+  // TTS toggle
+  const ttsToggle = $('#tts-toggle');
+  if (ttsToggle) {
+    ttsToggle.addEventListener('change', () => {
+      const status = $('#tts-status');
+      if (status) status.textContent = ttsToggle.checked ? 'on' : 'off';
+    });
+  }
+
+  // Save TTS config
+  const saveTtsBtn = $('#save-tts-btn');
+  if (saveTtsBtn) {
+    saveTtsBtn.addEventListener('click', async () => {
+      setLoading(saveTtsBtn, true);
+      const ttsToggle = $('#tts-toggle');
+      try {
+        const res = await fetch('/api/voice/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tts: {
+              enabled: ttsToggle?.checked ?? true,
+              voice: $('#tts-voice-input')?.value.trim() || undefined,
+              rate: $('#tts-rate-input')?.value.trim() || undefined,
+              pitch: $('#tts-pitch-input')?.value.trim() || undefined,
+              volume: parseInt($('#tts-volume-input')?.value) || 80,
+            },
+          }),
+        });
+        const data = await res.json();
+        if (data.ok) showToast('TTS config saved', 'ok');
+        else showToast(data.error ?? 'Save failed', 'error');
+      } catch {
+        showToast('Network error', 'error');
+      } finally {
+        setLoading(saveTtsBtn, false);
+      }
+    });
+  }
+
+  // Test TTS voice
+  const ttsTestBtn = $('#tts-test-btn');
+  const ttsStopBtn = $('#tts-stop-btn');
+  if (ttsTestBtn) {
+    ttsTestBtn.addEventListener('click', async () => {
+      const resultEl = $('#tts-test-result');
+      setLoading(ttsTestBtn, true);
+      if (ttsStopBtn) ttsStopBtn.classList.remove('hidden');
+      if (resultEl) resultEl.textContent = 'Speaking...';
+      try {
+        const res = await fetch('/api/voice/config/tts/speak', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: 'Systems online. All modules operational, sir.' }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          if (resultEl) resultEl.textContent = '';
+        } else {
+          if (resultEl) resultEl.textContent = data.error ?? 'TTS failed';
+        }
+      } catch {
+        if (resultEl) resultEl.textContent = 'Network error';
+      } finally {
+        setLoading(ttsTestBtn, false);
+        setTimeout(() => { if (ttsStopBtn) ttsStopBtn.classList.add('hidden'); }, 5000);
+      }
+    });
+  }
+
+  if (ttsStopBtn) {
+    ttsStopBtn.addEventListener('click', async () => {
+      try { await fetch('/api/voice/config/tts/stop', { method: 'POST' }); } catch {}
+      ttsStopBtn.classList.add('hidden');
     });
   }
 

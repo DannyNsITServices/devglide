@@ -9,6 +9,7 @@ import { configStore } from "../services/config-store.js";
 import { stats } from "../services/stats.js";
 import { handleTranscribe } from "./transcribe.js";
 import { checkFfmpeg } from "../providers/local-whisper.js";
+import { speak, stop as ttsStop, listVoices } from "../services/tts.js";
 
 export const configRouter: RouterType = Router();
 
@@ -51,6 +52,7 @@ configRouter.get("/providers", (_req, res) => {
     vocabBiasing: cfg.vocabBiasing ?? false,
     customVocabulary: cfg.customVocabulary ?? [],
     cleanup: cfg.cleanup ?? { enabled: false },
+    tts: cfg.tts ?? { enabled: true },
   });
 });
 
@@ -94,9 +96,11 @@ configRouter.put("/", (req, res) => {
     patch.providerSettings = settings;
   }
 
+  const tts = (req.body as any).tts;
   if (vocabBiasing !== undefined) patch.vocabBiasing = !!vocabBiasing;
   if (Array.isArray(customVocabulary)) patch.customVocabulary = customVocabulary.map(String);
   if (cleanup && typeof cleanup === "object") patch.cleanup = cleanup;
+  if (tts && typeof tts === "object") patch.tts = tts;
 
   configStore.update(patch);
   invalidateProvider();
@@ -120,6 +124,32 @@ configRouter.post("/test", (_req, res) => {
 
 configRouter.get("/check-ffmpeg", (_req, res) => {
   res.json(checkFfmpeg());
+});
+
+// ── TTS endpoints ────────────────────────────────────────────────────
+
+configRouter.post("/tts/speak", async (req, res) => {
+  const { text } = req.body as { text?: string };
+  if (!text?.trim()) {
+    res.status(400).json({ error: "text is required" });
+    return;
+  }
+  try {
+    await speak(text);
+    res.json({ ok: true, chars: text.length });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+configRouter.post("/tts/stop", (_req, res) => {
+  ttsStop();
+  res.json({ ok: true });
+});
+
+configRouter.get("/tts/voices", async (_req, res) => {
+  const voices = await listVoices();
+  res.json({ voices });
 });
 
 configRouter.delete("/stats", (_req, res) => {
