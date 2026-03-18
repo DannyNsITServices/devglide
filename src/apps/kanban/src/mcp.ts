@@ -17,8 +17,7 @@ export function createKanbanMcpServer(
       instructions: [
         "## Kanban — Workflow Conventions",
         "",
-        "### Picking up work",
-        "- When looking for tasks to work on, search the **Todo** column by default (columnName: 'Todo') unless the user specifies a different column or a specific task.",
+        "### Board structure",
         "- Each feature has its own kanban board with columns: Backlog → Todo → In Progress → In Review → Testing → Done.",
         "",
         "### Updating task status",
