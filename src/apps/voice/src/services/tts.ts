@@ -22,6 +22,21 @@ import { configStore } from "./config-store.js";
 
 let _activeProcess: ChildProcess | null = null;
 let _tmpFile: string | null = null;
+let _wslCopyFile: string | null = null;
+
+/** Remove a file silently. */
+function safeUnlink(path: string | null): void {
+  if (!path) return;
+  try { unlinkSync(path); } catch { /* already gone */ }
+}
+
+/** Clean up all temp files from TTS. */
+function cleanupTempFiles(): void {
+  safeUnlink(_tmpFile);
+  _tmpFile = null;
+  safeUnlink(_wslCopyFile);
+  _wslCopyFile = null;
+}
 
 // Lazy-loaded msedge-tts
 let _MsEdgeTTS: any = null;
@@ -61,7 +76,7 @@ function safeProc(proc: ChildProcess | null): ChildProcess | null {
   return proc;
 }
 
-/** Stop any active TTS playback. */
+/** Stop any active TTS playback and clean up all temp files. */
 export function stop(): void {
   if (_activeProcess) {
     try {
@@ -71,14 +86,7 @@ export function stop(): void {
     }
     _activeProcess = null;
   }
-  if (_tmpFile) {
-    try {
-      unlinkSync(_tmpFile);
-    } catch {
-      // already cleaned up
-    }
-    _tmpFile = null;
-  }
+  cleanupTempFiles();
 }
 
 /**
@@ -101,6 +109,7 @@ function playMp3(mp3Path: string): ChildProcess | null {
         const winDest = `${winTemp}\\devglide-tts.mp3`;
         const wslDest = execSync(`wslpath -u "${winTemp}"`).toString().trim() + "/devglide-tts.mp3";
         copyFileSync(mp3Path, wslDest);
+        _wslCopyFile = wslDest;
         winPath = winDest;
       } else {
         winPath = mp3Path;
@@ -247,10 +256,14 @@ export async function speak(text: string): Promise<void> {
       _activeProcess = playMp3(mp3Path);
       if (_activeProcess) {
         _activeProcess.on("exit", () => {
-          try { unlinkSync(mp3Path); } catch { /* already gone */ }
-          if (_tmpFile === mp3Path) _tmpFile = null;
+          cleanupTempFiles();
           _activeProcess = null;
         });
+        // Safety: clean up after 2 minutes even if exit never fires
+        setTimeout(() => { cleanupTempFiles(); }, 120_000);
+      } else {
+        // Playback didn't start — clean up immediately
+        cleanupTempFiles();
       }
       return;
     }
