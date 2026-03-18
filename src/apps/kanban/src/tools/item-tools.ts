@@ -10,7 +10,7 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
 
   server.tool(
     "kanban_list_items",
-    "List tasks and bugs with pagination. Descriptions are truncated to 200 chars — use kanban_get_item for full details. Supports filtering by feature, column, priority, type (TASK/BUG), column name (status), or review feedback. When looking for work to pick up, default to columnName: 'Todo' unless the user specifies otherwise.",
+    "List tasks and bugs with pagination. Descriptions are truncated to 200 chars — use kanban_get_item for full details. Supports filtering by feature, column, priority, type (TASK/BUG), column name (status), or review feedback.",
     {
       featureId: z.string().optional().describe("Filter by feature ID"),
       columnId: z.string().optional().describe("Filter by column ID"),
