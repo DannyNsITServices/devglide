@@ -3,14 +3,16 @@ import { getProvider } from "../providers/index.js";
 import { configStore } from "../services/config-store.js";
 import { stats } from "../services/stats.js";
 import { mimeFromFilename } from "../utils/mime.js";
+import { transcribe } from "../transcribe.js";
 
 export const transcribeRouter: Router = Router();
 
 export async function handleTranscribe(req: Request, res: Response) {
-  const { audioBase64, filename, language } = req.body as {
+  const { audioBase64, filename, language, mode } = req.body as {
     audioBase64?: string;
     filename?: string;
     language?: string;
+    mode?: "raw" | "cleanup";
   };
 
   if (!audioBase64 || !filename) {
@@ -74,8 +76,10 @@ export async function handleTranscribe(req: Request, res: Response) {
     const cfg = configStore.get();
     const lang =
       language ?? (cfg.language !== "auto" ? cfg.language : undefined);
-    const provider = getProvider();
-    const result = await provider.transcribe(file, { language: lang });
+    const result = await transcribe(file, {
+      language: lang,
+      mode: mode ?? "raw",
+    });
     const durationSec = (Date.now() - startTime) / 1000;
     stats.recordSuccess(result.duration ?? durationSec);
     res.json({ ok: true, ...result });

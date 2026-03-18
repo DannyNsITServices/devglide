@@ -7,6 +7,7 @@ export interface TranscriptionResult {
 export interface TranscribeOptions {
   language?: string;
   responseFormat?: "json" | "text" | "verbose_json";
+  prompt?: string;
 }
 
 export interface TranscriptionProvider {

@@ -1,5 +1,6 @@
 import type { ProviderConfig, TranscriptionProvider } from "./types.js";
 import { OpenAICompatibleProvider } from "./openai-compatible.js";
+import { LocalWhisperProvider } from "./local-whisper.js";
 import { configStore } from "../services/config-store.js";
 
 export type { TranscriptionProvider, ProviderConfig };
@@ -9,9 +10,20 @@ interface ProviderMeta {
   requiresApiKey: boolean;
   defaultBaseURL?: string;
   defaultModel: string;
+  models?: string[];
 }
 
 export const PROVIDER_META: Record<string, ProviderMeta> = {
+  local: {
+    displayName: "Local (whisper.cpp)",
+    requiresApiKey: false,
+    defaultModel: "base",
+    models: [
+      "tiny", "tiny.en", "base", "base.en",
+      "small", "small.en", "medium", "medium.en",
+      "large-v3-turbo",
+    ],
+  },
   openai: {
     displayName: "OpenAI Whisper",
     requiresApiKey: true,
@@ -76,7 +88,14 @@ function buildConfig(providerName: string): ProviderConfig {
 export function getProvider(): TranscriptionProvider {
   if (cachedProvider) return cachedProvider;
   const name = configStore.get().provider;
-  cachedProvider = new OpenAICompatibleProvider(buildConfig(name));
+  if (name === "local") {
+    const settings = configStore.getProviderSettings("local");
+    cachedProvider = new LocalWhisperProvider(
+      settings.model || PROVIDER_META.local.defaultModel
+    );
+  } else {
+    cachedProvider = new OpenAICompatibleProvider(buildConfig(name));
+  }
   return cachedProvider;
 }
 
