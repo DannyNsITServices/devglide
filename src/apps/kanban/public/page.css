@@ -141,23 +141,24 @@
   max-width: var(--df-max-width-lg);
   margin: 0 auto;
   padding: var(--df-space-8) var(--df-space-4);
+  overflow-x: hidden;
   overflow-y: auto;
   height: calc(100vh - 38px);
 }
 
 .page-kanban .features-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   grid-auto-rows: 140px;
   gap: var(--df-space-4);
 }
 
 @media (min-width: 640px) {
-  .page-kanban .features-grid { grid-template-columns: repeat(2, 1fr); }
+  .page-kanban .features-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (min-width: 1024px) {
-  .page-kanban .features-grid { grid-template-columns: repeat(3, 1fr); }
+  .page-kanban .features-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* ── Feature Card ────────────────────────────────────────────────────────── */
@@ -207,6 +208,7 @@
 .page-kanban .feature-card-info {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .page-kanban .feature-card-name {
