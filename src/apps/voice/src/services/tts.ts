@@ -92,6 +92,24 @@ function commandExists(cmd: string): boolean {
   }
 }
 
+/** Check if WSLg PulseAudio server is alive (synchronous socket probe, 1s timeout). */
+function isWslPulseAvailable(): boolean {
+  const sock = "/mnt/wslg/PulseServer";
+  if (!existsSync(sock)) return false;
+  try {
+    const { spawnSync } = require("child_process") as typeof import("child_process");
+    const r = spawnSync("node", ["-e", [
+      'const c=require("net").createConnection({path:process.argv[1]});',
+      'c.on("connect",()=>{c.destroy();process.exit(0)});',
+      'c.on("error",()=>process.exit(1));',
+      'setTimeout(()=>process.exit(1),1000);',
+    ].join(""), sock], { timeout: 2000, stdio: "pipe" });
+    return r.status === 0;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Convert a path to Windows format for PowerShell.
  * Handles: Git Bash POSIX paths (cygpath), WSL paths (wslpath), native Windows paths (passthrough).
@@ -153,24 +171,34 @@ function playMp3(mp3Path: string): ChildProcess | null {
 
   try {
     if (wsl) {
-      // WSL → prefer native Linux player via WSLg PulseAudio
-      const pulseEnv = { ...process.env, PULSE_SERVER: "/mnt/wslg/PulseServer" };
-      if (commandExists("mpv")) {
-        return safeProc(spawn("mpv", ["--no-video", mp3Path], { stdio: "ignore", env: pulseEnv }));
+      // WSL → prefer native Linux player via WSLg PulseAudio, but only if PulseAudio is alive.
+      // SDL_AUDIODRIVER=pulse is required — without it ffplay/SDL defaults to ALSA which doesn't exist in WSL.
+      const pulseAlive = isWslPulseAvailable();
+      if (pulseAlive) {
+        const pulseEnv = { ...process.env, PULSE_SERVER: "/mnt/wslg/PulseServer", SDL_AUDIODRIVER: "pulse" };
+        if (commandExists("mpv")) {
+          return safeProc(spawn("mpv", ["--no-video", "--ao=pulse", mp3Path], { stdio: "ignore", env: pulseEnv }));
+        }
+        if (commandExists("ffplay")) {
+          return safeProc(spawn("ffplay", ["-nodisp", "-autoexit", mp3Path], { stdio: "ignore", env: pulseEnv }));
+        }
+      } else {
+        console.error("[voice:tts] WSLg PulseAudio not available, falling back to powershell.exe");
       }
-      if (commandExists("ffplay")) {
-        return safeProc(spawn("ffplay", ["-nodisp", "-autoexit", mp3Path], { stdio: "ignore", env: pulseEnv }));
-      }
-      // Fallback: powershell.exe + WMPlayer
+      // Fallback: powershell.exe + WPF MediaPlayer (more reliable than WMPlayer.OCX
+      // which is broken on some Windows 11 builds — stuck in playState 9).
       const wslWinPath = execSync(`wslpath -w "${mp3Path}"`).toString().trim();
       const psCmd =
         `$dest = Join-Path $env:TEMP 'devglide-tts.mp3'; ` +
         `Copy-Item '${wslWinPath.replace(/'/g, "''")}' $dest -Force; ` +
-        `$mp = New-Object -ComObject WMPlayer.OCX; ` +
-        `$mp.URL = $dest; ` +
-        `Start-Sleep -Milliseconds 200; ` +
-        `while ($mp.playState -eq 3) { Start-Sleep -Milliseconds 50 }; ` +
-        `$mp.close(); ` +
+        `Add-Type -AssemblyName PresentationCore; ` +
+        `$p = New-Object System.Windows.Media.MediaPlayer; ` +
+        `$p.Open([Uri]$dest); ` +
+        `Start-Sleep -Milliseconds 500; ` +
+        `$p.Play(); ` +
+        `while ($p.NaturalDuration.HasTimeSpan -eq $false) { Start-Sleep -Milliseconds 100 }; ` +
+        `Start-Sleep -Milliseconds ([int]$p.NaturalDuration.TimeSpan.TotalMilliseconds + 200); ` +
+        `$p.Close(); ` +
         `Remove-Item $dest -ErrorAction SilentlyContinue`;
       return safeProc(
         spawn("powershell.exe", ["-NoProfile", "-Command", psCmd], { stdio: "ignore" })
@@ -184,14 +212,17 @@ function playMp3(mp3Path: string): ChildProcess | null {
       if (commandExists("mpv")) {
         return safeProc(spawn("mpv", ["--no-video", winPath], { stdio: "ignore", windowsHide: true }));
       }
-      // Fallback: WMPlayer.OCX (broken on some Windows 11 builds — stays in playState 9)
+      // Fallback: WPF MediaPlayer (more reliable than WMPlayer.OCX which is
+      // broken on some Windows 11 builds — stuck in playState 9).
       const psCmd =
-        `$mp = New-Object -ComObject WMPlayer.OCX; ` +
-        `$mp.URL = '${winPath.replace(/'/g, "''")}'; ` +
+        `Add-Type -AssemblyName PresentationCore; ` +
+        `$p = New-Object System.Windows.Media.MediaPlayer; ` +
+        `$p.Open([Uri]'${winPath.replace(/'/g, "''")}'); ` +
         `Start-Sleep -Milliseconds 500; ` +
-        `$timeout = 0; while ($mp.playState -ne 3 -and $timeout -lt 30) { Start-Sleep -Milliseconds 100; $timeout++ }; ` +
-        `while ($mp.playState -eq 3) { Start-Sleep -Milliseconds 50 }; ` +
-        `$mp.close()`;
+        `$p.Play(); ` +
+        `while ($p.NaturalDuration.HasTimeSpan -eq $false) { Start-Sleep -Milliseconds 100 }; ` +
+        `Start-Sleep -Milliseconds ([int]$p.NaturalDuration.TimeSpan.TotalMilliseconds + 200); ` +
+        `$p.Close()`;
       return safeProc(
         spawn("powershell", ["-NoProfile", "-Command", psCmd], {
           stdio: "ignore",
@@ -272,20 +303,26 @@ function speakFallback(text: string): void {
 
   try {
     if (wsl) {
-      // WSL: prefer Linux TTS via WSLg PulseAudio, fall back to PowerShell SAPI
-      const pulseEnv = { ...process.env, PULSE_SERVER: "/mnt/wslg/PulseServer" };
-      if (commandExists("espeak-ng")) {
-        _activeProcess = safeProc(
-          spawn("espeak-ng", ["-s", String(wpm), "-a", String(Math.min(200, volume * 2)), text], {
-            stdio: "ignore", env: pulseEnv,
-          })
-        );
-      } else if (commandExists("spd-say")) {
-        const spdRate = String(Math.max(-100, Math.min(100, wpm - 200)));
-        _activeProcess = safeProc(
-          spawn("spd-say", ["-r", spdRate, text], { stdio: "ignore", env: pulseEnv })
-        );
-      } else {
+      // WSL: prefer Linux TTS via WSLg PulseAudio (if alive), fall back to PowerShell SAPI
+      const pulseAlive = isWslPulseAvailable();
+      if (pulseAlive) {
+        const pulseEnv = { ...process.env, PULSE_SERVER: "/mnt/wslg/PulseServer", SDL_AUDIODRIVER: "pulse" };
+        if (commandExists("espeak-ng")) {
+          _activeProcess = safeProc(
+            spawn("espeak-ng", ["-s", String(wpm), "-a", String(Math.min(200, volume * 2)), text], {
+              stdio: "ignore", env: pulseEnv,
+            })
+          );
+          return;
+        } else if (commandExists("spd-say")) {
+          const spdRate = String(Math.max(-100, Math.min(100, wpm - 200)));
+          _activeProcess = safeProc(
+            spawn("spd-say", ["-r", spdRate, text], { stdio: "ignore", env: pulseEnv })
+          );
+          return;
+        }
+      }
+      {
         // Fallback: PowerShell SAPI
         const escaped = text.replace(/'/g, "''").replace(/"/g, '`"');
         const sapiRate = Math.max(-10, Math.min(10, Math.round((wpm - 200) / 20)));
