@@ -1268,7 +1268,7 @@ function wireEvents() {
 function startStatsPoll() {
   if (_statsTimer) return;
   fetchStats();
-  _statsTimer = setInterval(fetchStats, 5000);
+  _statsTimer = setInterval(fetchStats, 15000);
 }
 
 function stopStatsPoll() {
