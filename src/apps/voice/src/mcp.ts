@@ -25,8 +25,8 @@ export function createVoiceMcpServer() {
         "### Text-to-speech (TTS)",
         "- Use `voice_speak` to speak text aloud. Fire-and-forget — cancels any previous speech.",
         "- Use `voice_stop` to cancel current speech playback.",
-        "- Uses JARVIS-style neural voice (en-GB-RyanNeural) by default. Configurable via dashboard.",
-        "- Use TTS to give the user audible feedback when completing tasks or reporting results.",
+        "- Uses neural voice (en-GB-RyanNeural) by default. Configurable via dashboard.",
+        "- **Only use TTS when the user explicitly requests notification** (e.g. 'notify me once done', 'tell me when ready', 'speak', 'say'). Do NOT speak proactively.",
         "",
         "### History and analytics",
         "- Every transcription is automatically recorded in history with text analysis (word count, WPM, filler words).",
@@ -158,7 +158,7 @@ export function createVoiceMcpServer() {
 
   server.tool(
     "voice_speak",
-    "Speak text aloud using text-to-speech (JARVIS-style neural voice). Use this to give the user audible feedback when you complete a task. Fire-and-forget — cancels any previous speech.",
+    "Speak text aloud using text-to-speech (neural voice). Only use when the user explicitly asks to be notified or to speak. Fire-and-forget — cancels any previous speech.",
     {
       text: z.string().describe("Text to speak aloud"),
     },
