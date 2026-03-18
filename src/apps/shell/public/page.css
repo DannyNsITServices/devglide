@@ -219,11 +219,10 @@
    the CDN stylesheet loads late or specificity conflicts arise, the textarea
    becomes visible as a "Terminal input" bar at the bottom of the pane.
    Duplicate the hiding here with !important as a guaranteed fallback. */
-/* Hide the outline cursor globally — in normal shells it sits at the
-   prompt (harmless) but in TUI apps like Claude Code it appears at the
-   bottom of the screen, far from the actual input area.  The blinking
-   block cursor still shows the active position when focused. */
-.page-shell .xterm-cursor-outline {
+/* Hide xterm cursor on alternate screen buffer — TUI apps like Claude
+   Code render their own cursor, so the xterm cursor is a duplicate that
+   appears at the wrong position (bottom of screen). */
+.page-shell .alt-screen .xterm-cursor {
   display: none !important;
 }
 
