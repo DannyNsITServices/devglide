@@ -128,18 +128,15 @@ configRouter.get("/check-ffmpeg", (_req, res) => {
 
 // ── TTS endpoints ────────────────────────────────────────────────────
 
-configRouter.post("/tts/speak", async (req, res) => {
+configRouter.post("/tts/speak", (req, res) => {
   const { text } = req.body as { text?: string };
   if (!text?.trim()) {
     res.status(400).json({ error: "text is required" });
     return;
   }
-  try {
-    await speak(text);
-    res.json({ ok: true, chars: text.length });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
-  }
+  // Respond immediately — speak() is fire-and-forget and never throws
+  res.json({ ok: true, chars: text.length });
+  speak(text);
 });
 
 configRouter.post("/tts/stop", (_req, res) => {

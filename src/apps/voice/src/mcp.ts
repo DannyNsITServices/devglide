@@ -156,7 +156,8 @@ export function createVoiceMcpServer() {
       text: z.string().describe("Text to speak aloud"),
     },
     async ({ text }) => {
-      await speak(text);
+      // Fire-and-forget — speak() never throws
+      speak(text);
       return {
         content: [
           {
