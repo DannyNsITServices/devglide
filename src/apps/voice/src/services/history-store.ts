@@ -9,7 +9,7 @@ import {
   type FillerWordResult,
 } from "../utils/text-analysis.js";
 
-let _dataDir = VOICE_DIR;
+const _dataDir = VOICE_DIR;
 function historyFile(): string {
   return join(_dataDir, "history.json");
 }
@@ -201,10 +201,6 @@ class HistoryStore {
     }
   }
 
-  switchDataDir(dir: string): void {
-    _dataDir = dir;
-    this.entries = loadHistory();
-  }
 }
 
 export const historyStore = HistoryStore.getInstance();

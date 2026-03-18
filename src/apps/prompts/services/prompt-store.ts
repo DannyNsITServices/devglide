@@ -1,5 +1,3 @@
-import fs from 'fs/promises';
-import path from 'path';
 import type { Prompt, PromptSummary } from '../types.js';
 import { getActiveProject } from '../../../project-context.js';
 import { PROMPTS_DIR } from '../../../packages/paths.js';
@@ -39,12 +37,9 @@ export class PromptStore extends JsonFileStore<Prompt> {
         if (!seen.has(s.id)) seen.set(s.id, s);
       }
     } else {
-      // No active project — scan global + project subdirs with correct scope labels
+      // No active project — show global entries only
       for (const s of await this.scanDir(this.getGlobalDir(), 'global')) {
         seen.set(s.id, s);
-      }
-      for (const s of await this.scanProjectSubdirs()) {
-        if (!seen.has(s.id)) seen.set(s.id, s);
       }
     }
 
@@ -192,21 +187,4 @@ export class PromptStore extends JsonFileStore<Prompt> {
     return entries.map((e) => this.toSummary(e, scope));
   }
 
-  /** Scan all project subdirectories under baseDir, labeling entries as 'project' scope. */
-  private async scanProjectSubdirs(): Promise<PromptSummary[]> {
-    const results: PromptSummary[] = [];
-    let names: string[];
-    try {
-      names = await fs.readdir(this.baseDir);
-    } catch {
-      return [];
-    }
-    for (const name of names) {
-      if (name.endsWith('.json')) continue;
-      for (const entry of await this.scanDirFull(path.join(this.baseDir, name))) {
-        results.push(this.toSummary(entry, 'project'));
-      }
-    }
-    return results;
-  }
 }

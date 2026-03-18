@@ -439,10 +439,29 @@
   margin-top: var(--df-space-2);
 }
 
+.page-voice .result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--df-space-2);
+}
+
+.page-voice .result-header .btn-link--sm {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.page-voice .result-header .btn-link--sm:hover {
+  color: var(--df-color-text-primary);
+}
+
 .page-voice .result-meta {
   font-size: var(--df-font-size-xs);
   color: var(--df-color-text-secondary);
-  margin-bottom: var(--df-space-2);
   letter-spacing: var(--df-letter-spacing-normal);
 }
 

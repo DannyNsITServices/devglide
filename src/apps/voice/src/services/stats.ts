@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { VOICE_DIR } from "../../../../packages/paths.js";
 
-let _dataDir = VOICE_DIR;
+const _dataDir = VOICE_DIR;
 function statsFile(): string { return join(_dataDir, "stats.json"); }
 
 export interface VoiceStats {
@@ -105,15 +105,6 @@ class StatsTracker {
     };
   }
 
-  /** Switch to a new data directory (e.g. per-project) and reload stats. */
-  switchDataDir(dir: string): void {
-    _dataDir = dir;
-    const persisted = loadStats();
-    this.totalTranscriptions = persisted.totalTranscriptions;
-    this.totalDurationSec = persisted.totalDurationSec;
-    this.totalErrors = persisted.totalErrors;
-    this.lastTranscriptionAt = persisted.lastTranscriptionAt ? new Date(persisted.lastTranscriptionAt) : null;
-  }
 }
 
 export const stats = StatsTracker.getInstance();

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { VOICE_DIR } from "../../../../packages/paths.js";
 
-let _dataDir = VOICE_DIR;
+const _dataDir = VOICE_DIR;
 function configFile(): string { return join(_dataDir, "config.json"); }
 
 export interface PerProviderConfig {
@@ -183,12 +183,6 @@ class ConfigStore {
 
   getProviderSettings(name: string): PerProviderConfig {
     return this.config.providers[name] ?? {};
-  }
-
-  /** Switch to a new data directory (e.g. per-project) and reload config. */
-  switchDataDir(dir: string): void {
-    _dataDir = dir;
-    this.reload();
   }
 }
 

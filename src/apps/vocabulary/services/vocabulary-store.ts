@@ -7,7 +7,8 @@ import { JsonFileStore } from '../../../packages/json-file-store.js';
 /**
  * Per-project and global vocabulary storage.
  * One JSON file per entry for git-friendly diffs.
- * Storage: ~/.devglide/vocabulary/{projectId}/ and ~/.devglide/vocabulary/
+ * Global: ~/.devglide/vocabulary/
+ * Per-project: ~/.devglide/projects/{projectId}/vocabulary/
  */
 export class VocabularyStore extends JsonFileStore<VocabularyEntry> {
   private static instance: VocabularyStore;
@@ -33,11 +34,9 @@ export class VocabularyStore extends JsonFileStore<VocabularyEntry> {
         if (!seen.has(s.id)) seen.set(s.id, s);
       }
     } else {
-      // No active project (e.g. stdio MCP mode) — scan all dirs
-      for (const entry of await this.scanAllDirs()) {
-        if (!seen.has(entry.id)) {
-          seen.set(entry.id, this.toSummary(entry, 'project'));
-        }
+      // No active project — show global entries only
+      for (const s of await this.scanDir(this.getGlobalDir(), 'global')) {
+        if (!seen.has(s.id)) seen.set(s.id, s);
       }
     }
 
@@ -150,8 +149,8 @@ export class VocabularyStore extends JsonFileStore<VocabularyEntry> {
         if (!seen.has(e.id)) seen.set(e.id, e);
       }
     } else {
-      // No active project (e.g. stdio MCP mode) — scan all dirs
-      for (const e of await this.scanAllDirs()) {
+      // No active project — show global entries only
+      for (const e of await this.scanDirFull(this.getGlobalDir())) {
         if (!seen.has(e.id)) seen.set(e.id, e);
       }
     }
