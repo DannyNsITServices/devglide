@@ -39,33 +39,30 @@ function cleanupTempFiles(): void {
 let _MsEdgeTTS: any = null;
 let _OUTPUT_FORMAT: any = null;
 
-// Process-level safety net — catch both unhandled rejections AND uncaught exceptions
-// from msedge-tts. The ws (WebSocket) package emits EventEmitter 'error' events that
-// become uncaughtException (not unhandledRejection), which crashes Node.js.
-let _safetyInstalled = false;
-function installSafetyNet(): void {
-  if (_safetyInstalled) return;
-  _safetyInstalled = true;
-  const handler = (reason: unknown) => {
-    const msg = reason instanceof Error ? reason.message : String(reason);
-    if (/msedge|tts|websocket|speech\.platform|Unexpected server|ws|ECONNRESET|ENOTFOUND|audio/i.test(msg)) {
-      console.error("[voice:tts] caught process error:", msg);
-      // Absorb — don't crash
-      return;
-    }
-  };
-  process.on("unhandledRejection", handler);
-  process.on("uncaughtException", (err) => {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (/msedge|tts|websocket|speech\.platform|Unexpected server|ws|ECONNRESET|ENOTFOUND|audio/i.test(msg)) {
-      console.error("[voice:tts] caught uncaught exception:", msg);
-      // Absorb — don't crash
-      return;
-    }
-    // Not TTS-related — re-throw to let Node's default handler crash
-    throw err;
-  });
-}
+// ── Process-level safety net ─────────────────────────────────────────────────
+// Installed at module load time (not lazily) so the MCP process is protected
+// from the very first tick.  msedge-tts fires WebSocket errors as unhandled
+// rejections / uncaught exceptions that would otherwise crash the process and
+// drop the MCP stdio connection.  We absorb ALL errors here instead of
+// re-throwing, because a re-throw from uncaughtException kills the process
+// immediately.
+
+process.on("unhandledRejection", (reason: unknown) => {
+  const msg = reason instanceof Error ? reason.message : String(reason);
+  // Only log TTS-related errors to avoid noise
+  if (/msedge|tts|websocket|speech\.platform|Unexpected server|ECONNRESET|ENOTFOUND|audio/i.test(msg)) {
+    process.stderr.write(`[voice:tts] unhandled rejection: ${msg}\n`);
+  }
+  // Absorb all — never crash the MCP process
+});
+
+process.on("uncaughtException", (err) => {
+  const msg = err instanceof Error ? err.message : String(err);
+  process.stderr.write(`[voice:tts] uncaught exception: ${msg}\n`);
+  // Absorb — do NOT re-throw.  Re-throwing from uncaughtException kills the
+  // process, which drops the MCP stdio connection.  The MCP transport has its
+  // own error handling; a stray WebSocket error should never take it down.
+});
 
 /** Detect WSL environment. */
 function isWSL(): boolean {
@@ -147,9 +144,8 @@ export function stop(): void {
 /**
  * Play an MP3 file in the background via the appropriate platform player.
  *
- * WSL: WMPlayer can't read \\wsl.localhost UNC paths reliably, so we use
- * powershell.exe to copy the file to Windows %TEMP% first, then play it.
- * This is done entirely in one PowerShell command to avoid path gymnastics.
+ * WSL: Uses ffplay/mpv with WSLg PulseAudio (PULSE_SERVER=/mnt/wslg/PulseServer).
+ * Falls back to powershell.exe + WMPlayer if no Linux player is available.
  */
 function playMp3(mp3Path: string): ChildProcess | null {
   const os = platform();
@@ -157,8 +153,15 @@ function playMp3(mp3Path: string): ChildProcess | null {
 
   try {
     if (wsl) {
-      // WSL → powershell.exe: copy to %TEMP% and play, all in one command.
-      // wslpath -w converts Linux path to \\wsl.localhost\... UNC path.
+      // WSL → prefer native Linux player via WSLg PulseAudio
+      const pulseEnv = { ...process.env, PULSE_SERVER: "/mnt/wslg/PulseServer" };
+      if (commandExists("mpv")) {
+        return safeProc(spawn("mpv", ["--no-video", mp3Path], { stdio: "ignore", env: pulseEnv }));
+      }
+      if (commandExists("ffplay")) {
+        return safeProc(spawn("ffplay", ["-nodisp", "-autoexit", mp3Path], { stdio: "ignore", env: pulseEnv }));
+      }
+      // Fallback: powershell.exe + WMPlayer
       const wslWinPath = execSync(`wslpath -w "${mp3Path}"`).toString().trim();
       const psCmd =
         `$dest = Join-Path $env:TEMP 'devglide-tts.mp3'; ` +
@@ -216,7 +219,6 @@ async function generateEdgeTts(
   rate: string,
   pitch: string,
 ): Promise<string | null> {
-  installSafetyNet();
   try {
     if (!_MsEdgeTTS) {
       const mod = await import("msedge-tts");
@@ -230,16 +232,18 @@ async function generateEdgeTts(
     // Always write to native temp — playMp3() handles Windows path conversion
     const outDir = tmpdir();
 
-    // Race against a timeout — msedge-tts can hang on bad config
+    // Race against a timeout — msedge-tts can hang on bad config.
+    // Scale timeout with text length: 15s base + 1s per 40 chars (≈ per sentence).
+    const timeoutMs = Math.max(15_000, 15_000 + Math.ceil(text.length / 40) * 1_000);
     const result = await Promise.race([
       tts.toFile(outDir, text, { rate, pitch }),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 15_000)),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
     ]);
 
     if (result && (result as any).audioFilePath && existsSync((result as any).audioFilePath)) {
       return (result as any).audioFilePath;
     }
-    if (!result) console.error("[voice:tts] msedge-tts timed out after 15s");
+    if (!result) console.error(`[voice:tts] msedge-tts timed out after ${timeoutMs / 1000}s`);
     return null;
   } catch (err) {
     console.error("[voice:tts] msedge-tts failed:", err instanceof Error ? err.message : err);
@@ -259,10 +263,35 @@ function speakFallback(text: string): void {
   const wpm = ttsConfig?.fallbackRate ?? 200;
 
   try {
-    if (os === "win32" || wsl) {
-      // Windows or WSL: PowerShell SAPI
-      // SAPI Rate: -10 to +10, where 0 ≈ 200 WPM
-      const psExe = wsl ? "powershell.exe" : "powershell";
+    if (wsl) {
+      // WSL: prefer Linux TTS via WSLg PulseAudio, fall back to PowerShell SAPI
+      const pulseEnv = { ...process.env, PULSE_SERVER: "/mnt/wslg/PulseServer" };
+      if (commandExists("espeak-ng")) {
+        _activeProcess = safeProc(
+          spawn("espeak-ng", ["-s", String(wpm), "-a", String(Math.min(200, volume * 2)), text], {
+            stdio: "ignore", env: pulseEnv,
+          })
+        );
+      } else if (commandExists("spd-say")) {
+        const spdRate = String(Math.max(-100, Math.min(100, wpm - 200)));
+        _activeProcess = safeProc(
+          spawn("spd-say", ["-r", spdRate, text], { stdio: "ignore", env: pulseEnv })
+        );
+      } else {
+        // Fallback: PowerShell SAPI
+        const escaped = text.replace(/'/g, "''").replace(/"/g, '`"');
+        const sapiRate = Math.max(-10, Math.min(10, Math.round((wpm - 200) / 20)));
+        const psCmd =
+          `Add-Type -AssemblyName System.Speech; ` +
+          `$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; ` +
+          `$s.Rate = ${sapiRate}; $s.Volume = ${volume}; ` +
+          `$s.Speak('${escaped}')`;
+        _activeProcess = safeProc(
+          spawn("powershell.exe", ["-NoProfile", "-Command", psCmd], { stdio: "ignore" })
+        );
+      }
+    } else if (os === "win32") {
+      // Native Windows: PowerShell SAPI
       const escaped = text.replace(/'/g, "''").replace(/"/g, '`"');
       const sapiRate = Math.max(-10, Math.min(10, Math.round((wpm - 200) / 20)));
       const psCmd =
@@ -271,9 +300,9 @@ function speakFallback(text: string): void {
         `$s.Rate = ${sapiRate}; $s.Volume = ${volume}; ` +
         `$s.Speak('${escaped}')`;
       _activeProcess = safeProc(
-        spawn(psExe, ["-NoProfile", "-Command", psCmd], {
+        spawn("powershell", ["-NoProfile", "-Command", psCmd], {
           stdio: "ignore",
-          ...(os === "win32" ? { windowsHide: true } : {}),
+          windowsHide: true,
         })
       );
     } else if (os === "darwin") {

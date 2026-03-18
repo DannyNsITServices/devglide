@@ -70,7 +70,7 @@ Describe what to test in natural language and scenarios are generated automatica
 
 ### devglide-voice — Speech-to-text and text-to-speech
 - \`voice_transcribe\` — transcribe audio (supports vocab biasing via \`prompt\`, \`cleanup\` mode for AI post-processing)
-- \`voice_speak\` — speak text aloud (JARVIS-style neural TTS, fire-and-forget)
+- \`voice_speak\` — speak text aloud (neural TTS, fire-and-forget). **Only use when the user explicitly asks to be notified** (e.g. "notify me once you're done", "tell me when it's ready", "speak", "say"). Do NOT speak proactively.
 - \`voice_stop\` — stop current speech playback
 - \`voice_history\` — list/search transcription history with text analysis (WPM, filler words)
 - \`voice_analytics\` — get aggregated transcription analytics
