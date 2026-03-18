@@ -26,6 +26,8 @@ export interface TtsConfig {
   edgePitch?: string;
   fallbackRate?: number;
   volume?: number;
+  /** Custom shell command for audio playback. Use %FILE% as placeholder for the MP3 path. */
+  playerCommand?: string;
 }
 
 export interface PersistentConfig {

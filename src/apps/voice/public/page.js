@@ -209,6 +209,12 @@ const BODY_HTML = `
           </div>
           <div class="form-group"></div>
         </div>
+        <div class="form-row">
+          <div class="form-group" style="flex: 1 1 100%">
+            <label for="tts-player-cmd-input">Player Command <span class="field-hint">(optional — %FILE% = mp3 path)</span></label>
+            <input type="text" id="tts-player-cmd-input" placeholder="e.g. ffplay -nodisp -autoexit %FILE%" spellcheck="false">
+          </div>
+        </div>
         <div class="form-actions">
           <button type="button" id="tts-test-btn" class="btn btn-secondary">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -610,6 +616,8 @@ async function loadProviders() {
       if (eri) eri.value = data.tts.edgeRate ?? '';
       if (epi) epi.value = data.tts.edgePitch ?? '';
       if (fri) fri.value = data.tts.fallbackRate ?? 200;
+      const pci = $('#tts-player-cmd-input');
+      if (pci) pci.value = data.tts.playerCommand ?? '';
     }
 
     // Load cleanup state
@@ -1195,6 +1203,7 @@ function wireEvents() {
               edgePitch: $('#tts-edge-pitch-input')?.value.trim() || undefined,
               fallbackRate: parseInt($('#tts-fallback-rate-input')?.value) || 200,
               volume: parseInt($('#tts-volume-input')?.value) || 80,
+              playerCommand: $('#tts-player-cmd-input')?.value.trim() || undefined,
             },
           }),
         });
