@@ -1347,7 +1347,7 @@ export function unmount(container) {
 }
 
 export function onProjectChange(project) {
-  // Reload data when project changes (history, config may differ per project)
+  // Voice config is global — refresh UI to stay in sync with server state
   if (_container) {
     loadProviders();
     fetchStatus();
