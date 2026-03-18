@@ -321,12 +321,16 @@ export async function speak(text: string): Promise<void> {
     const edgePitch = ttsConfig?.edgePitch || "-2Hz";
 
     // Try msedge-tts (pure Node.js) first
+    console.error(`[voice:tts] generating: voice=${voice} rate=${edgeRate} pitch=${edgePitch} tmpdir=${tmpdir()}`);
     const mp3Path = await generateEdgeTts(text, voice, edgeRate, edgePitch);
+    console.error(`[voice:tts] mp3Path=${mp3Path}`);
     if (mp3Path) {
       _tmpFile = mp3Path;
       _activeProcess = playMp3(mp3Path);
+      console.error(`[voice:tts] playMp3 started, process=${_activeProcess?.pid ?? 'null'}`);
       if (_activeProcess) {
-        _activeProcess.on("exit", () => {
+        _activeProcess.on("exit", (code) => {
+          console.error(`[voice:tts] playback exited code=${code}`);
           cleanupTempFiles();
           _activeProcess = null;
         });
