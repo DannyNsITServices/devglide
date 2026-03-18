@@ -15,6 +15,22 @@ const FFMPEG_INSTALL_HINT =
   "  macOS:    brew install ffmpeg\n" +
   "  Linux:    sudo apt install ffmpeg  (or your distro's package manager)";
 
+const BUILD_TOOLS_HINT =
+  "The local whisper provider uses nodejs-whisper which needs whisper.cpp compiled.\n" +
+  "\n" +
+  "Step 1 — Install build tools (if not already installed):\n" +
+  "  Windows:  winget install Kitware.CMake\n" +
+  "            winget install Microsoft.VisualStudio.2022.BuildTools --override \"--add Microsoft.VisualStudio.Workload.VCTools\"\n" +
+  "  macOS:    xcode-select --install\n" +
+  "  Linux:    sudo apt install build-essential cmake\n" +
+  "\n" +
+  "Step 2 — Compile whisper.cpp (from project root):\n" +
+  "  cd node_modules/nodejs-whisper/cpp/whisper.cpp\n" +
+  "  cmake -B build\n" +
+  "  cmake --build build --config Release\n" +
+  "\n" +
+  "Then restart the server.";
+
 /** Check whether ffmpeg is available on PATH. */
 export function checkFfmpeg(): { ok: boolean; version?: string; error?: string } {
   try {
@@ -70,23 +86,35 @@ export class LocalWhisperProvider implements TranscriptionProvider {
 
       const startTime = Date.now();
 
-      const result = await nodeWhisper(tmpFile, {
-        modelName: this.model as any,
-        autoDownloadModelName: this.model as any,
-        removeWavFileAfterTranscription: true,
-        whisperOptions: {
-          outputInText: false,
-          outputInVtt: false,
-          outputInSrt: false,
-          outputInCsv: false,
-          translateToEnglish: false,
-          wordTimestamps: false,
-          timestamps_length: 60,
-          splitOnWord: true,
-          ...(options.language ? { language: options.language } : {}),
-          ...(options.prompt ? { prompt: options.prompt } : {}),
-        },
-      });
+      let result;
+      try {
+        result = await nodeWhisper(tmpFile, {
+          modelName: this.model as any,
+          autoDownloadModelName: this.model as any,
+          removeWavFileAfterTranscription: true,
+          whisperOptions: {
+            outputInText: false,
+            outputInVtt: false,
+            outputInSrt: false,
+            outputInCsv: false,
+            translateToEnglish: false,
+            wordTimestamps: false,
+            timestamps_length: 60,
+            splitOnWord: true,
+            ...(options.language ? { language: options.language } : {}),
+            ...(options.prompt ? { prompt: options.prompt } : {}),
+          },
+        });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // Detect whisper binary / build tool issues and provide actionable guidance
+        if (/whisper.*not found|executable not found|ENOENT|cmake|build|compile/i.test(msg)) {
+          throw new Error(
+            `Local whisper transcription failed: ${msg}\n\n${BUILD_TOOLS_HINT}`
+          );
+        }
+        throw err;
+      }
 
       const durationSec = (Date.now() - startTime) / 1000;
 

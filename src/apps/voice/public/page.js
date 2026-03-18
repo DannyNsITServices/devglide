@@ -4,8 +4,6 @@
 let _container = null;
 let _statsTimer = null;
 let _visibilityHandler = null;
-let _escapeHandler = null;
-
 let allProviders = [];
 let currentProviderId = 'openai';
 let audioFile = null;
@@ -21,25 +19,6 @@ const MAX_RECORDING_SECONDS = 300; // 5 min
 
 const BODY_HTML = `
   <div class="voice-toast-container" id="voice-toast-container"></div>
-
-  <!-- No Microphone Modal -->
-  <div id="mic-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="mic-modal-title">
-    <div class="modal">
-      <div class="modal-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="1" y1="1" x2="23" y2="23"/>
-          <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/>
-          <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/>
-          <line x1="12" y1="19" x2="12" y2="23"/>
-          <line x1="8" y1="23" x2="16" y2="23"/>
-        </svg>
-      </div>
-      <h2 id="mic-modal-title">No Microphone Detected</h2>
-      <p class="modal-message" id="mic-modal-detail">No microphone device was found or access was denied.</p>
-      <p class="modal-hint">You can still transcribe audio using the file upload below.</p>
-      <button type="button" id="mic-modal-close" class="btn btn-secondary">Dismiss</button>
-    </div>
-  </div>
 
   <header>
     <span class="app-name">Voice</span>
@@ -120,7 +99,8 @@ const BODY_HTML = `
         </div>
 
         <div id="local-info" class="form-hint hidden">
-          Runs whisper.cpp locally — no server needed. Model downloads automatically on first use.
+          Runs whisper.cpp locally — no server needed. Requires FFmpeg and compiled whisper.cpp binary.
+          To compile: <code>cd node_modules/nodejs-whisper/cpp/whisper.cpp && cmake -B build && cmake --build build --config Release</code>
           <div id="ffmpeg-status" class="ffmpeg-status"></div>
         </div>
 
@@ -467,7 +447,7 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// ── FFmpeg check ────────────────────────────────────────────────────
+// ── Dependency checks ────────────────────────────────────────────────
 
 async function checkFfmpeg() {
   const el = $('#ffmpeg-status');
@@ -743,44 +723,8 @@ async function fetchHistory() {
   }
 }
 
-// ── Microphone check ────────────────────────────────────────────────
-
-async function checkMicrophone() {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    showMicModal('Your browser does not support microphone access.');
-    disableRecordBtn();
-    return;
-  }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach(t => t.stop());
-  } catch (err) {
-    let message;
-    if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-      message = 'No microphone device was found. Connect a microphone and reload the page.';
-    } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-      message = 'Microphone access was denied. Allow access in your browser settings and reload.';
-    } else if (err.name === 'NotReadableError') {
-      message = 'Microphone is in use by another application.';
-    } else {
-      message = err.message || 'Microphone is unavailable.';
-    }
-    showMicModal(message);
-    disableRecordBtn();
-  }
-}
-
-function showMicModal(message) {
-  const detail = $('#mic-modal-detail');
-  const modal = $('#mic-modal');
-  if (detail) detail.textContent = message;
-  if (modal) modal.classList.remove('hidden');
-}
-
-function disableRecordBtn() {
-  const btn = $('#record-btn');
-  if (btn) { btn.disabled = true; btn.title = 'Microphone unavailable'; }
-}
+// (Mic check removed — permission is requested on first record click.
+//  If getUserMedia fails, startRecording() shows an error toast.)
 
 // ── Recording ───────────────────────────────────────────────────────
 
@@ -819,8 +763,18 @@ function startRecording() {
       }
       if (elapsed >= MAX_RECORDING_SECONDS) stopRecording();
     }, 500);
-  }).catch(() => {
-    showToast('Could not access microphone', 'error');
+  }).catch((err) => {
+    let msg = 'Could not access microphone';
+    if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
+      msg = 'No microphone found — connect a mic and try again';
+    } else if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+      msg = 'Microphone access denied — allow in browser settings';
+    } else if (err?.name === 'NotReadableError') {
+      msg = 'Microphone in use by another app';
+    } else if (!navigator.mediaDevices?.getUserMedia) {
+      msg = 'Browser does not support microphone access (HTTPS required)';
+    }
+    showToast(msg, 'error');
   });
 }
 
@@ -1135,26 +1089,6 @@ function wireEvents() {
     });
   }
 
-  // Mic modal dismiss
-  const micModalClose = $('#mic-modal-close');
-  if (micModalClose) {
-    micModalClose.addEventListener('click', () => {
-      const modal = $('#mic-modal');
-      if (modal) modal.classList.add('hidden');
-    });
-  }
-
-  // Escape key to close mic modal
-  _escapeHandler = (e) => {
-    if (e.key === 'Escape') {
-      const modal = $('#mic-modal');
-      if (modal && !modal.classList.contains('hidden')) {
-        modal.classList.add('hidden');
-      }
-    }
-  };
-  document.addEventListener('keydown', _escapeHandler);
-
   // Vocab biasing toggle
   const vocabToggle = $('#vocab-biasing-toggle');
   if (vocabToggle) {
@@ -1335,7 +1269,7 @@ function wireEvents() {
 function startStatsPoll() {
   if (_statsTimer) return;
   fetchStats();
-  _statsTimer = setInterval(fetchStats, 5000);
+  _statsTimer = setInterval(fetchStats, 15000);
 }
 
 function stopStatsPoll() {
@@ -1375,7 +1309,6 @@ export function mount(container, ctx) {
   fetchStatus();
   startStatsPoll();
   fetchHistory();
-  checkMicrophone();
 }
 
 export function unmount(container) {
@@ -1391,13 +1324,7 @@ export function unmount(container) {
     _visibilityHandler = null;
   }
 
-  // 4. Remove escape handler
-  if (_escapeHandler) {
-    document.removeEventListener('keydown', _escapeHandler);
-    _escapeHandler = null;
-  }
-
-  // 5. Remove scope class & clear HTML
+  // 4. Remove scope class & clear HTML
   if (container) {
     container.classList.remove('page-voice');
     container.innerHTML = '';

@@ -22,7 +22,6 @@ import { configStore } from "./config-store.js";
 
 let _activeProcess: ChildProcess | null = null;
 let _tmpFile: string | null = null;
-let _wslCopyFile: string | null = null;
 
 /** Remove a file silently. */
 function safeUnlink(path: string | null): void {
@@ -34,13 +33,39 @@ function safeUnlink(path: string | null): void {
 function cleanupTempFiles(): void {
   safeUnlink(_tmpFile);
   _tmpFile = null;
-  safeUnlink(_wslCopyFile);
-  _wslCopyFile = null;
 }
 
 // Lazy-loaded msedge-tts
 let _MsEdgeTTS: any = null;
 let _OUTPUT_FORMAT: any = null;
+
+// Process-level safety net — catch both unhandled rejections AND uncaught exceptions
+// from msedge-tts. The ws (WebSocket) package emits EventEmitter 'error' events that
+// become uncaughtException (not unhandledRejection), which crashes Node.js.
+let _safetyInstalled = false;
+function installSafetyNet(): void {
+  if (_safetyInstalled) return;
+  _safetyInstalled = true;
+  const handler = (reason: unknown) => {
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    if (/msedge|tts|websocket|speech\.platform|Unexpected server|ws|ECONNRESET|ENOTFOUND|audio/i.test(msg)) {
+      console.error("[voice:tts] caught process error:", msg);
+      // Absorb — don't crash
+      return;
+    }
+  };
+  process.on("unhandledRejection", handler);
+  process.on("uncaughtException", (err) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/msedge|tts|websocket|speech\.platform|Unexpected server|ws|ECONNRESET|ENOTFOUND|audio/i.test(msg)) {
+      console.error("[voice:tts] caught uncaught exception:", msg);
+      // Absorb — don't crash
+      return;
+    }
+    // Not TTS-related — re-throw to let Node's default handler crash
+    throw err;
+  });
+}
 
 /** Detect WSL environment. */
 function isWSL(): boolean {
@@ -50,6 +75,11 @@ function isWSL(): boolean {
   } catch {
     return false;
   }
+}
+
+/** Detect Git Bash / MSYS2 / Cygwin on Windows. */
+function isGitBash(): boolean {
+  return platform() === "win32" && !!(process.env.MSYSTEM || process.env.MINGW_PREFIX || process.env.CYGPATH);
 }
 
 /** Check if a command exists on PATH. */
@@ -63,6 +93,31 @@ function commandExists(cmd: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Convert a path to Windows format for PowerShell.
+ * Handles: Git Bash POSIX paths (cygpath), WSL paths (wslpath), native Windows paths (passthrough).
+ */
+function toWindowsPath(filePath: string): string {
+  // Already a Windows path
+  if (/^[A-Z]:\\/i.test(filePath)) return filePath;
+
+  // Git Bash / MSYS2: use cygpath
+  if (isGitBash()) {
+    try {
+      return execSync(`cygpath -w "${filePath}"`).toString().trim();
+    } catch { /* fall through */ }
+  }
+
+  // WSL: use wslpath
+  if (isWSL()) {
+    try {
+      return execSync(`wslpath -w "${filePath}"`).toString().trim();
+    } catch { /* fall through */ }
+  }
+
+  return filePath;
 }
 
 /** Attach error handler to a child process so it can't crash Node. */
@@ -91,29 +146,35 @@ export function stop(): void {
 
 /**
  * Play an MP3 file in the background via the appropriate platform player.
- * On WSL, copies to Windows %TEMP% and plays via powershell.exe.
+ *
+ * WSL: WMPlayer can't read \\wsl.localhost UNC paths reliably, so we use
+ * powershell.exe to copy the file to Windows %TEMP% first, then play it.
+ * This is done entirely in one PowerShell command to avoid path gymnastics.
  */
 function playMp3(mp3Path: string): ChildProcess | null {
   const os = platform();
   const wsl = isWSL();
 
   try {
-    if (os === "win32" || wsl) {
-      const psExe = wsl ? "powershell.exe" : "powershell";
-      let winPath: string;
-      if (wsl) {
-        // Copy MP3 to Windows temp — UNC \\wsl.localhost paths don't work
-        // reliably with WMPlayer COM object
-        const winTemp = execSync("powershell.exe -NoProfile -Command \"Write-Host $env:TEMP\"")
-          .toString().trim();
-        const winDest = `${winTemp}\\devglide-tts.mp3`;
-        const wslDest = execSync(`wslpath -u "${winTemp}"`).toString().trim() + "/devglide-tts.mp3";
-        copyFileSync(mp3Path, wslDest);
-        _wslCopyFile = wslDest;
-        winPath = winDest;
-      } else {
-        winPath = mp3Path;
-      }
+    if (wsl) {
+      // WSL → powershell.exe: copy to %TEMP% and play, all in one command.
+      // wslpath -w converts Linux path to \\wsl.localhost\... UNC path.
+      const wslWinPath = execSync(`wslpath -w "${mp3Path}"`).toString().trim();
+      const psCmd =
+        `$dest = Join-Path $env:TEMP 'devglide-tts.mp3'; ` +
+        `Copy-Item '${wslWinPath.replace(/'/g, "''")}' $dest -Force; ` +
+        `$mp = New-Object -ComObject WMPlayer.OCX; ` +
+        `$mp.URL = $dest; ` +
+        `Start-Sleep -Milliseconds 200; ` +
+        `while ($mp.playState -eq 3) { Start-Sleep -Milliseconds 50 }; ` +
+        `$mp.close(); ` +
+        `Remove-Item $dest -ErrorAction SilentlyContinue`;
+      return safeProc(
+        spawn("powershell.exe", ["-NoProfile", "-Command", psCmd], { stdio: "ignore" })
+      );
+    } else if (os === "win32") {
+      // Native Windows (cmd or Git Bash): convert path if needed, play directly
+      const winPath = toWindowsPath(mp3Path);
       const psCmd =
         `$mp = New-Object -ComObject WMPlayer.OCX; ` +
         `$mp.URL = '${winPath.replace(/'/g, "''")}'; ` +
@@ -121,9 +182,9 @@ function playMp3(mp3Path: string): ChildProcess | null {
         `while ($mp.playState -eq 3) { Start-Sleep -Milliseconds 50 }; ` +
         `$mp.close()`;
       return safeProc(
-        spawn(psExe, ["-NoProfile", "-Command", psCmd], {
+        spawn("powershell", ["-NoProfile", "-Command", psCmd], {
           stdio: "ignore",
-          ...(os === "win32" ? { windowsHide: true } : {}),
+          windowsHide: true,
         })
       );
     } else if (os === "darwin") {
@@ -155,6 +216,7 @@ async function generateEdgeTts(
   rate: string,
   pitch: string,
 ): Promise<string | null> {
+  installSafetyNet();
   try {
     if (!_MsEdgeTTS) {
       const mod = await import("msedge-tts");
@@ -165,12 +227,19 @@ async function generateEdgeTts(
     const tts = new _MsEdgeTTS();
     await tts.setMetadata(voice, _OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
 
+    // Always write to native temp — playMp3() handles Windows path conversion
     const outDir = tmpdir();
-    const { audioFilePath } = await tts.toFile(outDir, text, { rate, pitch });
 
-    if (audioFilePath && existsSync(audioFilePath)) {
-      return audioFilePath;
+    // Race against a timeout — msedge-tts can hang on bad config
+    const result = await Promise.race([
+      tts.toFile(outDir, text, { rate, pitch }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 15_000)),
+    ]);
+
+    if (result && (result as any).audioFilePath && existsSync((result as any).audioFilePath)) {
+      return (result as any).audioFilePath;
     }
+    if (!result) console.error("[voice:tts] msedge-tts timed out after 15s");
     return null;
   } catch (err) {
     console.error("[voice:tts] msedge-tts failed:", err instanceof Error ? err.message : err);
@@ -178,10 +247,12 @@ async function generateEdgeTts(
   }
 }
 
-/** Speak text using platform native TTS as fallback (no edge-tts). */
+/** Speak text using platform native TTS as fallback (no msedge-tts). */
 function speakFallback(text: string): void {
   const os = platform();
   const wsl = isWSL();
+  // Git Bash: powershell is available but may need full path
+  const gitBash = isGitBash();
   const cfg = configStore.get();
   const ttsConfig = cfg.tts;
   const volume = ttsConfig?.volume ?? 80;
@@ -250,12 +321,16 @@ export async function speak(text: string): Promise<void> {
     const edgePitch = ttsConfig?.edgePitch || "-2Hz";
 
     // Try msedge-tts (pure Node.js) first
+    console.error(`[voice:tts] generating: voice=${voice} rate=${edgeRate} pitch=${edgePitch} tmpdir=${tmpdir()}`);
     const mp3Path = await generateEdgeTts(text, voice, edgeRate, edgePitch);
+    console.error(`[voice:tts] mp3Path=${mp3Path}`);
     if (mp3Path) {
       _tmpFile = mp3Path;
       _activeProcess = playMp3(mp3Path);
+      console.error(`[voice:tts] playMp3 started, process=${_activeProcess?.pid ?? 'null'}`);
       if (_activeProcess) {
-        _activeProcess.on("exit", () => {
+        _activeProcess.on("exit", (code) => {
+          console.error(`[voice:tts] playback exited code=${code}`);
           cleanupTempFiles();
           _activeProcess = null;
         });
