@@ -98,7 +98,7 @@ function fromEnv(): PersistentConfig {
     vocabBiasing: false,
     customVocabulary: [],
     cleanup: { enabled: false },
-    tts: { enabled: true, voice: "en-GB-RyanNeural", edgeRate: "+12%", edgePitch: "+1Hz", fallbackRate: 200, volume: 80 },
+    tts: { enabled: true, voice: "en-GB-RyanNeural", edgeRate: "+5%", edgePitch: "-2Hz", fallbackRate: 200, volume: 80 },
   };
 }
 

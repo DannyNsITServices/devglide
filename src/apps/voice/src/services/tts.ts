@@ -13,7 +13,7 @@
  * binaries aren't typically available in WSL.
  */
 
-import { unlinkSync, readFileSync, existsSync } from "fs";
+import { unlinkSync, readFileSync, existsSync, copyFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { platform } from "os";
@@ -87,18 +87,23 @@ function playMp3(mp3Path: string): ChildProcess | null {
 
   try {
     if (os === "win32" || wsl) {
-      // Windows or WSL: use powershell(.exe) with Windows Media Player COM
       const psExe = wsl ? "powershell.exe" : "powershell";
-      // Convert WSL path to Windows path for powershell.exe
-      const winPath = wsl ? mp3Path.replace(/^\/mnt\/([a-z])\//, "$1:\\\\").replace(/\//g, "\\\\")
-        : mp3Path;
-      // For WSL tmp paths like /tmp/..., use wslpath or \\\\wsl$\\ UNC
-      const resolvedPath = wsl && mp3Path.startsWith("/tmp")
-        ? (() => { try { return execSync(`wslpath -w "${mp3Path}"`).toString().trim(); } catch { return mp3Path; } })()
-        : winPath;
+      let winPath: string;
+      if (wsl) {
+        // Copy MP3 to Windows temp — UNC \\wsl.localhost paths don't work
+        // reliably with WMPlayer COM object
+        const winTemp = execSync("powershell.exe -NoProfile -Command \"Write-Host $env:TEMP\"")
+          .toString().trim();
+        const winDest = `${winTemp}\\devglide-tts.mp3`;
+        const wslDest = execSync(`wslpath -u "${winTemp}"`).toString().trim() + "/devglide-tts.mp3";
+        copyFileSync(mp3Path, wslDest);
+        winPath = winDest;
+      } else {
+        winPath = mp3Path;
+      }
       const psCmd =
         `$mp = New-Object -ComObject WMPlayer.OCX; ` +
-        `$mp.URL = '${resolvedPath.replace(/'/g, "''")}'; ` +
+        `$mp.URL = '${winPath.replace(/'/g, "''")}'; ` +
         `Start-Sleep -Milliseconds 200; ` +
         `while ($mp.playState -eq 3) { Start-Sleep -Milliseconds 50 }; ` +
         `$mp.close()`;
@@ -240,8 +245,8 @@ export async function speak(text: string): Promise<void> {
     stop();
 
     const voice = ttsConfig?.voice || "en-GB-RyanNeural";
-    const edgeRate = ttsConfig?.edgeRate || "+12%";
-    const edgePitch = ttsConfig?.edgePitch || "+1Hz";
+    const edgeRate = ttsConfig?.edgeRate || "+5%";
+    const edgePitch = ttsConfig?.edgePitch || "-2Hz";
     // edge-tts volume requires +N% or -N% format (relative to default)
     const volNum = ttsConfig?.volume ?? 80;
     const edgeVolume = `${volNum >= 0 ? "+" : ""}${volNum - 100}%`;

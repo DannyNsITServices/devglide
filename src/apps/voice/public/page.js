@@ -215,11 +215,11 @@ const BODY_HTML = `
         <div class="form-row">
           <div class="form-group">
             <label for="tts-edge-rate-input">Edge Rate</label>
-            <input type="text" id="tts-edge-rate-input" placeholder="+12%" spellcheck="false">
+            <input type="text" id="tts-edge-rate-input" placeholder="+5%" spellcheck="false">
           </div>
           <div class="form-group">
             <label for="tts-edge-pitch-input">Edge Pitch</label>
-            <input type="text" id="tts-edge-pitch-input" placeholder="+1Hz" spellcheck="false">
+            <input type="text" id="tts-edge-pitch-input" placeholder="-2Hz" spellcheck="false">
           </div>
         </div>
         <div class="form-row">
