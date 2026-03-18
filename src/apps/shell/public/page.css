@@ -214,6 +214,15 @@
   height: 100%;
 }
 
+/* Hide the xterm helper textarea — it captures keyboard input but must
+   never be visible.  Without this it can render as a duplicate cursor bar
+   (gray + green) at the bottom of the terminal pane.
+   Keep it focusable (no pointer-events:none) so keyboard input still works. */
+.page-shell .xterm-helper-textarea {
+  opacity: 0 !important;
+  overflow: hidden !important;
+}
+
 .page-shell .xterm-viewport {
   scrollbar-width: none;
 }
