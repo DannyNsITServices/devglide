@@ -228,7 +228,7 @@ app.use('/api/test', testRouter);
 app.use('/api/shell', rateLimit(100, 60_000), shellRouter);
 app.use('/api/coder', coderRouter);
 app.use('/api/workflow', workflowRouter);
-app.use('/api/voice', rateLimit(120, 60_000), voiceRouter);
+app.use('/api/voice', voiceRouter);
 app.use('/api/vocabulary', vocabularyRouter);
 app.use('/api/prompts', promptsRouter);
 
