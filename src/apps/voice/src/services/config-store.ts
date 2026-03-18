@@ -107,6 +107,25 @@ class ConfigStore {
   private config: PersistentConfig;
 
   private constructor() {
+    this.config = fromEnv(); // initial default, immediately overwritten by reload()
+    this.reload();
+  }
+
+  static getInstance(): ConfigStore {
+    if (!ConfigStore._instance) {
+      ConfigStore._instance = new ConfigStore();
+    }
+    return ConfigStore._instance;
+  }
+
+  get(): PersistentConfig {
+    // Re-read file on every get() so external edits (e.g. direct file changes)
+    // are picked up without restarting the process.
+    this.reload();
+    return structuredClone(this.config);
+  }
+
+  private reload(): void {
     const env = fromEnv();
     const file = loadFile();
     this.config = {
@@ -124,7 +143,6 @@ class ConfigStore {
         ...(file.providers?.[key] ?? {}),
       };
     }
-    // Merge any file-only providers not in env defaults (e.g. local)
     if (file.providers) {
       for (const key of Object.keys(file.providers)) {
         if (!this.config.providers[key]) {
@@ -132,17 +150,6 @@ class ConfigStore {
         }
       }
     }
-  }
-
-  static getInstance(): ConfigStore {
-    if (!ConfigStore._instance) {
-      ConfigStore._instance = new ConfigStore();
-    }
-    return ConfigStore._instance;
-  }
-
-  get(): PersistentConfig {
-    return structuredClone(this.config);
   }
 
   update(patch: {
@@ -181,30 +188,7 @@ class ConfigStore {
   /** Switch to a new data directory (e.g. per-project) and reload config. */
   switchDataDir(dir: string): void {
     _dataDir = dir;
-    const env = fromEnv();
-    const file = loadFile();
-    this.config = {
-      provider: file.provider ?? env.provider,
-      language: file.language ?? env.language,
-      providers: {},
-      vocabBiasing: file.vocabBiasing ?? env.vocabBiasing,
-      customVocabulary: file.customVocabulary ?? env.customVocabulary,
-      cleanup: file.cleanup ?? env.cleanup,
-      tts: file.tts ?? env.tts,
-    };
-    for (const key of Object.keys(env.providers)) {
-      this.config.providers[key] = {
-        ...env.providers[key],
-        ...(file.providers?.[key] ?? {}),
-      };
-    }
-    if (file.providers) {
-      for (const key of Object.keys(file.providers)) {
-        if (!this.config.providers[key]) {
-          this.config.providers[key] = file.providers[key];
-        }
-      }
-    }
+    this.reload();
   }
 }
 
