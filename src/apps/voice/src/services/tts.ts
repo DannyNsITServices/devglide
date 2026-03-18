@@ -42,20 +42,31 @@ function cleanupTempFiles(): void {
 let _MsEdgeTTS: any = null;
 let _OUTPUT_FORMAT: any = null;
 
-// Process-level safety net — catch unhandled rejections from msedge-tts WebSocket
-// errors that escape the promise chain. Log instead of crashing.
+// Process-level safety net — catch both unhandled rejections AND uncaught exceptions
+// from msedge-tts. The ws (WebSocket) package emits EventEmitter 'error' events that
+// become uncaughtException (not unhandledRejection), which crashes Node.js.
 let _safetyInstalled = false;
 function installSafetyNet(): void {
   if (_safetyInstalled) return;
   _safetyInstalled = true;
-  process.on("unhandledRejection", (reason) => {
+  const handler = (reason: unknown) => {
     const msg = reason instanceof Error ? reason.message : String(reason);
-    if (/msedge|tts|websocket|speech\.platform|Unexpected server/i.test(msg)) {
-      console.error("[voice:tts] caught unhandled rejection:", msg);
-      // Don't re-throw — absorb it
+    if (/msedge|tts|websocket|speech\.platform|Unexpected server|ws|ECONNRESET|ENOTFOUND|audio/i.test(msg)) {
+      console.error("[voice:tts] caught process error:", msg);
+      // Absorb — don't crash
       return;
     }
-    // Not TTS-related — let other handlers deal with it
+  };
+  process.on("unhandledRejection", handler);
+  process.on("uncaughtException", (err) => {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/msedge|tts|websocket|speech\.platform|Unexpected server|ws|ECONNRESET|ENOTFOUND|audio/i.test(msg)) {
+      console.error("[voice:tts] caught uncaught exception:", msg);
+      // Absorb — don't crash
+      return;
+    }
+    // Not TTS-related — re-throw to let Node's default handler crash
+    throw err;
   });
 }
 
