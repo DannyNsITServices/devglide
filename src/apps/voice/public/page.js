@@ -99,7 +99,8 @@ const BODY_HTML = `
         </div>
 
         <div id="local-info" class="form-hint hidden">
-          Runs whisper.cpp locally — no server needed. Model downloads automatically on first use.
+          Runs whisper.cpp locally — no server needed. Requires FFmpeg and compiled whisper.cpp binary.
+          To compile: <code>cd node_modules/nodejs-whisper/cpp/whisper.cpp && cmake -B build && cmake --build build --config Release</code>
           <div id="ffmpeg-status" class="ffmpeg-status"></div>
         </div>
 

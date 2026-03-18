@@ -16,12 +16,20 @@ const FFMPEG_INSTALL_HINT =
   "  Linux:    sudo apt install ffmpeg  (or your distro's package manager)";
 
 const BUILD_TOOLS_HINT =
-  "The local whisper provider uses nodejs-whisper which compiles whisper.cpp from source.\n" +
-  "This requires C++ build tools:\n" +
-  "  Windows:  Install Visual Studio Build Tools (winget install Microsoft.VisualStudio.2022.BuildTools)\n" +
-  "            or install CMake + MinGW (winget install Kitware.CMake && winget install MSYS2.MSYS2)\n" +
+  "The local whisper provider uses nodejs-whisper which needs whisper.cpp compiled.\n" +
+  "\n" +
+  "Step 1 — Install build tools (if not already installed):\n" +
+  "  Windows:  winget install Kitware.CMake\n" +
+  "            winget install Microsoft.VisualStudio.2022.BuildTools --override \"--add Microsoft.VisualStudio.Workload.VCTools\"\n" +
   "  macOS:    xcode-select --install\n" +
-  "  Linux:    sudo apt install build-essential cmake  (or your distro's equivalent)";
+  "  Linux:    sudo apt install build-essential cmake\n" +
+  "\n" +
+  "Step 2 — Compile whisper.cpp (from project root):\n" +
+  "  cd node_modules/nodejs-whisper/cpp/whisper.cpp\n" +
+  "  cmake -B build\n" +
+  "  cmake --build build --config Release\n" +
+  "\n" +
+  "Then restart the server.";
 
 /** Check whether ffmpeg is available on PATH. */
 export function checkFfmpeg(): { ok: boolean; version?: string; error?: string } {
