@@ -42,6 +42,23 @@ function cleanupTempFiles(): void {
 let _MsEdgeTTS: any = null;
 let _OUTPUT_FORMAT: any = null;
 
+// Process-level safety net — catch unhandled rejections from msedge-tts WebSocket
+// errors that escape the promise chain. Log instead of crashing.
+let _safetyInstalled = false;
+function installSafetyNet(): void {
+  if (_safetyInstalled) return;
+  _safetyInstalled = true;
+  process.on("unhandledRejection", (reason) => {
+    const msg = reason instanceof Error ? reason.message : String(reason);
+    if (/msedge|tts|websocket|speech\.platform|Unexpected server/i.test(msg)) {
+      console.error("[voice:tts] caught unhandled rejection:", msg);
+      // Don't re-throw — absorb it
+      return;
+    }
+    // Not TTS-related — let other handlers deal with it
+  });
+}
+
 /** Detect WSL environment. */
 function isWSL(): boolean {
   try {
@@ -206,6 +223,7 @@ async function generateEdgeTts(
   rate: string,
   pitch: string,
 ): Promise<string | null> {
+  installSafetyNet();
   try {
     if (!_MsEdgeTTS) {
       const mod = await import("msedge-tts");
@@ -218,11 +236,17 @@ async function generateEdgeTts(
 
     // Use Windows-native temp dir on Git Bash/WSL so PowerShell can access the file
     const outDir = (platform() === "win32" || isWSL()) ? getWindowsTempDir() : tmpdir();
-    const { audioFilePath } = await tts.toFile(outDir, text, { rate, pitch });
 
-    if (audioFilePath && existsSync(audioFilePath)) {
-      return audioFilePath;
+    // Race against a timeout — msedge-tts can hang on bad config
+    const result = await Promise.race([
+      tts.toFile(outDir, text, { rate, pitch }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 15_000)),
+    ]);
+
+    if (result && (result as any).audioFilePath && existsSync((result as any).audioFilePath)) {
+      return (result as any).audioFilePath;
     }
+    if (!result) console.error("[voice:tts] msedge-tts timed out after 15s");
     return null;
   } catch (err) {
     console.error("[voice:tts] msedge-tts failed:", err instanceof Error ? err.message : err);
