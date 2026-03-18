@@ -233,6 +233,13 @@
   resize: none !important;
 }
 
+.page-shell .xterm-helper-textarea:focus,
+.page-shell .xterm-helper-textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  caret-color: transparent !important;
+}
+
 .page-shell .xterm-viewport {
   scrollbar-width: none;
 }
