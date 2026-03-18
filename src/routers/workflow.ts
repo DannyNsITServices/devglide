@@ -131,6 +131,40 @@ router.delete('/workflows/:id', async (req: Request, res: Response) => {
   }
 });
 
+// POST /match — match a user prompt against all enabled workflows
+router.post('/match', async (req: Request, res: Response) => {
+  try {
+    const { prompt, projectId } = req.body ?? {};
+    if (!prompt || typeof prompt !== 'string') {
+      res.status(400).json({ error: 'prompt is required' });
+      return;
+    }
+    const scopeId = (projectId as string | undefined) ?? getActiveProject()?.id;
+    const result = await builderStore.match(prompt, scopeId);
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+  }
+});
+
+// POST /workflows/:id/toggle — toggle a workflow enabled/disabled
+router.post('/workflows/:id/toggle', async (req: Request, res: Response) => {
+  try {
+    const workflow = await builderStore.get(req.params.id);
+    if (!workflow) { res.status(404).json({ error: 'Workflow not found' }); return; }
+
+    const newEnabled = workflow.enabled === false ? true : false;
+    const updated = await builderStore.save({
+      ...workflow,
+      enabled: newEnabled,
+    });
+
+    res.json(updated);
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+  }
+});
+
 // GET /instructions — get compiled workflow instructions as markdown
 router.get('/instructions', async (req: Request, res: Response) => {
   try {
