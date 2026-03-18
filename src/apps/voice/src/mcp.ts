@@ -37,6 +37,13 @@ export function createVoiceMcpServer() {
         "- `voice_transcribe(audioBase64, ...)` — `audioBase64` is required. Optional: `filename`, `language`, `prompt`, `mode`.",
         "- `voice_speak(text)` — `text` is the string to speak aloud.",
         "- `voice_history(limit?, offset?, search?)` — returns newest first. Use `search` to filter by text content.",
+        "",
+        "### REST API (base: /api/voice)",
+        "**Transcription:** `POST /transcribe` — body: `{ audioBase64, filename, language?, mode? }`",
+        "**TTS:** `POST /config/tts/speak` — body: `{ text }` | `POST /config/tts/stop` | `GET /config/tts/voices`",
+        "**History:** `GET /history?limit=&offset=` | `GET /history/search?q=` | `GET /history/analytics` | `DELETE /history`",
+        "**Config:** `GET /config` | `GET /config/providers` | `PUT /config` | `POST /config/test` | `GET /config/check-ffmpeg`",
+        "**Stats:** `GET /config/stats` | `DELETE /config/stats`",
       ],
     }
   );

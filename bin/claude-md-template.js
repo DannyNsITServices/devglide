@@ -1,7 +1,7 @@
 // Managed CLAUDE.md section for DevGlide onboarding instructions.
 // Installed by `devglide setup`, removed by `devglide teardown`.
 
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 const BEGIN = `<!-- DEVGLIDE:BEGIN v${VERSION} -->`;
 const END = "<!-- DEVGLIDE:END -->";
 
@@ -75,6 +75,11 @@ Describe what to test in natural language and scenarios are generated automatica
 - \`voice_history\` — list/search transcription history with text analysis (WPM, filler words)
 - \`voice_analytics\` — get aggregated transcription analytics
 - \`voice_status\` — check transcription service status and statistics
+- **REST API** (base: \`/api/voice\`):
+  - Transcribe: \`POST /transcribe\` body \`{ audioBase64, filename, language?, mode? }\`
+  - TTS: \`POST /config/tts/speak\` body \`{ text }\` · \`POST /config/tts/stop\` · \`GET /config/tts/voices\`
+  - History: \`GET /history\` · \`GET /history/search?q=\` · \`GET /history/analytics\` · \`DELETE /history\`
+  - Config: \`GET /config\` · \`GET /config/providers\` · \`PUT /config\` · \`POST /config/test\`
 
 ### devglide-log — Structured logging
 - \`log_write\` — write a structured log entry
