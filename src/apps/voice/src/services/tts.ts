@@ -22,7 +22,6 @@ import { configStore } from "./config-store.js";
 
 let _activeProcess: ChildProcess | null = null;
 let _tmpFile: string | null = null;
-let _wslCopyFile: string | null = null;
 
 /** Remove a file silently. */
 function safeUnlink(path: string | null): void {
@@ -34,8 +33,6 @@ function safeUnlink(path: string | null): void {
 function cleanupTempFiles(): void {
   safeUnlink(_tmpFile);
   _tmpFile = null;
-  safeUnlink(_wslCopyFile);
-  _wslCopyFile = null;
 }
 
 // Lazy-loaded msedge-tts
@@ -99,34 +96,6 @@ function commandExists(cmd: string): boolean {
 }
 
 /**
- * Get a reliable temp directory path that works for PowerShell playback.
- * On any Windows variant (cmd, Git Bash, MSYS2): use process.env.TEMP.
- * On WSL: query Windows %TEMP% via powershell.exe.
- * Validates the result exists before returning.
- */
-function getWindowsTempDir(): string {
-  const os = platform();
-
-  // Windows (cmd, Git Bash, MSYS2): prefer %TEMP% env var
-  if (os === "win32") {
-    const winTemp = process.env.TEMP || process.env.TMP || process.env.USERPROFILE;
-    if (winTemp && existsSync(winTemp)) return winTemp;
-  }
-
-  // WSL: query Windows temp from powershell
-  if (isWSL()) {
-    try {
-      const winTemp = execSync("powershell.exe -NoProfile -Command \"Write-Host $env:TEMP\"")
-        .toString().trim();
-      if (winTemp && /^[A-Z]:\\/i.test(winTemp)) return winTemp;
-    } catch { /* fall through */ }
-  }
-
-  // Fallback: os.tmpdir() — always valid on the current platform
-  return tmpdir();
-}
-
-/**
  * Convert a path to Windows format for PowerShell.
  * Handles: Git Bash POSIX paths (cygpath), WSL paths (wslpath), native Windows paths (passthrough).
  */
@@ -177,29 +146,35 @@ export function stop(): void {
 
 /**
  * Play an MP3 file in the background via the appropriate platform player.
- * On WSL, copies to Windows %TEMP% and plays via powershell.exe.
+ *
+ * WSL: WMPlayer can't read \\wsl.localhost UNC paths reliably, so we use
+ * powershell.exe to copy the file to Windows %TEMP% first, then play it.
+ * This is done entirely in one PowerShell command to avoid path gymnastics.
  */
 function playMp3(mp3Path: string): ChildProcess | null {
   const os = platform();
   const wsl = isWSL();
 
   try {
-    if (os === "win32" || wsl) {
-      const psExe = wsl ? "powershell.exe" : "powershell";
-      let winPath: string;
-      if (wsl) {
-        // WSL: copy to Windows temp — UNC \\wsl.localhost paths don't work
-        // reliably with WMPlayer COM
-        const winTempDir = getWindowsTempDir();
-        const wslTempDir = execSync(`wslpath -u "${winTempDir}"`).toString().trim();
-        const copyDest = join(wslTempDir, "devglide-tts.mp3");
-        copyFileSync(mp3Path, copyDest);
-        _wslCopyFile = copyDest;
-        winPath = `${winTempDir}\\devglide-tts.mp3`;
-      } else {
-        // Native Windows or Git Bash: convert path for PowerShell
-        winPath = toWindowsPath(mp3Path);
-      }
+    if (wsl) {
+      // WSL → powershell.exe: copy to %TEMP% and play, all in one command.
+      // wslpath -w converts Linux path to \\wsl.localhost\... UNC path.
+      const wslWinPath = execSync(`wslpath -w "${mp3Path}"`).toString().trim();
+      const psCmd =
+        `$dest = Join-Path $env:TEMP 'devglide-tts.mp3'; ` +
+        `Copy-Item '${wslWinPath.replace(/'/g, "''")}' $dest -Force; ` +
+        `$mp = New-Object -ComObject WMPlayer.OCX; ` +
+        `$mp.URL = $dest; ` +
+        `Start-Sleep -Milliseconds 200; ` +
+        `while ($mp.playState -eq 3) { Start-Sleep -Milliseconds 50 }; ` +
+        `$mp.close(); ` +
+        `Remove-Item $dest -ErrorAction SilentlyContinue`;
+      return safeProc(
+        spawn("powershell.exe", ["-NoProfile", "-Command", psCmd], { stdio: "ignore" })
+      );
+    } else if (os === "win32") {
+      // Native Windows (cmd or Git Bash): convert path if needed, play directly
+      const winPath = toWindowsPath(mp3Path);
       const psCmd =
         `$mp = New-Object -ComObject WMPlayer.OCX; ` +
         `$mp.URL = '${winPath.replace(/'/g, "''")}'; ` +
@@ -207,9 +182,9 @@ function playMp3(mp3Path: string): ChildProcess | null {
         `while ($mp.playState -eq 3) { Start-Sleep -Milliseconds 50 }; ` +
         `$mp.close()`;
       return safeProc(
-        spawn(psExe, ["-NoProfile", "-Command", psCmd], {
+        spawn("powershell", ["-NoProfile", "-Command", psCmd], {
           stdio: "ignore",
-          ...(os === "win32" ? { windowsHide: true } : {}),
+          windowsHide: true,
         })
       );
     } else if (os === "darwin") {
@@ -252,8 +227,8 @@ async function generateEdgeTts(
     const tts = new _MsEdgeTTS();
     await tts.setMetadata(voice, _OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
 
-    // Use Windows-native temp dir on Git Bash/WSL so PowerShell can access the file
-    const outDir = (platform() === "win32" || isWSL()) ? getWindowsTempDir() : tmpdir();
+    // Always write to native temp — playMp3() handles Windows path conversion
+    const outDir = tmpdir();
 
     // Race against a timeout — msedge-tts can hang on bad config
     const result = await Promise.race([
