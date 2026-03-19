@@ -353,11 +353,12 @@ a:focus-visible,
   padding: var(--df-space-2) var(--df-space-3);
   background: var(--df-color-bg-raised);
   border: 1px solid var(--df-color-border-default);
+  border-radius: var(--df-radius-md);
   color: var(--df-color-text-primary);
   font-family: var(--df-font-mono);
   font-size: var(--df-font-size-sm);
   cursor: pointer;
-  transition: border-color var(--df-duration-fast);
+  transition: border-color var(--df-duration-fast), box-shadow var(--df-duration-fast);
 }
 
 .project-selector:hover {
@@ -390,13 +391,17 @@ a:focus-visible,
   position: absolute;
   left: var(--df-space-3);
   right: var(--df-space-3);
-  top: 100%;
-  background: var(--df-color-bg-overlay);
+  top: calc(100% + 4px);
+  background: color-mix(in srgb, var(--df-color-bg-overlay) 90%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--df-color-border-default);
-  box-shadow: var(--df-shadow-lg);
+  border-radius: var(--df-radius-lg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   z-index: 100;
   max-height: 240px;
   overflow-y: auto;
+  overflow: hidden;
 }
 
 .project-dropdown.open {
@@ -526,6 +531,8 @@ a:focus-visible,
   position: fixed;
   inset: 0;
   background: color-mix(in srgb, black 70%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -533,12 +540,15 @@ a:focus-visible,
 }
 
 .project-modal {
-  background: var(--df-color-bg-surface);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 90%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--df-color-border-default);
+  border-radius: var(--df-radius-xl);
   width: 400px;
   max-width: 90vw;
   padding: var(--df-space-5);
-  box-shadow: var(--df-shadow-lg);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
 }
 
 .project-modal-title {
@@ -568,15 +578,17 @@ a:focus-visible,
   padding: var(--df-space-2) var(--df-space-3);
   background: var(--df-color-bg-base);
   border: 1px solid var(--df-color-border-default);
+  border-radius: var(--df-radius-md);
   color: var(--df-color-text-primary);
   font-family: var(--df-font-mono);
   font-size: var(--df-font-size-sm);
-  transition: border-color var(--df-duration-fast);
+  transition: border-color var(--df-duration-fast), box-shadow var(--df-duration-fast);
 }
 
 .project-modal-input:focus {
   outline: none;
   border-color: var(--df-color-accent-default);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--df-color-accent-default) 15%, transparent);
 }
 
 .project-modal-input.error {
@@ -601,37 +613,43 @@ a:focus-visible,
   padding: var(--df-space-2) var(--df-space-4);
   background: none;
   border: 1px solid var(--df-color-border-default);
+  border-radius: var(--df-radius-lg);
   color: var(--df-color-text-primary);
   font-family: var(--df-font-mono);
   font-size: var(--df-font-size-xs);
   letter-spacing: var(--df-letter-spacing-wide);
   text-transform: uppercase;
   cursor: pointer;
-  transition: border-color var(--df-duration-fast), color var(--df-duration-fast);
+  transition: all var(--df-duration-fast);
 }
 
 .project-modal-btn:hover {
   border-color: var(--df-color-accent-default);
   color: var(--df-color-accent-default);
+  transform: translateY(-1px);
 }
 
+.project-modal-btn:active { transform: translateY(0); }
+
 .project-modal-btn.primary {
-  background: color-mix(in srgb, var(--df-color-accent-default) 15%, transparent);
-  border-color: var(--df-color-accent-default);
+  background: color-mix(in srgb, var(--df-color-accent-default) 14%, transparent);
+  border-color: color-mix(in srgb, var(--df-color-accent-default) 35%, transparent);
   color: var(--df-color-accent-default);
 }
 
 .project-modal-btn.primary:hover {
-  background: color-mix(in srgb, var(--df-color-accent-default) 25%, transparent);
+  background: color-mix(in srgb, var(--df-color-accent-default) 22%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--df-color-accent-default) 25%, transparent);
 }
 
 .project-modal-btn.danger {
-  border-color: var(--df-color-state-error);
+  border-color: color-mix(in srgb, var(--df-color-state-error) 35%, transparent);
   color: var(--df-color-state-error);
 }
 
 .project-modal-btn.danger:hover {
-  background: color-mix(in srgb, var(--df-color-state-error) 15%, transparent);
+  background: color-mix(in srgb, var(--df-color-state-error) 14%, transparent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--df-color-state-error) 25%, transparent);
 }
 
 /* ── Folder picker ──────────────────────────────────────────────────────── */
@@ -654,7 +672,9 @@ a:focus-visible,
 .folder-picker {
   margin-top: var(--df-space-2);
   border: 1px solid var(--df-color-border-default);
+  border-radius: var(--df-radius-md);
   background: var(--df-color-bg-base);
+  overflow: hidden;
 }
 
 .folder-picker-header {
@@ -784,8 +804,11 @@ a:focus-visible,
   top: calc(100% + 6px);
   right: 0;
   width: calc(var(--sidebar-width) - var(--df-space-3) * 2);
-  background: var(--df-color-bg-surface);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 90%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid color-mix(in srgb, var(--df-color-state-error) 40%, transparent);
+  border-radius: var(--df-radius-md);
   color: var(--df-color-state-error);
   font-family: var(--df-font-mono);
   font-size: var(--df-font-size-xs);
@@ -795,7 +818,7 @@ a:focus-visible,
   z-index: 500;
   opacity: 0;
   transform: translateY(-4px);
-  transition: opacity var(--df-duration-base), transform var(--df-duration-base);
+  transition: opacity var(--df-duration-base), transform var(--df-duration-base) var(--df-easing-spring);
 }
 
 .voice-error-popup.visible {
@@ -847,7 +870,8 @@ a:focus-visible,
   position: fixed;
   inset: 0;
   background: color-mix(in srgb, var(--df-color-bg-base) 70%, transparent);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -858,29 +882,17 @@ a:focus-visible,
 .modal-overlay.hidden { display: none; }
 
 .modal {
-  background: var(--df-color-bg-surface);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 85%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--df-color-border-default);
-  clip-path: var(--df-clip-md);
+  border-radius: var(--df-radius-xl);
   padding: var(--df-space-6);
   max-width: 480px;
   width: 100%;
   position: relative;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px color-mix(in srgb, var(--df-color-border-strong) 30%, transparent);
 }
-
-.modal::before,
-.modal::after {
-  content: '';
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border-color: var(--df-color-accent-default);
-  border-style: solid;
-  pointer-events: none;
-  opacity: 0.4;
-}
-
-.modal::before { top: 0; left: 0; border-width: 2px 0 0 2px; }
-.modal::after { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
 
 .modal-header {}
 
@@ -919,9 +931,9 @@ a:focus-visible,
   text-transform: uppercase;
   padding: var(--df-space-2) var(--df-space-4);
   border: 1px solid transparent;
-  clip-path: var(--df-clip-sm);
+  border-radius: var(--df-radius-lg);
   cursor: pointer;
-  transition: background var(--df-duration-fast), box-shadow var(--df-duration-fast), color var(--df-duration-fast);
+  transition: all var(--df-duration-fast) var(--df-easing-default);
   white-space: nowrap;
 }
 
@@ -931,16 +943,19 @@ a:focus-visible,
 }
 
 .btn-primary {
-  background: color-mix(in srgb, var(--df-color-accent-default) 12%, var(--df-color-bg-raised));
+  background: color-mix(in srgb, var(--df-color-accent-default) 14%, var(--df-color-bg-raised));
   color: var(--df-color-accent-default);
-  border-color: color-mix(in srgb, var(--df-color-accent-default) 40%, transparent);
+  border-color: color-mix(in srgb, var(--df-color-accent-default) 35%, transparent);
 }
 
 .btn-primary:not(:disabled):hover {
-  background: color-mix(in srgb, var(--df-color-accent-default) 20%, var(--df-color-bg-raised));
+  background: color-mix(in srgb, var(--df-color-accent-default) 22%, var(--df-color-bg-raised));
   border-color: var(--df-color-accent-default);
-  box-shadow: var(--df-glow-accent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--df-color-accent-default) 25%, transparent);
+  transform: translateY(-1px);
 }
+
+.btn-primary:not(:disabled):active { transform: translateY(0); }
 
 .btn-secondary {
   background: var(--df-color-bg-raised);
@@ -951,18 +966,24 @@ a:focus-visible,
 .btn-secondary:not(:disabled):hover {
   border-color: var(--df-color-accent-default);
   color: var(--df-color-accent-default);
+  transform: translateY(-1px);
 }
 
+.btn-secondary:not(:disabled):active { transform: translateY(0); }
+
 .btn-danger {
-  background: color-mix(in srgb, var(--df-color-state-error) 15%, var(--df-color-bg-raised));
+  background: color-mix(in srgb, var(--df-color-state-error) 14%, var(--df-color-bg-raised));
   color: var(--df-color-state-error);
-  border-color: color-mix(in srgb, var(--df-color-state-error) 40%, transparent);
+  border-color: color-mix(in srgb, var(--df-color-state-error) 35%, transparent);
 }
 
 .btn-danger:not(:disabled):hover {
-  background: color-mix(in srgb, var(--df-color-state-error) 25%, var(--df-color-bg-raised));
-  box-shadow: var(--df-glow-error);
+  background: color-mix(in srgb, var(--df-color-state-error) 22%, var(--df-color-bg-raised));
+  box-shadow: 0 0 20px color-mix(in srgb, var(--df-color-state-error) 25%, transparent);
+  transform: translateY(-1px);
 }
+
+.btn-danger:not(:disabled):active { transform: translateY(0); }
 
 /* ── Button variants ──────────────────────────────────────────────────────── */
 
@@ -979,12 +1000,13 @@ a:focus-visible,
 
 .btn-ghost:not(:disabled):hover {
   color: var(--df-color-accent-default);
-  border-color: var(--df-color-accent-default);
+  background: color-mix(in srgb, var(--df-color-accent-default) 8%, transparent);
 }
 
 .btn-icon {
   background: var(--df-color-bg-raised);
   border: 1px solid var(--df-color-border-default);
+  border-radius: var(--df-radius-md);
   color: var(--df-color-text-secondary);
   padding: var(--df-space-1);
   display: inline-flex;
@@ -994,18 +1016,25 @@ a:focus-visible,
   min-height: 28px;
 }
 
-.btn-icon:hover { color: var(--df-color-accent-default); }
+.btn-icon:hover {
+  color: var(--df-color-accent-default);
+  border-color: color-mix(in srgb, var(--df-color-accent-default) 40%, transparent);
+}
 
 .btn-link {
   background: none;
   border: none;
   color: var(--df-color-accent-default);
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--df-color-accent-default) 40%, transparent);
   padding: 0;
 }
 
-.btn-link:hover { color: var(--df-color-accent-bright); }
+.btn-link:hover {
+  color: var(--df-color-accent-bright);
+  text-decoration-color: var(--df-color-accent-bright);
+}
 
 /* ── Forms ────────────────────────────────────────────────────────────────── */
 
@@ -1038,13 +1067,13 @@ a:focus-visible,
   width: 100%;
   background: var(--df-color-bg-raised);
   border: 1px solid var(--df-color-border-default);
-  border-radius: 0;
+  border-radius: var(--df-radius-md);
   color: var(--df-color-text-primary);
   font-family: var(--df-font-mono);
   font-size: var(--df-font-size-sm);
   padding: var(--df-space-2) var(--df-space-3);
   outline: none;
-  transition: border-color var(--df-duration-fast);
+  transition: border-color var(--df-duration-fast), box-shadow var(--df-duration-fast);
 }
 
 .form-group textarea {
@@ -1066,7 +1095,7 @@ a:focus-visible,
 .form-group textarea:focus-visible,
 .form-group select:focus-visible {
   border-color: var(--df-color-accent-default);
-  box-shadow: inset 0 0 0 1px var(--df-color-accent-dim);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--df-color-accent-default) 15%, transparent);
 }
 
 .form-group input::placeholder,
@@ -1122,8 +1151,7 @@ a:focus-visible,
   padding: var(--df-space-3) var(--df-space-6);
   border-top: 1px solid var(--df-color-border-default);
   border-bottom: 1px solid var(--df-color-border-default);
-  background: color-mix(in srgb, var(--df-color-bg-base) 40%, var(--df-color-bg-surface));
-  box-shadow: inset 0 2px 4px color-mix(in srgb, var(--df-color-bg-base) 50%, transparent);
+  background: color-mix(in srgb, var(--df-color-bg-base) 40%, transparent);
   scrollbar-width: thin;
   scrollbar-color: var(--df-color-border-default) transparent;
 }
@@ -1148,10 +1176,11 @@ a:focus-visible,
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
   font-family: var(--df-font-mono);
   font-size: 10px;
+  font-weight: 500;
   letter-spacing: var(--df-letter-spacing-wide);
   text-transform: uppercase;
   white-space: nowrap;
@@ -1189,16 +1218,19 @@ a:focus-visible,
 
 .toast {
   padding: 10px 20px;
-  background: var(--df-color-bg-overlay);
+  background: color-mix(in srgb, var(--df-color-bg-overlay) 85%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   color: var(--df-color-text-primary);
   border: 1px solid var(--df-color-border-default);
+  border-radius: 999px;
   font-family: var(--df-font-mono);
   font-size: var(--df-font-size-sm);
   letter-spacing: var(--df-letter-spacing-wide);
   opacity: 0;
   pointer-events: none;
   transform: translateY(12px);
-  transition: opacity var(--df-duration-base), transform var(--df-duration-base);
+  transition: opacity var(--df-duration-base), transform var(--df-duration-base) var(--df-easing-spring);
 }
 
 .toast.visible {
@@ -1208,6 +1240,6 @@ a:focus-visible,
 }
 
 .toast[data-type="error"] {
-  border-color: var(--df-color-state-error);
+  border-color: color-mix(in srgb, var(--df-color-state-error) 50%, transparent);
   color: var(--df-color-state-error);
 }
