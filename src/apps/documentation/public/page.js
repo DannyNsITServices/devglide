@@ -76,7 +76,7 @@ const HOME_HTML = `
     </p>
     <div class="dc-hero-stats">
       <div class="dc-stat"><span class="dc-stat-value">10</span><span class="dc-stat-label">App Modules</span></div>
-      <div class="dc-stat"><span class="dc-stat-value">51</span><span class="dc-stat-label">MCP Tools</span></div>
+      <div class="dc-stat"><span class="dc-stat-value">56</span><span class="dc-stat-label">MCP Tools</span></div>
       <div class="dc-stat"><span class="dc-stat-value">8</span><span class="dc-stat-label">MCP Servers</span></div>
     </div>
     <img class="dc-hero-screenshot" src="/assets/screenshots/dashboard.png" alt="DevGlide Dashboard" loading="lazy" />
@@ -114,7 +114,7 @@ const HOME_HTML = `
     <h2 class="dc-section-title">10 Integrated Modules</h2>
     <p class="dc-section-desc">Every module exposes MCP tools that Claude Code calls directly. The dashboard shows the same data visually.</p>
     <div class="dc-modules">
-      <div class="dc-module"><div class="dc-module-icon">\u25A6</div><h3>Kanban</h3><p>Features, tasks, bugs, columns, work logs, review feedback. 14 MCP tools.</p></div>
+      <div class="dc-module"><div class="dc-module-icon">\u25A6</div><h3>Kanban</h3><p>Features, tasks, bugs, columns, work logs, review feedback. 15 MCP tools.</p></div>
       <div class="dc-module"><div class="dc-module-icon">\u2713</div><h3>Test</h3><p>AI-driven browser test automation with saved scenarios and regression suites. 7 MCP tools.</p></div>
       <div class="dc-module"><div class="dc-module-icon">\u2942</div><h3>Workflow</h3><p>Visual DAG builder with 12 node types, prompt matching, compiled instructions. 6 tools.</p></div>
       <div class="dc-module"><div class="dc-module-icon">\u276F</div><h3>Shell</h3><p>Terminal multiplexer with named panes, scrollback capture, command execution. 5 tools.</p></div>
@@ -122,7 +122,7 @@ const HOME_HTML = `
       <div class="dc-module"><div class="dc-module-icon">\u2039\u203A</div><h3>Coder</h3><p>In-browser code editor with file tree, tabs, and live preview.</p></div>
       <div class="dc-module"><div class="dc-module-icon">\u270E</div><h3>Prompts</h3><p>Reusable prompt templates with variables, categories, and ratings. 7 MCP tools.</p></div>
       <div class="dc-module"><div class="dc-module-icon">\u2338</div><h3>Vocabulary</h3><p>Domain-specific term dictionary with aliases and context injection. 6 MCP tools.</p></div>
-      <div class="dc-module"><div class="dc-module-icon">\u25C9</div><h3>Voice</h3><p>Speech-to-text transcription for hands-free interaction. 2 MCP tools.</p></div>
+      <div class="dc-module"><div class="dc-module-icon">\u25C9</div><h3>Voice</h3><p>Speech-to-text, text-to-speech, transcription history, and analytics. 6 MCP tools.</p></div>
       <div class="dc-module"><div class="dc-module-icon">\u2328</div><h3>Keymap</h3><p>Configurable keyboard shortcuts for dashboard navigation and actions.</p></div>
     </div>
   </section>
@@ -140,7 +140,7 @@ const HOME_HTML = `
       <div class="dc-step">
         <div class="dc-step-num">2</div>
         <h3>Connect Claude Code</h3>
-        <p>devglide writes a <code>.mcp.json</code> file that Claude Code auto-discovers. All 51 MCP tools become available.</p>
+        <p>devglide writes a <code>.mcp.json</code> file that Claude Code auto-discovers. All 56 MCP tools become available.</p>
       </div>
       <div class="dc-step-arrow">\u2192</div>
       <div class="dc-step">
@@ -167,7 +167,7 @@ const GETTING_STARTED_HTML = `
     <div class="dc-card">
       <h2>Prerequisites</h2>
       <ul class="dc-list">
-        <li><strong>Node.js</strong> 18 or later</li>
+        <li><strong>Node.js</strong> 22 or later</li>
         <li><strong>Claude Code</strong> CLI installed and configured</li>
         <li>A modern browser (Chrome, Firefox, Edge)</li>
       </ul>
@@ -191,7 +191,7 @@ const GETTING_STARTED_HTML = `
 
     <div class="dc-card">
       <h2>Connecting to Claude Code</h2>
-      <p>devglide writes a <code>.mcp.json</code> in your project root. Claude Code auto-discovers it and all 51 MCP tools become available immediately. No configuration needed.</p>
+      <p>Run <code>devglide setup</code> to register all 8 MCP servers with Claude Code and install workflow instructions. Claude Code auto-discovers the <code>.mcp.json</code> and all 56 MCP tools become available immediately.</p>
       <p>Once connected, Claude Code can:</p>
       <ul class="dc-list">
         <li>Manage tasks and features on the <strong>Kanban</strong> board</li>
@@ -245,7 +245,7 @@ const MODULES_HTML = `
     <p class="dc-content-lead">Deep dive into each of devglide's 10 integrated modules.</p>
 
     <div class="dc-card" id="mod-kanban">
-      <div class="dc-card-header"><span class="dc-card-icon">\u25A6</span><h2>Kanban</h2><span class="dc-tool-count">14 tools</span></div>
+      <div class="dc-card-header"><span class="dc-card-icon">\u25A6</span><h2>Kanban</h2><span class="dc-tool-count">15 tools</span></div>
       <p>Full project management with features, columns, tasks, bugs, work logs, and review feedback.</p>
       <img class="dc-module-screenshot" src="/assets/screenshots/kanban.png" alt="Kanban board with task cards across columns" loading="lazy" />
       <h3>Key Concepts</h3>
@@ -257,7 +257,7 @@ const MODULES_HTML = `
         <li><strong>Review Feedback</strong> &mdash; Append-only versioned notes from reviews.</li>
       </ul>
       <h3>MCP Tools</h3>
-      <p class="dc-tools-list">kanban_list_features, kanban_create_feature, kanban_get_feature, kanban_update_feature, kanban_delete_feature, kanban_list_items, kanban_create_item, kanban_get_item, kanban_update_item, kanban_move_item, kanban_delete_item, kanban_append_work_log, kanban_get_work_log, kanban_append_review</p>
+      <p class="dc-tools-list">kanban_list_features, kanban_create_feature, kanban_get_feature, kanban_update_feature, kanban_delete_feature, kanban_list_items, kanban_create_item, kanban_get_item, kanban_update_item, kanban_move_item, kanban_delete_item, kanban_append_work_log, kanban_get_work_log, kanban_append_review, kanban_get_review_history</p>
     </div>
 
     <div class="dc-card" id="mod-test">
@@ -361,11 +361,18 @@ const MODULES_HTML = `
     </div>
 
     <div class="dc-card" id="mod-voice">
-      <div class="dc-card-header"><span class="dc-card-icon">\u25C9</span><h2>Voice</h2><span class="dc-tool-count">2 tools</span></div>
-      <p>Speech-to-text transcription for hands-free interaction and dictation. Click the microphone widget in the sidebar to record. Audio is sent to the configured STT provider for transcription.</p>
+      <div class="dc-card-header"><span class="dc-card-icon">\u25C9</span><h2>Voice</h2><span class="dc-tool-count">6 tools</span></div>
+      <p>Speech-to-text transcription and text-to-speech with pluggable providers, transcription history, and usage analytics. Click the microphone widget in the sidebar to record. Audio is sent to the configured STT provider for transcription. TTS uses neural voices for spoken notifications.</p>
       <img class="dc-module-screenshot" src="/assets/screenshots/voice.png" alt="Voice configuration with transcription statistics" loading="lazy" />
+      <h3>Key Concepts</h3>
+      <ul class="dc-list">
+        <li><strong>STT Providers</strong> &mdash; OpenAI, Groq, local whisper.cpp, faster-whisper, vLLM, LocalAI.</li>
+        <li><strong>TTS</strong> &mdash; Neural text-to-speech (Microsoft Edge Read Aloud API) with configurable voice, rate, and pitch.</li>
+        <li><strong>History</strong> &mdash; Every transcription is recorded with word count, WPM, and filler word analysis.</li>
+        <li><strong>Analytics</strong> &mdash; Aggregated stats including average WPM, top filler words, and session totals.</li>
+      </ul>
       <h3>MCP Tools</h3>
-      <p class="dc-tools-list">voice_transcribe, voice_status</p>
+      <p class="dc-tools-list">voice_transcribe, voice_speak, voice_stop, voice_history, voice_analytics, voice_status</p>
     </div>
 
     <div class="dc-card" id="mod-keymap">
@@ -380,11 +387,11 @@ const MODULES_HTML = `
 const API_HTML = `
   <section class="dc-content">
     <h1 class="dc-content-title">API Reference</h1>
-    <p class="dc-content-lead">Complete catalog of all 51 MCP tools across 8 servers.</p>
+    <p class="dc-content-lead">Complete catalog of all 56 MCP tools across 8 servers.</p>
     <p class="dc-content-note">Each server runs as a stdio process auto-discovered by Claude Code via <code>.mcp.json</code>. Tools are also available as REST endpoints at <code>/api/{module}/</code>.</p>
 
     <div class="dc-card">
-      <div class="dc-card-header"><h2>devglide-kanban</h2><span class="dc-tool-count">14 tools</span></div>
+      <div class="dc-card-header"><h2>devglide-kanban</h2><span class="dc-tool-count">15 tools</span></div>
       <table class="dc-api-table">
         <tbody>
           <tr><td><code>kanban_list_features</code></td><td>List all features in the current project</td></tr>
@@ -401,6 +408,7 @@ const API_HTML = `
           <tr><td><code>kanban_append_work_log</code></td><td>Append a versioned work log entry to a task</td></tr>
           <tr><td><code>kanban_get_work_log</code></td><td>Get the full work log history for a task</td></tr>
           <tr><td><code>kanban_append_review</code></td><td>Append versioned review feedback to a task</td></tr>
+          <tr><td><code>kanban_get_review_history</code></td><td>Get the full review history for a task</td></tr>
         </tbody>
       </table>
     </div>
@@ -489,10 +497,14 @@ const API_HTML = `
     </div>
 
     <div class="dc-card">
-      <div class="dc-card-header"><h2>devglide-voice</h2><span class="dc-tool-count">2 tools</span></div>
+      <div class="dc-card-header"><h2>devglide-voice</h2><span class="dc-tool-count">6 tools</span></div>
       <table class="dc-api-table">
         <tbody>
           <tr><td><code>voice_transcribe</code></td><td>Transcribe base64-encoded audio data</td></tr>
+          <tr><td><code>voice_speak</code></td><td>Speak text aloud using neural text-to-speech</td></tr>
+          <tr><td><code>voice_stop</code></td><td>Stop current speech playback</td></tr>
+          <tr><td><code>voice_history</code></td><td>List or search past transcriptions with text analysis</td></tr>
+          <tr><td><code>voice_analytics</code></td><td>Get aggregated transcription stats (WPM, filler words, totals)</td></tr>
           <tr><td><code>voice_status</code></td><td>Check service status and transcription stats</td></tr>
         </tbody>
       </table>

@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/MCP_Tools-51-22c55e" alt="51 MCP Tools" />
+  <img src="https://img.shields.io/badge/MCP_Tools-56-22c55e" alt="56 MCP Tools" />
   <img src="https://img.shields.io/badge/MCP_Servers-8-3b82f6" alt="8 MCP Servers" />
   <img src="https://img.shields.io/badge/App_Modules-10-f59e0b" alt="10 App Modules" />
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" />
@@ -51,7 +51,7 @@ devglide setup
 devglide dev
 ```
 
-Open **http://localhost:7000** — that's it. Claude Code can now use all 51 MCP tools.
+Open **http://localhost:7000** — that's it. Claude Code can now use all 56 MCP tools.
 
 > **Requirements:** Node.js >= 22, [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
 >
@@ -91,9 +91,9 @@ File tree viewer and editor for navigating your monorepo directly in the dashboa
 
 <img src="assets/screenshots/coder.png" alt="File tree with package.json open in the editor" width="800" />
 
-### Voice — Speech-to-Text
+### Voice — Speech & Transcription
 
-Configurable speech-to-text transcription with provider selection, model configuration, and usage statistics. Drop audio files or record directly for transcription.
+Configurable speech-to-text with pluggable providers, neural text-to-speech, transcription history with text analysis, and usage analytics. Drop audio files or record directly for transcription; use TTS for spoken notifications.
 
 <img src="assets/screenshots/voice.png" alt="Voice configuration with transcription statistics" width="800" />
 
@@ -153,7 +153,7 @@ Product docs and guides served directly in the dashboard with navigation, module
 
 ## MCP Tools
 
-51 tools across 8 servers. Expand each section for the full reference.
+56 tools across 8 servers. Expand each section for the full reference.
 
 <details>
 <summary><strong>Kanban</strong> — 15 tools</summary>
@@ -235,11 +235,15 @@ Product docs and guides served directly in the dashboard with navigation, module
 </details>
 
 <details>
-<summary><strong>Voice</strong> — 2 tools</summary>
+<summary><strong>Voice</strong> — 6 tools</summary>
 
 | Tool | Description |
 |------|-------------|
 | `voice_transcribe` | Transcribe audio to text |
+| `voice_speak` | Speak text aloud using neural TTS |
+| `voice_stop` | Stop current speech playback |
+| `voice_history` | List or search past transcriptions |
+| `voice_analytics` | Get aggregated transcription stats |
 | `voice_status` | Check service status and stats |
 
 </details>
@@ -257,7 +261,7 @@ Product docs and guides served directly in the dashboard with navigation, module
 </details>
 
 <details>
-<summary><strong>Prompts</strong> — 6 tools</summary>
+<summary><strong>Prompts</strong> — 7 tools</summary>
 
 | Tool | Description |
 |------|-------------|
@@ -267,6 +271,7 @@ Product docs and guides served directly in the dashboard with navigation, module
 | `prompts_add` | Save a new prompt template |
 | `prompts_update` | Update prompt content or metadata |
 | `prompts_remove` | Delete a prompt |
+| `prompts_context` | Compile all prompts as markdown context |
 
 </details>
 
