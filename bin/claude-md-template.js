@@ -1,7 +1,7 @@
 // Managed CLAUDE.md section for DevGlide onboarding instructions.
 // Installed by `devglide setup`, removed by `devglide teardown`.
 
-const VERSION = "0.3.1";
+const VERSION = "0.4.0";
 const BEGIN = `<!-- DEVGLIDE:BEGIN v${VERSION} -->`;
 const END = "<!-- DEVGLIDE:END -->";
 
@@ -33,11 +33,15 @@ Follow the rules below so the tools work together correctly.
 
 ### devglide-kanban — Task boards
 Manage features (product initiatives) and their kanban items (tasks/bugs).
-- \`kanban_list_features\`, \`kanban_create_feature\` — manage feature boards
+Columns: Backlog → Todo → In Progress → In Review → Testing → Done.
+Item types: TASK, BUG. Priorities: LOW, MEDIUM, HIGH, URGENT.
+- \`kanban_list_features\`, \`kanban_create_feature\`, \`kanban_get_feature\` — manage feature boards
+- \`kanban_update_feature\`, \`kanban_delete_feature\` — update or remove features
 - \`kanban_list_items\`, \`kanban_create_item\`, \`kanban_get_item\` — manage tasks/bugs
+- \`kanban_update_item\`, \`kanban_delete_item\` — update or remove items
 - \`kanban_move_item\` — change task status (column)
-- \`kanban_append_work_log\` — record what was done on a task
-- \`kanban_append_review\` — add review feedback to a task
+- \`kanban_append_work_log\`, \`kanban_get_work_log\` — record and read work log entries
+- \`kanban_append_review\`, \`kanban_get_review_history\` — add and read review feedback
 
 ### devglide-workflow — Reusable workflow templates
 - \`workflow_match\` — match a user prompt to an existing workflow (call this first!)
@@ -54,9 +58,10 @@ Run shell commands in managed terminal panes. Useful for builds, tests, and serv
 
 ### devglide-test — AI-driven browser test automation
 Describe what to test in natural language and scenarios are generated automatically.
+- \`test_commands\` — list available browser automation commands
 - \`test_list_saved\`, \`test_run_saved\` — list and run saved test scenarios
 - \`test_run_scenario\` — run an ad-hoc test scenario
-- \`test_save_scenario\` — save a reusable test scenario
+- \`test_save_scenario\`, \`test_delete_saved\` — save or delete a test scenario
 - \`test_get_result\` — check test results
 
 ### devglide-vocabulary — Domain term dictionary
@@ -65,21 +70,30 @@ Describe what to test in natural language and scenarios are generated automatica
 - \`vocabulary_add\`, \`vocabulary_update\`, \`vocabulary_remove\` — manage terms
 
 ### devglide-prompts — Prompt template library
-- \`prompts_list\`, \`prompts_render\` — reuse existing prompt templates
+- \`prompts_list\`, \`prompts_get\`, \`prompts_render\` — browse, inspect, and render prompt templates
 - \`prompts_add\`, \`prompts_update\`, \`prompts_remove\` — manage templates
+- \`prompts_context\` — get all prompts as compiled markdown for LLM context injection
 
 ### devglide-voice — Speech-to-text and text-to-speech
 - \`voice_transcribe\` — transcribe audio (supports vocab biasing via \`prompt\`, \`cleanup\` mode for AI post-processing)
 - \`voice_speak\` — speak text aloud (neural TTS, fire-and-forget). **Only use when the user explicitly asks to be notified** (e.g. "notify me once you're done", "tell me when it's ready", "speak", "say"). Do NOT speak proactively.
 - \`voice_stop\` — stop current speech playback
-- \`voice_history\` — list/search transcription history with text analysis (WPM, filler words)
+- \`voice_history\` — list/search transcription history with text analysis (WPM, filler words). Default limit 25, max 100.
 - \`voice_analytics\` — get aggregated transcription analytics
 - \`voice_status\` — check transcription service status and statistics
+- **STT providers:** openai, groq, local (whisper.cpp), whisper-cpp, faster-whisper, vllm, local-ai
+- **Local whisper:** On Windows, prebuilt whisper-cli is auto-downloaded from GitHub releases. On macOS/Linux, built from source via CMake.
+- **TTS engine:** msedge-tts (Microsoft Edge Read Aloud). Long text is automatically split into sentence chunks with pipelined generation + playback.
+- **TTS config:** \`voice\`, \`edgeRate\`, \`edgePitch\`, \`volume\`, \`chunkThreshold\`, \`fallbackRate\`, \`enabled\` — configurable via dashboard.
+- **TTS fallback chain:** If msedge-tts fails → PowerShell SAPI (Windows/WSL), \`say\` (macOS), espeak-ng/spd-say (Linux).
+- **Audio playback:** WSL: mpv/ffplay via WSLg PulseAudio → PowerShell WPF MediaPlayer. Windows: ffplay → mpv → WPF MediaPlayer. macOS: afplay. Linux: mpv → ffplay.
+- **AI text cleanup:** Configurable LLM provider/model for post-processing transcriptions (cleanup.provider, cleanup.model, cleanup.apiKey).
 - **REST API** (base: \`/api/voice\`):
-  - Transcribe: \`POST /transcribe\` body \`{ audioBase64, filename, language?, mode? }\`
+  - Transcribe: \`POST /transcribe\` body \`{ audioBase64, filename, language?, prompt?, mode? }\`
   - TTS: \`POST /config/tts/speak\` body \`{ text }\` · \`POST /config/tts/stop\` · \`GET /config/tts/voices\`
-  - History: \`GET /history\` · \`GET /history/search?q=\` · \`GET /history/analytics\` · \`DELETE /history\`
-  - Config: \`GET /config\` · \`GET /config/providers\` · \`PUT /config\` · \`POST /config/test\`
+  - History: \`GET /history\` · \`GET /history/:id\` · \`GET /history/search?q=\` · \`GET /history/analytics\` · \`DELETE /history\`
+  - Config: \`GET /config\` · \`GET /config/providers\` · \`PUT /config\` · \`POST /config/test\` · \`GET /config/check-ffmpeg\`
+  - Stats: \`GET /config/stats\` · \`DELETE /config/stats\`
 
 ### devglide-log — Structured logging
 - \`log_write\` — write a structured log entry
