@@ -16,6 +16,7 @@ let _keydownHandler = null;
 let _xtermLoaded = false;
 let _mountedOnce = false;
 let _restoring = false;  // true during snapshot batch restore — suppresses premature fits
+let _navigate = null;    // SPA navigate callback from dashboard ctx
 
 const panes = new Map();   // id -> pane object
 const pendingData = new Map();   // id -> string[] — buffers terminal data for panes not yet created
@@ -1421,8 +1422,9 @@ export async function mount(container, ctx) {
   // 3. Get refs
   const refs = getRefs(container);
 
-  // 4. Set initial project
+  // 4. Set initial project + stash navigate callback
   activeProject = ctx?.project || null;
+  _navigate = ctx?.navigate || null;
 
   // 5. Load xterm.js dynamically
   await ensureXterm();
@@ -1553,6 +1555,11 @@ export async function mount(container, ctx) {
       case 'shell:close-pane': {
         e.preventDefault();
         if (activePaneId) panes.get(activePaneId)?.destroy();
+        break;
+      }
+      case 'nav:kanban': {
+        e.preventDefault();
+        if (_navigate) _navigate('kanban');
         break;
       }
       default: {
