@@ -6,7 +6,7 @@ Monorepo managed with **pnpm workspaces** and **Turborepo**.
 
 - `src/apps/` — individual apps (kanban, shell, test, workflow, etc.), each exposing an MCP server
 - `src/packages/` — shared libraries
-- `src/server.ts` — unified HTTP server that mounts all apps on a single port (:7000)
+- `src/server.ts` — unified HTTP server that mounts all apps on a single port (:7000, overridable via `DEVGLIDE_PORT`)
 - `src/routers/` — Express routers that mount each app's routes under `/api/<name>`
 - `bin/devglide.js` — CLI entry point (start/stop servers, MCP launcher, setup/teardown)
 - `bin/claude-md-template.js` — managed CLAUDE.md section for end-user onboarding
@@ -38,12 +38,19 @@ pnpm install              # install all dependencies
 pnpm build                # type-check all packages (noEmit — no JS output)
 pnpm dev                  # run all apps in dev mode (turbo)
 devglide dev              # run unified server in foreground
+devglide start            # start server as background daemon
+devglide stop             # stop server
+devglide restart          # restart server
+devglide status           # show running processes
+devglide logs             # tail server logs
 devglide setup            # register MCP servers + install CLAUDE.md instructions
 devglide teardown         # unregister MCP servers + remove CLAUDE.md instructions
-devglide status           # show running processes
 devglide mcp <name>       # launch a single MCP server on stdio
+devglide list             # list available MCP servers
 node scripts/build-mcp.mjs  # rebuild MCP bundles (required after source changes)
 ```
+
+Server port defaults to `:7000`, overridable via `DEVGLIDE_PORT` env var.
 
 ## State Directory
 
@@ -96,7 +103,32 @@ These rules are intentional — do not change an app's scoping without discussio
 
 ## Platform Notes
 
-### Windows TTS Playback
-On native Windows, TTS audio playback prefers `ffplay` or `mpv` (reliable cross-format
-players) over `WMPlayer.OCX`, which is broken on some Windows 11 builds (stuck in
-`playState 9`). `Media.SoundPlayer` is WAV-only and will silently fail on MP3 files.
+### TTS Audio Playback
+
+TTS uses msedge-tts (Microsoft Edge Read Aloud API) for MP3 generation. Long text
+is automatically split into sentence chunks with pipelined generation + playback
+(configurable via `chunkThreshold`, default 100 chars).
+
+Audio playback precedence per platform:
+
+| Platform | Preference |
+|----------|------------|
+| **WSL** | mpv/ffplay via WSLg PulseAudio → PowerShell WPF MediaPlayer |
+| **Windows** | ffplay → mpv → PowerShell WPF MediaPlayer |
+| **macOS** | afplay |
+| **Linux** | mpv → ffplay |
+
+If msedge-tts fails entirely, fallback to platform native TTS:
+- **Windows/WSL:** PowerShell SAPI (`System.Speech.Synthesis.SpeechSynthesizer`)
+- **macOS:** `say` command
+- **Linux:** espeak-ng or spd-say
+
+On native Windows, WPF MediaPlayer is used instead of `WMPlayer.OCX`, which is
+broken on some Windows 11 builds (stuck in `playState 9`).
+
+### Local Whisper (whisper.cpp)
+
+The local STT provider uses whisper.cpp via the `nodejs-whisper` package:
+- **Windows:** Prebuilt `whisper-cli` binary is auto-downloaded from GitHub releases (v1.8.3).
+- **macOS/Linux:** Built from source via CMake (requires build tools).
+- **All platforms:** Requires FFmpeg on PATH for audio conversion.
