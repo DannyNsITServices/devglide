@@ -79,6 +79,7 @@ const HOME_HTML = `
       <div class="dc-stat"><span class="dc-stat-value">51</span><span class="dc-stat-label">MCP Tools</span></div>
       <div class="dc-stat"><span class="dc-stat-value">8</span><span class="dc-stat-label">MCP Servers</span></div>
     </div>
+    <img class="dc-hero-screenshot" src="/assets/screenshots/dashboard.png" alt="DevGlide Dashboard" loading="lazy" />
   </section>
 
   <!-- What is devglide -->
@@ -185,7 +186,7 @@ const GETTING_STARTED_HTML = `
       <h2>Starting the Server</h2>
       <p>Launch devglide from your project directory:</p>
       <div class="dc-codeblock"><code>devglide start</code></div>
-      <p>This starts the HTTP server on port 3000 and opens the dashboard in your browser.</p>
+      <p>This starts the HTTP server on port 7000 (configurable via <code>DEVGLIDE_PORT</code>) and opens the dashboard in your browser.</p>
     </div>
 
     <div class="dc-card">
@@ -207,7 +208,7 @@ const GETTING_STARTED_HTML = `
     <div class="dc-card">
       <h2>Creating Your First Project</h2>
       <div class="dc-numbered-steps">
-        <div class="dc-ns"><span class="dc-ns-num">1</span><p>Open the dashboard at <code>http://localhost:3000</code></p></div>
+        <div class="dc-ns"><span class="dc-ns-num">1</span><p>Open the dashboard at <code>http://localhost:7000</code></p></div>
         <div class="dc-ns"><span class="dc-ns-num">2</span><p>Click the <strong>project selector</strong> in the sidebar header</p></div>
         <div class="dc-ns"><span class="dc-ns-num">3</span><p>Select <strong>New Project</strong> and give it a name</p></div>
         <div class="dc-ns"><span class="dc-ns-num">4</span><p>The sidebar now shows project-scoped apps (Kanban, Log, Test, etc.)</p></div>
@@ -246,6 +247,7 @@ const MODULES_HTML = `
     <div class="dc-card" id="mod-kanban">
       <div class="dc-card-header"><span class="dc-card-icon">\u25A6</span><h2>Kanban</h2><span class="dc-tool-count">14 tools</span></div>
       <p>Full project management with features, columns, tasks, bugs, work logs, and review feedback.</p>
+      <img class="dc-module-screenshot" src="/assets/screenshots/kanban.png" alt="Kanban board with task cards across columns" loading="lazy" />
       <h3>Key Concepts</h3>
       <ul class="dc-list">
         <li><strong>Features</strong> &mdash; Top-level containers representing product initiatives. Each gets its own board.</li>
@@ -261,6 +263,7 @@ const MODULES_HTML = `
     <div class="dc-card" id="mod-test">
       <div class="dc-card-header"><span class="dc-card-icon">\u2713</span><h2>Test</h2><span class="dc-tool-count">7 tools</span></div>
       <p>AI-driven browser test automation. Describe what to test in natural language and Claude generates scenarios automatically.</p>
+      <img class="dc-module-screenshot" src="/assets/screenshots/test.png" alt="Test runner with saved scenarios and run history" loading="lazy" />
       <h3>How to Use</h3>
       <ul class="dc-list">
         <li><strong>Ask Claude</strong> &mdash; "Write a test that creates a kanban task and verifies it appears in the Todo column"</li>
@@ -281,6 +284,7 @@ const MODULES_HTML = `
     <div class="dc-card" id="mod-workflow">
       <div class="dc-card-header"><span class="dc-card-icon">\u2942</span><h2>Workflow</h2><span class="dc-tool-count">6 tools</span></div>
       <p>Visual DAG workflow builder for multi-step automations with decisions, loops, and integrations.</p>
+      <img class="dc-module-screenshot" src="/assets/screenshots/workflow.png" alt="Visual workflow editor with connected nodes" loading="lazy" />
       <h3>Node Types</h3>
       <div class="dc-tag-grid">
         <span class="dc-tag">trigger</span><span class="dc-tag">action:shell</span><span class="dc-tag">action:kanban</span>
@@ -297,6 +301,7 @@ const MODULES_HTML = `
     <div class="dc-card" id="mod-shell">
       <div class="dc-card-header"><span class="dc-card-icon">\u276F</span><h2>Shell</h2><span class="dc-tool-count">5 tools</span></div>
       <p>Terminal multiplexer with named panes, scrollback capture, and MCP command execution.</p>
+      <img class="dc-module-screenshot" src="/assets/screenshots/shell.png" alt="Four terminal panes with an embedded browser view" loading="lazy" />
       <h3>Key Concepts</h3>
       <ul class="dc-list">
         <li><strong>Panes</strong> &mdash; Independent terminal sessions, each running a shell process.</li>
@@ -352,11 +357,13 @@ const MODULES_HTML = `
     <div class="dc-card" id="mod-coder">
       <div class="dc-card-header"><span class="dc-card-icon">\u2039\u203A</span><h2>Coder</h2></div>
       <p>In-browser code editor with a file tree, tabbed editing, and live preview. Useful for quick manual edits, reviewing generated code, and previewing HTML output.</p>
+      <img class="dc-module-screenshot" src="/assets/screenshots/coder.png" alt="File tree with package.json open in the editor" loading="lazy" />
     </div>
 
     <div class="dc-card" id="mod-voice">
       <div class="dc-card-header"><span class="dc-card-icon">\u25C9</span><h2>Voice</h2><span class="dc-tool-count">2 tools</span></div>
       <p>Speech-to-text transcription for hands-free interaction and dictation. Click the microphone widget in the sidebar to record. Audio is sent to the configured STT provider for transcription.</p>
+      <img class="dc-module-screenshot" src="/assets/screenshots/voice.png" alt="Voice configuration with transcription statistics" loading="lazy" />
       <h3>MCP Tools</h3>
       <p class="dc-tools-list">voice_transcribe, voice_status</p>
     </div>
