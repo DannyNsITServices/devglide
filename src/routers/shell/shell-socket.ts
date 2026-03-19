@@ -307,6 +307,30 @@ export function initShell(nsp: Namespace): void {
       socket.broadcast.emit('state:active-pane', { paneId });
     });
 
+    // ── Drag-to-reorder persistence ──────────────────────────────────────────
+    socket.on('state:reorder-panes', ({ order }: { order: string[] }) => {
+      if (!Array.isArray(order) || order.length === 0) return;
+      // Validate every ID exists in dashboardState
+      const paneIds = new Set(dashboardState.panes.map((p: PaneInfo) => p.id));
+      if (!order.every(id => typeof id === 'string' && paneIds.has(id))) return;
+
+      // Rebuild panes array in the requested order, appending any panes not in the order list
+      const byId = new Map(dashboardState.panes.map((p: PaneInfo) => [p.id, p]));
+      const reordered: PaneInfo[] = [];
+      for (const id of order) {
+        const pane = byId.get(id);
+        if (pane) reordered.push(pane);
+      }
+      // Append any panes that weren't in the order array (e.g. from another project)
+      for (const p of dashboardState.panes) {
+        if (!order.includes(p.id)) reordered.push(p);
+      }
+      dashboardState.panes = reordered;
+
+      // Broadcast to other clients so they sync
+      socket.broadcast.emit('state:panes-reordered', { order: reordered.map((p: PaneInfo) => p.id) });
+    });
+
     // ── Disconnect ────────────────────────────────────────────────────────────
     socket.on('disconnect', () => {
       console.log(`[shell:disconnect] ${socket.id}`);
