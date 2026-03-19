@@ -184,7 +184,7 @@ function playMp3(mp3Path: string): ChildProcess | null {
       if (pulseAlive) {
         const pulseEnv = { ...process.env, PULSE_SERVER: "/mnt/wslg/PulseServer", SDL_AUDIODRIVER: "pulse" };
         if (commandExists("mpv")) {
-          return safeProc(spawn("mpv", ["--no-video", "--ao=pulse", mp3Path], { stdio: "ignore", env: pulseEnv }));
+          return safeProc(spawn("mpv", ["--no-video", "--ao=pulse", "--audio-buffer=1", mp3Path], { stdio: "ignore", env: pulseEnv }));
         }
         if (commandExists("ffplay")) {
           return safeProc(spawn("ffplay", ["-nodisp", "-autoexit", mp3Path], { stdio: "ignore", env: pulseEnv }));
@@ -201,9 +201,8 @@ function playMp3(mp3Path: string): ChildProcess | null {
         `Add-Type -AssemblyName PresentationCore; ` +
         `$p = New-Object System.Windows.Media.MediaPlayer; ` +
         `$p.Open([Uri]$dest); ` +
-        `Start-Sleep -Milliseconds 500; ` +
-        `$p.Play(); ` +
         `while ($p.NaturalDuration.HasTimeSpan -eq $false) { Start-Sleep -Milliseconds 100 }; ` +
+        `$p.Play(); ` +
         `Start-Sleep -Milliseconds ([int]$p.NaturalDuration.TimeSpan.TotalMilliseconds + 200); ` +
         `$p.Close(); ` +
         `Remove-Item $dest -ErrorAction SilentlyContinue`;
@@ -225,9 +224,8 @@ function playMp3(mp3Path: string): ChildProcess | null {
         `Add-Type -AssemblyName PresentationCore; ` +
         `$p = New-Object System.Windows.Media.MediaPlayer; ` +
         `$p.Open([Uri]'${winPath.replace(/'/g, "''")}'); ` +
-        `Start-Sleep -Milliseconds 500; ` +
-        `$p.Play(); ` +
         `while ($p.NaturalDuration.HasTimeSpan -eq $false) { Start-Sleep -Milliseconds 100 }; ` +
+        `$p.Play(); ` +
         `Start-Sleep -Milliseconds ([int]$p.NaturalDuration.TimeSpan.TotalMilliseconds + 200); ` +
         `$p.Close()`;
       return safeProc(
