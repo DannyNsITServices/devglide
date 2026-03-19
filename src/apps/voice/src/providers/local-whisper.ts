@@ -127,7 +127,7 @@ export class LocalWhisperProvider implements TranscriptionProvider {
         text = result
           .map((segment: any) => {
             const raw = (segment.speech ?? segment.text ?? "").trim();
-            return raw.replace(TIMESTAMP_RE, "").trim();
+            return raw.replace(TIMESTAMP_RE, "").replace(/\s+/g, " ").trim();
           })
           .filter(Boolean)
           .join(" ");

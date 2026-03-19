@@ -24,6 +24,10 @@ export async function transcribe(
 
   const result = await getProvider().transcribe(audio, opts);
 
+  // Normalize whitespace: collapse newlines/runs of spaces into single spaces
+  // so multi-segment transcriptions always produce one continuous line.
+  result.text = result.text.replace(/\s+/g, " ").trim();
+
   // AI cleanup if requested
   let cleanedText: string | undefined;
   if (options?.mode === "cleanup") {
