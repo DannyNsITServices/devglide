@@ -1555,6 +1555,11 @@ export async function mount(container, ctx) {
         if (activePaneId) panes.get(activePaneId)?.destroy();
         break;
       }
+      case 'shell:dashboard': {
+        e.preventDefault();
+        setActiveTab(refs, 'grid');
+        break;
+      }
       default: {
         const termMatch = action.match(/^shell:terminal-(\d)$/);
         if (termMatch) {

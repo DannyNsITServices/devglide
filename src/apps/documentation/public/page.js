@@ -378,6 +378,18 @@ const MODULES_HTML = `
     <div class="dc-card" id="mod-keymap">
       <div class="dc-card-header"><span class="dc-card-icon">\u2328</span><h2>Keymap</h2></div>
       <p>Configurable keyboard shortcuts for dashboard navigation and actions. Customize bindings for switching between apps, triggering actions, and navigating the UI efficiently.</p>
+      <h3>Default Shortcuts</h3>
+      <table class="dc-api-table">
+        <tbody>
+          <tr><td><code>Ctrl+Alt+D</code></td><td>Switch to Dashboard (grid view) in Shell</td></tr>
+          <tr><td><code>Ctrl+Alt+1&ndash;9</code></td><td>Switch to terminal tab 1&ndash;9</td></tr>
+          <tr><td><code>Ctrl+Alt+J</code></td><td>New terminal pane</td></tr>
+          <tr><td><code>Ctrl+Alt+B</code></td><td>New browser pane</td></tr>
+          <tr><td><code>Ctrl+Alt+K</code></td><td>Close current pane</td></tr>
+          <tr><td><code>Ctrl+Alt+Arrows</code></td><td>Navigate between panes in grid</td></tr>
+          <tr><td><code>Ctrl+Alt+Shift</code> (hold)</td><td>Hold-to-speak voice input</td></tr>
+        </tbody>
+      </table>
     </div>
   </section>
 `;
