@@ -675,16 +675,6 @@ if (typeof VoiceWidget !== 'undefined') {
   const voiceMountEl = document.getElementById('voice-widget-mount');
   if (voiceMountEl) voiceWidget.mount(voiceMountEl);
 
-  // Handle global navigation shortcuts (Ctrl+Alt+D → Kanban, etc.)
-  document.addEventListener('keydown', (e) => {
-    if (typeof KeymapRegistry === 'undefined') return;
-    const action = KeymapRegistry.resolve(e);
-    if (action === 'nav:kanban') {
-      e.preventDefault();
-      selectApp('kanban');
-    }
-  });
-
   // Handle Ctrl+Alt+Shift hold-to-speak when the shell has focus
   let voiceKeyActive = false;
   document.addEventListener('keydown', (e) => {

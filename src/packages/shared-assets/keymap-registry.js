@@ -489,15 +489,14 @@
     { ctrlOrMeta: true, altKey: true, code: 'KeyK' },
     'Close pane', 'Shell');
 
+  KeymapRegistry.register('shell:dashboard',
+    { ctrlOrMeta: true, altKey: true, code: 'KeyD' },
+    'Dashboard (grid view)', 'Shell');
+
   // Voice group
   KeymapRegistry.register('voice:hold-to-speak',
     { ctrlOrMeta: true, altKey: true, shiftKey: true },
     'Hold to speak', 'Voice');
-
-  // Navigation group
-  KeymapRegistry.register('nav:kanban',
-    { ctrlOrMeta: true, altKey: true, code: 'KeyD' },
-    'Go to Kanban', 'Navigation');
 
   // Kanban group
   KeymapRegistry.register('kanban:focus-search',

@@ -381,7 +381,7 @@ const MODULES_HTML = `
       <h3>Default Shortcuts</h3>
       <table class="dc-api-table">
         <tbody>
-          <tr><td><code>Ctrl+Alt+D</code></td><td>Navigate to Kanban board (from any app)</td></tr>
+          <tr><td><code>Ctrl+Alt+D</code></td><td>Switch to Dashboard (grid view) in Shell</td></tr>
           <tr><td><code>Ctrl+Alt+1&ndash;9</code></td><td>Switch to terminal tab 1&ndash;9</td></tr>
           <tr><td><code>Ctrl+Alt+J</code></td><td>New terminal pane</td></tr>
           <tr><td><code>Ctrl+Alt+B</code></td><td>New browser pane</td></tr>
