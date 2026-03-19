@@ -493,6 +493,11 @@
     { ctrlOrMeta: true, altKey: true, code: 'KeyD' },
     'Dashboard (grid view)', 'Shell');
 
+  // Navigation group
+  KeymapRegistry.register('nav:project-switcher',
+    { ctrlOrMeta: true, altKey: true, code: 'KeyP' },
+    'Project switcher', 'Navigation');
+
   // Voice group
   KeymapRegistry.register('voice:hold-to-speak',
     { ctrlOrMeta: true, altKey: true, shiftKey: true },

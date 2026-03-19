@@ -695,6 +695,146 @@ if (typeof VoiceWidget !== 'undefined') {
   });
 }
 
+// ── Keyboard project switcher (Ctrl+Alt+P) ──────────────────────────────────
+
+let _projectSwitcherOpen = false;
+
+function openProjectSwitcher() {
+  if (_projectSwitcherOpen) return;
+  _projectSwitcherOpen = true;
+
+  const projects = getProjectList();
+  const active = getActiveProject();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'project-switcher-overlay';
+
+  const popup = document.createElement('div');
+  popup.className = 'project-switcher';
+
+  const header = document.createElement('div');
+  header.className = 'project-switcher-header';
+  header.textContent = 'Switch Project';
+  popup.appendChild(header);
+
+  const list = document.createElement('div');
+  list.className = 'project-switcher-list';
+  list.setAttribute('role', 'listbox');
+
+  if (projects.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'project-switcher-empty';
+    empty.textContent = 'No projects registered';
+    list.appendChild(empty);
+  }
+
+  let selectedIdx = projects.findIndex(p => p.id === active?.id);
+  if (selectedIdx < 0) selectedIdx = 0;
+
+  projects.forEach((p, i) => {
+    const item = document.createElement('button');
+    item.className = 'project-switcher-item';
+    if (p.id === active?.id) item.classList.add('active');
+    if (i === selectedIdx) item.classList.add('selected');
+    item.setAttribute('role', 'option');
+    item.dataset.idx = String(i);
+
+    const name = document.createElement('span');
+    name.className = 'project-switcher-item-name';
+    name.textContent = p.name;
+
+    const path = document.createElement('span');
+    path.className = 'project-switcher-item-path';
+    path.textContent = p.path;
+
+    item.appendChild(name);
+    item.appendChild(path);
+    list.appendChild(item);
+
+    item.addEventListener('click', () => {
+      dashboardSocket.emit('project:activate', { id: p.id });
+      closeProjectSwitcher();
+    });
+  });
+
+  popup.appendChild(list);
+  overlay.appendChild(popup);
+  document.body.appendChild(overlay);
+
+  // Focus management
+  requestAnimationFrame(() => {
+    overlay.classList.add('visible');
+    scrollSelectedIntoView(list);
+  });
+
+  function scrollSelectedIntoView(container) {
+    const sel = container.querySelector('.selected');
+    if (sel) sel.scrollIntoView({ block: 'nearest' });
+  }
+
+  function updateSelection(newIdx) {
+    if (projects.length === 0) return;
+    const items = list.querySelectorAll('.project-switcher-item');
+    items[selectedIdx]?.classList.remove('selected');
+    selectedIdx = ((newIdx % projects.length) + projects.length) % projects.length;
+    items[selectedIdx]?.classList.add('selected');
+    scrollSelectedIntoView(list);
+  }
+
+  function onKeyDown(e) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      closeProjectSwitcher();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      updateSelection(selectedIdx + 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      updateSelection(selectedIdx - 1);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (projects.length > 0) {
+        dashboardSocket.emit('project:activate', { id: projects[selectedIdx].id });
+      }
+      closeProjectSwitcher();
+    }
+  }
+
+  document.addEventListener('keydown', onKeyDown, true);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeProjectSwitcher();
+  });
+
+  overlay._cleanup = () => {
+    document.removeEventListener('keydown', onKeyDown, true);
+  };
+}
+
+function closeProjectSwitcher() {
+  if (!_projectSwitcherOpen) return;
+  _projectSwitcherOpen = false;
+  const overlay = document.querySelector('.project-switcher-overlay');
+  if (overlay) {
+    overlay._cleanup?.();
+    overlay.classList.remove('visible');
+    setTimeout(() => overlay.remove(), 200);
+  }
+}
+
+// Global keydown handler for the project switcher hotkey
+document.addEventListener('keydown', (e) => {
+  if (typeof KeymapRegistry === 'undefined') return;
+  if (KeymapRegistry.matchesAction(e, 'nav:project-switcher')) {
+    e.preventDefault();
+    if (_projectSwitcherOpen) {
+      closeProjectSwitcher();
+    } else {
+      openProjectSwitcher();
+    }
+  }
+});
+
 // Expose SPA navigate for scenario-runner (spaMode)
 window.__devglideSpaNavigate = selectApp;
 
