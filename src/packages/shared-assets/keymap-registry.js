@@ -494,6 +494,11 @@
     { ctrlOrMeta: true, altKey: true, shiftKey: true },
     'Hold to speak', 'Voice');
 
+  // Navigation group
+  KeymapRegistry.register('nav:kanban',
+    { ctrlOrMeta: true, altKey: true, code: 'KeyD' },
+    'Go to Kanban', 'Navigation');
+
   // Kanban group
   KeymapRegistry.register('kanban:focus-search',
     { key: '/' },
