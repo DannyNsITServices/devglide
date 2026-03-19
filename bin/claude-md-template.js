@@ -17,9 +17,8 @@ Follow the rules below so the tools work together correctly.
 
 ## Priority Rules (execute in order)
 
-1. **Always call \`workflow_match\`** with the user's prompt before responding.
+1. **Call \`workflow_match\`** only when the user's prompt explicitly contains the word "workflow".
    If a workflow matches, follow the returned instructions exactly.
-   Skip only if the request is a simple question with no actionable task.
 2. **Call \`vocabulary_lookup\`** when you encounter unfamiliar or ambiguous terms
    that could be domain jargon, project names, or abbreviations.
 3. **Update kanban status** when working on tracked tasks:
@@ -44,7 +43,7 @@ Item types: TASK, BUG. Priorities: LOW, MEDIUM, HIGH, URGENT.
 - \`kanban_append_review\`, \`kanban_get_review_history\` — add and read review feedback
 
 ### devglide-workflow — Reusable workflow templates
-- \`workflow_match\` — match a user prompt to an existing workflow (call this first!)
+- \`workflow_match\` — match a user prompt to an existing workflow (only when user mentions "workflow")
 - \`workflow_list\`, \`workflow_get\` — browse and inspect workflows
 - \`workflow_get_instructions\` — get compiled instructions from all enabled workflows
 - \`workflow_create\`, \`workflow_toggle\` — create or enable/disable workflows
@@ -108,8 +107,7 @@ Describe what to test in natural language and scenarios are generated automatica
 3. Start working on items one by one
 
 ### Starting work on a task
-1. \`workflow_match\` — check for an applicable workflow
-2. \`kanban_move_item\` to In Progress
+1. \`kanban_move_item\` to In Progress
 3. Implement changes
 4. \`kanban_append_work_log\` — record what was done
 5. \`kanban_move_item\` to In Review or Testing

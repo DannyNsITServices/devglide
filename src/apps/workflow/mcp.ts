@@ -40,9 +40,8 @@ export function createWorkflowMcpServer(): McpServer {
         '- Node types include triggers, shell commands, kanban ops, git ops, tests, log, file I/O, LLM, HTTP, decisions, loops, and sub-workflows.',
         '',
         '### Matching workflows to prompts',
-        '- **Always** call `workflow_match` with the user prompt before responding to check if a workflow applies.',
+        '- Call `workflow_match` **only** when the user\'s prompt explicitly contains the word "workflow".',
         '- If a match is found, follow the returned workflow instructions exactly.',
-        '- If no match is found, proceed normally.',
         '',
         '### Instructions',
         '- Use `workflow_get_instructions` to get compiled instructions from all enabled workflows.',
@@ -180,7 +179,7 @@ export function createWorkflowMcpServer(): McpServer {
 
   server.tool(
     'workflow_match',
-    'Match a user prompt against all enabled workflows. Returns only workflows whose name, description, tags, or node content match the prompt, ranked by relevance. Use this before responding to check if a workflow applies.',
+    'Match a user prompt against all enabled workflows. Returns only workflows whose name, description, tags, or node content match the prompt, ranked by relevance. Only call this when the user explicitly mentions "workflow" in their prompt.',
     {
       prompt: z.string().describe('The user prompt to match against workflows'),
       projectId: z.string().optional().describe('Optional project ID to scope matching'),
