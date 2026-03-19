@@ -391,11 +391,28 @@ function _attachDragHandlers(header, wrapper, id) {
       }
     }
 
+    // Reorder the in-memory panes Map so remount preserves visual order
+    _reorderPanesMap(newOrder);
+
     // Emit to server for persistence
     socket.emit('state:reorder-panes', { order: newOrder });
 
     _draggedPaneId = null;
   });
+}
+
+/** Reorder the panes Map to match a given ID order (preserves remount order). */
+function _reorderPanesMap(order) {
+  const snapshot = new Map(panes);
+  panes.clear();
+  for (const id of order) {
+    const p = snapshot.get(id);
+    if (p) panes.set(id, p);
+  }
+  // Append any remaining panes not in the order list
+  for (const [id, p] of snapshot) {
+    if (!panes.has(id)) panes.set(id, p);
+  }
 }
 
 // ── Terminal pane creation ──────────────────────────────────────────
@@ -1343,6 +1360,8 @@ function wireSocketEvents(refs) {
       const tab = refs.tabBar.querySelector(`.shell-tab[data-tab="${id}"]`);
       if (tab) refs.tabBar.appendChild(tab);
     }
+    // Reorder the in-memory panes Map so remount preserves visual order
+    _reorderPanesMap(order);
     // Re-fit after DOM reorder — moving elements can change terminal dimensions
     relayout(refs);
   };
