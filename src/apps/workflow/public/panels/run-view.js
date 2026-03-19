@@ -94,7 +94,12 @@ function appendLog(text) {
   const logPanel = _container.querySelector('.wb-run-log');
   if (!logPanel) return;
   logPanel.textContent += text;
-  logPanel.scrollTop = logPanel.scrollHeight;
+
+  // Only auto-scroll if user is already near the bottom
+  const isNearBottom = (logPanel.scrollHeight - logPanel.scrollTop - logPanel.clientHeight) < 50;
+  if (isNearBottom) {
+    logPanel.scrollTop = logPanel.scrollHeight;
+  }
 
   // Auto-show log on first output
   if (logPanel.style.display === 'none') {
