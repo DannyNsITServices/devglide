@@ -21,7 +21,7 @@ const servers = [
 const external = ["better-sqlite3", "node-pty"];
 
 // CJS packages bundled into ESM need a real require() for Node built-ins
-const banner = `import { createRequire } from "module"; const require = createRequire(import.meta.url);`;
+const banner = `import { createRequire as __bundleCR } from "module"; const require = __bundleCR(import.meta.url);`;
 
 console.log("Building MCP server bundles...\n");
 
