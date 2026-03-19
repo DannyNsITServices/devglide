@@ -117,6 +117,7 @@ app.use((req, res, next) => {
 // ---------------------------------------------------------------------------
 
 app.use('/shared-assets', express.static(path.join(ROOT, 'src/packages/shared-assets')));
+app.use('/assets', express.static(path.join(ROOT, 'assets')));
 app.use('/df', express.static(path.join(ROOT, 'src/packages/design-tokens/dist')));
 app.use('/design-tokens', express.static(path.join(ROOT, 'src/packages/design-tokens/dist')));
 

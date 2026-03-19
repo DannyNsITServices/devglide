@@ -142,6 +142,15 @@
   text-transform: uppercase;
 }
 
+.page-documentation .dc-hero-screenshot {
+  width: 100%;
+  max-width: 800px;
+  margin: var(--df-space-6) auto 0;
+  display: block;
+  border: 1px solid var(--df-color-border-subtle);
+  clip-path: var(--df-clip-md);
+}
+
 /* ── Sections (Home view) ──────────────────────────────────────── */
 .page-documentation .dc-section {
   padding: var(--df-space-8) 0;
@@ -309,6 +318,15 @@
   padding: 1px var(--df-space-2);
   clip-path: var(--df-clip-sm);
   margin-left: auto;
+}
+
+/* ── Module screenshots ───────────────────────────────────────── */
+.page-documentation .dc-module-screenshot {
+  width: 100%;
+  max-width: 100%;
+  margin: var(--df-space-3) 0 var(--df-space-2);
+  border: 1px solid var(--df-color-border-subtle);
+  clip-path: var(--df-clip-sm);
 }
 
 /* ── Lists ─────────────────────────────────────────────────────── */
