@@ -17,7 +17,7 @@ import { unlinkSync, readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 import { platform } from "os";
-import { spawn, execSync, type ChildProcess } from "child_process";
+import { spawn, execSync, spawnSync, type ChildProcess } from "child_process";
 import { configStore } from "./config-store.js";
 
 let _activeProcess: ChildProcess | null = null;
@@ -96,6 +96,41 @@ function commandExists(cmd: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** Leading silence in milliseconds — compensates for PulseAudio sink wake-up latency. */
+const LEAD_SILENCE_MS = 300;
+
+/** Cache ffmpeg availability so we only probe once. */
+let _hasFfmpeg: boolean | null = null;
+
+/**
+ * Prepend silence to an MP3 using ffmpeg's adelay filter.
+ * Returns the path to the padded file (a new temp file), or the original
+ * path if ffmpeg is unavailable or the operation fails.
+ * The caller is responsible for cleaning up both the original and padded files.
+ */
+function prependSilence(mp3Path: string, ms: number = LEAD_SILENCE_MS): string {
+  if (_hasFfmpeg === null) _hasFfmpeg = commandExists("ffmpeg");
+  if (!_hasFfmpeg) return mp3Path;
+
+  const padded = mp3Path.replace(/\.mp3$/i, ".pad.mp3");
+  try {
+    const r = spawnSync("ffmpeg", [
+      "-y", "-i", mp3Path,
+      "-af", `adelay=${ms}|${ms}`,
+      "-q:a", "2",
+      padded,
+    ], { stdio: "pipe", timeout: 10_000 });
+    if (r.status === 0 && existsSync(padded)) {
+      _chunkFiles.push(padded);   // track for cleanup
+      return padded;
+    }
+    console.error("[voice:tts] ffmpeg adelay failed:", r.stderr?.toString().slice(0, 200));
+  } catch (err) {
+    console.error("[voice:tts] prependSilence error:", err instanceof Error ? err.message : err);
+  }
+  return mp3Path;
 }
 
 /** Check if WSLg PulseAudio server is alive (synchronous socket probe, 1s timeout). */
@@ -473,10 +508,12 @@ async function speakChunked(
   const resolvedPaths: (string | null)[] = new Array(chunks.length).fill(null);
 
   // Generate first chunk before entering the pipeline loop
-  const gen0 = await generateEdgeTts(chunks[0], voice, rate, pitch);
+  let gen0 = await generateEdgeTts(chunks[0], voice, rate, pitch);
   if (!gen0 || _stopRequested) return false;
-  resolvedPaths[0] = gen0;
   _chunkFiles.push(gen0);
+  // Pad first chunk with silence so PulseAudio sink can wake up before speech
+  gen0 = prependSilence(gen0);
+  resolvedPaths[0] = gen0;
 
   for (let i = 0; i < chunks.length; i++) {
     if (_stopRequested) return false;
@@ -548,7 +585,9 @@ export async function speak(text: string): Promise<void> {
     console.error(`[voice:tts] mp3Path=${mp3Path}`);
     if (mp3Path) {
       _tmpFile = mp3Path;
-      _activeProcess = playMp3(mp3Path);
+      // Pad with silence so PulseAudio sink can wake up before speech
+      const playPath = prependSilence(mp3Path);
+      _activeProcess = playMp3(playPath);
       console.error(`[voice:tts] playMp3 started, process=${_activeProcess?.pid ?? 'null'}`);
       if (_activeProcess) {
         _activeProcess.on("exit", (code) => {
