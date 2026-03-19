@@ -293,7 +293,7 @@ const MODULES_HTML = `
         <span class="dc-tag">decision</span><span class="dc-tag">loop</span><span class="dc-tag">sub-workflow</span>
       </div>
       <h3>How Matching Works</h3>
-      <p>When Claude Code receives a prompt, it calls <code>workflow_match</code> to check if any enabled workflow applies. Matching workflows return compiled step-by-step instructions that Claude follows.</p>
+      <p>When the user explicitly mentions "workflow" in their prompt, Claude calls <code>workflow_match</code> to check if any enabled workflow applies. Matching workflows return compiled step-by-step instructions that Claude follows.</p>
       <h3>MCP Tools</h3>
       <p class="dc-tools-list">workflow_list, workflow_get, workflow_create, workflow_get_instructions, workflow_match, workflow_toggle</p>
     </div>
