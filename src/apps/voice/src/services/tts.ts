@@ -49,25 +49,34 @@ let _OUTPUT_FORMAT: any = null;
 // Installed at module load time (not lazily) so the MCP process is protected
 // from the very first tick.  msedge-tts fires WebSocket errors as unhandled
 // rejections / uncaught exceptions that would otherwise crash the process and
-// drop the MCP stdio connection.  We absorb ALL errors here instead of
-// re-throwing, because a re-throw from uncaughtException kills the process
-// immediately.
+// drop the MCP stdio connection.  Only TTS-related errors are absorbed; all
+// other errors are logged and re-thrown so they propagate normally.
 
 process.on("unhandledRejection", (reason: unknown) => {
   const msg = reason instanceof Error ? reason.message : String(reason);
-  // Only log TTS-related errors to avoid noise
   if (/msedge|tts|websocket|speech\.platform|Unexpected server|ECONNRESET|ENOTFOUND|audio/i.test(msg)) {
-    process.stderr.write(`[voice:tts] unhandled rejection: ${msg}\n`);
+    // TTS-related — absorb silently (these are expected from msedge-tts WebSocket lifecycle)
+    process.stderr.write(`[voice:tts] unhandled rejection (absorbed): ${msg}\n`);
+  } else {
+    // Not TTS-related — log so it's visible, but don't absorb (let default handler run)
+    process.stderr.write(`[voice:tts] unhandled rejection (non-TTS, propagating): ${msg}\n`);
+    throw reason;
   }
-  // Absorb all — never crash the MCP process
 });
 
 process.on("uncaughtException", (err) => {
   const msg = err instanceof Error ? err.message : String(err);
-  process.stderr.write(`[voice:tts] uncaught exception: ${msg}\n`);
-  // Absorb — do NOT re-throw.  Re-throwing from uncaughtException kills the
-  // process, which drops the MCP stdio connection.  The MCP transport has its
-  // own error handling; a stray WebSocket error should never take it down.
+  if (/msedge|tts|websocket|speech\.platform|Unexpected server|ECONNRESET|ENOTFOUND|EPIPE|audio/i.test(msg)) {
+    // TTS-related — absorb to prevent msedge-tts WebSocket errors from crashing
+    // the MCP process and dropping the stdio connection.
+    process.stderr.write(`[voice:tts] uncaught exception (absorbed): ${msg}\n`);
+  } else {
+    // Not TTS-related — log and re-throw so the default handler can deal with it.
+    // Re-throwing from uncaughtException will terminate the process, which is the
+    // correct behavior for genuinely unexpected errors.
+    process.stderr.write(`[voice:tts] uncaught exception (non-TTS, re-throwing): ${msg}\n`);
+    throw err;
+  }
 });
 
 /** Detect WSL environment. */
@@ -138,7 +147,6 @@ function isWslPulseAvailable(): boolean {
   const sock = "/mnt/wslg/PulseServer";
   if (!existsSync(sock)) return false;
   try {
-    const { spawnSync } = require("child_process") as typeof import("child_process");
     const r = spawnSync("node", ["-e", [
       'const c=require("net").createConnection({path:process.argv[1]});',
       'c.on("connect",()=>{c.destroy();process.exit(0)});',

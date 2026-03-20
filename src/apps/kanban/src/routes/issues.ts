@@ -62,7 +62,7 @@ issuesRouter.get("/", (req: Request, res: Response) => {
   }
 });
 
-const VALID_PRIORITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "NONE"];
+const VALID_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
 const VALID_TYPES = ["BUG", "TASK", "FEATURE", "IMPROVEMENT", "EPIC"];
 
 // POST /api/issues
