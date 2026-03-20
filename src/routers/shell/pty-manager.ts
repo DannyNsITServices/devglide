@@ -1,6 +1,6 @@
 import pty, { type IPty } from 'node-pty';
 import fs from 'fs';
-import type { PtyEntry, PaneInfo } from '../../apps/shell/src/shell-types.js';
+import type { PtyEntry, PaneInfo, ShellEmitter } from '../../apps/shell/src/shell-types.js';
 import {
   globalPtys,
   dashboardState,
@@ -48,7 +48,8 @@ export function spawnGlobalPty(
   rows: number,
   trackCwd: boolean,
   oscOnly: boolean,
-  startCwd: string | null
+  startCwd: string | null,
+  emitter?: ShellEmitter,
 ): IPty {
   cols = Number.isInteger(cols) && cols >= 1 ? Math.min(cols, 500) : 80;
   rows = Number.isInteger(rows) && rows >= 1 ? Math.min(rows, 500) : 24;
@@ -76,14 +77,15 @@ export function spawnGlobalPty(
       entry.totalLen = joined.length;
     }
 
-    getShellNsp()!.to(`pane:${id}`).emit('terminal:data', { id, data });
+    const io = emitter ?? getShellNsp()!;
+    io.to(`pane:${id}`).emit('terminal:data', { id, data });
 
     if (trackCwd) {
       const oscMatch = data.match(/\x1b\]7;([^\x07\x1b]+)\x07/);
       if (oscMatch) {
         const cwd = oscMatch[1];
         updatePaneCwd(id, cwd);
-        getShellNsp()!.emit('terminal:cwd', { id, cwd });
+        io.emit('terminal:cwd', { id, cwd });
       } else if (!oscOnly) {
         if (cwdTimer) clearTimeout(cwdTimer);
         cwdTimer = setTimeout(async () => {
@@ -91,7 +93,7 @@ export function spawnGlobalPty(
           const cwd = await readCwd(ptyProcess.pid);
           if (cwd) {
             updatePaneCwd(id, cwd);
-            getShellNsp()!.emit('terminal:cwd', { id, cwd });
+            io.emit('terminal:cwd', { id, cwd });
           }
         }, 300);
       }
@@ -101,7 +103,7 @@ export function spawnGlobalPty(
   ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
     if (cwdTimer) clearTimeout(cwdTimer);
     if (!globalPtys.delete(id)) return;
-    getShellNsp()!.emit('terminal:exit', { id, code: exitCode });
+    (emitter ?? getShellNsp()!).emit('terminal:exit', { id, code: exitCode });
   });
 
   return ptyProcess;

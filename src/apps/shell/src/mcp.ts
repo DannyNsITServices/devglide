@@ -8,22 +8,7 @@ import path from 'path';
 import type { Express, Request, Response } from 'express';
 import type { McpState, PaneInfo } from './shell-types.js';
 import { getActiveProject } from '../../../project-context.js';
-
-/** Send SIGHUP, then SIGKILL after 2 s if still alive. */
-function killPty(pty: { pid: number; kill(signal?: string): void }): void {
-  try {
-    pty.kill();
-  } catch {
-    return;
-  }
-  const { pid } = pty;
-  setTimeout(() => {
-    try {
-      process.kill(pid, 0);
-      process.kill(pid, 'SIGKILL');
-    } catch { /* already exited */ }
-  }, 2000).unref();
-}
+import { killPty } from '../../../routers/shell/pty-manager.js';
 
 interface McpSession {
   transport: StreamableHTTPServerTransport;
