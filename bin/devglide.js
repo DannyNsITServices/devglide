@@ -300,7 +300,9 @@ function runSetup() {
 function runTeardown() {
   console.log("\n  Tearing down DevGlide...\n");
 
-  // Remove MCP server registrations
+  const validNames = new Set(Object.keys(mcpServers).map((n) => `devglide-${n}`));
+
+  // Remove known MCP server registrations
   for (const name of Object.keys(mcpServers)) {
     const mcpName = `devglide-${name}`;
     try {
@@ -309,6 +311,43 @@ function runTeardown() {
     } catch {
       console.log(`  - ${mcpName} was not registered`);
     }
+  }
+
+  // Remove any stale devglide-* servers not in the current map
+  try {
+    const out = execSync("claude mcp list --scope user", { stdio: "pipe", encoding: "utf8" });
+    const registered = out.match(/devglide-[\w-]+/g) || [];
+    for (const name of registered) {
+      if (!validNames.has(name)) {
+        try {
+          execSync(`claude mcp remove ${name} --scope user`, { stdio: "pipe" });
+          console.log(`  ✓ ${name} removed (stale)`);
+        } catch { /* ignore */ }
+      }
+    }
+  } catch {
+    // claude mcp list not available — skip
+  }
+
+  // Clean up legacy ~/.claude/.mcp.json devglide entries
+  const legacyMcpPath = resolve(homedir(), ".claude", ".mcp.json");
+  try {
+    const raw = readFileSync(legacyMcpPath, "utf8");
+    const data = JSON.parse(raw);
+    const servers = data.mcpServers || {};
+    let changed = false;
+    for (const name of Object.keys(servers)) {
+      if (name.startsWith("devglide-")) {
+        delete servers[name];
+        changed = true;
+      }
+    }
+    if (changed) {
+      writeFileSync(legacyMcpPath, JSON.stringify(data, null, 2) + "\n");
+      console.log(`  ✓ Cleaned stale entries from ${legacyMcpPath}`);
+    }
+  } catch {
+    // file doesn't exist or not parseable — fine
   }
 
   // Remove managed CLAUDE.md section
