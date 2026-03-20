@@ -54,6 +54,23 @@ export interface VersionedEntryRow {
   createdAt: string;
 }
 
+export interface AttachmentRow {
+  id: string;
+  issueId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+}
+
+export interface CountRow {
+  count: number;
+}
+
+export interface MaxOrderRow {
+  maxOrder: number | null;
+}
+
 // ── Connection cache ─────────────────────────────────────────────────────────
 const dbCache = new Map<string, Database.Database>();
 

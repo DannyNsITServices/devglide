@@ -18,6 +18,7 @@ import { LOGS_DIR, projectDataDir } from './packages/paths.js';
 import { snifferSource, runnerSource } from './packages/devtools-middleware.js';
 import { initServerSniffer, shutdownServerSniffer } from './packages/server-sniffer.js';
 import { mountMcpHttp } from './packages/mcp-utils/src/index.js';
+import { errorHandler } from './packages/error-middleware.js';
 
 // Project context
 import { getActiveProject, setActiveProject } from './project-context.js';
@@ -235,6 +236,9 @@ app.use('/api/prompts', promptsRouter);
 
 
 app.use('/', rateLimit(60, 60_000), shellRouter);  // /preview, /proxy
+
+// Final error handler — catches unhandled errors from all routes above
+app.use(errorHandler);
 
 // ---------------------------------------------------------------------------
 // MCP endpoints

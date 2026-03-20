@@ -62,8 +62,9 @@ issuesRouter.get("/", (req: Request, res: Response) => {
   }
 });
 
-const VALID_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"];
-const VALID_TYPES = ["BUG", "TASK", "FEATURE", "IMPROVEMENT", "EPIC"];
+import { KANBAN_PRIORITIES, KANBAN_ITEM_TYPES_EXTENDED } from "../../../../packages/shared-types/src/index.js";
+const VALID_PRIORITIES: readonly string[] = KANBAN_PRIORITIES;
+const VALID_TYPES: readonly string[] = KANBAN_ITEM_TYPES_EXTENDED;
 
 // POST /api/issues
 issuesRouter.post("/", (req: Request, res: Response) => {

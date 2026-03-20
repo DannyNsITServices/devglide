@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import path from "path";
 import fs from "fs";
-import { getDb, generateId, nowIso, type ColumnRow, type IssueRow } from "../db.js";
+import { getDb, generateId, nowIso, type ColumnRow, type IssueRow, type CountRow } from "../db.js";
 import { jsonResult, errorResult } from "../../../../packages/mcp-utils/src/index.js";
 import { DEFAULT_COLUMNS, mapColumnRow, mapIssueRow } from "../mcp-helpers.js";
 import { getUploadsDir } from "../routes/attachments.js";
@@ -23,7 +23,7 @@ export function registerFeatureTools(server: McpServer, projectId?: string | nul
       const take = limit ?? 25;
       const skip = offset ?? 0;
 
-      const totalRow = db.prepare(`SELECT COUNT(*) AS cnt FROM "Project"`).get() as any;
+      const totalRow = db.prepare(`SELECT COUNT(*) AS cnt FROM "Project"`).get() as CountRow;
       const total = totalRow.cnt;
 
       const features = db

@@ -3,17 +3,9 @@ import { getDb, generateId, nowIso } from "../db.js";
 import path from "path";
 import fs from "fs";
 import { getUploadsDir } from "./attachments.js";
+import { DEFAULT_COLUMNS } from "../mcp-helpers.js";
 
 export const featuresRouter: Router = Router();
-
-const DEFAULT_COLUMNS = [
-  { name: "Backlog", color: "#64748b", order: 0 },
-  { name: "Todo", color: "#3b82f6", order: 1 },
-  { name: "In Progress", color: "#f59e0b", order: 2 },
-  { name: "In Review", color: "#8b5cf6", order: 3 },
-  { name: "Testing", color: "#14b8a6", order: 4 },
-  { name: "Done", color: "#22c55e", order: 5 },
-];
 
 function mapColumn(row: any) {
   if (!row) return row;

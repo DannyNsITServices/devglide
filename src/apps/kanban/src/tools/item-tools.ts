@@ -2,10 +2,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import path from "path";
 import fs from "fs";
-import { getDb, generateId, nowIso, appendVersionedEntry, getVersionedEntries, type IssueRow } from "../db.js";
+import { getDb, generateId, nowIso, appendVersionedEntry, getVersionedEntries, type IssueRow, type CountRow, type MaxOrderRow, type ColumnRow } from "../db.js";
 import { jsonResult, errorResult } from "../../../../packages/mcp-utils/src/index.js";
 import { normalizeEscapes, mapIssueRow, resolveColumnId, truncateDescription } from "../mcp-helpers.js";
 import { getUploadsDir } from "../routes/attachments.js";
+import { KANBAN_PRIORITIES, KANBAN_ITEM_TYPES } from "../../../../packages/shared-types/src/index.js";
 
 export function registerItemTools(server: McpServer, projectId?: string | null): void {
 
@@ -18,8 +19,8 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
       featureId: z.string().optional().describe("Filter by feature ID"),
       columnId: z.string().optional().describe("Filter by column ID"),
       columnName: z.string().optional().describe("Filter by column name (status) — case-sensitive: 'Backlog', 'Todo', 'In Progress', 'In Review', 'Testing', 'Done'. Ignored if columnId is provided."),
-      priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional().describe("Filter by priority"),
-      type: z.enum(["TASK", "BUG"]).optional().describe("Filter by item type — TASK or BUG"),
+      priority: z.enum(KANBAN_PRIORITIES).optional().describe("Filter by priority"),
+      type: z.enum(KANBAN_ITEM_TYPES).optional().describe("Filter by item type — TASK or BUG"),
       hasReviewFeedback: z.preprocess(
         (val) => (typeof val === "string" ? val === "true" : val),
         z.boolean().optional()
@@ -58,7 +59,7 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
 
       const countRow = db
         .prepare(`SELECT COUNT(*) AS cnt FROM "Issue" i LEFT JOIN "Column" c ON i."columnId" = c."id" ${where}`)
-        .get(...params) as any;
+        .get(...params) as CountRow;
       const total = countRow.cnt;
 
       const rows = db
@@ -73,7 +74,7 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
            ORDER BY i."order" ASC
            LIMIT ? OFFSET ?`
         )
-        .all(...params, take, skip) as any[];
+        .all(...params, take, skip) as IssueRow[];
 
       let data: unknown[];
 
@@ -118,8 +119,8 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
       featureId: z.string().describe("Feature ID"),
       columnId: z.string().optional().describe("Column ID to place the issue in. Optional — defaults to Backlog column if neither columnId nor columnName is provided."),
       columnName: z.string().optional().describe("Column name to place the issue in — e.g. 'Backlog', 'Todo'. Defaults to 'Backlog' if omitted. Ignored if columnId is provided."),
-      priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional().describe("Priority level"),
-      type: z.enum(["TASK", "BUG"]).optional().describe("Item type — defaults to TASK"),
+      priority: z.enum(KANBAN_PRIORITIES).optional().describe("Priority level"),
+      type: z.enum(KANBAN_ITEM_TYPES).optional().describe("Item type — defaults to TASK"),
       labels: z.preprocess(
         (val) => {
           if (typeof val === "string") { try { return JSON.parse(val); } catch { return [val]; } }
@@ -141,14 +142,14 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
       }
 
       // Validate target column is Backlog or Todo — auto-correct to Todo if invalid
-      const targetCol = db.prepare(`SELECT "name" FROM "Column" WHERE "id" = ?`).get(resolvedColumnId) as any;
+      const targetCol = db.prepare(`SELECT "name" FROM "Column" WHERE "id" = ?`).get(resolvedColumnId) as Pick<ColumnRow, 'name'> | undefined;
       if (!targetCol || !["Backlog", "Todo"].includes(targetCol.name)) {
         const fallback = resolveColumnId(db, featureId, "Todo");
         if (!fallback) return errorResult("Could not resolve default Todo column.");
         resolvedColumnId = fallback;
       }
 
-      const maxOrder = db.prepare(`SELECT MAX("order") AS maxOrd FROM "Issue" WHERE "columnId" = ?`).get(resolvedColumnId) as any;
+      const maxOrder = db.prepare(`SELECT MAX("order") AS maxOrd FROM "Issue" WHERE "columnId" = ?`).get(resolvedColumnId) as MaxOrderRow | undefined;
       const order = (maxOrder?.maxOrd ?? -1) + 1;
 
       const now = nowIso();
@@ -173,8 +174,8 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
       id: z.string().describe("Issue ID"),
       title: z.string().optional().describe("New title"),
       description: z.string().optional().describe("New description"),
-      priority: z.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]).optional().describe("New priority"),
-      type: z.enum(["TASK", "BUG"]).optional().describe("Change item type"),
+      priority: z.enum(KANBAN_PRIORITIES).optional().describe("New priority"),
+      type: z.enum(KANBAN_ITEM_TYPES).optional().describe("Change item type"),
       labels: z.preprocess(
         (val) => {
           if (typeof val === "string") { try { return JSON.parse(val); } catch { return [val]; } }
@@ -230,7 +231,7 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
     async ({ id, columnId, columnName }) => {
       const db = getDb(projectId);
 
-      const issue = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(id) as any;
+      const issue = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(id) as IssueRow | undefined;
       if (!issue) return errorResult("Issue not found.");
 
       let resolvedColumnId = columnId;
@@ -241,10 +242,10 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
       }
       if (!resolvedColumnId) return errorResult("Either columnId or columnName is required.");
 
-      const targetCol = db.prepare(`SELECT "name" FROM "Column" WHERE "id" = ?`).get(resolvedColumnId) as any;
+      const targetCol = db.prepare(`SELECT "name" FROM "Column" WHERE "id" = ?`).get(resolvedColumnId) as Pick<ColumnRow, 'name'> | undefined;
       if (targetCol?.name === "Done") return errorResult("Not allowed: only the user can move issues to the Done column.");
 
-      const maxOrder = db.prepare(`SELECT MAX("order") AS maxOrd FROM "Issue" WHERE "columnId" = ?`).get(resolvedColumnId) as any;
+      const maxOrder = db.prepare(`SELECT MAX("order") AS maxOrd FROM "Issue" WHERE "columnId" = ?`).get(resolvedColumnId) as MaxOrderRow | undefined;
       const order = (maxOrder?.maxOrd ?? -1) + 1;
 
       const now = nowIso();

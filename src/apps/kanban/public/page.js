@@ -84,6 +84,7 @@ const FEATURE_COLORS = [
   '#f59e0b', '#22c55e', '#06b6d4', '#3b82f6',
 ];
 
+// Canonical values: src/packages/shared-types/src/index.ts (KANBAN_PRIORITIES)
 const PRIORITY_LABELS = { LOW: 'Low', MEDIUM: 'Medium', HIGH: 'High', URGENT: 'Urgent' };
 
 // ── State ────────────────────────────────────────────────────────────────────
