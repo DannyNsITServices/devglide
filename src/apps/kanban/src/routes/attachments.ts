@@ -100,7 +100,7 @@ attachmentsRouter.get("/:id", (req: Request, res: Response) => {
     const { id } = req.params;
     const db = getDb(req.projectId);
 
-    const row = db.prepare(`SELECT * FROM "Attachment" WHERE "id" = ?`).get(id) as any;
+    const row = db.prepare(`SELECT * FROM "Attachment" WHERE "id" = ?`).get(id) as { id: string; filename: string; mimeType: string; size: number; issueId: string } | undefined;
     if (!row) {
       res.status(404).json({ error: "Attachment not found" });
       return;
@@ -137,7 +137,7 @@ attachmentsRouter.delete("/:id", (req: Request, res: Response) => {
     const { id } = req.params;
     const db = getDb(req.projectId);
 
-    const row = db.prepare(`SELECT * FROM "Attachment" WHERE "id" = ?`).get(id) as any;
+    const row = db.prepare(`SELECT * FROM "Attachment" WHERE "id" = ?`).get(id) as { id: string; filename: string; mimeType: string; size: number; issueId: string } | undefined;
     if (!row) {
       res.status(404).json({ error: "Attachment not found" });
       return;

@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { z } from "zod";
 import { getDb, generateId, nowIso, appendVersionedEntry, getVersionedEntries } from "../db.js";
 import path from "path";
 import fs from "fs";
@@ -63,33 +64,41 @@ issuesRouter.get("/", (req: Request, res: Response) => {
 });
 
 import { KANBAN_PRIORITIES, KANBAN_ITEM_TYPES_EXTENDED } from "../../../../packages/shared-types/src/index.js";
-const VALID_PRIORITIES: readonly string[] = KANBAN_PRIORITIES;
-const VALID_TYPES: readonly string[] = KANBAN_ITEM_TYPES_EXTENDED;
+
+const createIssueSchema = z.object({
+  title: z.string().min(1).max(500),
+  description: z.string().optional(),
+  priority: z.enum(KANBAN_PRIORITIES).optional(),
+  type: z.enum(KANBAN_ITEM_TYPES_EXTENDED).optional(),
+  labels: z.union([z.string(), z.array(z.string())]).optional(),
+  dueDate: z.string().optional().nullable(),
+  featureId: z.string().min(1),
+  columnId: z.string().min(1),
+});
+
+const updateIssueSchema = createIssueSchema.partial().extend({
+  columnId: z.string().optional(),
+});
+
+const reorderSchema = z.object({
+  issueId: z.string().min(1),
+  newColumnId: z.string().min(1),
+  newOrder: z.number(),
+});
+
+const contentSchema = z.object({
+  content: z.string().min(1),
+});
 
 // POST /api/issues
 issuesRouter.post("/", (req: Request, res: Response) => {
   try {
-    const { title, description, priority, type, labels, dueDate, featureId, columnId } = req.body;
-
-    if (!title || !featureId || !columnId) {
-      res.status(400).json({ error: "title, featureId, and columnId are required" });
+    const parsed = createIssueSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
       return;
     }
-
-    if (typeof title !== "string" || title.length > 500) {
-      res.status(400).json({ error: "title must be a string of at most 500 characters" });
-      return;
-    }
-
-    if (priority && !VALID_PRIORITIES.includes(priority)) {
-      res.status(400).json({ error: `priority must be one of: ${VALID_PRIORITIES.join(", ")}` });
-      return;
-    }
-
-    if (type && !VALID_TYPES.includes(type)) {
-      res.status(400).json({ error: `type must be one of: ${VALID_TYPES.join(", ")}` });
-      return;
-    }
+    const { title, description, priority, type, labels, dueDate, featureId, columnId } = parsed.data;
 
     const db = getDb(req.projectId);
     const now = nowIso();
@@ -98,7 +107,7 @@ issuesRouter.post("/", (req: Request, res: Response) => {
     // Calculate order: max order in target column + 1
     const maxOrder = db
       .prepare(`SELECT MAX("order") AS maxOrd FROM "Issue" WHERE "columnId" = ?`)
-      .get(columnId) as any;
+      .get(columnId) as { maxOrd: number | null } | undefined;
     const order = (maxOrder?.maxOrd ?? -1) + 1;
 
     db.prepare(
@@ -128,12 +137,12 @@ issuesRouter.post("/", (req: Request, res: Response) => {
 // POST /api/issues/reorder  (defined before /:id to avoid route conflict)
 issuesRouter.post("/reorder", (req: Request, res: Response) => {
   try {
-    const { issueId, newColumnId, newOrder } = req.body;
-
-    if (!issueId || !newColumnId || newOrder === undefined) {
-      res.status(400).json({ error: "issueId, newColumnId, and newOrder are required" });
+    const parsed = reorderSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
       return;
     }
+    const { issueId, newColumnId, newOrder } = parsed.data;
 
     const db = getDb(req.projectId);
     const now = nowIso();
@@ -211,6 +220,12 @@ issuesRouter.get("/:id", (req: Request, res: Response) => {
 // PATCH /api/issues/:id
 issuesRouter.patch("/:id", (req: Request, res: Response) => {
   try {
+    const parsed = updateIssueSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+      return;
+    }
+
     const id = req.params.id as string;
     const db = getDb(req.projectId);
 
@@ -283,12 +298,13 @@ issuesRouter.get("/:id/work-log", (req: Request, res: Response) => {
 // POST /api/issues/:id/work-log
 issuesRouter.post("/:id/work-log", (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
-    const { content } = req.body;
-    if (!content || typeof content !== "string" || !content.trim()) {
-      res.status(400).json({ error: "content is required" });
+    const parsed = contentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
       return;
     }
+    const id = req.params.id as string;
+    const { content } = parsed.data;
     const db = getDb(req.projectId);
     const existing = db.prepare(`SELECT "id" FROM "Issue" WHERE "id" = ?`).get(id);
     if (!existing) { res.status(404).json({ error: "Issue not found" }); return; }
@@ -315,12 +331,13 @@ issuesRouter.get("/:id/review", (req: Request, res: Response) => {
 // POST /api/issues/:id/review
 issuesRouter.post("/:id/review", (req: Request, res: Response) => {
   try {
-    const id = req.params.id as string;
-    const { content } = req.body;
-    if (!content || typeof content !== "string" || !content.trim()) {
-      res.status(400).json({ error: "content is required" });
+    const parsed = contentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
       return;
     }
+    const id = req.params.id as string;
+    const { content } = parsed.data;
     const db = getDb(req.projectId);
     const existing = db.prepare(`SELECT "id" FROM "Issue" WHERE "id" = ?`).get(id);
     if (!existing) { res.status(404).json({ error: "Issue not found" }); return; }
@@ -348,7 +365,7 @@ issuesRouter.delete("/:id", (req: Request, res: Response) => {
     // Fetch attachments so we can delete files from disk
     const attachments = db
       .prepare(`SELECT * FROM "Attachment" WHERE "issueId" = ?`)
-      .all(id) as any[];
+      .all(id) as { id: string; filename: string }[];
 
     // Delete attachment files from disk
     for (const att of attachments) {

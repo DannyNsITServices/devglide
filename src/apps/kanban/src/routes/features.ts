@@ -1,9 +1,18 @@
 import { Router, Request, Response } from "express";
+import { z } from "zod";
 import { getDb, generateId, nowIso } from "../db.js";
 import path from "path";
 import fs from "fs";
 import { getUploadsDir } from "./attachments.js";
 import { DEFAULT_COLUMNS } from "../mcp-helpers.js";
+
+const createFeatureSchema = z.object({
+  name: z.string().min(1).max(500),
+  description: z.string().optional().nullable(),
+  color: z.string().optional(),
+});
+
+const updateFeatureSchema = createFeatureSchema.partial();
 
 export const featuresRouter: Router = Router();
 
@@ -33,7 +42,7 @@ featuresRouter.get("/", (req: Request, res: Response) => {
          FROM "Project" p
          ORDER BY p."name" COLLATE NOCASE ASC`
       )
-      .all() as any[];
+      .all() as { id: string; name: string; description: string | null; color: string; createdAt: string; updatedAt: string; issueCount: number }[];
 
     const features = rows.map((row) => {
       const { issueCount, ...rest } = row;
@@ -49,17 +58,12 @@ featuresRouter.get("/", (req: Request, res: Response) => {
 // POST /api/features
 featuresRouter.post("/", (req: Request, res: Response) => {
   try {
-    const { name, description, color } = req.body;
-
-    if (!name || typeof name !== "string" || !name.trim()) {
-      res.status(400).json({ error: "name is required" });
+    const parsed = createFeatureSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
       return;
     }
-
-    if (name.length > 500) {
-      res.status(400).json({ error: "name must be at most 500 characters" });
-      return;
-    }
+    const { name, description, color } = parsed.data;
 
     const db = getDb(req.projectId);
     const now = nowIso();
@@ -99,7 +103,7 @@ featuresRouter.get("/:id", (req: Request, res: Response) => {
     const { id } = req.params;
     const db = getDb(req.projectId);
 
-    const feature = db.prepare(`SELECT * FROM "Project" WHERE "id" = ?`).get(id) as any;
+    const feature = db.prepare(`SELECT * FROM "Project" WHERE "id" = ?`).get(id) as Record<string, unknown> | undefined;
 
     if (!feature) {
       res.status(404).json({ error: "Feature not found" });
@@ -108,7 +112,7 @@ featuresRouter.get("/:id", (req: Request, res: Response) => {
 
     const columns = db
       .prepare(`SELECT * FROM "Column" WHERE "projectId" = ? ORDER BY "order" ASC`)
-      .all(id) as any[];
+      .all(id) as Record<string, unknown>[];
 
     const issues = db
       .prepare(
@@ -117,10 +121,10 @@ featuresRouter.get("/:id", (req: Request, res: Response) => {
                 (SELECT COUNT(*) FROM "VersionedEntry" ve WHERE ve."issueId" = i."id" AND ve."type" = 'work_log') AS workLogCount
          FROM "Issue" i WHERE i."projectId" = ? ORDER BY i."order" ASC`
       )
-      .all(id) as any[];
+      .all(id) as Record<string, unknown>[];
 
     // Group issues by columnId
-    const issuesByColumn = new Map<string, any[]>();
+    const issuesByColumn = new Map<string, Record<string, unknown>[]>();
     for (const issue of issues) {
       const list = issuesByColumn.get(issue.columnId) ?? [];
       list.push(mapIssue(issue));
@@ -141,6 +145,12 @@ featuresRouter.get("/:id", (req: Request, res: Response) => {
 // PATCH /api/features/:id
 featuresRouter.patch("/:id", (req: Request, res: Response) => {
   try {
+    const parsed = updateFeatureSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
+      return;
+    }
+
     const { id } = req.params;
     const db = getDb(req.projectId);
 
@@ -205,7 +215,7 @@ featuresRouter.delete("/:id", (req: Request, res: Response) => {
          JOIN "Issue" i ON a."issueId" = i."id"
          WHERE i."projectId" = ?`
       )
-      .all(id) as any[];
+      .all(id) as { id: string; filename: string }[];
 
     for (const att of attachments) {
       const ext = path.extname(att.filename);
