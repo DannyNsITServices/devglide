@@ -3,6 +3,7 @@ import { Router } from "express";
 import type { Request, Response, Router as RouterType } from "express";
 import { ScenarioManager } from "../services/scenario-manager.js";
 import { ScenarioStore } from "../services/scenario-store.js";
+import { z } from "zod";
 
 export const triggerRouter: RouterType = Router();
 const scenarioManager = ScenarioManager.getInstance();
@@ -26,6 +27,56 @@ const heartbeatTimer = setInterval(() => {
   }
 }, HEARTBEAT_INTERVAL_MS);
 heartbeatTimer.unref(); // don't keep the process alive just for heartbeats
+
+const scenarioStepSchema = z.object({
+  command: z.string(),
+  selector: z.string().optional(),
+  text: z.string().optional(),
+  value: z.string().optional(),
+  timeout: z.number().optional(),
+  ms: z.number().optional(),
+  clear: z.boolean().optional(),
+  contains: z.boolean().optional(),
+  path: z.string().optional(),
+});
+
+const submitScenarioSchema = z.object({
+  name: z.string().optional(),
+  description: z.string().optional(),
+  steps: z.array(scenarioStepSchema).min(1, "At least one step is required"),
+  target: z.string().optional(),
+});
+
+const saveScenarioSchema = z.object({
+  name: z.string().min(1, "name is required"),
+  description: z.string().optional(),
+  steps: z.array(scenarioStepSchema).min(1, "At least one step is required"),
+  target: z.string().min(1, "target is required"),
+});
+
+const scenarioResultSchema = z.object({
+  status: z.enum(["passed", "failed"]),
+  failedStep: z.number().optional(),
+  error: z.string().optional(),
+  duration: z.number().optional(),
+});
+
+const scenarioIdParamSchema = z.object({
+  id: z.string().min(1, "scenario id is required"),
+});
+
+const projectPathQuerySchema = z.object({
+  projectPath: z.string().optional(),
+});
+
+const targetQuerySchema = z.object({
+  target: z.string().optional(),
+});
+
+const savedScenariosQuerySchema = z.object({
+  target: z.string().optional(),
+  projectPath: z.string().optional(),
+});
 
 /**
  * Broadcast a scenario to all SSE clients listening on the given target.
@@ -51,7 +102,12 @@ function broadcastScenario(target: string, scenario: unknown): void {
  * Returns 0 if no project is specified.
  */
 triggerRouter.get("/status", (req: Request, res: Response) => {
-  const projectPath = (req.query.projectPath as string) || null;
+  const query = projectPathQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+  const projectPath = query.data.projectPath || null;
   res.json({ pendingScenarios: scenarioManager.getPendingCountForProject(projectPath) });
 });
 
@@ -62,37 +118,19 @@ triggerRouter.get("/commands", (_req: Request, res: Response) => {
   res.json(scenarioManager.getCommandsCatalog());
 });
 
-interface ScenarioBody {
-  name?: string;
-  description?: string;
-  steps?: Array<{
-    command: string;
-    selector?: string;
-    text?: string;
-    value?: string;
-    timeout?: number;
-    ms?: number;
-    clear?: boolean;
-    contains?: boolean;
-    path?: string;
-  }>;
-  target?: string;
-}
-
 /**
  * POST /api/trigger/scenarios — Submit a scenario for browser execution.
  * If SSE clients are listening for this target, the scenario is broadcast
  * directly rather than being queued (SSE client will dequeue it).
  */
 triggerRouter.post("/scenarios", (req: Request, res: Response) => {
-  const body = req.body as ScenarioBody;
-
-  if (!body.steps || body.steps.length === 0) {
-    res.status(400).end();
+  const parsed = submitScenarioSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
     return;
   }
 
-  const saved = scenarioManager.submitScenario(body);
+  const saved = scenarioManager.submitScenario(parsed.data);
   // Broadcast to any SSE clients listening for this target
   if (saved.target) {
     broadcastScenario(saved.target, saved);
@@ -106,7 +144,12 @@ triggerRouter.post("/scenarios", (req: Request, res: Response) => {
  * as they are submitted. Heartbeat comment every 30 seconds.
  */
 triggerRouter.get("/scenarios/stream", (req: Request, res: Response) => {
-  const target = (req.query.target as string) || "";
+  const query = targetQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+  const target = query.data.target || "";
 
   // Register the target so targetKey resolution works for app-name shortcuts
   scenarioManager.registerTarget(target);
@@ -148,7 +191,12 @@ triggerRouter.get("/scenarios/stream", (req: Request, res: Response) => {
  * Kept for backwards compatibility — SSE stream is the preferred mechanism.
  */
 triggerRouter.get("/scenarios/poll", (req: Request, res: Response) => {
-  const target = (req.query.target as string) || "";
+  const query = targetQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+  const target = query.data.target || "";
 
   const queued = scenarioManager.dequeueScenario(target);
   if (queued) {
@@ -163,7 +211,12 @@ triggerRouter.get("/scenarios/poll", (req: Request, res: Response) => {
  * Must be registered before the :id param routes to avoid ambiguity.
  */
 triggerRouter.get("/scenarios/results", (req: Request, res: Response) => {
-  const projectPath = req.query.projectPath as string | undefined;
+  const query = projectPathQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+  const projectPath = query.data.projectPath;
   res.json(scenarioManager.listResults(projectPath || null));
 });
 
@@ -171,20 +224,18 @@ triggerRouter.get("/scenarios/results", (req: Request, res: Response) => {
  * POST /api/trigger/scenarios/:id/result — Receive result from browser after scenario completes.
  */
 triggerRouter.post("/scenarios/:id/result", (req: Request, res: Response) => {
-  const id = req.params.id as string;
-  const { status, failedStep, error, duration } = req.body as {
-    status?: string;
-    failedStep?: number;
-    error?: string;
-    duration?: number;
-  };
-
-  if (status !== "passed" && status !== "failed") {
-    res.status(400).end();
+  const params = scenarioIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+  const parsed = scenarioResultSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
     return;
   }
 
-  const result = scenarioManager.setResult(id, { status, failedStep, error, duration });
+  const result = scenarioManager.setResult(params.data.id, parsed.data);
   res.status(201).json(result);
 });
 
@@ -192,8 +243,12 @@ triggerRouter.post("/scenarios/:id/result", (req: Request, res: Response) => {
  * GET /api/trigger/scenarios/:id/result — Retrieve result for a scenario.
  */
 triggerRouter.get("/scenarios/:id/result", (req: Request, res: Response) => {
-  const id = req.params.id as string;
-  const result = scenarioManager.getResult(id);
+  const params = scenarioIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+  const result = scenarioManager.getResult(params.data.id);
   if (!result) {
     res.status(404).end();
     return;
@@ -209,8 +264,12 @@ const scenarioStore = ScenarioStore.getInstance();
  * Returns empty array if neither is provided.
  */
 triggerRouter.get("/scenarios/saved", async (req: Request, res: Response) => {
-  const target = req.query.target as string | undefined;
-  const projectPath = req.query.projectPath as string | undefined;
+  const query = savedScenariosQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+  const { target, projectPath } = query.data;
 
   if (target) {
     res.json(await scenarioStore.list(target));
@@ -230,18 +289,17 @@ triggerRouter.get("/scenarios/saved", async (req: Request, res: Response) => {
  * POST /api/trigger/scenarios/save — Save a new scenario.
  */
 triggerRouter.post("/scenarios/save", async (req: Request, res: Response) => {
-  const body = req.body as ScenarioBody;
-
-  if (!body.name || !body.target || !body.steps || body.steps.length === 0) {
-    res.status(400).end();
+  const parsed = saveScenarioSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
     return;
   }
 
   const saved = await scenarioStore.save({
-    name: body.name,
-    description: body.description,
-    target: body.target,
-    steps: body.steps,
+    name: parsed.data.name,
+    description: parsed.data.description,
+    target: parsed.data.target,
+    steps: parsed.data.steps,
     projectId: undefined, // standalone mode has no project context
   });
   res.status(201).json(saved);
@@ -251,8 +309,12 @@ triggerRouter.post("/scenarios/save", async (req: Request, res: Response) => {
  * DELETE /api/trigger/scenarios/saved/:id — Delete a saved scenario by id.
  */
 triggerRouter.delete("/scenarios/saved/:id", async (req: Request, res: Response) => {
-  const id = req.params.id as string;
-  const deleted = await scenarioStore.delete(id);
+  const params = scenarioIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+  const deleted = await scenarioStore.delete(params.data.id);
   if (!deleted) {
     res.status(404).end();
     return;
@@ -264,14 +326,18 @@ triggerRouter.delete("/scenarios/saved/:id", async (req: Request, res: Response)
  * POST /api/trigger/scenarios/saved/:id/run — Re-run a saved scenario.
  */
 triggerRouter.post("/scenarios/saved/:id/run", async (req: Request, res: Response) => {
-  const id = req.params.id as string;
-  const scenario = await scenarioStore.get(id);
+  const params = scenarioIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+  const scenario = await scenarioStore.get(params.data.id);
   if (!scenario) {
     res.status(404).end();
     return;
   }
 
-  await scenarioStore.markRun(id);
+  await scenarioStore.markRun(params.data.id);
 
   const queued = scenarioManager.submitScenario({
     name: scenario.name,

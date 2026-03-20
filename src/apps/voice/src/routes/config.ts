@@ -1,4 +1,5 @@
 import { Router, type Router as RouterType } from "express";
+import { z } from "zod";
 import {
   getProvider,
   getProviderConfig,
@@ -6,12 +7,47 @@ import {
   PROVIDER_META,
 } from "../providers/index.js";
 import { configStore } from "../services/config-store.js";
+import type { CleanupConfig, TtsConfig } from "../services/config-store.js";
 import { stats } from "../services/stats.js";
 import { handleTranscribe } from "./transcribe.js";
 import { checkFfmpeg } from "../providers/local-whisper.js";
 import { speak, stop as ttsStop, listVoices } from "../services/tts.js";
 
 export const configRouter: RouterType = Router();
+
+const cleanupConfigSchema = z.object({
+  enabled: z.boolean(),
+  provider: z.string().optional(),
+  model: z.string().optional(),
+  baseURL: z.string().optional(),
+  apiKey: z.string().optional(),
+});
+
+const ttsConfigSchema = z.object({
+  enabled: z.boolean(),
+  voice: z.string().optional(),
+  edgeRate: z.string().optional(),
+  edgePitch: z.string().optional(),
+  fallbackRate: z.number().optional(),
+  volume: z.number().optional(),
+  chunkThreshold: z.number().optional(),
+});
+
+const updateConfigSchema = z.object({
+  provider: z.string().optional(),
+  language: z.string().optional(),
+  apiKey: z.string().optional(),
+  baseURL: z.string().optional(),
+  model: z.string().optional(),
+  vocabBiasing: z.boolean().optional(),
+  customVocabulary: z.array(z.string()).optional(),
+  cleanup: cleanupConfigSchema.optional(),
+  tts: ttsConfigSchema.optional(),
+});
+
+const speakBodySchema = z.object({
+  text: z.string().min(1),
+});
 
 configRouter.get("/", (_req, res) => {
   const cfg = configStore.get();
@@ -57,10 +93,13 @@ configRouter.get("/providers", (_req, res) => {
 });
 
 configRouter.put("/", (req, res) => {
-  const { provider, language, apiKey, baseURL, model, vocabBiasing, customVocabulary, cleanup } = req.body as Record<
-    string,
-    any
-  >;
+  const parsed = updateConfigSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid config payload" });
+    return;
+  }
+
+  const { provider, language, apiKey, baseURL, model, vocabBiasing, customVocabulary, cleanup, tts } = parsed.data;
 
   if (provider && !PROVIDER_META[provider]) {
     res.status(400).json({ error: `Unknown provider "${provider}"` });
@@ -96,11 +135,10 @@ configRouter.put("/", (req, res) => {
     patch.providerSettings = settings;
   }
 
-  const tts = (req.body as any).tts;
   if (vocabBiasing !== undefined) patch.vocabBiasing = !!vocabBiasing;
   if (Array.isArray(customVocabulary)) patch.customVocabulary = customVocabulary.map(String);
-  if (cleanup && typeof cleanup === "object") patch.cleanup = cleanup;
-  if (tts && typeof tts === "object") patch.tts = tts;
+  if (cleanup) patch.cleanup = cleanup as Partial<CleanupConfig>;
+  if (tts) patch.tts = tts as Partial<TtsConfig>;
 
   configStore.update(patch);
   invalidateProvider();
@@ -129,11 +167,12 @@ configRouter.get("/check-ffmpeg", (_req, res) => {
 // ── TTS endpoints ────────────────────────────────────────────────────
 
 configRouter.post("/tts/speak", (req, res) => {
-  const { text } = req.body as { text?: string };
-  if (!text?.trim()) {
-    res.status(400).json({ error: "text is required" });
+  const parsed = speakBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "text is required" });
     return;
   }
+  const { text } = parsed.data;
   // Respond immediately — speak() is fire-and-forget and never throws
   res.json({ ok: true, chars: text.length });
   speak(text);

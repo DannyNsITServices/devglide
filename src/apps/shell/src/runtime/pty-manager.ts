@@ -1,14 +1,12 @@
 import pty, { type IPty } from 'node-pty';
 import fs from 'fs';
-import type { PtyEntry, PaneInfo, ShellEmitter } from '../../apps/shell/src/shell-types.js';
+import type { PtyEntry, PaneInfo, ShellEmitter } from '../shell-types.js';
 import {
   globalPtys,
   dashboardState,
   getShellNsp,
   SCROLLBACK_LIMIT,
 } from './shell-state.js';
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
 
 /** Send SIGHUP, then SIGKILL after 2 s if still alive. */
 export function killPty(p: IPty): void {
@@ -17,18 +15,23 @@ export function killPty(p: IPty): void {
   } catch {
     return;
   }
+
   const { pid } = p;
   setTimeout(() => {
     try {
       process.kill(pid, 0);
       process.kill(pid, 'SIGKILL');
-    } catch { /* already exited */ }
+    } catch {
+      // already exited
+    }
   }, 2000).unref();
 }
 
 export function readCwd(pid: number): Promise<string | null> {
   return new Promise((resolve) => {
-    fs.readlink(`/proc/${pid}/cwd`, (err: NodeJS.ErrnoException | null, linkPath: string) => resolve(err ? null : linkPath));
+    fs.readlink(`/proc/${pid}/cwd`, (err: NodeJS.ErrnoException | null, linkPath: string) => {
+      resolve(err ? null : linkPath);
+    });
   });
 }
 
@@ -36,8 +39,6 @@ function updatePaneCwd(id: string, cwd: string): void {
   const pane = dashboardState.panes.find((p: PaneInfo) => p.id === id);
   if (pane) pane.cwd = cwd;
 }
-
-// ── PTY lifecycle ───────────────────────────────────────────────────────────
 
 export function spawnGlobalPty(
   id: string,
@@ -54,14 +55,15 @@ export function spawnGlobalPty(
   cols = Number.isInteger(cols) && cols >= 1 ? Math.min(cols, 500) : 80;
   rows = Number.isInteger(rows) && rows >= 1 ? Math.min(rows, 500) : 24;
 
-  const ptyProcess: IPty = pty.spawn(command, args, {
+  const spawnOpts = {
     name: 'xterm-256color',
     cols,
     rows,
     cwd: startCwd || process.env.HOME || process.env.USERPROFILE || '/',
     env,
     ...(process.platform === 'win32' ? { useConpty: true, conptyInheritCursor: true } : {}),
-  } as any);
+  };
+  const ptyProcess: IPty = pty.spawn(command, args, spawnOpts as Parameters<typeof pty.spawn>[2]);
 
   const entry: PtyEntry = { ptyProcess, chunks: [], totalLen: 0 };
   globalPtys.set(id, entry);

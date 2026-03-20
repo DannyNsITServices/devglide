@@ -1,8 +1,10 @@
 import { Router } from "express";
 import type { Request, Response, Router as RouterType } from "express";
+import { z } from "zod";
 import fs from "fs/promises";
 import { LogWriter } from "../services/log-writer.js";
 import { safeLogPath } from "../safe-log-path.js";
+import { asyncHandler, errorMessage } from "../../../../packages/error-middleware.js";
 
 export const logRouter: RouterType = Router();
 const logWriter = new LogWriter();
@@ -175,33 +177,44 @@ async function tailLines(filePath: string, n: number): Promise<string[]> {
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-interface LogRequestBody {
-  type?: string;
-  session?: string;
-  seq?: number;
-  ts?: string;
-  url?: string;
-  ua?: string;
-  message?: string;
-  source?: string;
-  line?: number;
-  col?: number;
-  stack?: string;
-  targetPath?: string;
-  persistent?: boolean;
+const logEntrySchema = z.object({
+  targetPath: z.string().min(1),
+  type: z.string().optional(),
+  session: z.string().optional(),
+  seq: z.number().optional(),
+  ts: z.string().optional(),
+  url: z.string().optional(),
+  ua: z.string().optional(),
+  message: z.string().optional(),
+  source: z.string().optional(),
+  line: z.number().optional(),
+  col: z.number().optional(),
+  stack: z.string().optional(),
+  persistent: z.boolean().optional(),
+});
+
+const targetPathQuerySchema = z.object({
+  targetPath: z.string().min(1),
+});
+
+function badRequest(res: Response, message: string): void {
+  res.status(400).json({ error: message });
+}
+
+function forbidden(res: Response, message: string): void {
+  res.status(403).json({ error: message });
 }
 
 /**
  * POST /api/log — Append a log entry to the target JSONL file.
  */
-logRouter.post("/", async (req: Request, res: Response) => {
-  const body = req.body as LogRequestBody;
-  const targetPath = body.targetPath;
-
-  if (!targetPath || targetPath.trim() === "") {
-    res.status(400).end();
-    return;
+logRouter.post("/", asyncHandler(async (req: Request, res: Response) => {
+  const parsed = logEntrySchema.safeParse(req.body);
+  if (!parsed.success) {
+    return badRequest(res, 'Invalid log entry');
   }
+  const body = parsed.data;
+  const { targetPath } = body;
 
   const type = body.type && body.type.trim() !== "" ? body.type : "LOG";
   const ts = body.ts && body.ts.trim() !== "" ? body.ts : new Date().toISOString();
@@ -223,8 +236,7 @@ logRouter.post("/", async (req: Request, res: Response) => {
   try {
     safePath = safeLogPath(targetPath);
   } catch {
-    res.status(403).json({ error: "Path traversal denied" });
-    return;
+    return forbidden(res, "Path traversal denied");
   }
 
   try {
@@ -235,70 +247,70 @@ logRouter.post("/", async (req: Request, res: Response) => {
     if (!isServerEntry) {
       await logWriter.append(safePath, entry);
     }
-    res.status(200).end();
+    res.status(200).json({ ok: true });
   } catch (err) {
-    console.error("[log] Failed to write log:", (err as Error).message);
-    res.status(500).end();
+    console.error("[log] Failed to write log:", errorMessage(err));
+    throw err;
   }
-});
+}));
 
 /**
  * DELETE /api/log/all — Truncate log files for all tracked sessions.
  */
-logRouter.delete("/all", async (_req: Request, res: Response) => {
+logRouter.delete("/all", asyncHandler(async (_req: Request, res: Response) => {
   const paths = getTargetPaths();
   await Promise.all(paths.map((p) => logWriter.clear(p).catch(() => {})));
   resetSessionCounters();
   res.status(200).json({ cleared: paths.length });
-});
+}));
 
 /**
  * DELETE /api/log?targetPath=... — Truncate (clear) the log file.
  */
-logRouter.delete("/", async (req: Request, res: Response) => {
-  const targetPath = req.query.targetPath as string | undefined;
-
-  if (!targetPath || targetPath.trim() === "") {
-    res.status(400).end();
-    return;
+logRouter.delete("/", asyncHandler(async (req: Request, res: Response) => {
+  const qp = targetPathQuerySchema.safeParse(req.query);
+  if (!qp.success) {
+    return badRequest(res, 'targetPath is required');
   }
+  const { targetPath } = qp.data;
 
   let safePath: string;
   try {
     safePath = safeLogPath(targetPath);
   } catch {
-    res.status(403).json({ error: "Path traversal denied" });
-    return;
+    return forbidden(res, "Path traversal denied");
   }
 
   try {
     await logWriter.clear(safePath);
     resetSessionCounters(targetPath);
-    res.status(200).end();
+    res.status(200).json({ ok: true });
   } catch (err) {
-    console.error("[log] Failed to clear log:", (err as Error).message);
-    res.status(500).end();
+    console.error("[log] Failed to clear log:", errorMessage(err));
+    throw err;
   }
-});
+}));
 
 /**
  * GET /api/log/view?targetPath=...&limit=200 — Read parsed JSONL entries.
  */
-logRouter.get("/view", async (req: Request, res: Response) => {
-  const targetPath = req.query.targetPath as string | undefined;
-  const limit = Math.min(parseInt(req.query.limit as string) || 500, 2000);
+const viewQuerySchema = z.object({
+  targetPath: z.string().min(1),
+  limit: z.coerce.number().int().min(1).max(2000).optional().default(500),
+});
 
-  if (!targetPath || targetPath.trim() === "") {
-    res.status(400).json({ error: "targetPath is required" });
-    return;
+logRouter.get("/view", asyncHandler(async (req: Request, res: Response) => {
+  const qp = viewQuerySchema.safeParse(req.query);
+  if (!qp.success) {
+    return badRequest(res, "targetPath is required");
   }
+  const { targetPath, limit } = qp.data;
 
   let safePath: string;
   try {
     safePath = safeLogPath(targetPath);
   } catch {
-    res.status(403).json({ error: "Path traversal denied" });
-    return;
+    return forbidden(res, "Path traversal denied");
   }
 
   try {
@@ -312,6 +324,6 @@ logRouter.get("/view", async (req: Request, res: Response) => {
       res.json({ entries: [] });
       return;
     }
-    res.status(500).json({ error: "Failed to read log file" });
+    throw err;
   }
-});
+}));

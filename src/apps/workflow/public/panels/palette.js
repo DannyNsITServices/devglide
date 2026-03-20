@@ -7,31 +7,33 @@ let _container = null;
 let _dragCb = null;
 let _cleanup = [];
 
-function esc(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
 function renderPalette() {
   if (!_container) return;
 
-  let html = '';
+  _container.replaceChildren();
   for (const cat of NODE_CATEGORIES) {
     const entries = Object.entries(NODE_TYPES).filter(([, def]) => def.category === cat.id);
     if (!entries.length) continue;
 
-    html += `<div class="wb-palette-category">${esc(cat.label)}</div>`;
+    const category = document.createElement('div');
+    category.className = 'wb-palette-category';
+    category.textContent = cat.label;
+    _container.appendChild(category);
 
     for (const [typeKey, def] of entries) {
-      html += `
-        <div class="wb-palette-item" data-node-type="${esc(typeKey)}" draggable="true">
-          <span class="wb-palette-item-icon">${def.icon}</span>
-          <span>${esc(def.label)}</span>
-        </div>`;
+      const item = document.createElement('div');
+      item.className = 'wb-palette-item';
+      item.dataset.nodeType = typeKey;
+      item.draggable = true;
+      const icon = document.createElement('span');
+      icon.className = 'wb-palette-item-icon';
+      icon.textContent = def.icon;
+      const label = document.createElement('span');
+      label.textContent = def.label;
+      item.append(icon, label);
+      _container.appendChild(item);
     }
   }
-
-  _container.innerHTML = html;
   bindDrag();
 }
 

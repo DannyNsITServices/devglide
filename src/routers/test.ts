@@ -42,6 +42,23 @@ const scenarioResultSchema = z.object({
   duration: z.number().optional(),
 });
 
+const scenarioIdParamSchema = z.object({
+  id: z.string().min(1, 'scenario id is required'),
+});
+
+const projectPathQuerySchema = z.object({
+  projectPath: z.string().optional(),
+});
+
+const targetQuerySchema = z.object({
+  target: z.string().optional(),
+});
+
+const savedScenariosQuerySchema = z.object({
+  target: z.string().optional(),
+  projectPath: z.string().optional(),
+});
+
 export { createTestMcpServer } from '../apps/test/src/mcp.js';
 
 export const router: Router = Router();
@@ -58,7 +75,12 @@ const triggerRouter = Router();
  * GET /api/test/trigger/status — Return pending scenario count.
  */
 triggerRouter.get('/status', (req: Request, res: Response) => {
-  const projectPath = (req.query.projectPath as string) || getActiveProject()?.path || null;
+  const query = projectPathQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.issues[0]?.message ?? 'Invalid input' });
+    return;
+  }
+  const projectPath = query.data.projectPath || getActiveProject()?.path || null;
   res.json({ pendingScenarios: scenarioManager.getPendingCountForProject(projectPath) });
 });
 
@@ -93,7 +115,12 @@ triggerRouter.post('/scenarios', (req: Request, res: Response) => {
  * Static paths must be registered before :id param routes to avoid ambiguity.
  */
 triggerRouter.get('/scenarios/results', (req: Request, res: Response) => {
-  const projectPath = (req.query.projectPath as string) || getActiveProject()?.path || null;
+  const query = projectPathQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.issues[0]?.message ?? 'Invalid input' });
+    return;
+  }
+  const projectPath = query.data.projectPath || getActiveProject()?.path || null;
   res.json(scenarioManager.listResults(projectPath));
 });
 
@@ -101,7 +128,12 @@ triggerRouter.get('/scenarios/results', (req: Request, res: Response) => {
  * GET /api/test/trigger/scenarios/stream?target=... — SSE stream for scenario delivery.
  */
 triggerRouter.get('/scenarios/stream', (req: Request, res: Response) => {
-  const target = (req.query.target as string) || getActiveProject()?.path || '';
+  const query = targetQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.issues[0]?.message ?? 'Invalid input' });
+    return;
+  }
+  const target = query.data.target || getActiveProject()?.path || '';
 
   scenarioManager.registerTarget(target);
 
@@ -124,7 +156,12 @@ triggerRouter.get('/scenarios/stream', (req: Request, res: Response) => {
  * GET /api/test/trigger/scenarios/poll?target=... — Check for a queued scenario.
  */
 triggerRouter.get('/scenarios/poll', (req: Request, res: Response) => {
-  const target = (req.query.target as string) || getActiveProject()?.path || '';
+  const query = targetQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.issues[0]?.message ?? 'Invalid input' });
+    return;
+  }
+  const target = query.data.target || getActiveProject()?.path || '';
 
   const queued = scenarioManager.dequeueScenario(target);
   if (queued) {
@@ -138,14 +175,18 @@ triggerRouter.get('/scenarios/poll', (req: Request, res: Response) => {
  * POST /api/test/trigger/scenarios/:id/result — Receive result from browser.
  */
 triggerRouter.post('/scenarios/:id/result', (req: Request, res: Response) => {
-  const id = req.params.id as string;
+  const params = scenarioIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.issues[0]?.message ?? 'Invalid input' });
+    return;
+  }
   const parsed = scenarioResultSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' });
     return;
   }
 
-  const result = scenarioManager.setResult(id, parsed.data);
+  const result = scenarioManager.setResult(params.data.id, parsed.data);
   res.status(201).json(result);
 });
 
@@ -153,8 +194,12 @@ triggerRouter.post('/scenarios/:id/result', (req: Request, res: Response) => {
  * GET /api/test/trigger/scenarios/:id/result — Retrieve result for a scenario.
  */
 triggerRouter.get('/scenarios/:id/result', (req: Request, res: Response) => {
-  const id = req.params.id as string;
-  const result = scenarioManager.getResult(id);
+  const params = scenarioIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.issues[0]?.message ?? 'Invalid input' });
+    return;
+  }
+  const result = scenarioManager.getResult(params.data.id);
   if (!result) {
     res.status(404).end();
     return;
@@ -168,8 +213,12 @@ triggerRouter.get('/scenarios/:id/result', (req: Request, res: Response) => {
  * Returns empty array if neither is provided.
  */
 triggerRouter.get('/scenarios/saved', async (req: Request, res: Response) => {
-  const target = req.query.target as string | undefined;
-  const projectPath = req.query.projectPath as string | undefined;
+  const query = savedScenariosQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.issues[0]?.message ?? 'Invalid input' });
+    return;
+  }
+  const { target, projectPath } = query.data;
 
   if (target) {
     res.json(await scenarioStore.list(target));
@@ -218,8 +267,12 @@ triggerRouter.post('/scenarios/save', async (req: Request, res: Response) => {
  * DELETE /api/test/trigger/scenarios/saved/:id — Delete a saved scenario by id.
  */
 triggerRouter.delete('/scenarios/saved/:id', async (req: Request, res: Response) => {
-  const id = req.params.id as string;
-  const deleted = await scenarioStore.delete(id);
+  const params = scenarioIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.issues[0]?.message ?? 'Invalid input' });
+    return;
+  }
+  const deleted = await scenarioStore.delete(params.data.id);
   if (!deleted) {
     res.status(404).end();
     return;
@@ -231,14 +284,18 @@ triggerRouter.delete('/scenarios/saved/:id', async (req: Request, res: Response)
  * POST /api/test/trigger/scenarios/saved/:id/run — Re-run a saved scenario.
  */
 triggerRouter.post('/scenarios/saved/:id/run', async (req: Request, res: Response) => {
-  const id = req.params.id as string;
-  const scenario = await scenarioStore.get(id);
+  const params = scenarioIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.issues[0]?.message ?? 'Invalid input' });
+    return;
+  }
+  const scenario = await scenarioStore.get(params.data.id);
   if (!scenario) {
     res.status(404).end();
     return;
   }
 
-  await scenarioStore.markRun(id);
+  await scenarioStore.markRun(params.data.id);
 
   const queued = scenarioManager.submitScenario({
     name: scenario.name,

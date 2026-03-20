@@ -2,11 +2,12 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import path from "path";
 import fs from "fs";
-import { getDb, generateId, nowIso, appendVersionedEntry, getVersionedEntries, type IssueRow, type CountRow, type MaxOrderRow, type ColumnRow } from "../db.js";
+import { getDb, nowIso, appendVersionedEntry, getVersionedEntries, type IssueRow, type CountRow, type MaxOrderRow, type ColumnRow } from "../db.js";
 import { jsonResult, errorResult } from "../../../../packages/mcp-utils/src/index.js";
 import { normalizeEscapes, mapIssueRow, resolveColumnId, truncateDescription } from "../mcp-helpers.js";
 import { getUploadsDir } from "../routes/attachments.js";
 import { KANBAN_PRIORITIES, KANBAN_ITEM_TYPES } from "../../../../packages/shared-types/src/index.js";
+import { createKanbanItem } from "../kanban-create-helper.js";
 
 export function registerItemTools(server: McpServer, projectId?: string | null): void {
 
@@ -43,7 +44,7 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
       const skip = offset ?? 0;
 
       const conditions: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (featureId) { conditions.push(`i."projectId" = ?`); params.push(featureId); }
       if (columnId) { conditions.push(`i."columnId" = ?`); params.push(columnId); }
@@ -60,7 +61,7 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
       const countRow = db
         .prepare(`SELECT COUNT(*) AS cnt FROM "Issue" i LEFT JOIN "Column" c ON i."columnId" = c."id" ${where}`)
         .get(...params) as CountRow;
-      const total = countRow.cnt;
+      const total = countRow.cnt ?? countRow.count ?? 0;
 
       const rows = db
         .prepare(
@@ -132,36 +133,20 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
     },
     async ({ title, description, featureId, columnId, columnName, priority, type, labels, dueDate }) => {
       const db = getDb(projectId);
+      const result = createKanbanItem(db, {
+        title,
+        description,
+        featureId,
+        columnId,
+        columnName,
+        priority,
+        type,
+        labels,
+        dueDate: dueDate ?? null,
+      });
 
-      const effectiveColumnName = columnName ?? "Backlog";
-      let resolvedColumnId = columnId;
-      if (!resolvedColumnId) {
-        const resolved = resolveColumnId(db, featureId, effectiveColumnName);
-        if (!resolved) return errorResult(`Column "${effectiveColumnName}" not found in feature.`);
-        resolvedColumnId = resolved;
-      }
-
-      // Validate target column is Backlog or Todo — auto-correct to Todo if invalid
-      const targetCol = db.prepare(`SELECT "name" FROM "Column" WHERE "id" = ?`).get(resolvedColumnId) as Pick<ColumnRow, 'name'> | undefined;
-      if (!targetCol || !["Backlog", "Todo"].includes(targetCol.name)) {
-        const fallback = resolveColumnId(db, featureId, "Todo");
-        if (!fallback) return errorResult("Could not resolve default Todo column.");
-        resolvedColumnId = fallback;
-      }
-
-      const maxOrder = db.prepare(`SELECT MAX("order") AS maxOrd FROM "Issue" WHERE "columnId" = ?`).get(resolvedColumnId) as MaxOrderRow | undefined;
-      const order = (maxOrder?.maxOrd ?? -1) + 1;
-
-      const now = nowIso();
-      const id = generateId();
-
-      db.prepare(
-        `INSERT INTO "Issue" ("id", "title", "description", "type", "priority", "order", "labels", "dueDate", "projectId", "columnId", "updatedAt")
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(id, title, description ? normalizeEscapes(description) : null, type ?? "TASK", priority ?? "MEDIUM", order, JSON.stringify(labels ?? []), dueDate ?? null, featureId, resolvedColumnId, now);
-
-      const row = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(id) as IssueRow | undefined;
-      return jsonResult(mapIssueRow(row));
+      if (!result.ok) return errorResult(result.error);
+      return jsonResult(mapIssueRow(result.item));
     }
   );
 
@@ -197,7 +182,7 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
       }
 
       const setClauses: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (title !== undefined) { setClauses.push(`"title" = ?`); params.push(title); }
       if (description !== undefined) { setClauses.push(`"description" = ?`); params.push(description ? normalizeEscapes(description) : description); }
@@ -246,7 +231,7 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
       if (targetCol?.name === "Done") return errorResult("Not allowed: only the user can move issues to the Done column.");
 
       const maxOrder = db.prepare(`SELECT MAX("order") AS maxOrd FROM "Issue" WHERE "columnId" = ?`).get(resolvedColumnId) as MaxOrderRow | undefined;
-      const order = (maxOrder?.maxOrd ?? -1) + 1;
+      const order = (maxOrder?.maxOrd ?? maxOrder?.maxOrder ?? -1) + 1;
 
       const now = nowIso();
       db.prepare(`UPDATE "Issue" SET "columnId" = ?, "order" = ?, "updatedAt" = ? WHERE "id" = ?`).run(resolvedColumnId, order, now, id);

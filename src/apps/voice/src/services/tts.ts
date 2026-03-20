@@ -41,43 +41,28 @@ function cleanupTempFiles(): void {
   _chunkFiles = [];
 }
 
-// Lazy-loaded msedge-tts
-let _MsEdgeTTS: any = null;
-let _OUTPUT_FORMAT: any = null;
+// ── msedge-tts types and lazy-loaded references ─────────────────────────────
 
-// ── Process-level safety net ─────────────────────────────────────────────────
-// Installed at module load time (not lazily) so the MCP process is protected
-// from the very first tick.  msedge-tts fires WebSocket errors as unhandled
-// rejections / uncaught exceptions that would otherwise crash the process and
-// drop the MCP stdio connection.  Only TTS-related errors are absorbed; all
-// other errors are logged and re-thrown so they propagate normally.
+interface EdgeTtsFileResult { audioFilePath: string }
+interface EdgeTtsVoice { FriendlyName?: string; ShortName: string; Gender: string; Locale: string }
+interface EdgeTtsInstance {
+  setMetadata(voice: string, format: string): Promise<void>;
+  toFile(dir: string, text: string, opts: { rate: string; pitch: string }): Promise<EdgeTtsFileResult>;
+  getVoices(): Promise<EdgeTtsVoice[]>;
+}
 
-process.on("unhandledRejection", (reason: unknown) => {
-  const msg = reason instanceof Error ? reason.message : String(reason);
-  if (/msedge|tts|websocket|speech\.platform|Unexpected server|ECONNRESET|ENOTFOUND|audio/i.test(msg)) {
-    // TTS-related — absorb silently (these are expected from msedge-tts WebSocket lifecycle)
-    process.stderr.write(`[voice:tts] unhandled rejection (absorbed): ${msg}\n`);
-  } else {
-    // Not TTS-related — log so it's visible, but don't absorb (let default handler run)
-    process.stderr.write(`[voice:tts] unhandled rejection (non-TTS, propagating): ${msg}\n`);
-    throw reason;
-  }
-});
+let _MsEdgeTTS: (new () => EdgeTtsInstance) | null = null;
+let _OUTPUT_FORMAT: Record<string, string> | null = null;
 
-process.on("uncaughtException", (err) => {
-  const msg = err instanceof Error ? err.message : String(err);
-  if (/msedge|tts|websocket|speech\.platform|Unexpected server|ECONNRESET|ENOTFOUND|EPIPE|audio/i.test(msg)) {
-    // TTS-related — absorb to prevent msedge-tts WebSocket errors from crashing
-    // the MCP process and dropping the stdio connection.
-    process.stderr.write(`[voice:tts] uncaught exception (absorbed): ${msg}\n`);
-  } else {
-    // Not TTS-related — log and re-throw so the default handler can deal with it.
-    // Re-throwing from uncaughtException will terminate the process, which is the
-    // correct behavior for genuinely unexpected errors.
-    process.stderr.write(`[voice:tts] uncaught exception (non-TTS, re-throwing): ${msg}\n`);
-    throw err;
-  }
-});
+// ── TTS error handling ──────────────────────────────────────────────────────
+// msedge-tts may fire unhandled WebSocket rejections during connection teardown.
+// These appear as Node.js warnings (DEP0018) but do NOT crash the process
+// under default Node.js 18+ settings.  We deliberately avoid installing
+// process-level unhandledRejection/uncaughtException hooks because:
+//   1. They couple TTS to global process error semantics.
+//   2. They risk swallowing non-TTS errors via regex matching.
+//   3. All catchable TTS errors are already handled via try/catch in
+//      generateEdgeTts(), speak(), and listVoices().
 
 /** Detect WSL environment. */
 function isWSL(): boolean {
@@ -306,7 +291,7 @@ async function generateEdgeTts(
     }
 
     const tts = new _MsEdgeTTS();
-    await tts.setMetadata(voice, _OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    await tts.setMetadata(voice, _OUTPUT_FORMAT!.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
 
     // Always write to native temp — playMp3() handles Windows path conversion
     const outDir = tmpdir();
@@ -319,8 +304,8 @@ async function generateEdgeTts(
       new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
     ]);
 
-    if (result && (result as any).audioFilePath && existsSync((result as any).audioFilePath)) {
-      return (result as any).audioFilePath;
+    if (result && result.audioFilePath && existsSync(result.audioFilePath)) {
+      return result.audioFilePath;
     }
     if (!result) console.error(`[voice:tts] msedge-tts timed out after ${timeoutMs / 1000}s`);
     return null;
@@ -642,7 +627,7 @@ export async function listVoices(): Promise<
 
     const tts = new _MsEdgeTTS();
     const voices = await tts.getVoices();
-    return voices.map((v: any) => ({
+    return voices.map((v) => ({
       name: v.FriendlyName ?? v.ShortName,
       shortName: v.ShortName,
       gender: v.Gender,

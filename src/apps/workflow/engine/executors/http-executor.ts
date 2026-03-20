@@ -1,6 +1,10 @@
 import type { ExecutorFunction, ExecutorResult, NodeConfig, ExecutionContext, SSEEmitter, HttpConfig } from '../../types.js';
 import { safeFetch, type SafeFetchOptions } from '../../../../packages/ssrf-guard.js';
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export const httpExecutor: ExecutorFunction = async (
   config: NodeConfig,
   _context: ExecutionContext,
@@ -33,6 +37,6 @@ export const httpExecutor: ExecutorFunction = async (
       error: ok ? undefined : `HTTP ${response.status}: ${response.statusText}`,
     };
   } catch (err) {
-    return { status: 'failed', error: (err as Error).message };
+    return { status: 'failed', error: errorMessage(err) };
   }
 };

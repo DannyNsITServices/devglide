@@ -51,9 +51,14 @@ function showModal(title, bodyHtml, buttons) {
     overlay.querySelector('.wf-modal-title').textContent = title;
     overlay.querySelector('.wf-modal-body').innerHTML = bodyHtml;
     const actionsEl = overlay.querySelector('.wf-modal-actions');
-    actionsEl.innerHTML = buttons.map(b =>
-      `<button class="${b.cls}" data-value="${b.value}">${b.label}</button>`
-    ).join('');
+    actionsEl.replaceChildren();
+    buttons.forEach((buttonConfig) => {
+      const button = document.createElement('button');
+      button.className = buttonConfig.cls;
+      button.dataset.value = buttonConfig.value;
+      button.textContent = buttonConfig.label;
+      actionsEl.appendChild(button);
+    });
 
     overlay.classList.remove('hidden');
 
@@ -175,9 +180,16 @@ function showBuilderList() {
   const builderLayout = $('#wf-builder-layout');
   if (!builderLayout) return;
 
-  builderLayout.innerHTML = `<div id="wb-workflow-list" style="display:flex;flex-direction:column;flex:1;overflow:hidden;"></div>`;
+  builderLayout.replaceChildren();
 
-  const listContainer = builderLayout.querySelector('#wb-workflow-list');
+  const listContainer = document.createElement('div');
+  listContainer.id = 'wb-workflow-list';
+  listContainer.style.display = 'flex';
+  listContainer.style.flexDirection = 'column';
+  listContainer.style.flex = '1';
+  listContainer.style.overflow = 'hidden';
+  builderLayout.appendChild(listContainer);
+
   WorkflowList.mount(listContainer);
   WorkflowList.setConfirm(wfConfirm);
   WorkflowList.setToast(wfToast);
@@ -235,14 +247,22 @@ async function openWorkflowInEditor(wf) {
   const builderLayout = $('#wf-builder-layout');
   if (!builderLayout) return;
 
-  builderLayout.innerHTML = `
-    <div class="wb-toolbar" id="wb-toolbar"></div>
-    <div class="wb-main-layout">
-      <div class="wb-canvas-container" id="wb-canvas"></div>
-      <div class="wb-inspector" id="wb-inspector"></div>
-    </div>
-    <div id="wb-run-view"></div>
-  `;
+  builderLayout.replaceChildren();
+  const toolbar = document.createElement('div');
+  toolbar.className = 'wb-toolbar';
+  toolbar.id = 'wb-toolbar';
+  const mainLayout = document.createElement('div');
+  mainLayout.className = 'wb-main-layout';
+  const canvas = document.createElement('div');
+  canvas.className = 'wb-canvas-container';
+  canvas.id = 'wb-canvas';
+  const inspector = document.createElement('div');
+  inspector.className = 'wb-inspector';
+  inspector.id = 'wb-inspector';
+  mainLayout.append(canvas, inspector);
+  const runView = document.createElement('div');
+  runView.id = 'wb-run-view';
+  builderLayout.append(toolbar, mainLayout, runView);
 
   const canvasContainerEl = builderLayout.querySelector('#wb-canvas');
 

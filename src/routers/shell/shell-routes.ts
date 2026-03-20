@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import path from 'path';
 import fs from 'fs';
 import { getActiveProject } from '../../project-context.js';
+import { asyncHandler } from '../../packages/error-middleware.js';
 import {
   globalPtys,
   dashboardState,
@@ -12,9 +14,9 @@ import {
   paneActiveSocket,
   socketDimensions,
   renumberPanes,
-} from './shell-state.js';
-import { SHELL_CONFIGS } from './shell-config.js';
-import { killPty, spawnGlobalPty } from './pty-manager.js';
+} from '../../apps/shell/src/runtime/shell-state.js';
+import { SHELL_CONFIGS } from '../../apps/shell/src/runtime/shell-config.js';
+import { killPty, spawnGlobalPty } from '../../apps/shell/src/runtime/pty-manager.js';
 import type { PaneInfo } from '../../apps/shell/src/shell-types.js';
 import { safeFetch } from '../../packages/ssrf-guard.js';
 
@@ -40,20 +42,52 @@ export function detectEntryPoint(projectPath: string): { file: string; base: str
 
 export const router: Router = Router();
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function badRequest(res: Response, message: string): void {
+  res.status(400).json({ error: message });
+}
+
+function forbidden(res: Response, message: string): void {
+  res.status(403).json({ error: message });
+}
+
+function notFound(res: Response, message: string): void {
+  res.status(404).json({ error: message });
+}
+
+function conflict(res: Response, message: string): void {
+  res.status(409).json({ error: message });
+}
+
+function badGateway(res: Response, message: string): void {
+  res.status(502).json({ error: message });
+}
+
+const proxyQuerySchema = z.object({
+  url: z.string().min(1, 'url is required'),
+});
+
+const paneIdParamSchema = z.object({
+  id: z.string().min(1, 'pane id is required'),
+});
+
 // ── Preview route — serve static files from active project ─────────────────
 
 router.use('/preview', (req: Request, res: Response, next: NextFunction) => {
   const projectPath = getActiveProject()?.path;
-  if (!projectPath) return res.status(404).json({ error: 'No active project' });
+  if (!projectPath) return notFound(res, 'No active project');
 
   const reqPath = decodeURIComponent(req.path).replace(/^\//, '') || 'index.html';
   if (reqPath.includes('\0') || /\.\.[\\/]/.test(reqPath)) {
-    return res.status(400).json({ error: 'Invalid path' });
+    return badRequest(res, 'Invalid path');
   }
 
   let resolved = path.resolve(projectPath, reqPath);
   if (!resolved.startsWith(projectPath)) {
-    return res.status(403).json({ error: 'Path traversal denied' });
+    return forbidden(res, 'Path traversal denied');
   }
 
   // Resolve symlinks to prevent symlink-based traversal
@@ -61,11 +95,11 @@ router.use('/preview', (req: Request, res: Response, next: NextFunction) => {
     const realRoot = fs.realpathSync(projectPath);
     const realResolved = fs.realpathSync(resolved);
     if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) {
-      return res.status(403).json({ error: 'Symlink traversal denied' });
+      return forbidden(res, 'Symlink traversal denied');
     }
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      return res.status(403).json({ error: 'Symlink traversal denied' });
+      return forbidden(res, 'Symlink traversal denied');
     }
     // ENOENT: file doesn't exist, sendFile will handle it below
   }
@@ -85,9 +119,12 @@ router.use('/preview', (req: Request, res: Response, next: NextFunction) => {
 // ── Proxy route — fetch relay for browser pane ──────────────────────────────
 // Minimal fetch relay — client uses srcdoc to render HTML (bypasses X-Frame-Options).
 
-router.get('/proxy', async (req: Request, res: Response) => {
-  const targetUrl = req.query.url as string | undefined;
-  if (!targetUrl) return res.status(400).json({ error: 'Missing url parameter' });
+router.get('/proxy', asyncHandler(async (req: Request, res: Response) => {
+  const query = proxyQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    return badRequest(res, query.error.issues[0]?.message ?? 'Invalid input');
+  }
+  const targetUrl = query.data.url;
 
   try {
     const upstream = await safeFetch(targetUrl, {
@@ -103,12 +140,16 @@ router.get('/proxy', async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.send(html);
   } catch (err: unknown) {
-    const message = (err as Error).message;
+    const message = errorMessage(err);
     // SSRF validation errors get 403, network errors get 502
     const status = message.includes('Blocked') || message.includes('blocked') || message.includes('Only HTTP') || message.includes('Invalid URL') || message.includes('Too many redirects') ? 403 : 502;
-    res.status(status).json({ error: message });
+    if (status === 403) {
+      forbidden(res, message);
+      return;
+    }
+    badGateway(res, message);
   }
-});
+}));
 
 // ── Pane management REST API ────────────────────────────────────────────────
 // Mirrors the shell MCP tools so non-MCP clients can manage terminal panes.
@@ -125,60 +166,74 @@ router.get('/panes', (_req: Request, res: Response) => {
   res.json(panes);
 });
 
+const createPaneSchema = z.object({
+  shellType: z.enum(['default', 'bash', 'cmd']).optional().default('default'),
+  cwd: z.string().optional(),
+});
+
+const runCommandSchema = z.object({
+  command: z.string().min(1, 'command is required'),
+  timeout: z.number().optional(),
+});
+
+const scrollbackQuerySchema = z.object({
+  lines: z.coerce.number().int().min(1).max(10000).optional().default(100),
+});
+
 // POST /panes — create a new terminal pane
-router.post('/panes', (req: Request, res: Response) => {
-  const { shellType = 'default', cwd } = req.body ?? {};
+router.post('/panes', asyncHandler(async (req: Request, res: Response) => {
+  const parsed = createPaneSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
+  }
+  const { shellType, cwd } = parsed.data;
 
   if (globalPtys.size >= MAX_PANES) {
-    res.status(409).json({ error: `Maximum pane limit (${MAX_PANES}) reached` });
-    return;
+    return conflict(res, `Maximum pane limit (${MAX_PANES}) reached`);
   }
 
   if (cwd) {
     if (!path.isAbsolute(cwd) || cwd.includes('\0') || /\.\.[\\/]/.test(cwd)) {
-      res.status(400).json({ error: 'Invalid cwd: must be absolute without traversal or null bytes' });
-      return;
+      return badRequest(res, 'Invalid cwd: must be absolute without traversal or null bytes');
     }
     try {
       const stat = fs.statSync(cwd);
       if (!stat.isDirectory()) throw new Error('not a directory');
     } catch {
-      res.status(400).json({ error: 'cwd path does not exist or is not a directory' });
-      return;
+      return badRequest(res, 'cwd path does not exist or is not a directory');
     }
   }
 
   const config = SHELL_CONFIGS[shellType] || SHELL_CONFIGS.default;
   const startCwd = cwd || process.env.HOME || process.env.USERPROFILE || '/';
 
-  try {
-    const id = nextPaneId();
-    const num = dashboardState.panes.length + 1;
-    const title = String(num);
+  const id = nextPaneId();
+  const num = dashboardState.panes.length + 1;
+  const title = String(num);
 
-    spawnGlobalPty(id, config.command, config.args, config.env, 80, 24, true, false, startCwd);
+  spawnGlobalPty(id, config.command, config.args, config.env, 80, 24, true, false, startCwd);
 
-    const paneInfo: PaneInfo = { id, shellType, title, num, cwd: startCwd, projectId: getActiveProject()?.id || null };
-    dashboardState.panes.push(paneInfo);
-    dashboardState.activePaneId = id;
-    getShellNsp()?.emit('state:pane-added', paneInfo);
-    getShellNsp()?.emit('state:active-pane', { paneId: id });
+  const paneInfo: PaneInfo = { id, shellType, title, num, cwd: startCwd, projectId: getActiveProject()?.id || null };
+  dashboardState.panes.push(paneInfo);
+  dashboardState.activePaneId = id;
+  getShellNsp()?.emit('state:pane-added', paneInfo);
+  getShellNsp()?.emit('state:active-pane', { paneId: id });
 
-    res.status(201).json(paneInfo);
-  } catch (err: unknown) {
-    res.status(500).json({ error: `Failed to start ${shellType}: ${(err as Error).message}` });
-  }
-});
+  res.status(201).json(paneInfo);
+}));
 
 // DELETE /panes/:id — close a terminal pane
 router.delete('/panes/:id', (req: Request, res: Response) => {
-  const paneId = req.params.id;
+  const params = paneIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    return badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
+  }
+  const paneId = params.data.id;
   const entry = globalPtys.get(paneId);
   const existed = dashboardState.panes.some((p) => p.id === paneId);
 
   if (!entry && !existed) {
-    res.status(404).json({ error: 'Pane not found' });
-    return;
+    return notFound(res, 'Pane not found');
   }
 
   if (entry) {
@@ -220,19 +275,21 @@ router.delete('/panes/:id', (req: Request, res: Response) => {
 });
 
 // POST /panes/:id/run — send a command to a terminal pane and return output
-router.post('/panes/:id/run', async (req: Request, res: Response) => {
-  const paneId = req.params.id;
-  const { command, timeout } = req.body ?? {};
-
-  if (!command || typeof command !== 'string') {
-    res.status(400).json({ error: 'command is required' });
-    return;
+router.post('/panes/:id/run', asyncHandler(async (req: Request, res: Response) => {
+  const params = paneIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    return badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
   }
+  const paneId = params.data.id;
+  const parsed = runCommandSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
+  }
+  const { command, timeout } = parsed.data;
 
   const entry = globalPtys.get(paneId);
   if (!entry) {
-    res.status(404).json({ error: 'Pane not found' });
-    return;
+    return notFound(res, 'Pane not found');
   }
 
   const maxMs = Math.min((timeout ?? 3) * 1000, 30000);
@@ -273,19 +330,23 @@ router.post('/panes/:id/run', async (req: Request, res: Response) => {
   newOutput = lines.join('\n').replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '').trim();
 
   res.json({ output: newOutput || '(no output)' });
-});
+}));
 
 // GET /panes/:id/scrollback — get recent scrollback from a pane
 router.get('/panes/:id/scrollback', (req: Request, res: Response) => {
-  const paneId = req.params.id;
+  const params = paneIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    return badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
+  }
+  const paneId = params.data.id;
   const entry = globalPtys.get(paneId);
 
   if (!entry) {
-    res.status(404).json({ error: 'Pane not found' });
-    return;
+    return notFound(res, 'Pane not found');
   }
 
-  const limit = parseInt(req.query.lines as string, 10) || 100;
+  const qp = scrollbackQuerySchema.safeParse(req.query);
+  const limit = qp.success ? qp.data.lines : 100;
   const fullOutput = entry.chunks.join('');
   const allLines = fullOutput.split('\n');
   const recent = allLines.slice(-limit).join('\n');

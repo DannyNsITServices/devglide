@@ -14,6 +14,10 @@ const ENV_DENYLIST = new Set([
   'ELECTRON_RUN_AS_NODE',
 ]);
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export const shellExecutor: ExecutorFunction = async (
   config: NodeConfig,
   context: ExecutionContext,
@@ -102,6 +106,6 @@ export const shellExecutor: ExecutorFunction = async (
       variables: Object.keys(variables).length > 0 ? variables : undefined,
     };
   } catch (err) {
-    return { status: 'failed', error: (err as Error).message };
+    return { status: 'failed', error: errorMessage(err) };
   }
 };

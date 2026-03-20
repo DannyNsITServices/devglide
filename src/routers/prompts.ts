@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { PromptStore } from '../apps/prompts/services/prompt-store.js';
+import { asyncHandler } from '../packages/error-middleware.js';
 
 // ── Zod schemas ───────────────────────────────────────────────────────────────
 
@@ -33,102 +34,117 @@ const renderSchema = z.object({
   vars: z.record(z.string()).default({}),
 });
 
+const promptIdParamSchema = z.object({
+  id: z.string().min(1, 'prompt id is required'),
+});
+
+const listPromptsQuerySchema = z.object({
+  category: z.string().optional(),
+  tags: z.string().optional(),
+  search: z.string().optional(),
+});
+
 export { createPromptsMcpServer } from '../apps/prompts/mcp.js';
 
 export const router: Router = Router();
 
 const store = PromptStore.getInstance();
 
+function badRequest(res: Response, message: string): void {
+  res.status(400).json({ error: message });
+}
+
+function notFound(res: Response, message: string): void {
+  res.status(404).json({ error: message });
+}
+
 // GET /context — compiled markdown for LLM injection
-router.get('/context', async (_req: Request, res: Response) => {
-  try {
-    const markdown = await store.getCompiledContext();
-    res.type('text/markdown').send(markdown || 'No prompts defined.');
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+router.get('/context', asyncHandler(async (_req: Request, res: Response) => {
+  const markdown = await store.getCompiledContext();
+  res.type('text/markdown').send(markdown || 'No prompts defined.');
+}));
 
 // GET /entries — list prompts
-router.get('/entries', async (req: Request, res: Response) => {
-  try {
-    const category = req.query.category as string | undefined;
-    const tagsParam = req.query.tags as string | undefined;
-    const tags = tagsParam ? tagsParam.split(',').map((t) => t.trim()).filter(Boolean) : undefined;
-    const search = req.query.search as string | undefined;
-    const entries = await store.list({ category, tags, search });
-    res.json(entries);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+router.get('/entries', asyncHandler(async (req: Request, res: Response) => {
+  const query = listPromptsQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    badRequest(res, query.error.issues[0]?.message ?? 'Invalid input');
+    return;
   }
-});
+  const category = query.data.category;
+  const tagsParam = query.data.tags;
+  const tags = tagsParam ? tagsParam.split(',').map((t) => t.trim()).filter(Boolean) : undefined;
+  const search = query.data.search;
+  const entries = await store.list({ category, tags, search });
+  res.json(entries);
+}));
 
 // GET /entries/:id — get by ID
-router.get('/entries/:id', async (req: Request, res: Response) => {
-  try {
-    const entry = await store.get(req.params.id);
-    if (!entry) { res.status(404).json({ error: 'Prompt not found' }); return; }
-    res.json(entry);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+router.get('/entries/:id', asyncHandler(async (req: Request, res: Response) => {
+  const params = promptIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
+    return;
   }
-});
+  const entry = await store.get(params.data.id);
+  if (!entry) { notFound(res, 'Prompt not found'); return; }
+  res.json(entry);
+}));
 
 // POST /entries — create
-router.post('/entries', async (req: Request, res: Response) => {
-  try {
-    const parsed = createPromptSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' });
-      return;
-    }
-    const entry = await store.save(parsed.data);
-    res.status(201).json(entry);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+router.post('/entries', asyncHandler(async (req: Request, res: Response) => {
+  const parsed = createPromptSchema.safeParse(req.body);
+  if (!parsed.success) {
+    badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
+    return;
   }
-});
+  const entry = await store.save(parsed.data);
+  res.status(201).json(entry);
+}));
 
 // PUT /entries/:id — update
-router.put('/entries/:id', async (req: Request, res: Response) => {
-  try {
-    const parsed = updatePromptSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' });
-      return;
-    }
-
-    const entry = await store.update(req.params.id, parsed.data);
-    if (!entry) { res.status(404).json({ error: 'Prompt not found' }); return; }
-    res.json(entry);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+router.put('/entries/:id', asyncHandler(async (req: Request, res: Response) => {
+  const params = promptIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
+    return;
   }
-});
+  const parsed = updatePromptSchema.safeParse(req.body);
+  if (!parsed.success) {
+    badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
+    return;
+  }
+
+  const entry = await store.update(params.data.id, parsed.data);
+  if (!entry) { notFound(res, 'Prompt not found'); return; }
+  res.json(entry);
+}));
 
 // DELETE /entries/:id — delete
-router.delete('/entries/:id', async (req: Request, res: Response) => {
-  try {
-    const deleted = await store.delete(req.params.id);
-    if (deleted) { res.json({ ok: true }); return; }
-    res.status(404).json({ error: 'Prompt not found' });
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+router.delete('/entries/:id', asyncHandler(async (req: Request, res: Response) => {
+  const params = promptIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
+    return;
   }
-});
+  const deleted = await store.delete(params.data.id);
+  if (deleted) { res.json({ ok: true }); return; }
+  notFound(res, 'Prompt not found');
+}));
 
 // POST /entries/:id/render — render with variable substitution
-router.post('/entries/:id/render', async (req: Request, res: Response) => {
-  try {
-    const parsed = renderSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' });
-      return;
-    }
-    const rendered = await store.render(req.params.id, parsed.data.vars);
-    if (rendered === null) { res.status(404).json({ error: 'Prompt not found' }); return; }
-    res.json({ rendered });
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+router.post('/entries/:id/render', asyncHandler(async (req: Request, res: Response) => {
+  const params = promptIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
+    return;
   }
-});
+  const parsed = renderSchema.safeParse(req.body);
+  if (!parsed.success) {
+    badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
+    return;
+  }
+  const rendered = await store.render(params.data.id, parsed.data.vars);
+  if (rendered === null) { notFound(res, 'Prompt not found'); return; }
+  res.json({ rendered });
+}));

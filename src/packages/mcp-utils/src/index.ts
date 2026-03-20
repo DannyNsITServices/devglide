@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { randomUUID } from "crypto";
+import type { IncomingMessage, ServerResponse } from "http";
 
 /** Format a JSON-serializable value as an MCP text result. */
 export function jsonResult(data: unknown) {
@@ -60,15 +61,18 @@ interface McpSession {
   lastAccessed: number;
 }
 
+/** HTTP request with parsed body — compatible with Express and Node http.IncomingMessage. */
+type McpHttpRequest = IncomingMessage & { body?: unknown };
+
 /**
  * Mount an MCP StreamableHTTP endpoint on an Express-compatible app.
  * Each session gets its own McpServer instance via the factory function.
  */
 export function mountMcpHttp(
   app: {
-    post: (path: string, handler: (...args: any[]) => any) => void;
-    get: (path: string, handler: (...args: any[]) => any) => void;
-    delete: (path: string, handler: (...args: any[]) => any) => void;
+    post: (path: string, handler: (req: McpHttpRequest, res: ServerResponse) => void | Promise<void>) => void;
+    get: (path: string, handler: (req: McpHttpRequest, res: ServerResponse) => void | Promise<void>) => void;
+    delete: (path: string, handler: (req: McpHttpRequest, res: ServerResponse) => void | Promise<void>) => void;
   },
   serverFactory: () => McpServer,
   path: string = "/mcp"
@@ -88,7 +92,7 @@ export function mountMcpHttp(
   }, 5 * 60 * 1000);
   ttlTimer.unref();
 
-  app.post(path, async (req: any, res: any) => {
+  app.post(path, async (req: McpHttpRequest, res: ServerResponse) => {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
     if (sessionId && sessions.has(sessionId)) {
@@ -125,7 +129,7 @@ export function mountMcpHttp(
     );
   });
 
-  app.get(path, async (req: any, res: any) => {
+  app.get(path, async (req: McpHttpRequest, res: ServerResponse) => {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
     if (!sessionId || !sessions.has(sessionId)) {
       res.writeHead(400, { "Content-Type": "application/json" });
@@ -143,7 +147,7 @@ export function mountMcpHttp(
     await getSession.transport.handleRequest(req, res);
   });
 
-  app.delete(path, async (req: any, res: any) => {
+  app.delete(path, async (req: McpHttpRequest, res: ServerResponse) => {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
     if (!sessionId || !sessions.has(sessionId)) {
       res.writeHead(400, { "Content-Type": "application/json" });

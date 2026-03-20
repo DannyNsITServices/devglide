@@ -1,6 +1,3 @@
-// ── Workflow Editor — Workflow Browse/Manage List ────────────────────────
-// List view for browsing, creating, and managing saved workflows.
-
 const API = '/api/workflow';
 
 let _container = null;
@@ -8,11 +5,6 @@ let _onSelect = null;
 let _onNew = null;
 let _confirmFn = null;
 let _toastFn = null;
-
-function esc(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 function timeAgo(dateStr) {
   if (!dateStr) return '';
@@ -66,53 +58,133 @@ async function toggleGlobal(wf) {
   return await res.json();
 }
 
+function createTag(tag) {
+  const el = document.createElement('span');
+  el.style.fontSize = '9px';
+  el.style.padding = '0 4px';
+  el.style.border = '1px solid var(--df-color-border-default)';
+  el.style.color = 'var(--df-color-text-muted)';
+  el.style.textTransform = 'uppercase';
+  el.style.letterSpacing = 'var(--df-letter-spacing-wider)';
+  el.textContent = tag;
+  return el;
+}
+
 function renderWorkflowCard(wf) {
   const nodeCount = wf.nodeCount ?? 0;
   const edgeCount = wf.edgeCount ?? 0;
   const enabled = wf.enabled !== false;
-  const tags = (wf.tags || []).map(t =>
-    `<span style="font-size:9px;padding:0 4px;border:1px solid var(--df-color-border-default);
-      color:var(--df-color-text-muted);text-transform:uppercase;letter-spacing:var(--df-letter-spacing-wider);">
-      ${esc(t)}</span>`
-  ).join('');
+  const card = document.createElement('div');
+  card.className = 'wb-wflist-card';
+  card.dataset.wfId = wf.id;
+  if (!enabled) card.style.opacity = '0.5';
 
-  return `
-    <div class="wb-wflist-card" data-wf-id="${esc(wf.id)}" style="${!enabled ? 'opacity:0.5;' : ''}">
-      <div class="wb-wflist-card-body">
-        <div class="wb-wflist-card-title">${esc(wf.name)}</div>
-        ${wf.description ? `<div class="wb-wflist-card-desc">${esc(wf.description).replace(/\\n/g, ' ').replace(/\n/g, ' ')}</div>` : ''}
-        <div class="wb-wflist-card-meta">
-          <span>${nodeCount} node${nodeCount !== 1 ? 's' : ''}</span>
-          <span>&middot;</span>
-          <span>${edgeCount} edge${edgeCount !== 1 ? 's' : ''}</span>
-          ${wf.updatedAt ? `<span>&middot;</span><span>${timeAgo(wf.updatedAt)}</span>` : ''}
-        </div>
-        ${tags ? `<div class="wb-wflist-card-tags">${tags}</div>` : ''}
-      </div>
-      <div class="wb-wflist-card-actions">
-        <button class="btn btn-secondary" data-action="edit" title="Edit">&#9998;</button>
-        <button class="btn ${enabled ? 'btn-primary' : 'btn-secondary'}" data-action="toggle" title="${enabled ? 'Disable' : 'Enable'}">${enabled ? '●' : '○'}</button>
-        <button class="btn ${wf.global ? 'btn-primary' : 'btn-secondary'}" data-action="toggle-global" title="${wf.global ? 'Make project-only' : 'Make global'}">${wf.global ? '⊕' : '⊙'}</button>
-        <button class="btn btn-secondary wb-wflist-delete" data-action="delete" title="Delete">&times;</button>
-      </div>
-    </div>`;
+  const body = document.createElement('div');
+  body.className = 'wb-wflist-card-body';
+
+  const title = document.createElement('div');
+  title.className = 'wb-wflist-card-title';
+  title.textContent = wf.name;
+  body.appendChild(title);
+
+  if (wf.description) {
+    const desc = document.createElement('div');
+    desc.className = 'wb-wflist-card-desc';
+    desc.textContent = wf.description.replace(/\\n/g, ' ').replace(/\n/g, ' ');
+    body.appendChild(desc);
+  }
+
+  const meta = document.createElement('div');
+  meta.className = 'wb-wflist-card-meta';
+  const metaParts = [
+    `${nodeCount} node${nodeCount !== 1 ? 's' : ''}`,
+    `${edgeCount} edge${edgeCount !== 1 ? 's' : ''}`,
+  ];
+  if (wf.updatedAt) metaParts.push(timeAgo(wf.updatedAt));
+  metaParts.forEach((part, index) => {
+    if (index > 0) {
+      const dot = document.createElement('span');
+      dot.textContent = '·';
+      meta.appendChild(dot);
+    }
+    const span = document.createElement('span');
+    span.textContent = part;
+    meta.appendChild(span);
+  });
+  body.appendChild(meta);
+
+  if (wf.tags?.length) {
+    const tags = document.createElement('div');
+    tags.className = 'wb-wflist-card-tags';
+    wf.tags.forEach(tag => tags.appendChild(createTag(tag)));
+    body.appendChild(tags);
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'wb-wflist-card-actions';
+
+  const edit = document.createElement('button');
+  edit.className = 'btn btn-secondary';
+  edit.dataset.action = 'edit';
+  edit.title = 'Edit';
+  edit.textContent = '✎';
+
+  const toggle = document.createElement('button');
+  toggle.className = `btn ${enabled ? 'btn-primary' : 'btn-secondary'}`;
+  toggle.dataset.action = 'toggle';
+  toggle.title = enabled ? 'Disable' : 'Enable';
+  toggle.textContent = enabled ? '●' : '○';
+
+  const globalToggle = document.createElement('button');
+  globalToggle.className = `btn ${wf.global ? 'btn-primary' : 'btn-secondary'}`;
+  globalToggle.dataset.action = 'toggle-global';
+  globalToggle.title = wf.global ? 'Make project-only' : 'Make global';
+  globalToggle.textContent = wf.global ? '⊕' : '⊙';
+
+  const del = document.createElement('button');
+  del.className = 'btn btn-secondary wb-wflist-delete';
+  del.dataset.action = 'delete';
+  del.title = 'Delete';
+  del.textContent = '×';
+
+  actions.append(edit, toggle, globalToggle, del);
+  card.append(body, actions);
+  return card;
 }
 
 async function render() {
   if (!_container) return;
 
-  _container.innerHTML = `
-    <div class="wb-wflist-header">
-      <span style="font-size:var(--df-font-size-md);color:var(--df-color-accent-default);
-        font-family:var(--df-font-mono);letter-spacing:var(--df-letter-spacing-wider);
-        text-transform:uppercase;">Workflow</span>
-      <span style="flex:1"></span>
-      <button class="btn btn-primary" data-action="new-workflow">+ New Workflow</button>
-    </div>
-    <div class="wb-wflist-loading" style="padding:var(--df-space-6);text-align:center;
-      color:var(--df-color-text-muted);font-size:var(--df-font-size-xs);text-transform:uppercase;
-      letter-spacing:var(--df-letter-spacing-wider);">Loading...</div>
-  `;
+  _container.replaceChildren();
+
+  const header = document.createElement('div');
+  header.className = 'wb-wflist-header';
+  const label = document.createElement('span');
+  label.style.fontSize = 'var(--df-font-size-md)';
+  label.style.color = 'var(--df-color-accent-default)';
+  label.style.fontFamily = 'var(--df-font-mono)';
+  label.style.letterSpacing = 'var(--df-letter-spacing-wider)';
+  label.style.textTransform = 'uppercase';
+  label.textContent = 'Workflow';
+  const spacer = document.createElement('span');
+  spacer.style.flex = '1';
+  const newBtn = document.createElement('button');
+  newBtn.className = 'btn btn-primary';
+  newBtn.dataset.action = 'new-workflow';
+  newBtn.textContent = '+ New Workflow';
+  header.append(label, spacer, newBtn);
+
+  const loading = document.createElement('div');
+  loading.className = 'wb-wflist-loading';
+  loading.style.padding = 'var(--df-space-6)';
+  loading.style.textAlign = 'center';
+  loading.style.color = 'var(--df-color-text-muted)';
+  loading.style.fontSize = 'var(--df-font-size-xs)';
+  loading.style.textTransform = 'uppercase';
+  loading.style.letterSpacing = 'var(--df-letter-spacing-wider)';
+  loading.textContent = 'Loading...';
+
+  _container.append(header, loading);
 
   const newBtn = _container.querySelector('[data-action="new-workflow"]');
   if (newBtn) newBtn.addEventListener('click', () => _onNew?.());
@@ -135,16 +207,24 @@ async function renderList() {
   grid.className = 'wb-wflist-grid';
 
   if (!workflows.length) {
-    grid.innerHTML = `
-      <div style="padding:var(--df-space-8);text-align:center;color:var(--df-color-text-muted);">
-        <div style="font-size:48px;opacity:0.15;margin-bottom:var(--df-space-2);">&#9881;</div>
-        <div style="font-size:var(--df-font-size-sm);text-transform:uppercase;
-          letter-spacing:var(--df-letter-spacing-wide);">
-          No workflows yet. Create one to get started.
-        </div>
-      </div>`;
+    const empty = document.createElement('div');
+    empty.style.padding = 'var(--df-space-8)';
+    empty.style.textAlign = 'center';
+    empty.style.color = 'var(--df-color-text-muted)';
+    const icon = document.createElement('div');
+    icon.style.fontSize = '48px';
+    icon.style.opacity = '0.15';
+    icon.style.marginBottom = 'var(--df-space-2)';
+    icon.textContent = '⚙';
+    const message = document.createElement('div');
+    message.style.fontSize = 'var(--df-font-size-sm)';
+    message.style.textTransform = 'uppercase';
+    message.style.letterSpacing = 'var(--df-letter-spacing-wide)';
+    message.textContent = 'No workflows yet. Create one to get started.';
+    empty.append(icon, message);
+    grid.appendChild(empty);
   } else {
-    grid.innerHTML = workflows.map(renderWorkflowCard).join('');
+    workflows.forEach(wf => grid.appendChild(renderWorkflowCard(wf)));
   }
 
   _container.appendChild(grid);

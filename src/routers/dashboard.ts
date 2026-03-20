@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import type { Namespace } from 'socket.io';
+import { z } from 'zod';
 import { readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
+import { asyncHandler, errorMessage } from '../packages/error-middleware.js';
 import {
   listProjects,
   addProject,
@@ -17,25 +19,53 @@ export const router: Router = Router();
 
 let dashboardNsp: Namespace | null = null;
 
+// ── Zod schemas ──────────────────────────────────────────────────────────────
+
+const createProjectSchema = z.object({
+  name: z.string().min(1, 'name is required'),
+  path: z.string().min(1, 'path is required'),
+});
+
+const updateProjectSchema = createProjectSchema.partial();
+
+const projectIdParamSchema = z.object({
+  id: z.string().min(1, 'project id is required'),
+});
+
+const browseQuerySchema = z.object({
+  path: z.string().optional(),
+});
+
+function badRequest(res: { status: (code: number) => { json: (body: unknown) => void } }, message: string): void {
+  res.status(400).json({ error: message });
+}
+
+function notFound(res: { status: (code: number) => { json: (body: unknown) => void } }, message: string): void {
+  res.status(404).json({ error: message });
+}
+
 // ── REST API: Project context ──────────────────────────────────────────────
 
 router.get('/projects', (_req, res) => {
   res.json(listProjects());
 });
 
-router.post('/projects', (req, res) => {
-  try {
-    const project = addProject(req.body?.name, req.body?.path);
-    dashboardNsp?.emit('project:list', listProjects());
-    res.status(201).json(project);
-  } catch (err: unknown) {
-    res.status(400).json({ error: (err instanceof Error ? err.message : String(err)) });
+router.post('/projects', asyncHandler(async (req, res) => {
+  const parsed = createProjectSchema.safeParse(req.body);
+  if (!parsed.success) {
+    badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
+    return;
   }
-});
+  const project = addProject(parsed.data.name, parsed.data.path);
+  dashboardNsp?.emit('project:list', listProjects());
+  res.status(201).json(project);
+}));
 
 router.delete('/projects/:id', (req, res) => {
-  const removed = removeProject(req.params.id);
-  if (!removed) return res.status(404).json({ error: 'Project not found' });
+  const params = projectIdParamSchema.safeParse(req.params);
+  if (!params.success) return badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
+  const removed = removeProject(params.data.id);
+  if (!removed) return notFound(res, 'Project not found');
   const store = listProjects();
   dashboardNsp?.emit('project:list', store);
   dashboardNsp?.emit('project:active', store.activeProjectId
@@ -44,37 +74,57 @@ router.delete('/projects/:id', (req, res) => {
   const active = getActiveProject();
   setActiveProject(active ? { id: active.id, name: active.name, path: active.path } : null);
   res.json({ ok: true });
+  return;
 });
 
-router.put('/projects/:id', (req, res) => {
+router.put('/projects/:id', asyncHandler(async (req, res) => {
+  const params = projectIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
+    return;
+  }
+  const parsed = updateProjectSchema.safeParse(req.body);
+  if (!parsed.success) {
+    badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
+    return;
+  }
   try {
-    const project = updateProject(req.params.id, { name: req.body?.name, path: req.body?.path });
+    const project = updateProject(params.data.id, { name: parsed.data.name, path: parsed.data.path });
     const store = listProjects();
     dashboardNsp?.emit('project:list', store);
     const active = getActiveProject();
-    if (active && active.id === req.params.id) {
+    if (active && active.id === params.data.id) {
       dashboardNsp?.emit('project:active', project);
       setActiveProject({ id: project.id, name: project.name, path: project.path });
     }
     res.json(project);
   } catch (err: unknown) {
-    const status = (err instanceof Error ? err.message : String(err)) === 'Project not found' ? 404 : 400;
-    res.status(status).json({ error: (err instanceof Error ? err.message : String(err)) });
+    const message = errorMessage(err);
+    if (message === 'Project not found') {
+      notFound(res, message);
+      return;
+    }
+    badRequest(res, message);
   }
-});
+}));
 
 router.put('/projects/:id/activate', (req, res) => {
-  const project = activateProject(req.params.id);
-  if (!project) return res.status(404).json({ error: 'Project not found' });
+  const params = projectIdParamSchema.safeParse(req.params);
+  if (!params.success) return badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
+  const project = activateProject(params.data.id);
+  if (!project) return notFound(res, 'Project not found');
   dashboardNsp?.emit('project:active', project);
   setActiveProject({ id: project.id, name: project.name, path: project.path });
   res.json(project);
+  return;
 });
 
 // ── REST API: Directory browsing ─────────────────────────────────────────────
 
 router.get('/browse', (req, res) => {
-  const raw = typeof req.query.path === 'string' ? req.query.path : '';
+  const query = browseQuerySchema.safeParse(req.query);
+  if (!query.success) return badRequest(res, query.error.issues[0]?.message ?? 'Invalid input');
+  const raw = query.data.path ?? '';
   const target = resolve(raw || homedir());
 
   try {
@@ -122,7 +172,7 @@ export function initDashboard(nsp: Namespace): void {
         nsp.emit('project:list', listProjects());
         if (typeof ack === 'function') ack({ ok: true, project });
       } catch (err: unknown) {
-        if (typeof ack === 'function') ack({ ok: false, error: (err instanceof Error ? err.message : String(err)) });
+        if (typeof ack === 'function') ack({ ok: false, error: errorMessage(err) });
       }
     });
 
@@ -151,7 +201,7 @@ export function initDashboard(nsp: Namespace): void {
         }
         if (typeof ack === 'function') ack({ ok: true, project });
       } catch (err: unknown) {
-        if (typeof ack === 'function') ack({ ok: false, error: (err instanceof Error ? err.message : String(err)) });
+        if (typeof ack === 'function') ack({ ok: false, error: errorMessage(err) });
       }
     });
   });

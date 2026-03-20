@@ -1,10 +1,12 @@
 import { Router, Request, Response } from "express";
+import { z } from "zod";
 import { getDb, generateId } from "../db.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import fsp from "fs/promises";
 import { PROJECTS_DIR } from "../../../../packages/paths.js";
+import { asyncHandler } from "../../../../packages/error-middleware.js";
 
 export function getUploadsDir(projectId: string): string {
   return path.join(PROJECTS_DIR, projectId, 'uploads');
@@ -27,6 +29,14 @@ function sanitizeFilename(filename: string): string {
 
 export const attachmentsRouter: Router = Router();
 
+function badRequest(res: Response, message: string): void {
+  res.status(400).json({ error: message });
+}
+
+function notFound(res: Response, message: string): void {
+  res.status(404).json({ error: message });
+}
+
 const ALLOWED_MIME_TYPES = [
   "image/jpeg",
   "image/png",
@@ -39,26 +49,31 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
+const uploadBodySchema = z.object({
+  issueId: z.string().min(1, "issueId is required"),
+});
+
+const attachmentIdParamSchema = z.object({
+  id: z.string().min(1, "attachment id is required"),
+});
+
 // POST /api/attachments
-attachmentsRouter.post("/", upload.single("file"), async (req: Request, res: Response) => {
-  try {
+attachmentsRouter.post("/", upload.single("file"), asyncHandler(async (req: Request, res: Response) => {
     const file = req.file;
-    const issueId = req.body.issueId;
-
     if (!file) {
-      res.status(400).json({ error: "No file uploaded" });
+      badRequest(res, "No file uploaded");
       return;
     }
 
-    if (!issueId) {
-      res.status(400).json({ error: "issueId is required" });
+    const parsed = uploadBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      badRequest(res, parsed.error.issues[0]?.message ?? "issueId is required");
       return;
     }
+    const { issueId } = parsed.data;
 
     if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      res.status(400).json({
-        error: `Invalid file type: ${file.mimetype}. Allowed: ${ALLOWED_MIME_TYPES.join(", ")}`,
-      });
+      badRequest(res, `Invalid file type: ${file.mimetype}. Allowed: ${ALLOWED_MIME_TYPES.join(", ")}`);
       return;
     }
 
@@ -67,7 +82,7 @@ attachmentsRouter.post("/", upload.single("file"), async (req: Request, res: Res
     // Verify issue exists
     const issue = db.prepare(`SELECT "id" FROM "Issue" WHERE "id" = ?`).get(issueId);
     if (!issue) {
-      res.status(404).json({ error: "Issue not found" });
+      notFound(res, "Issue not found");
       return;
     }
 
@@ -89,20 +104,21 @@ attachmentsRouter.post("/", upload.single("file"), async (req: Request, res: Res
 
     const row = db.prepare(`SELECT * FROM "Attachment" WHERE "id" = ?`).get(id);
     res.status(201).json(row);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));
 
 // GET /api/attachments/:id
-attachmentsRouter.get("/:id", (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
+attachmentsRouter.get("/:id", asyncHandler(async (req: Request, res: Response) => {
+    const params = attachmentIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      badRequest(res, params.error.issues[0]?.message ?? "Invalid input");
+      return;
+    }
+    const { id } = params.data;
     const db = getDb(req.projectId);
 
     const row = db.prepare(`SELECT * FROM "Attachment" WHERE "id" = ?`).get(id) as { id: string; filename: string; mimeType: string; size: number; issueId: string } | undefined;
     if (!row) {
-      res.status(404).json({ error: "Attachment not found" });
+      notFound(res, "Attachment not found");
       return;
     }
 
@@ -110,7 +126,7 @@ attachmentsRouter.get("/:id", (req: Request, res: Response) => {
     const filePath = path.join(getUploadsDir(req.projectId ?? 'default'), `${id}${ext}`);
 
     if (!fs.existsSync(filePath)) {
-      res.status(404).json({ error: "Attachment file not found on disk" });
+      notFound(res, "Attachment file not found on disk");
       return;
     }
 
@@ -126,20 +142,21 @@ attachmentsRouter.get("/:id", (req: Request, res: Response) => {
     res.setHeader("Content-Security-Policy", "sandbox");
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     res.sendFile(filePath);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));
 
 // DELETE /api/attachments/:id
-attachmentsRouter.delete("/:id", (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
+attachmentsRouter.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
+    const params = attachmentIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      badRequest(res, params.error.issues[0]?.message ?? "Invalid input");
+      return;
+    }
+    const { id } = params.data;
     const db = getDb(req.projectId);
 
     const row = db.prepare(`SELECT * FROM "Attachment" WHERE "id" = ?`).get(id) as { id: string; filename: string; mimeType: string; size: number; issueId: string } | undefined;
     if (!row) {
-      res.status(404).json({ error: "Attachment not found" });
+      notFound(res, "Attachment not found");
       return;
     }
 
@@ -156,7 +173,4 @@ attachmentsRouter.delete("/:id", (req: Request, res: Response) => {
     db.prepare(`DELETE FROM "Attachment" WHERE "id" = ?`).run(id);
 
     res.json({ success: true });
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));

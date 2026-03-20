@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { VocabularyStore } from '../apps/vocabulary/services/vocabulary-store.js';
+import { asyncHandler } from '../packages/error-middleware.js';
 
 // ── Zod schemas for HTTP input validation ────────────────────────────────────
 
@@ -21,129 +22,154 @@ const updateEntrySchema = z.object({
   tags: z.array(z.string()).optional(),
 });
 
+const vocabularyIdParamSchema = z.object({
+  id: z.string().min(1, 'entry id is required'),
+});
+
+const vocabularyListQuerySchema = z.object({
+  category: z.string().optional(),
+  tag: z.string().optional(),
+});
+
+const vocabularyLookupQuerySchema = z.object({
+  term: z.string().min(1, 'term query parameter is required'),
+});
+
+const vocabularyContextQuerySchema = z.object({
+  projectId: z.string().optional(),
+});
+
 export { createVocabularyMcpServer } from '../apps/vocabulary/mcp.js';
 
 export const router: Router = Router();
 
 const store = VocabularyStore.getInstance();
 
+function badRequest(res: Response, message: string): void {
+  res.status(400).json({ error: message });
+}
+
+function notFound(res: Response, message: string): void {
+  res.status(404).json({ error: message });
+}
+
 // GET /entries — list all vocabulary entries
-router.get('/entries', async (req: Request, res: Response) => {
-  try {
-    const category = req.query.category as string | undefined;
-    const tag = req.query.tag as string | undefined;
-    const entries = await store.list({ category, tag });
-    res.json(entries);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+router.get('/entries', asyncHandler(async (req: Request, res: Response) => {
+  const query = vocabularyListQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    badRequest(res, query.error.issues[0]?.message ?? 'Invalid input');
+    return;
   }
-});
+  const { category, tag } = query.data;
+  const entries = await store.list({ category, tag });
+  res.json(entries);
+}));
 
 // GET /entries/lookup — lookup a term by name or alias
-router.get('/entries/lookup', async (req: Request, res: Response) => {
-  try {
-    const term = req.query.term as string;
-    if (!term) { res.status(400).json({ error: 'term query parameter is required' }); return; }
-
-    const entry = await store.lookup(term);
-    if (!entry) { res.status(404).json({ error: `Term "${term}" not found` }); return; }
-    res.json(entry);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+router.get('/entries/lookup', asyncHandler(async (req: Request, res: Response) => {
+  const query = vocabularyLookupQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    badRequest(res, query.error.issues[0]?.message ?? 'Invalid input');
+    return;
   }
-});
+  const { term } = query.data;
+
+  const entry = await store.lookup(term);
+  if (!entry) { notFound(res, `Term "${term}" not found`); return; }
+  res.json(entry);
+}));
 
 // GET /entries/:id — get a single entry by ID
-router.get('/entries/:id', async (req: Request, res: Response) => {
-  try {
-    const entry = await store.get(req.params.id);
-    if (!entry) { res.status(404).json({ error: 'Entry not found' }); return; }
-    res.json(entry);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+router.get('/entries/:id', asyncHandler(async (req: Request, res: Response) => {
+  const params = vocabularyIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
+    return;
   }
-});
+  const entry = await store.get(params.data.id);
+  if (!entry) { notFound(res, 'Entry not found'); return; }
+  res.json(entry);
+}));
 
 // POST /entries — create a new entry
-router.post('/entries', async (req: Request, res: Response) => {
-  try {
-    const parsed = createEntrySchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' });
-      return;
-    }
-
-    const { term, definition, aliases, category, tags } = parsed.data;
-
-    const existing = await store.lookup(term);
-    if (existing) {
-      res.status(409).json({ error: `Term "${term}" already exists`, id: existing.id });
-      return;
-    }
-
-    const entry = await store.save({
-      term,
-      definition,
-      aliases,
-      category,
-      tags: tags ?? [],
-    });
-
-    res.status(201).json(entry);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+router.post('/entries', asyncHandler(async (req: Request, res: Response) => {
+  const parsed = createEntrySchema.safeParse(req.body);
+  if (!parsed.success) {
+    badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
+    return;
   }
-});
+
+  const { term, definition, aliases, category, tags } = parsed.data;
+
+  const existing = await store.lookup(term);
+  if (existing) {
+    res.status(409).json({ error: `Term "${term}" already exists`, id: existing.id });
+    return;
+  }
+
+  const entry = await store.save({
+    term,
+    definition,
+    aliases,
+    category,
+    tags: tags ?? [],
+  });
+
+  res.status(201).json(entry);
+}));
 
 // PUT /entries/:id — update an existing entry
-router.put('/entries/:id', async (req: Request, res: Response) => {
-  try {
-    const existing = await store.get(req.params.id);
-    if (!existing) { res.status(404).json({ error: 'Entry not found' }); return; }
-
-    const parsed = updateEntrySchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' });
-      return;
-    }
-
-    const { term, definition, aliases, category, tags } = parsed.data;
-
-    const entry = await store.save({
-      id: req.params.id,
-      term: term ?? existing.term,
-      definition: definition ?? existing.definition,
-      aliases: aliases ?? existing.aliases,
-      category: category ?? existing.category,
-      tags: tags ?? existing.tags,
-      projectId: existing.projectId,
-    });
-
-    res.json(entry);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+router.put('/entries/:id', asyncHandler(async (req: Request, res: Response) => {
+  const params = vocabularyIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
+    return;
   }
-});
+  const existing = await store.get(params.data.id);
+  if (!existing) { notFound(res, 'Entry not found'); return; }
+
+  const parsed = updateEntrySchema.safeParse(req.body);
+  if (!parsed.success) {
+    badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
+    return;
+  }
+
+  const { term, definition, aliases, category, tags } = parsed.data;
+
+  const entry = await store.save({
+    id: params.data.id,
+    term: term ?? existing.term,
+    definition: definition ?? existing.definition,
+    aliases: aliases ?? existing.aliases,
+    category: category ?? existing.category,
+    tags: tags ?? existing.tags,
+    projectId: existing.projectId,
+  });
+
+  res.json(entry);
+}));
 
 // DELETE /entries/:id — remove an entry
-router.delete('/entries/:id', async (req: Request, res: Response) => {
-  try {
-    const deleted = await store.delete(req.params.id);
-    if (deleted) { res.json({ ok: true }); return; }
-    res.status(404).json({ error: 'Entry not found' });
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+router.delete('/entries/:id', asyncHandler(async (req: Request, res: Response) => {
+  const params = vocabularyIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
+    return;
   }
-});
+  const deleted = await store.delete(params.data.id);
+  if (deleted) { res.json({ ok: true }); return; }
+  notFound(res, 'Entry not found');
+}));
 
 // GET /context — get compiled vocabulary as markdown
-router.get('/context', async (req: Request, res: Response) => {
-  try {
-    const projectId = req.query.projectId as string | undefined;
-    const markdown = await store.getCompiledContext(projectId);
-    res.setHeader('Content-Type', 'text/markdown');
-    res.send(markdown || 'No vocabulary entries defined.');
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
+router.get('/context', asyncHandler(async (req: Request, res: Response) => {
+  const query = vocabularyContextQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    badRequest(res, query.error.issues[0]?.message ?? 'Invalid input');
+    return;
   }
-});
+  const { projectId } = query.data;
+  const markdown = await store.getCompiledContext(projectId);
+  res.setHeader('Content-Type', 'text/markdown');
+  res.send(markdown || 'No vocabulary entries defined.');
+}));

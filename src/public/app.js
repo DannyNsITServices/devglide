@@ -10,7 +10,6 @@ import {
   getProjectList,
   getActiveProject,
 } from './state.js';
-import { escapeHtml, escapeAttr } from '/shared-assets/ui-utils.js';
 
 // ── App registry ──────────────────────────────────────────────────────────────
 
@@ -57,6 +56,37 @@ function saveOrder(sectionEl) {
   const ctx = sectionEl.dataset.section;
   const ids = [...sectionEl.querySelectorAll('.service-item')].map(el => el.dataset.id);
   localStorage.setItem('dashboard:menuOrder:' + ctx, JSON.stringify(ids));
+}
+
+function appendTextElement(parent, tagName, className, text, title = null) {
+  const el = document.createElement(tagName);
+  if (className) el.className = className;
+  el.textContent = text;
+  if (title !== null) el.title = title;
+  parent.appendChild(el);
+  return el;
+}
+
+function buildDeleteConfirmation(item, name, onConfirm, onCancel) {
+  item.replaceChildren();
+
+  const confirm = document.createElement('div');
+  confirm.className = 'project-delete-confirm';
+  appendTextElement(confirm, 'span', '', `Delete ${name}?`);
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'project-modal-btn danger';
+  confirmBtn.textContent = 'Confirm';
+  confirmBtn.addEventListener('click', onConfirm);
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'project-modal-btn';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', onCancel);
+
+  confirm.appendChild(confirmBtn);
+  confirm.appendChild(cancelBtn);
+  item.appendChild(confirm);
 }
 
 // ── Sidebar disabled state ───────────────────────────────────────────────────
@@ -110,12 +140,10 @@ function buildSection(ctx, label) {
     item.className = 'service-item';
     item.dataset.id = app.id;
     item.draggable = true;
-    item.innerHTML = `
-      <span class="drag-handle" title="Drag to reorder">\u2807</span>
-      <span class="service-icon">${app.icon}</span>
-      <span class="service-name">${app.name}</span>
-      <span class="service-desc">${app.desc}</span>
-    `;
+    appendTextElement(item, 'span', 'drag-handle', '\u2807', 'Drag to reorder');
+    appendTextElement(item, 'span', 'service-icon', app.icon);
+    appendTextElement(item, 'span', 'service-name', app.name);
+    appendTextElement(item, 'span', 'service-desc', app.desc);
     item.addEventListener('click', () => {
       if (app.ctx === 'project' && !getActiveProject()) return;
       selectApp(app.id);
@@ -258,70 +286,7 @@ function buildProjectDropdown() {
   for (const p of projects) {
     const item = document.createElement('button');
     item.className = 'project-item' + (getActiveProject()?.id === p.id ? ' active' : '');
-    item.innerHTML = `
-      <div class="project-item-row">
-        <div class="project-item-info">
-          <span class="project-item-name">${escapeHtml(p.name)}</span>
-          <span class="project-item-path">${escapeHtml(p.path)}</span>
-        </div>
-        <div class="project-item-actions">
-          <button class="project-item-action edit" title="Edit project">\u270E</button>
-          <button class="project-item-action delete" title="Delete project">\u2715</button>
-        </div>
-      </div>`;
-
-    // Clicking the item activates the project
-    item.addEventListener('click', (e) => {
-      e.stopPropagation();
-      dashboardSocket.emit('project:activate', { id: p.id });
-      dropdown.classList.remove('open');
-    });
-
-    // Edit button
-    const editBtn = item.querySelector('.project-item-action.edit');
-    editBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      dropdown.classList.remove('open');
-      openProjectModal('edit', p);
-    });
-
-    // Delete button — inline confirmation
-    const deleteBtn = item.querySelector('.project-item-action.delete');
-    deleteBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      // Replace item content with confirmation
-      const originalHTML = item.innerHTML;
-      item.innerHTML = '';
-      const confirm = document.createElement('div');
-      confirm.className = 'project-delete-confirm';
-      confirm.innerHTML = `<span>Delete ${escapeHtml(p.name)}?</span>`;
-
-      const confirmBtn = document.createElement('button');
-      confirmBtn.className = 'project-modal-btn danger';
-      confirmBtn.textContent = 'Confirm';
-      confirmBtn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        dashboardSocket.emit('project:remove', { id: p.id }, (res) => {
-          if (!res.ok) showModalError(res.error);
-        });
-        dropdown.classList.remove('open');
-      });
-
-      const cancelBtn = document.createElement('button');
-      cancelBtn.className = 'project-modal-btn';
-      cancelBtn.textContent = 'Cancel';
-      cancelBtn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        item.innerHTML = originalHTML;
-        // Re-attach action listeners after restoring HTML
-        rebindItemActions(item, p, dropdown);
-      });
-
-      confirm.appendChild(confirmBtn);
-      confirm.appendChild(cancelBtn);
-      item.appendChild(confirm);
-    });
-
+    renderProjectItem(item, p, dropdown);
     dropdown.appendChild(item);
   }
 
@@ -338,50 +303,173 @@ function buildProjectDropdown() {
 
 /** Re-bind edit/delete listeners after restoring item HTML (e.g. after cancel delete) */
 function rebindItemActions(item, project, dropdown) {
-  const editBtn = item.querySelector('.project-item-action.edit');
-  const deleteBtn = item.querySelector('.project-item-action.delete');
-  if (editBtn) {
-    editBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      dropdown.classList.remove('open');
-      openProjectModal('edit', project);
-    });
-  }
-  if (deleteBtn) {
-    deleteBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      // Trigger inline delete confirmation by simulating the same flow
-      const originalHTML = item.innerHTML;
-      item.innerHTML = '';
-      const confirm = document.createElement('div');
-      confirm.className = 'project-delete-confirm';
-      confirm.innerHTML = `<span>Delete ${escapeHtml(project.name)}?</span>`;
+  renderProjectItem(item, project, dropdown);
+}
 
-      const confirmBtn = document.createElement('button');
-      confirmBtn.className = 'project-modal-btn danger';
-      confirmBtn.textContent = 'Confirm';
-      confirmBtn.addEventListener('click', (ev) => {
+function renderProjectItem(item, project, dropdown) {
+  item.replaceChildren();
+
+  const row = document.createElement('div');
+  row.className = 'project-item-row';
+
+  const info = document.createElement('div');
+  info.className = 'project-item-info';
+  appendTextElement(info, 'span', 'project-item-name', project.name);
+  appendTextElement(info, 'span', 'project-item-path', project.path);
+
+  const actions = document.createElement('div');
+  actions.className = 'project-item-actions';
+
+  const editBtn = document.createElement('button');
+  editBtn.className = 'project-item-action edit';
+  editBtn.title = 'Edit project';
+  editBtn.textContent = '\u270E';
+  editBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdown.classList.remove('open');
+    openProjectModal('edit', project);
+  });
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'project-item-action delete';
+  deleteBtn.title = 'Delete project';
+  deleteBtn.textContent = '\u2715';
+  deleteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    buildDeleteConfirmation(
+      item,
+      project.name,
+      (ev) => {
         ev.stopPropagation();
         dashboardSocket.emit('project:remove', { id: project.id }, (res) => {
           if (!res.ok) showModalError(res.error);
         });
         dropdown.classList.remove('open');
-      });
-
-      const cancelBtn = document.createElement('button');
-      cancelBtn.className = 'project-modal-btn';
-      cancelBtn.textContent = 'Cancel';
-      cancelBtn.addEventListener('click', (ev) => {
+      },
+      (ev) => {
         ev.stopPropagation();
-        item.innerHTML = originalHTML;
         rebindItemActions(item, project, dropdown);
-      });
+      },
+    );
+  });
 
-      confirm.appendChild(confirmBtn);
-      confirm.appendChild(cancelBtn);
-      item.appendChild(confirm);
-    });
-  }
+  actions.appendChild(editBtn);
+  actions.appendChild(deleteBtn);
+  row.appendChild(info);
+  row.appendChild(actions);
+  item.appendChild(row);
+
+  item.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dashboardSocket.emit('project:activate', { id: project.id });
+    dropdown.classList.remove('open');
+  });
+}
+
+function buildProjectModalStructure(modal, title, submitLabel, project) {
+  const titleEl = document.createElement('div');
+  titleEl.className = 'project-modal-title';
+  titleEl.textContent = title;
+
+  const nameField = document.createElement('div');
+  nameField.className = 'project-modal-field';
+  const nameLabel = document.createElement('label');
+  nameLabel.className = 'project-modal-label';
+  nameLabel.htmlFor = 'pm-name';
+  nameLabel.textContent = 'Name';
+  const nameInput = document.createElement('input');
+  nameInput.className = 'project-modal-input';
+  nameInput.id = 'pm-name';
+  nameInput.type = 'text';
+  nameInput.value = project?.name ?? '';
+  nameInput.autocomplete = 'off';
+  nameField.appendChild(nameLabel);
+  nameField.appendChild(nameInput);
+
+  const pathField = document.createElement('div');
+  pathField.className = 'project-modal-field';
+  const pathLabel = document.createElement('label');
+  pathLabel.className = 'project-modal-label';
+  pathLabel.htmlFor = 'pm-path';
+  pathLabel.textContent = 'Path';
+  const pathRow = document.createElement('div');
+  pathRow.className = 'project-modal-path-row';
+  const pathInput = document.createElement('input');
+  pathInput.className = 'project-modal-input';
+  pathInput.id = 'pm-path';
+  pathInput.type = 'text';
+  pathInput.value = project?.path ?? '';
+  pathInput.placeholder = '/absolute/path/to/project';
+  pathInput.autocomplete = 'off';
+  const browseBtn = document.createElement('button');
+  browseBtn.className = 'project-modal-btn';
+  browseBtn.id = 'pm-browse';
+  browseBtn.type = 'button';
+  browseBtn.title = 'Browse folders';
+  browseBtn.textContent = '\u2026';
+  pathRow.appendChild(pathInput);
+  pathRow.appendChild(browseBtn);
+
+  const folderPicker = document.createElement('div');
+  folderPicker.className = 'folder-picker hidden';
+  folderPicker.id = 'pm-folder-picker';
+  const pickerHeader = document.createElement('div');
+  pickerHeader.className = 'folder-picker-header';
+  const folderUpBtn = document.createElement('button');
+  folderUpBtn.className = 'folder-picker-up';
+  folderUpBtn.id = 'pm-folder-up';
+  folderUpBtn.title = 'Go up';
+  folderUpBtn.textContent = '\u2191';
+  const folderPath = document.createElement('span');
+  folderPath.className = 'folder-picker-path';
+  folderPath.id = 'pm-folder-path';
+  pickerHeader.appendChild(folderUpBtn);
+  pickerHeader.appendChild(folderPath);
+  const folderList = document.createElement('div');
+  folderList.className = 'folder-picker-list';
+  folderList.id = 'pm-folder-list';
+  const folderActions = document.createElement('div');
+  folderActions.className = 'folder-picker-actions';
+  const folderCancelBtn = document.createElement('button');
+  folderCancelBtn.className = 'project-modal-btn';
+  folderCancelBtn.id = 'pm-folder-cancel';
+  folderCancelBtn.textContent = 'Cancel';
+  const folderSelectBtn = document.createElement('button');
+  folderSelectBtn.className = 'project-modal-btn primary';
+  folderSelectBtn.id = 'pm-folder-select';
+  folderSelectBtn.textContent = 'Select';
+  folderActions.appendChild(folderCancelBtn);
+  folderActions.appendChild(folderSelectBtn);
+  folderPicker.appendChild(pickerHeader);
+  folderPicker.appendChild(folderList);
+  folderPicker.appendChild(folderActions);
+
+  pathField.appendChild(pathLabel);
+  pathField.appendChild(pathRow);
+  pathField.appendChild(folderPicker);
+
+  const errorEl = document.createElement('div');
+  errorEl.className = 'project-modal-error';
+  errorEl.id = 'pm-error';
+
+  const actions = document.createElement('div');
+  actions.className = 'project-modal-actions';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'project-modal-btn';
+  cancelBtn.id = 'pm-cancel';
+  cancelBtn.textContent = 'Cancel';
+  const submitBtn = document.createElement('button');
+  submitBtn.className = 'project-modal-btn primary';
+  submitBtn.id = 'pm-submit';
+  submitBtn.textContent = submitLabel;
+  actions.appendChild(cancelBtn);
+  actions.appendChild(submitBtn);
+
+  modal.appendChild(titleEl);
+  modal.appendChild(nameField);
+  modal.appendChild(pathField);
+  modal.appendChild(errorEl);
+  modal.appendChild(actions);
 }
 
 // ── Project modal ─────────────────────────────────────────────────────────────
@@ -399,36 +487,7 @@ function openProjectModal(mode, project) {
   const title = mode === 'edit' ? 'Edit Project' : 'Add Project';
   const submitLabel = mode === 'edit' ? 'Save' : 'Add';
 
-  modal.innerHTML = `
-    <div class="project-modal-title">${title}</div>
-    <div class="project-modal-field">
-      <label class="project-modal-label" for="pm-name">Name</label>
-      <input class="project-modal-input" id="pm-name" type="text" value="${mode === 'edit' && project ? escapeAttr(project.name) : ''}" autocomplete="off" />
-    </div>
-    <div class="project-modal-field">
-      <label class="project-modal-label" for="pm-path">Path</label>
-      <div class="project-modal-path-row">
-        <input class="project-modal-input" id="pm-path" type="text" value="${mode === 'edit' && project ? escapeAttr(project.path) : ''}" placeholder="/absolute/path/to/project" autocomplete="off" />
-        <button class="project-modal-btn" id="pm-browse" type="button" title="Browse folders">\u2026</button>
-      </div>
-      <div class="folder-picker hidden" id="pm-folder-picker">
-        <div class="folder-picker-header">
-          <button class="folder-picker-up" id="pm-folder-up" title="Go up">\u2191</button>
-          <span class="folder-picker-path" id="pm-folder-path"></span>
-        </div>
-        <div class="folder-picker-list" id="pm-folder-list"></div>
-        <div class="folder-picker-actions">
-          <button class="project-modal-btn" id="pm-folder-cancel">Cancel</button>
-          <button class="project-modal-btn primary" id="pm-folder-select">Select</button>
-        </div>
-      </div>
-    </div>
-    <div class="project-modal-error" id="pm-error"></div>
-    <div class="project-modal-actions">
-      <button class="project-modal-btn" id="pm-cancel">Cancel</button>
-      <button class="project-modal-btn primary" id="pm-submit">${submitLabel}</button>
-    </div>
-  `;
+  buildProjectModalStructure(modal, title, submitLabel, mode === 'edit' ? project : null);
 
   modalOverlay.appendChild(modal);
   document.body.appendChild(modalOverlay);

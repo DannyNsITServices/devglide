@@ -8,7 +8,7 @@ import path from 'path';
 import type { Express, Request, Response } from 'express';
 import type { McpState, PaneInfo } from './shell-types.js';
 import { getActiveProject } from '../../../project-context.js';
-import { killPty } from '../../../routers/shell/pty-manager.js';
+import { killPty } from './runtime/pty-manager.js';
 
 interface McpSession {
   transport: StreamableHTTPServerTransport;

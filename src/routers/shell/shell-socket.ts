@@ -14,10 +14,14 @@ import {
   paneActiveSocket,
   socketDimensions,
   setShellNsp,
-} from './shell-state.js';
-import { SHELL_CONFIGS, safeEnv } from './shell-config.js';
-import { spawnGlobalPty, killPty } from './pty-manager.js';
+} from '../../apps/shell/src/runtime/shell-state.js';
+import { SHELL_CONFIGS, safeEnv } from '../../apps/shell/src/runtime/shell-config.js';
+import { spawnGlobalPty, killPty } from '../../apps/shell/src/runtime/pty-manager.js';
 import { detectEntryPoint } from './shell-routes.js';
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 // ── Socket.io namespace initializer ──────────────────────────────────────────
 
@@ -134,7 +138,7 @@ export function initShell(nsp: Namespace): void {
         if (switchTab) nsp.emit('state:active-tab', { tabId: id });
         nsp.emit('state:active-pane', { paneId: id });
       } catch (err: unknown) {
-        socket.emit('terminal:data', { id, data: `\r\nFailed to start ${shellType}: ${(err as Error).message}\r\n` });
+        socket.emit('terminal:data', { id, data: `\r\nFailed to start ${shellType}: ${errorMessage(err)}\r\n` });
         socket.emit('terminal:exit', { id, code: 1 });
       }
     });
@@ -190,7 +194,7 @@ export function initShell(nsp: Namespace): void {
         nsp.emit('state:pane-added', paneInfo);
         nsp.emit('state:active-pane', { paneId: id });
       } catch (err: unknown) {
-        socket.emit('terminal:data', { id, data: `\r\nSSH failed: ${(err as Error).message}\r\n` });
+        socket.emit('terminal:data', { id, data: `\r\nSSH failed: ${errorMessage(err)}\r\n` });
         socket.emit('terminal:exit', { id, code: 1 });
       }
     });
@@ -222,11 +226,11 @@ export function initShell(nsp: Namespace): void {
         paneActiveSocket.set(id, socket.id);
         const dims = socketDimensions.get(socket.id)?.get(id);
         if (dims) {
-          try { entry.ptyProcess.resize(dims.cols, dims.rows); } catch (e: unknown) { console.warn(`[resize] ${id}:`, (e as Error).message); }
+          try { entry.ptyProcess.resize(dims.cols, dims.rows); } catch (e: unknown) { console.warn(`[resize] ${id}:`, errorMessage(e)); }
         }
       }
 
-      try { entry.ptyProcess.write(data); } catch (e: unknown) { console.warn(`[write] ${id}:`, (e as Error).message); }
+      try { entry.ptyProcess.write(data); } catch (e: unknown) { console.warn(`[write] ${id}:`, errorMessage(e)); }
     });
 
     // ── Resize ───────────────────────────────────────────────────────────────
@@ -244,7 +248,7 @@ export function initShell(nsp: Namespace): void {
       if (!active || active === socket.id) {
         const entry = globalPtys.get(id);
         if (entry) {
-          try { entry.ptyProcess.resize(cols, rows); } catch (e: unknown) { console.warn(`[resize] ${id}:`, (e as Error).message); }
+          try { entry.ptyProcess.resize(cols, rows); } catch (e: unknown) { console.warn(`[resize] ${id}:`, errorMessage(e)); }
         }
       }
     });

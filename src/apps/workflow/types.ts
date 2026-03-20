@@ -105,6 +105,8 @@ export interface KanbanConfig {
   content?: string;
   title?: string;
   description?: string;
+  priority?: string;
+  type?: string;
 }
 
 export interface GitConfig {

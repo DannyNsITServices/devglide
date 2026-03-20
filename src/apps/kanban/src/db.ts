@@ -43,6 +43,14 @@ export interface IssueRow {
   columnId: string;
   createdAt: string;
   updatedAt: string;
+  columnName?: string | null;
+  columnOrder?: number | null;
+  columnColor?: string | null;
+  featureName?: string | null;
+  featureDescription?: string | null;
+  featureColor?: string | null;
+  reviewCount?: number;
+  workLogCount?: number;
 }
 
 export interface VersionedEntryRow {
@@ -64,11 +72,13 @@ export interface AttachmentRow {
 }
 
 export interface CountRow {
-  count: number;
+  count?: number;
+  cnt?: number;
 }
 
 export interface MaxOrderRow {
-  maxOrder: number | null;
+  maxOrder?: number | null;
+  maxOrd?: number | null;
 }
 
 // ── Connection cache ─────────────────────────────────────────────────────────

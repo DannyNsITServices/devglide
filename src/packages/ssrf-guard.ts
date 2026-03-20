@@ -11,6 +11,7 @@
 
 import dns from 'node:dns';
 import net from 'node:net';
+import https from 'node:https';
 
 // ── Blocked hostnames (cloud metadata endpoints, loopback aliases, etc.) ─────
 
@@ -70,9 +71,12 @@ export function isPrivateIP(ip: string): boolean {
  * 2. Rejects hostnames in the static blocked set.
  * 3. Resolves the hostname via DNS and rejects private/internal IPs.
  *
+ * Returns the resolved IP address (or `null` for literal-IP URLs) so callers
+ * can pin subsequent fetches to the validated IP, closing the DNS TOCTOU gap.
+ *
  * Throws an `Error` describing the reason when the URL is unsafe.
  */
-export async function validateUrl(urlString: string): Promise<void> {
+export async function validateUrl(urlString: string): Promise<string | null> {
   let parsed: URL;
   try {
     parsed = new URL(urlString);
@@ -95,7 +99,7 @@ export async function validateUrl(urlString: string): Promise<void> {
     if (isPrivateIP(hostname)) {
       throw new Error(`Blocked IP: ${hostname}`);
     }
-    return;
+    return null;
   }
 
   // Resolve hostname and check the resulting IP
@@ -109,6 +113,8 @@ export async function validateUrl(urlString: string): Promise<void> {
   if (isPrivateIP(resolved.address)) {
     throw new Error(`DNS rebinding blocked: ${hostname} resolved to private IP ${resolved.address}`);
   }
+
+  return resolved.address;
 }
 
 // ── Safe fetch with redirect validation ──────────────────────────────────────
@@ -120,9 +126,54 @@ export interface SafeFetchOptions extends Omit<RequestInit, 'redirect'> {
   maxRedirects?: number;
 }
 
+/** Execute an HTTPS request with a custom agent for DNS pinning. */
+function httpsRequestPinned(
+  url: string,
+  headers: Headers,
+  options: SafeFetchOptions,
+  agent: https.Agent,
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const headerObj: Record<string, string> = {};
+    headers.forEach((v, k) => { headerObj[k] = v; });
+
+    const req = https.request(
+      {
+        hostname: parsed.hostname,
+        port: parsed.port || 443,
+        path: parsed.pathname + parsed.search,
+        method: (options as RequestInit).method || 'GET',
+        headers: headerObj,
+        agent,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => {
+          const body = Buffer.concat(chunks);
+          const responseHeaders = new Headers();
+          for (const [key, val] of Object.entries(res.headers)) {
+            if (val) responseHeaders.set(key, Array.isArray(val) ? val.join(', ') : val);
+          }
+          resolve(new Response(body, {
+            status: res.statusCode ?? 200,
+            statusText: res.statusMessage ?? '',
+            headers: responseHeaders,
+          }));
+        });
+      },
+    );
+    req.on('error', reject);
+    if (options.body && typeof options.body === 'string') req.write(options.body);
+    req.end();
+  });
+}
+
 /**
  * Wrapper around `fetch()` that:
  * - Validates the initial URL (including DNS resolution)
+ * - Pins HTTP and HTTPS requests to the resolved IP to close the DNS TOCTOU gap
  * - Uses `redirect: 'manual'` so we can intercept 3xx responses
  * - Re-validates each redirect Location before following it
  * - Enforces a maximum redirect count
@@ -132,12 +183,47 @@ export async function safeFetch(url: string, options: SafeFetchOptions = {}): Pr
   let currentUrl = url;
 
   for (let i = 0; i <= maxRedirects; i++) {
-    await validateUrl(currentUrl);
+    const resolvedIp = await validateUrl(currentUrl);
 
-    const response = await fetch(currentUrl, {
+    // Pin HTTP/HTTPS requests to the resolved IP to prevent DNS rebinding TOCTOU
+    let fetchUrl = currentUrl;
+    const mergedHeaders = new Headers(fetchOptions.headers);
+
+    let fetchRequestInit: RequestInit & { dispatcher?: unknown } = {
       ...fetchOptions,
-      redirect: 'manual',
-    });
+      headers: mergedHeaders,
+      redirect: 'manual' as const,
+    };
+
+    if (resolvedIp) {
+      const parsed = new URL(currentUrl);
+      if (parsed.protocol === 'http:') {
+        // HTTP: replace hostname with resolved IP, set Host header
+        mergedHeaders.set('Host', parsed.host);
+        parsed.hostname = net.isIPv6(resolvedIp) ? `[${resolvedIp}]` : resolvedIp;
+        fetchUrl = parsed.href;
+      } else if (parsed.protocol === 'https:') {
+        // HTTPS: pin DNS lookup via custom Agent to prevent rebinding TOCTOU
+        const pinnedAgent = new https.Agent({
+          servername: parsed.hostname,
+          lookup: (_hostname, _opts, cb) => {
+            cb(null, resolvedIp, net.isIPv6(resolvedIp) ? 6 : 4);
+          },
+        });
+        // Node undici-based fetch doesn't accept `agent` directly;
+        // fall back to node:https request for pinned HTTPS connections.
+        const pinnedResponse = await httpsRequestPinned(fetchUrl, mergedHeaders, fetchOptions, pinnedAgent);
+        if (pinnedResponse.status >= 300 && pinnedResponse.status < 400) {
+          const location = pinnedResponse.headers.get('location');
+          if (!location) throw new Error(`Redirect ${pinnedResponse.status} without Location header`);
+          currentUrl = new URL(location, currentUrl).href;
+          continue;
+        }
+        return pinnedResponse;
+      }
+    }
+
+    const response = await fetch(fetchUrl, fetchRequestInit);
 
     const status = response.status;
     if (status >= 300 && status < 400) {
@@ -146,7 +232,7 @@ export async function safeFetch(url: string, options: SafeFetchOptions = {}): Pr
         throw new Error(`Redirect ${status} without Location header`);
       }
 
-      // Resolve relative redirects against the current URL
+      // Resolve relative redirects against the original (non-pinned) URL
       currentUrl = new URL(location, currentUrl).href;
       continue;
     }

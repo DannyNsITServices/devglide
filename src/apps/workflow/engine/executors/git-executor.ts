@@ -1,6 +1,10 @@
 import { spawn } from 'child_process';
 import type { ExecutorFunction, ExecutorResult, NodeConfig, ExecutionContext, SSEEmitter, GitConfig } from '../../types.js';
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 const GIT_TIMEOUT_MS = 60_000; // 1 minute
 const BRANCH_RE = /^[a-zA-Z0-9._/\-]+$/;
 
@@ -132,6 +136,6 @@ export const gitExecutor: ExecutorFunction = async (
       error: result.exitCode !== 0 ? result.output : undefined,
     };
   } catch (err) {
-    return { status: 'failed', error: (err as Error).message };
+    return { status: 'failed', error: errorMessage(err) };
   }
 };

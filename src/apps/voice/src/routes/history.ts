@@ -1,25 +1,42 @@
 import { Router, type Router as RouterType } from "express";
+import { z } from "zod";
 import { historyStore } from "../services/history-store.js";
 
 export const historyRouter: RouterType = Router();
 
+const historyListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(25),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+});
+
+const historySearchQuerySchema = z.object({
+  q: z.string().min(1, "Query parameter 'q' is required"),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(25),
+});
+
+const historyIdParamSchema = z.object({
+  id: z.string().min(1, "history entry id is required"),
+});
+
 // List history (newest first)
 historyRouter.get("/", (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
-  const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
-  const result = historyStore.list(limit, offset);
+  const query = historyListQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+  const result = historyStore.list(query.data.limit, query.data.offset);
   res.json(result);
 });
 
 // Search history
 historyRouter.get("/search", (req, res) => {
-  const query = (req.query.q as string) ?? "";
-  if (!query.trim()) {
-    res.status(400).json({ error: "Query parameter 'q' is required" });
+  const parsed = historySearchQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid input" });
     return;
   }
-  const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
-  const entries = historyStore.search(query, limit);
+  const entries = historyStore.search(parsed.data.q, parsed.data.limit);
   res.json({ entries, total: entries.length });
 });
 
@@ -30,7 +47,12 @@ historyRouter.get("/analytics", (_req, res) => {
 
 // Get single entry
 historyRouter.get("/:id", (req, res) => {
-  const entry = historyStore.get(req.params.id);
+  const params = historyIdParamSchema.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
+  const entry = historyStore.get(params.data.id);
   if (!entry) {
     res.status(404).json({ error: "Entry not found" });
     return;

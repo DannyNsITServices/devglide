@@ -1,5 +1,5 @@
 import type { Namespace } from 'socket.io';
-import type { PtyEntry, PaneInfo, DashboardState } from '../../apps/shell/src/shell-types.js';
+import type { PtyEntry, PaneInfo, DashboardState } from '../shell-types.js';
 
 export type { PtyEntry, PaneInfo, DashboardState };
 
@@ -13,11 +13,14 @@ export const dashboardState: DashboardState = {
   activePaneId: null,
 };
 
-let paneIdCounter: number = 0;
-export function nextPaneId(): string { return `pane-${++paneIdCounter}`; }
+let paneIdCounter = 0;
 
-export const SCROLLBACK_LIMIT: number = 200_000;
-export const MAX_PANES: number = 9; // per project context
+export function nextPaneId(): string {
+  return `pane-${++paneIdCounter}`;
+}
+
+export const SCROLLBACK_LIMIT = 200_000;
+export const MAX_PANES = 9; // per project context
 
 /** Count panes belonging to the given project (null = no project). */
 export function panesForProject(projectId: string | null): number {
@@ -42,17 +45,17 @@ export function renumberPanes(): void {
 }
 
 // ── Multi-client resize arbitration ─────────────────────────────────────────
-// Each PTY has one "active" socket — the one that last sent input.
-// Only that socket's resize events are forwarded to the PTY.
-// When a different socket starts typing it takes over and immediately
-// resizes the PTY to its own dimensions, preventing SIGWINCH corruption.
-export const paneActiveSocket: Map<string, string> = new Map();   // paneId -> socketId
-export const socketDimensions: Map<string, Map<string, { cols: number; rows: number }>> = new Map(); // socketId -> Map<paneId, {cols, rows}>
+
+export const paneActiveSocket: Map<string, string> = new Map();
+export const socketDimensions: Map<string, Map<string, { cols: number; rows: number }>> = new Map();
 
 // ── Module-level namespace reference (set by initShell) ─────────────────────
+
 let shellNsp: Namespace | null = null;
 
-export function getShellNsp(): Namespace | null { return shellNsp; }
+export function getShellNsp(): Namespace | null {
+  return shellNsp;
+}
 
 export function setShellNsp(nsp: Namespace): void {
   shellNsp = nsp;

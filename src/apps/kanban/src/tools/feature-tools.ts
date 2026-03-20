@@ -24,7 +24,7 @@ export function registerFeatureTools(server: McpServer, projectId?: string | nul
       const skip = offset ?? 0;
 
       const totalRow = db.prepare(`SELECT COUNT(*) AS cnt FROM "Project"`).get() as CountRow;
-      const total = totalRow.cnt;
+      const total = totalRow.cnt ?? totalRow.count ?? 0;
 
       const features = db
         .prepare(
@@ -160,7 +160,7 @@ export function registerFeatureTools(server: McpServer, projectId?: string | nul
       if (!existing) return errorResult("Feature not found");
 
       const setClauses: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (name !== undefined) { setClauses.push(`"name" = ?`); params.push(name); }
       if (description !== undefined) { setClauses.push(`"description" = ?`); params.push(description); }
