@@ -90,14 +90,22 @@ router.post('/workflows', async (req: Request, res: Response) => {
   }
 });
 
+const updateWorkflowSchema = createWorkflowSchema.partial();
+
 // PUT /workflows/:id — update graph workflow
 router.put('/workflows/:id', async (req: Request, res: Response) => {
   try {
+    const parsed = updateWorkflowSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' });
+      return;
+    }
+
     const existing = await builderStore.get(req.params.id);
     if (!existing) { res.status(404).json({ error: 'Workflow not found' }); return; }
 
-    const { name, description, nodes, edges, variables, tags, scope, enabled } = req.body;
-    const isGlobal: boolean | undefined = req.body.global;
+    const { name, description, nodes, edges, variables, tags, scope, enabled } = parsed.data;
+    const isGlobal: boolean | undefined = parsed.data.global;
 
     const workflow = await builderStore.save({
       id: req.params.id,

@@ -6,7 +6,7 @@ import fs from "fs";
 import fsp from "fs/promises";
 import { PROJECTS_DIR } from "../../../../packages/paths.js";
 
-function getUploadsDir(projectId: string): string {
+export function getUploadsDir(projectId: string): string {
   return path.join(PROJECTS_DIR, projectId, 'uploads');
 }
 
@@ -32,7 +32,6 @@ const ALLOWED_MIME_TYPES = [
   "image/png",
   "image/gif",
   "image/webp",
-  "image/svg+xml",
 ];
 
 const upload = multer({
@@ -123,6 +122,8 @@ attachmentsRouter.get("/:id", (req: Request, res: Response) => {
       "Content-Disposition",
       `inline; filename="${safeDownloadName}"`
     );
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Security-Policy", "sandbox");
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     res.sendFile(filePath);
   } catch (err: unknown) {

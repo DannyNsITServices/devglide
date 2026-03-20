@@ -2,10 +2,7 @@ import { Router, Request, Response } from "express";
 import { getDb, generateId, nowIso } from "../db.js";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsDir = path.join(__dirname, "..", "..", "uploads");
+import { getUploadsDir } from "./attachments.js";
 
 export const featuresRouter: Router = Router();
 
@@ -220,7 +217,7 @@ featuresRouter.delete("/:id", (req: Request, res: Response) => {
 
     for (const att of attachments) {
       const ext = path.extname(att.filename);
-      const filePath = path.join(uploadsDir, `${att.id}${ext}`);
+      const filePath = path.join(getUploadsDir(req.projectId ?? 'default'), `${att.id}${ext}`);
       try { fs.unlinkSync(filePath); } catch {}
     }
 

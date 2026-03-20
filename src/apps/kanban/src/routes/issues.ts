@@ -2,16 +2,13 @@ import { Router, Request, Response } from "express";
 import { getDb, generateId, nowIso, appendVersionedEntry, getVersionedEntries } from "../db.js";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
+import { getUploadsDir } from "./attachments.js";
 
 declare module "express" {
   interface Request {
     projectId?: string;
   }
 }
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsDir = path.join(__dirname, "..", "..", "uploads");
 
 export const issuesRouter: Router = Router();
 
@@ -355,7 +352,7 @@ issuesRouter.delete("/:id", (req: Request, res: Response) => {
     // Delete attachment files from disk
     for (const att of attachments) {
       const ext = path.extname(att.filename);
-      const filePath = path.join(uploadsDir, `${att.id}${ext}`);
+      const filePath = path.join(getUploadsDir(req.projectId ?? 'default'), `${att.id}${ext}`);
       try {
         fs.unlinkSync(filePath);
       } catch {

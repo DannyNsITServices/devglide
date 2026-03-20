@@ -1,8 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import path from "path";
+import fs from "fs";
 import { getDb, generateId, nowIso, appendVersionedEntry, getVersionedEntries, type IssueRow } from "../db.js";
 import { jsonResult, errorResult } from "../../../../packages/mcp-utils/src/index.js";
 import { normalizeEscapes, mapIssueRow, resolveColumnId, truncateDescription } from "../mcp-helpers.js";
+import { getUploadsDir } from "../routes/attachments.js";
 
 export function registerItemTools(server: McpServer, projectId?: string | null): void {
 
@@ -300,6 +303,17 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
       const db = getDb(projectId);
       const existing = db.prepare(`SELECT "id" FROM "Issue" WHERE "id" = ?`).get(id);
       if (!existing) return errorResult("Item not found");
+
+      // Clean up attachment files from disk before deleting
+      const attachments = db
+        .prepare(`SELECT "id", "filename" FROM "Attachment" WHERE "issueId" = ?`)
+        .all(id) as { id: string; filename: string }[];
+      const uploadsDir = getUploadsDir(projectId ?? 'default');
+      for (const att of attachments) {
+        const ext = path.extname(att.filename);
+        try { fs.unlinkSync(path.join(uploadsDir, `${att.id}${ext}`)); } catch { /* ignore */ }
+      }
+
       db.prepare(`DELETE FROM "Issue" WHERE "id" = ?`).run(id);
       return jsonResult({ message: `Item ${id} deleted.` });
     }

@@ -67,8 +67,8 @@ async function toggleGlobal(wf) {
 }
 
 function renderWorkflowCard(wf) {
-  const nodeCount = wf.nodes?.length ?? 0;
-  const edgeCount = wf.edges?.length ?? 0;
+  const nodeCount = wf.nodeCount ?? 0;
+  const edgeCount = wf.edgeCount ?? 0;
   const enabled = wf.enabled !== false;
   const tags = (wf.tags || []).map(t =>
     `<span style="font-size:9px;padding:0 4px;border:1px solid var(--df-color-border-default);

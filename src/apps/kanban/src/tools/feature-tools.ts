@@ -1,8 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import path from "path";
+import fs from "fs";
 import { getDb, generateId, nowIso, type ColumnRow, type IssueRow } from "../db.js";
 import { jsonResult, errorResult } from "../../../../packages/mcp-utils/src/index.js";
 import { DEFAULT_COLUMNS, mapColumnRow, mapIssueRow } from "../mcp-helpers.js";
+import { getUploadsDir } from "../routes/attachments.js";
 
 export function registerFeatureTools(server: McpServer, projectId?: string | null): void {
 
@@ -119,6 +122,21 @@ export function registerFeatureTools(server: McpServer, projectId?: string | nul
       const db = getDb(projectId);
       const existing = db.prepare(`SELECT "id" FROM "Project" WHERE "id" = ?`).get(id);
       if (!existing) return errorResult("Feature not found");
+
+      // Clean up attachment files from disk before deleting
+      const attachments = db
+        .prepare(
+          `SELECT a."id", a."filename" FROM "Attachment" a
+           JOIN "Issue" i ON a."issueId" = i."id"
+           WHERE i."projectId" = ?`
+        )
+        .all(id) as { id: string; filename: string }[];
+      const uploadsDir = getUploadsDir(projectId ?? 'default');
+      for (const att of attachments) {
+        const ext = path.extname(att.filename);
+        try { fs.unlinkSync(path.join(uploadsDir, `${att.id}${ext}`)); } catch { /* ignore */ }
+      }
+
       db.prepare(`DELETE FROM "Project" WHERE "id" = ?`).run(id);
       return jsonResult({ message: `Feature ${id} deleted.` });
     }

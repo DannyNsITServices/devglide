@@ -1,24 +1,8 @@
 import { Router } from "express";
 import type { Request, Response, Router as RouterType } from "express";
 import fs from "fs/promises";
-import path from "path";
 import { LogWriter } from "../services/log-writer.js";
-import { DEVGLIDE_DIR } from "../../../../packages/paths.js";
-
-const LOG_ROOT = DEVGLIDE_DIR;
-const ALLOWED_EXTENSIONS = new Set(['.log', '.jsonl']);
-
-function safeLogPath(targetPath: string): string {
-  const resolved = path.resolve(LOG_ROOT, targetPath.replace(/^\/+/, ''));
-  if (!resolved.startsWith(LOG_ROOT + path.sep)) {
-    throw new Error('Path traversal denied');
-  }
-  const ext = path.extname(resolved).toLowerCase();
-  if (ext && !ALLOWED_EXTENSIONS.has(ext)) {
-    throw new Error('Invalid log file extension');
-  }
-  return resolved;
-}
+import { safeLogPath } from "../safe-log-path.js";
 
 export const logRouter: RouterType = Router();
 const logWriter = new LogWriter();

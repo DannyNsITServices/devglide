@@ -10,6 +10,7 @@ import {
   getProjectList,
   getActiveProject,
 } from './state.js';
+import { escapeHtml, escapeAttr } from '/shared-assets/ui-utils.js';
 
 // ── App registry ──────────────────────────────────────────────────────────────
 
@@ -260,8 +261,8 @@ function buildProjectDropdown() {
     item.innerHTML = `
       <div class="project-item-row">
         <div class="project-item-info">
-          <span class="project-item-name">${p.name}</span>
-          <span class="project-item-path">${p.path}</span>
+          <span class="project-item-name">${escapeHtml(p.name)}</span>
+          <span class="project-item-path">${escapeHtml(p.path)}</span>
         </div>
         <div class="project-item-actions">
           <button class="project-item-action edit" title="Edit project">\u270E</button>
@@ -293,7 +294,7 @@ function buildProjectDropdown() {
       item.innerHTML = '';
       const confirm = document.createElement('div');
       confirm.className = 'project-delete-confirm';
-      confirm.innerHTML = `<span>Delete ${p.name}?</span>`;
+      confirm.innerHTML = `<span>Delete ${escapeHtml(p.name)}?</span>`;
 
       const confirmBtn = document.createElement('button');
       confirmBtn.className = 'project-modal-btn danger';
@@ -354,7 +355,7 @@ function rebindItemActions(item, project, dropdown) {
       item.innerHTML = '';
       const confirm = document.createElement('div');
       confirm.className = 'project-delete-confirm';
-      confirm.innerHTML = `<span>Delete ${project.name}?</span>`;
+      confirm.innerHTML = `<span>Delete ${escapeHtml(project.name)}?</span>`;
 
       const confirmBtn = document.createElement('button');
       confirmBtn.className = 'project-modal-btn danger';
@@ -402,12 +403,12 @@ function openProjectModal(mode, project) {
     <div class="project-modal-title">${title}</div>
     <div class="project-modal-field">
       <label class="project-modal-label" for="pm-name">Name</label>
-      <input class="project-modal-input" id="pm-name" type="text" value="${mode === 'edit' && project ? project.name : ''}" autocomplete="off" />
+      <input class="project-modal-input" id="pm-name" type="text" value="${mode === 'edit' && project ? escapeAttr(project.name) : ''}" autocomplete="off" />
     </div>
     <div class="project-modal-field">
       <label class="project-modal-label" for="pm-path">Path</label>
       <div class="project-modal-path-row">
-        <input class="project-modal-input" id="pm-path" type="text" value="${mode === 'edit' && project ? project.path : ''}" placeholder="/absolute/path/to/project" autocomplete="off" />
+        <input class="project-modal-input" id="pm-path" type="text" value="${mode === 'edit' && project ? escapeAttr(project.path) : ''}" placeholder="/absolute/path/to/project" autocomplete="off" />
         <button class="project-modal-btn" id="pm-browse" type="button" title="Browse folders">\u2026</button>
       </div>
       <div class="folder-picker hidden" id="pm-folder-picker">
