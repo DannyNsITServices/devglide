@@ -16,6 +16,7 @@ import {
 import { SHELL_CONFIGS } from './shell-config.js';
 import { killPty, spawnGlobalPty } from './pty-manager.js';
 import type { PaneInfo } from '../../apps/shell/src/shell-types.js';
+import { safeFetch } from '../../packages/ssrf-guard.js';
 
 // ── Preview helpers ──────────────────────────────────────────────────────────
 
@@ -31,30 +32,6 @@ export function detectEntryPoint(projectPath: string): { file: string; base: str
   for (const entry of PREVIEW_ENTRY_POINTS) {
     const full = path.join(projectPath, entry);
     if (fs.existsSync(full)) return { file: entry, base: path.dirname(entry) };
-  }
-  return null;
-}
-
-// ── Proxy SSRF protection ────────────────────────────────────────────────────
-
-const BLOCKED_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0', 'metadata.google.internal']);
-
-function isBlockedUrl(urlStr: string): string | null {
-  let parsed: URL;
-  try { parsed = new URL(urlStr); } catch { return 'Invalid URL'; }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return 'Only HTTP/HTTPS allowed';
-  const hostname = parsed.hostname.toLowerCase();
-  if (BLOCKED_HOSTS.has(hostname)) return 'Blocked host';
-  // Block private/internal IP ranges
-  const parts = hostname.split('.').map(Number);
-  if (parts.length === 4 && parts.every((n) => !isNaN(n))) {
-    const [a, b] = parts;
-    if (a === 10) return 'Private IP blocked';
-    if (a === 172 && b >= 16 && b <= 31) return 'Private IP blocked';
-    if (a === 192 && b === 168) return 'Private IP blocked';
-    if (a === 169 && b === 254) return 'Link-local IP blocked';
-    if (a === 127) return 'Loopback IP blocked';
-    if (a === 0) return 'Invalid IP blocked';
   }
   return null;
 }
@@ -79,6 +56,20 @@ router.use('/preview', (req: Request, res: Response, next: NextFunction) => {
     return res.status(403).json({ error: 'Path traversal denied' });
   }
 
+  // Resolve symlinks to prevent symlink-based traversal
+  try {
+    const realRoot = fs.realpathSync(projectPath);
+    const realResolved = fs.realpathSync(resolved);
+    if (!realResolved.startsWith(realRoot + path.sep) && realResolved !== realRoot) {
+      return res.status(403).json({ error: 'Symlink traversal denied' });
+    }
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      return res.status(403).json({ error: 'Symlink traversal denied' });
+    }
+    // ENOENT: file doesn't exist, sendFile will handle it below
+  }
+
   // Directory requests: try serving index.html from within
   try {
     if (fs.statSync(resolved).isDirectory()) {
@@ -98,17 +89,13 @@ router.get('/proxy', async (req: Request, res: Response) => {
   const targetUrl = req.query.url as string | undefined;
   if (!targetUrl) return res.status(400).json({ error: 'Missing url parameter' });
 
-  const blocked = isBlockedUrl(targetUrl);
-  if (blocked) return res.status(403).json({ error: blocked });
-
   try {
-    const upstream = await fetch(targetUrl, {
+    const upstream = await safeFetch(targetUrl, {
       headers: {
         'User-Agent': (req.headers['user-agent'] as string) || 'Mozilla/5.0',
         'Accept': 'text/html,*/*',
         'Accept-Language': (req.headers['accept-language'] as string) || 'en-US,en;q=0.9',
       },
-      redirect: 'follow',
     });
 
     const html: string = await upstream.text();
@@ -116,7 +103,10 @@ router.get('/proxy', async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.send(html);
   } catch (err: unknown) {
-    res.status(502).json({ error: (err as Error).message });
+    const message = (err as Error).message;
+    // SSRF validation errors get 403, network errors get 502
+    const status = message.includes('Blocked') || message.includes('blocked') || message.includes('Only HTTP') || message.includes('Invalid URL') || message.includes('Too many redirects') ? 403 : 502;
+    res.status(status).json({ error: message });
   }
 });
 

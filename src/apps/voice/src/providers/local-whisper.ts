@@ -1,7 +1,7 @@
-import { writeFileSync, unlinkSync, mkdirSync, existsSync, createWriteStream } from "fs";
+import { writeFileSync, readFileSync, unlinkSync, mkdirSync, existsSync, createWriteStream } from "fs";
 import { join, resolve, dirname } from "path";
 import { tmpdir } from "os";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import { execSync } from "child_process";
 import { createRequire } from "module";
 import type {
@@ -39,6 +39,52 @@ const BUILD_TOOLS_HINT =
 
 const WHISPER_CPP_RELEASE_VERSION = "v1.8.3";
 const WHISPER_CPP_RELEASE_BASE = `https://github.com/ggml-org/whisper.cpp/releases/download/${WHISPER_CPP_RELEASE_VERSION}`;
+
+/**
+ * SHA-256 checksums for prebuilt whisper.cpp release assets.
+ * Keyed by "{version}:{assetFilename}".
+ *
+ * TODO: Compute these from trusted release downloads and replace the placeholder values.
+ *   1. Download each asset from the GitHub releases page for the pinned version.
+ *   2. Run: sha256sum whisper-bin-x64.zip whisper-bin-Win32.zip
+ *   3. Replace the placeholder strings below with the actual hex digests.
+ */
+const WHISPER_PREBUILT_SHA256: Record<string, string> = {
+  [`${WHISPER_CPP_RELEASE_VERSION}:whisper-bin-x64.zip`]:
+    "PLACEHOLDER_COMPUTE_FROM_TRUSTED_RELEASE_whisper-bin-x64.zip",
+  [`${WHISPER_CPP_RELEASE_VERSION}:whisper-bin-Win32.zip`]:
+    "PLACEHOLDER_COMPUTE_FROM_TRUSTED_RELEASE_whisper-bin-Win32.zip",
+};
+
+/** Compute SHA-256 hex digest of a file on disk. */
+function computeFileSha256(filePath: string): string {
+  const hash = createHash("sha256");
+  hash.update(readFileSync(filePath));
+  return hash.digest("hex");
+}
+
+/** Verify a downloaded file's SHA-256 against the expected hash. Throws on mismatch or missing entry. */
+function verifyIntegrity(filePath: string, assetName: string): void {
+  const key = `${WHISPER_CPP_RELEASE_VERSION}:${assetName}`;
+  const expected = WHISPER_PREBUILT_SHA256[key];
+  if (!expected) {
+    throw new Error(
+      `No SHA-256 checksum registered for asset "${key}". ` +
+      `Add the expected hash to WHISPER_PREBUILT_SHA256 before downloading.`
+    );
+  }
+
+  const actual = computeFileSha256(filePath);
+  if (actual !== expected) {
+    throw new Error(
+      `SHA-256 integrity check failed for ${assetName}.\n` +
+      `  Expected: ${expected}\n` +
+      `  Actual:   ${actual}\n` +
+      `The downloaded file may be corrupted or tampered with. ` +
+      `If the release was updated, verify the new hash and update WHISPER_PREBUILT_SHA256.`
+    );
+  }
+}
 
 /** Maps platform+arch to the release asset name and executable path inside the archive. */
 function getPrebuiltAsset(): { url: string; exeName: string; archiveFiles: string[] } | null {
@@ -184,6 +230,10 @@ async function ensureWhisperBinary(): Promise<boolean> {
 
     try {
       await downloadFile(asset.url, tmpZip);
+
+      // Verify SHA-256 integrity before extracting/executing the downloaded archive
+      const assetName = asset.url.split("/").pop()!;
+      verifyIntegrity(tmpZip, assetName);
 
       const extractDir = join(tmpdir(), `whisper-extract-${randomBytes(4).toString("hex")}`);
       extractZip(tmpZip, extractDir, asset.archiveFiles);

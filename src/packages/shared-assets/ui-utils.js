@@ -46,3 +46,48 @@ export function formatDuration(ms) {
   if (ms < 1000) return ms + 'ms';
   return (ms / 1000).toFixed(1) + 's';
 }
+
+// ── HTML Sanitization ─────────────────────────────────────────────────────────
+
+const DANGEROUS_TAGS = new Set([
+  'script', 'style', 'iframe', 'object', 'embed', 'applet',
+  'form', 'textarea', 'select', 'meta', 'link', 'base',
+  'svg', 'math', 'template', 'noscript',
+]);
+
+const DANGEROUS_URL_RE = /^\s*(javascript|vbscript|data)\s*:/i;
+
+const EVENT_ATTR_RE = /^on/i;
+
+/**
+ * Sanitize an HTML string by removing dangerous elements and attributes.
+ * Uses the browser's DOMParser for robust parsing, then walks the tree
+ * to strip script tags, event handlers, and javascript: URLs.
+ */
+export function sanitizeHtml(html) {
+  if (!html) return '';
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  // Remove dangerous elements
+  for (const tag of DANGEROUS_TAGS) {
+    for (const el of doc.body.querySelectorAll(tag)) el.remove();
+  }
+  // Walk all remaining elements
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_ELEMENT);
+  let node;
+  while ((node = walker.nextNode())) {
+    // Remove event-handler attributes (onclick, onerror, onload, etc.)
+    for (const attr of [...node.attributes]) {
+      if (EVENT_ATTR_RE.test(attr.name)) {
+        node.removeAttribute(attr.name);
+      }
+    }
+    // Strip dangerous URLs from href, src, action, formaction, xlink:href
+    for (const urlAttr of ['href', 'src', 'action', 'formaction', 'xlink:href']) {
+      const val = node.getAttribute(urlAttr);
+      if (val && DANGEROUS_URL_RE.test(val)) {
+        node.removeAttribute(urlAttr);
+      }
+    }
+  }
+  return doc.body.innerHTML;
+}

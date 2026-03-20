@@ -4,7 +4,7 @@
 // This replaces the iframe-based page module with a fully native implementation.
 // All DOM queries are scoped to `_root` (the container).
 
-import { escapeHtml, escapeAttr, normalizeEscapes } from '/shared-assets/ui-utils.js';
+import { escapeHtml, escapeAttr, normalizeEscapes, sanitizeHtml } from '/shared-assets/ui-utils.js';
 
 let _root = null;
 let _projectId = null;
@@ -914,7 +914,7 @@ function renderDialog() {
           <textarea data-field="dlg-desc" rows="8" placeholder="Add a description... (Markdown supported)">${escapeHtml(s.description)}</textarea>
         </div>
         <div data-region="dlg-desc-preview" class="markdown-preview ${!s.previewMode ? 'hidden' : ''}">
-          ${s.description ? marked.parse(normalizeEscapes(s.description)) : '<span class="text-muted">Nothing to preview</span>'}
+          ${s.description ? sanitizeHtml(marked.parse(normalizeEscapes(s.description))) : '<span class="text-muted">Nothing to preview</span>'}
         </div>
       </div>
 
@@ -1101,7 +1101,7 @@ function bindDialogEvents() {
         writeDiv?.classList.add('hidden');
         previewDiv?.classList.remove('hidden');
         if (previewDiv) {
-          previewDiv.innerHTML = s.description ? marked.parse(normalizeEscapes(s.description)) : '<span class="text-muted">Nothing to preview</span>';
+          previewDiv.innerHTML = s.description ? sanitizeHtml(marked.parse(normalizeEscapes(s.description))) : '<span class="text-muted">Nothing to preview</span>';
         }
       } else {
         writeDiv?.classList.remove('hidden');
@@ -1396,7 +1396,7 @@ function renderVersionedEntries() {
           <span class="badge badge-secondary">v${e.version}</span>
           <span class="versioned-entry-date">${formatEntryDate(e.createdAt)}</span>
         </div>
-        <div class="versioned-entry-content markdown-preview">${marked.parse(normalizeEscapes(e.content))}</div>
+        <div class="versioned-entry-content markdown-preview">${sanitizeHtml(marked.parse(normalizeEscapes(e.content)))}</div>
       </div>
     `).join('');
   };
@@ -1586,13 +1586,25 @@ export async function mount(container, ctx) {
   // 3. Load vendor libraries (SortableJS + marked.js)
   await loadVendors();
 
-  // 4. Configure marked to escape raw HTML
+  // 4. Configure marked to escape raw HTML and neutralize dangerous URLs
   if (typeof marked !== 'undefined' && marked.use) {
+    const dangerousUrlRe = /^\s*(javascript|vbscript|data)\s*:/i;
     marked.use({
       breaks: true,
       renderer: {
         html({ text }) {
           return escapeHtml(text);
+        },
+        link({ href, title, tokens }) {
+          const text = this.parser.parseInline(tokens);
+          if (dangerousUrlRe.test(href)) return text;
+          const titleAttr = title ? ` title="${escapeAttr(title)}"` : '';
+          return `<a href="${escapeAttr(href)}"${titleAttr}>${text}</a>`;
+        },
+        image({ href, title, text }) {
+          if (dangerousUrlRe.test(href)) return escapeHtml(text);
+          const titleAttr = title ? ` title="${escapeAttr(title)}"` : '';
+          return `<img src="${escapeAttr(href)}" alt="${escapeAttr(text)}"${titleAttr}>`;
         },
       },
     });

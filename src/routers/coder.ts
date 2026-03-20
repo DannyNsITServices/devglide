@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import fs from 'fs';
 import type { Dirent } from 'fs';
-import { open, readFile, writeFile, readdir, stat } from 'fs/promises';
+import { open, readFile, writeFile, readdir, stat, realpath } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { z } from 'zod';
@@ -27,7 +27,7 @@ const MAX_TREE_ENTRIES = 5000;
 
 const MONOREPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-function safeRoot(reqRoot: string | undefined): string {
+async function safeRoot(reqRoot: string | undefined): Promise<string> {
   if (!reqRoot) return getActiveProject()?.path || MONOREPO_ROOT;
   const resolved = path.resolve(reqRoot);
   const allowed = getActiveProject()?.path || MONOREPO_ROOT;
@@ -37,9 +37,29 @@ function safeRoot(reqRoot: string | undefined): string {
   return resolved;
 }
 
-function safePath(reqPath: string | undefined, root: string): string {
+async function safePath(reqPath: string | undefined, root: string): Promise<string> {
   const abs = path.resolve(root, (reqPath || '').replace(/^\/+/, ''));
   if (!abs.startsWith(root + path.sep) && abs !== root) throw new Error('Path traversal denied');
+
+  // Resolve symlinks to prevent symlink-based traversal.
+  // For non-existing targets (write), walk up to the nearest existing ancestor.
+  const realRoot = await realpath(root);
+  let check = abs;
+  while (true) {
+    try {
+      const real = await realpath(check);
+      if (!real.startsWith(realRoot + path.sep) && real !== realRoot) {
+        throw new Error('Symlink traversal denied');
+      }
+      break;
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+      const parent = path.dirname(check);
+      if (parent === check) break; // hit filesystem root
+      check = parent;
+    }
+  }
+
   return abs;
 }
 
@@ -112,20 +132,20 @@ async function isBinary(filePath: string): Promise<boolean> {
 
 router.get('/tree', async (req, res) => {
   try {
-    const root = safeRoot(req.query.root as string | undefined);
+    const root = await safeRoot(req.query.root as string | undefined);
     if (!fs.existsSync(root)) return res.status(400).json({ error: 'Root path does not exist' });
     res.json(await buildTree(root, 0, root));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    const status = message.includes('outside allowed') || message === 'Path traversal denied' ? 403 : 500;
+    const status = message.includes('outside allowed') || message.includes('traversal') ? 403 : 500;
     res.status(status).json({ error: message });
   }
 });
 
 router.get('/file', async (req, res) => {
   try {
-    const root = safeRoot(req.query.root as string | undefined);
-    const abs = safePath(req.query.path as string | undefined, root);
+    const root = await safeRoot(req.query.root as string | undefined);
+    const abs = await safePath(req.query.path as string | undefined, root);
     const s = await stat(abs);
     if (s.size > 2 * 1024 * 1024) return res.status(413).json({ error: 'File too large (>2MB)' });
     if (await isBinary(abs)) return res.status(422).json({ error: 'Binary file cannot be displayed' });
@@ -133,7 +153,7 @@ router.get('/file', async (req, res) => {
     res.json({ content });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    const status = message === 'Path traversal denied' ? 403 : 500;
+    const status = message.includes('traversal') ? 403 : 500;
     res.status(status).json({ error: message });
   }
 });
@@ -145,13 +165,13 @@ router.put('/file', async (req, res) => {
       res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' });
       return;
     }
-    const root = safeRoot(parsed.data.root);
-    const abs = safePath(parsed.data.path, root);
+    const root = await safeRoot(parsed.data.root);
+    const abs = await safePath(parsed.data.path, root);
     await writeFile(abs, parsed.data.content, 'utf8');
     res.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    const status = message === 'Path traversal denied' ? 403 : 500;
+    const status = message.includes('traversal') ? 403 : 500;
     res.status(status).json({ error: message });
   }
 });
