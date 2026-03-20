@@ -24,8 +24,8 @@ let _activeProcess: ChildProcess | null = null;
 let _tmpFile: string | null = null;
 /** Temp files created during chunked playback. */
 let _chunkFiles: string[] = [];
-/** Stop flag — set to true to abort chunked playback between chunks. */
-let _stopRequested = false;
+/** Session counter — incremented on each speak()/stop() call to cancel stale sessions. */
+let _sessionId = 0;
 
 /** Remove a file silently. */
 function safeUnlink(path: string | null): void {
@@ -189,7 +189,7 @@ function safeProc(proc: ChildProcess | null): ChildProcess | null {
 
 /** Stop any active TTS playback and clean up all temp files. */
 export function stop(): void {
-  _stopRequested = true;
+  _sessionId++;
   if (_activeProcess) {
     try {
       _activeProcess.kill();
@@ -215,18 +215,10 @@ function playMp3(mp3Path: string): ChildProcess | null {
     if (wsl) {
       // WSL → prefer native Linux player via WSLg PulseAudio, but only if PulseAudio is alive.
       // SDL_AUDIODRIVER=pulse is required — without it ffplay/SDL defaults to ALSA which doesn't exist in WSL.
-      const pulseAlive = isWslPulseAvailable();
-      if (pulseAlive) {
-        const pulseEnv = { ...process.env, PULSE_SERVER: "/mnt/wslg/PulseServer", SDL_AUDIODRIVER: "pulse" };
-        if (commandExists("mpv")) {
-          return safeProc(spawn("mpv", ["--no-video", "--ao=pulse", "--audio-buffer=1", mp3Path], { stdio: "ignore", env: pulseEnv }));
-        }
-        if (commandExists("ffplay")) {
-          return safeProc(spawn("ffplay", ["-nodisp", "-autoexit", mp3Path], { stdio: "ignore", env: pulseEnv }));
-        }
-      } else {
-        console.error("[voice:tts] WSLg PulseAudio not available, falling back to powershell.exe");
-      }
+      // Skip WSLg PulseAudio — the RDP sink is unreliable (disconnects
+      // silently, causing audio to vanish mid-playback). Go straight to
+      // PowerShell WPF MediaPlayer which routes through Windows audio.
+      console.error("[voice:tts] WSL: using powershell.exe WPF MediaPlayer (PulseAudio bypass)");
       // Fallback: powershell.exe + WPF MediaPlayer (more reliable than WMPlayer.OCX
       // which is broken on some Windows 11 builds — stuck in playState 9).
       const wslWinPath = execSync(`wslpath -w "${mp3Path}"`).toString().trim();
@@ -494,6 +486,7 @@ async function speakChunked(
   voice: string,
   rate: string,
   pitch: string,
+  sessionId: number,
 ): Promise<boolean> {
   const sentences = splitSentences(text);
   if (sentences.length === 0) return false;
@@ -501,22 +494,31 @@ async function speakChunked(
   const chunks = groupChunks(sentences);
   if (chunks.length === 0) return false;
 
-  console.error(`[voice:tts] chunked: ${chunks.length} chunks from ${sentences.length} sentences`);
+  const cancelled = () => _sessionId !== sessionId;
 
-  // Resolved paths for each chunk — filled in as generation completes.
-  // generateEdgeTts writes to a random temp name, so we track what it returns.
-  const resolvedPaths: (string | null)[] = new Array(chunks.length).fill(null);
+  console.error(`[voice:tts] chunked: ${chunks.length} chunks from ${sentences.length} sentences (session ${sessionId})`);
+
+  // Generate with one retry on failure (cold WebSocket can flake on first call)
+  async function generateWithRetry(text: string): Promise<string | null> {
+    const result = await generateEdgeTts(text, voice, rate, pitch);
+    if (result || cancelled()) return result;
+    console.error("[voice:tts] generation failed, retrying once...");
+    return generateEdgeTts(text, voice, rate, pitch);
+  }
 
   // Generate first chunk before entering the pipeline loop
-  let gen0 = await generateEdgeTts(chunks[0], voice, rate, pitch);
-  if (!gen0 || _stopRequested) return false;
+  let gen0 = await generateWithRetry(chunks[0]);
+  if (!gen0 || cancelled()) return false;
   _chunkFiles.push(gen0);
   // Pad first chunk with silence so PulseAudio sink can wake up before speech
   gen0 = prependSilence(gen0);
+
+  // Resolved paths for each chunk — filled in as generation completes.
+  const resolvedPaths: (string | null)[] = new Array(chunks.length).fill(null);
   resolvedPaths[0] = gen0;
 
   for (let i = 0; i < chunks.length; i++) {
-    if (_stopRequested) return false;
+    if (cancelled()) return false;
 
     const currentPath = resolvedPaths[i];
     if (!currentPath || !existsSync(currentPath)) {
@@ -527,17 +529,21 @@ async function speakChunked(
     // Start generating next chunk in parallel while current one plays
     let nextGenPromise: Promise<string | null> | null = null;
     if (i + 1 < chunks.length) {
-      nextGenPromise = generateEdgeTts(chunks[i + 1], voice, rate, pitch);
+      nextGenPromise = generateWithRetry(chunks[i + 1]);
     }
 
-    // Play current chunk (blocking)
-    console.error(`[voice:tts] playing chunk ${i + 1}/${chunks.length}`);
+    // Play current chunk (blocking — waits for process exit)
+    console.error(`[voice:tts] playing chunk ${i + 1}/${chunks.length} (session ${sessionId})`);
     await playMp3Blocking(currentPath);
+
+    // If session changed while playing, abort immediately
+    if (cancelled()) return false;
 
     // Wait for next chunk to finish generating
     if (nextGenPromise) {
       const genResult = await nextGenPromise;
-      if (genResult && !_stopRequested) {
+      if (cancelled()) return false;
+      if (genResult) {
         resolvedPaths[i + 1] = genResult;
         _chunkFiles.push(genResult);
       }
@@ -558,9 +564,10 @@ export async function speak(text: string): Promise<void> {
     if (ttsConfig && !ttsConfig.enabled) return;
     if (!text?.trim()) return;
 
-    // Cancel previous speech and reset stop flag
+    // Cancel previous speech — increments _sessionId, kills active process
     stop();
-    _stopRequested = false;
+    const mySession = _sessionId;
+    const cancelled = () => _sessionId !== mySession;
 
     const voice = ttsConfig?.voice || "en-GB-RyanNeural";
     const edgeRate = ttsConfig?.edgeRate || "+5%";
@@ -569,14 +576,15 @@ export async function speak(text: string): Promise<void> {
 
     // Long text → chunked playback (generate + play in rolling pipeline)
     if (text.length > chunkThreshold) {
-      console.error(`[voice:tts] text length ${text.length} > threshold ${chunkThreshold}, using chunked playback`);
-      const ok = await speakChunked(text, voice, edgeRate, edgePitch);
-      if (ok || _stopRequested) {
+      console.error(`[voice:tts] text length ${text.length} > threshold ${chunkThreshold}, using chunked playback (session ${mySession})`);
+      const ok = await speakChunked(text, voice, edgeRate, edgePitch, mySession);
+      if (ok || cancelled()) {
         cleanupTempFiles();
         return;
       }
       // Chunked failed — fall through to single-shot, then platform fallback
       console.error("[voice:tts] chunked playback failed, trying single-shot");
+      if (cancelled()) return;
     }
 
     // Short text (or chunked fallback): generate and play in one shot

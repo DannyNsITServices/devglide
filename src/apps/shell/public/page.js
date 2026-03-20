@@ -575,17 +575,6 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
     if (h) h.removeAttribute('inputmode');
   }
 
-  // Auto-scroll tracking — only scroll to bottom when user hasn't scrolled up
-  let _atBottom = true;
-  term.onScroll(() => {
-    const buf = term.buffer.active;
-    _atBottom = buf.viewportY >= buf.baseY;
-  });
-
-  function autoScroll() {
-    if (_atBottom) term.scrollToBottom();
-  }
-
   // Socket handlers
   const exitHandler = ({ id: eid, code }) => {
     if (disposed) return;
@@ -599,7 +588,6 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
   function writeData(data) {
     if (disposed) return;
     term.write(data);
-    autoScroll();
   }
 
   term.onData((data) => {
@@ -615,7 +603,6 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
       if (disposed || _restoring) return;
       try {
         fitAddon.fit();
-        autoScroll();
         socket.emit('terminal:resize', { id, cols: term.cols, rows: term.rows });
       } catch {}
     }, 100);
@@ -646,7 +633,6 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
   function fit() {
     try {
       fitAddon.fit();
-      autoScroll();
       socket.emit('terminal:resize', { id, cols: term.cols, rows: term.rows });
     } catch {}
   }
@@ -694,14 +680,13 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
             fitAddon.fit();
             socket.emit('terminal:resize', { id, cols: term.cols, rows: term.rows });
           }
-          _atBottom = true;
           term.scrollToBottom();
         });
       });
     });
   }
 
-  function scrollToBottom() { _atBottom = true; term.scrollToBottom(); }
+  function scrollToBottom() { term.scrollToBottom(); }
 
   function refresh() { term.refresh(0, term.rows - 1); }
 
@@ -1652,6 +1637,18 @@ export function onProjectChange(project) {
   if (!_container) return;
   const refs = getRefs(_container);
   _applyProjectFilter(refs);
+
+  // If the focused pane is now hidden, blur it and focus first visible pane
+  const currentPane = activePaneId ? panes.get(activePaneId) : null;
+  if (currentPane?.element.classList.contains('project-hidden')) {
+    currentPane.element.querySelector('.xterm-helper-textarea')?.blur();
+    const firstVisible = [...panes.entries()].find(([, p]) => !p.element.classList.contains('project-hidden'));
+    if (firstVisible) {
+      setActivePaneHighlight(firstVisible[0]);
+      socket.emit('state:set-active-pane', { paneId: firstVisible[0] });
+      firstVisible[1].element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
+    }
+  }
 
   if (activeTab !== 'grid') {
     const activePane = panes.get(activeTab);

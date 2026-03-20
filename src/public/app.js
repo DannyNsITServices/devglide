@@ -788,12 +788,15 @@ function openProjectSwitcher() {
       closeProjectSwitcher();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
+      e.stopPropagation();
       updateSelection(selectedIdx + 1);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
+      e.stopPropagation();
       updateSelection(selectedIdx - 1);
     } else if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
       if (projects.length > 0) {
         dashboardSocket.emit('project:activate', { id: projects[selectedIdx].id });
       }
