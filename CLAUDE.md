@@ -17,8 +17,13 @@ Monorepo managed with **pnpm workspaces** and **Turborepo**.
   All apps/features render within it. It is the container, not an app itself.
 - **Shell** — the MCP server for terminal pane management (`shell_create_pane`,
   `shell_run_command`, etc.). Panes are ephemeral and in-memory.
-- **Apps** — individual features (kanban, voice, test, workflow, etc.) that each
+- **Apps** — individual features (kanban, voice, test, workflow, chat, etc.) that each
   expose both REST routes (mounted by the dashboard) and an MCP server (stdio).
+- **Chat** — the MCP server for multi-LLM communication (`chat_join`,
+  `chat_send`, etc.). Participants and message delivery are in-memory;
+  message history is persisted per-project as JSONL. `chat_join` requires
+  an explicit `paneId`, which should be read from `DEVGLIDE_PANE_ID` in
+  the shell session.
 
 ## MCP Server Pattern
 
@@ -66,7 +71,8 @@ All runtime state lives in `~/.devglide/`. The directory structure:
 │   ├── logs/                  #   project log files
 │   ├── workflows/             #   project-scoped workflows
 │   ├── vocabulary/            #   project-scoped vocabulary
-│   └── prompts/               #   project-scoped prompts
+│   ├── prompts/               #   project-scoped prompts
+│   └── chat/                  #   chat message history (messages.jsonl)
 ├── voice/                     # global voice config, history, stats
 │   └── config.json
 ├── workflows/                 # global workflows
@@ -93,6 +99,7 @@ These rules are intentional — do not change an app's scoping without discussio
 | **Test** | `projects/{id}/scenarios.json` | Saved test scenarios |
 | **Log** | `projects/{id}/logs/` | Log file tailing scoped to active project |
 | **Shell** | In-memory | Panes belong to a project session, no disk persistence |
+| **Chat** | `projects/{id}/chat/messages.jsonl` | Message history per project; participants are in-memory |
 
 ### Hybrid (global + per-project overlay; per-project takes precedence)
 | App | Path | Notes |

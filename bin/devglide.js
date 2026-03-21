@@ -92,7 +92,62 @@ const mcpServers = {
   workflow:   { cwd: "src/apps/workflow",   entry: "src/index.ts", runtime: "tsx" },
   vocabulary: { cwd: "src/apps/vocabulary", entry: "src/index.ts", runtime: "tsx" },
   prompts:    { cwd: "src/apps/prompts",    entry: "src/index.ts", runtime: "tsx" },
+  chat:       { cwd: "src/apps/chat",      entry: "src/index.ts", runtime: "tsx" },
 };
+
+// --- Codex integration ---
+
+const codexConfigPath = resolve(homedir(), ".codex", "config.toml");
+
+function detectCodex() {
+  return existsSync(resolve(homedir(), ".codex"));
+}
+
+/**
+ * Remove all [mcp_servers.devglide-*] sections from TOML content.
+ * Each section starts with a header and continues until the next [header] or EOF.
+ */
+function removeDevglideSectionsFromToml(toml) {
+  const lines = toml.split('\n');
+  const result = [];
+  let skipping = false;
+  for (const line of lines) {
+    if (/^\[/.test(line)) {
+      skipping = /^\[mcp_servers\.devglide-/.test(line);
+    }
+    if (!skipping) {
+      result.push(line);
+    }
+  }
+  return result.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\n+$/, '\n');
+}
+
+/**
+ * Build TOML [mcp_servers.devglide-*] sections for all servers.
+ * Prefers bundled .mjs files, falls back to devglide.js mcp launcher.
+ */
+function buildCodexMcpSections() {
+  const sections = [];
+  for (const name of Object.keys(mcpServers)) {
+    const mcpName = `devglide-${name}`;
+    const bundle = resolve(root, `dist/mcp/${name}.mjs`);
+    if (existsSync(bundle)) {
+      sections.push(
+        `[mcp_servers.${mcpName}]\n` +
+        `command = ${JSON.stringify(process.execPath)}\n` +
+        `args = [${JSON.stringify(bundle)}, "--stdio"]`
+      );
+    } else {
+      const devglideBin = resolve(__dirname, "devglide.js");
+      sections.push(
+        `[mcp_servers.${mcpName}]\n` +
+        `command = ${JSON.stringify(process.execPath)}\n` +
+        `args = [${JSON.stringify(devglideBin)}, "mcp", ${JSON.stringify(name)}]`
+      );
+    }
+  }
+  return sections.join('\n\n') + '\n';
+}
 
 function runMcpServer(name) {
   const server = mcpServers[name];
@@ -274,6 +329,25 @@ function runSetup() {
     process.exit(1);
   }
 
+  // Register in Codex (if present)
+  if (detectCodex()) {
+    console.log("\n  Registering MCP servers in Codex...\n");
+    try {
+      let toml = "";
+      try { toml = readFileSync(codexConfigPath, "utf8"); } catch {}
+      toml = removeDevglideSectionsFromToml(toml);
+      const sections = buildCodexMcpSections();
+      toml = (toml.trimEnd() + '\n\n' + sections).replace(/^\n+/, '');
+      writeFileSync(codexConfigPath, toml);
+      for (const name of Object.keys(mcpServers)) {
+        const bundle = resolve(root, `dist/mcp/${name}.mjs`);
+        console.log(`  ✓ devglide-${name} registered in Codex${existsSync(bundle) ? " (bundled)" : " (tsx fallback)"}`);
+      }
+    } catch (err) {
+      console.error(`  ✗ Failed to update Codex config: ${err.message}`);
+    }
+  }
+
   // Install managed CLAUDE.md section
   const claudeDir = resolve(homedir(), ".claude");
   const claudeMdPath = resolve(claudeDir, "CLAUDE.md");
@@ -327,6 +401,22 @@ function runTeardown() {
     }
   } catch {
     // claude mcp list not available — skip
+  }
+
+  // Clean Codex config
+  if (detectCodex()) {
+    try {
+      const toml = readFileSync(codexConfigPath, "utf8");
+      const cleaned = removeDevglideSectionsFromToml(toml);
+      if (cleaned.trimEnd() !== toml.trimEnd()) {
+        writeFileSync(codexConfigPath, cleaned);
+        console.log("  ✓ Removed devglide servers from Codex config");
+      } else {
+        console.log("  - No devglide servers found in Codex config");
+      }
+    } catch {
+      // config.toml doesn't exist or unreadable — skip
+    }
   }
 
   // Clean up legacy ~/.claude/.mcp.json devglide entries

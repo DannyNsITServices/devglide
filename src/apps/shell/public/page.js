@@ -1044,7 +1044,7 @@ function createBrowserPaneLocal({ id, url, title, onClose, onFocus, onTitleChang
 
 // ── Server-driven pane lifecycle ────────────────────────────────────
 
-async function _addPaneFromServer(refs, { id, shellType, title, num, cwd, url, projectId }, scrollback, skipRelayout = false) {
+async function _addPaneFromServer(refs, { id, shellType, title, num, cwd, url, projectId, chatName }, scrollback, skipRelayout = false) {
   if (panes.has(id)) return;
 
   // Ensure xterm.js is loaded before creating terminal panes
@@ -1079,6 +1079,7 @@ async function _addPaneFromServer(refs, { id, shellType, title, num, cwd, url, p
   pane._num = num;
   pane._cwd = cwd || null;
   pane._projectId = projectId || null;
+  pane._chatName = chatName || null;
   panes.set(id, pane);
 
   // Terminal panes are already in DOM (parentElement), but browser panes need appending.
@@ -1092,8 +1093,13 @@ async function _addPaneFromServer(refs, { id, shellType, title, num, cwd, url, p
     pendingData.delete(id);
   }
 
-  // If CWD is known, show folder in label
-  if (cwd) {
+  // Chat name takes priority over CWD folder name for tab label
+  if (chatName) {
+    const label = makeLabel(num, chatName);
+    pane.setTitle(label);
+    const tabEl = refs.tabBar.querySelector(`.shell-tab[data-tab="${id}"] .shell-tab-label`);
+    if (tabEl) tabEl.textContent = label;
+  } else if (cwd) {
     const folder = cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() || '/';
     const label = makeLabel(num, folder);
     pane.setTitle(label);
@@ -1320,6 +1326,8 @@ function wireSocketEvents(refs) {
   _socketHandlers['terminal:cwd'] = ({ id, cwd }) => {
     const pane = panes.get(id);
     if (!pane) return;
+    // Don't override chat name with CWD folder name
+    if (pane._chatName) return;
     pane._cwd = cwd;
     const folder = cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() || '/';
     const label = makeLabel(pane._num, folder);
@@ -1327,6 +1335,19 @@ function wireSocketEvents(refs) {
     if (tab) {
       tab.querySelector('.shell-tab-label').textContent = label;
       tab.title = cwd;
+    }
+    pane.setTitle(label);
+  };
+
+  _socketHandlers['state:pane-chat-name'] = ({ id, chatName }) => {
+    const pane = panes.get(id);
+    if (!pane) return;
+    pane._chatName = chatName;
+    const label = makeLabel(pane._num, chatName);
+    const tab = refs.tabBar.querySelector(`.shell-tab[data-tab="${id}"]`);
+    if (tab) {
+      tab.querySelector('.shell-tab-label').textContent = label;
+      tab.title = chatName;
     }
     pane.setTitle(label);
   };
@@ -1356,10 +1377,9 @@ function wireSocketEvents(refs) {
       const pane = panes.get(id);
       if (!pane) continue;
       pane._num = num;
-      const folder = pane._cwd
-        ? pane._cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() || '/'
-        : null;
-      const label = makeLabel(num, folder);
+      const displayName = pane._chatName
+        || (pane._cwd ? pane._cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() || '/' : null);
+      const label = makeLabel(num, displayName);
       pane.setTitle(label);
       const tab = refs.tabBar.querySelector(`.shell-tab[data-tab="${id}"]`);
       if (tab) tab.querySelector('.shell-tab-label').textContent = label;

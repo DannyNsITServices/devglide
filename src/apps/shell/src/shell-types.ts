@@ -14,6 +14,7 @@ export interface PaneInfo {
   cwd: string | null;
   url?: string;
   projectId: string | null;
+  chatName?: string | null;
 }
 
 export interface DashboardState {

@@ -1,0 +1,23 @@
+{
+  "name": "@devglide/chat",
+  "version": "0.1.0",
+  "description": "Multi-LLM chat room for cross-agent communication",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "private": true,
+  "dependencies": {
+    "@devglide/mcp-utils": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.25.49"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.0"
+  }
+}

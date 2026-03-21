@@ -16,6 +16,7 @@ const servers = [
   "workflow",
   "vocabulary",
   "prompts",
+  "chat",
 ];
 
 const external = ["better-sqlite3", "node-pty"];

@@ -38,6 +38,8 @@ import { router as workflowRouter, initWorkflow, shutdownWorkflow, createWorkflo
 import { router as voiceRouter, createVoiceMcpServer } from './routers/voice.js';
 import { router as vocabularyRouter, createVocabularyMcpServer } from './routers/vocabulary.js';
 import { router as promptsRouter, createPromptsMcpServer } from './routers/prompts.js';
+import { router as chatRouter, initChat, createChatMcpServer, chatServerSessions } from './routers/chat.js';
+import * as chatRegistry from './apps/chat/services/chat-registry.js';
 
 
 // ---------------------------------------------------------------------------
@@ -133,6 +135,7 @@ app.use('/app/voice', express.static(path.join(ROOT, 'src/apps/voice/public')));
 app.use('/app/vocabulary', express.static(path.join(ROOT, 'src/apps/vocabulary/public')));
 app.use('/app/keymap', express.static(path.join(ROOT, 'src/apps/keymap/public')));
 app.use('/app/prompts', express.static(path.join(ROOT, 'src/apps/prompts/public')));
+app.use('/app/chat', express.static(path.join(ROOT, 'src/apps/chat/public')));
 app.use('/app/documentation', express.static(path.join(ROOT, 'src/apps/documentation/public')));
 
 // App shell (unified SPA) is the default landing page at root
@@ -233,7 +236,7 @@ app.use('/api/workflow', workflowRouter);
 app.use('/api/voice', voiceRouter);
 app.use('/api/vocabulary', vocabularyRouter);
 app.use('/api/prompts', promptsRouter);
-
+app.use('/api/chat', chatRouter);
 
 app.use('/', rateLimit(60, 60_000), shellRouter);  // /preview, /proxy
 
@@ -251,6 +254,15 @@ mountMcpHttp(app, createVoiceMcpServer, '/mcp/voice');
 mountMcpHttp(app, createWorkflowMcpServer, '/mcp/workflow');
 mountMcpHttp(app, createVocabularyMcpServer, '/mcp/vocabulary');
 mountMcpHttp(app, createPromptsMcpServer, '/mcp/prompts');
+mountMcpHttp(app, createChatMcpServer, '/mcp/chat', {
+  onSessionClose: (server) => {
+    const names = chatServerSessions.get(server);
+    if (names) {
+      for (const name of names) chatRegistry.leave(name);
+      chatServerSessions.delete(server);
+    }
+  },
+});
 
 mountShellMcp(app, '/mcp/shell');
 
@@ -264,6 +276,7 @@ mountShellMcp(app, '/mcp/shell');
 // uses project:*, shell uses terminal:*/state:*/browser:*).
 initDashboard(io.of('/'));
 initShell(io.of('/'));
+initChat(io.of('/'));
 
 // ---------------------------------------------------------------------------
 // Service initialization

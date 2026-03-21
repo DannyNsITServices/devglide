@@ -22,6 +22,7 @@ const APPS = [
   { id: 'workflow',   name: 'Workflow',   desc: 'Task automation',          ctx: 'project', icon: '\u2942' },
   { id: 'vocabulary', name: 'Vocabulary', desc: 'Domain terminology',     ctx: 'project', icon: '\u2338' },
   { id: 'prompts',    name: 'Prompts',    desc: 'Reusable prompt library', ctx: 'project', icon: '\u270E' },
+  { id: 'chat',       name: 'Chat',       desc: 'Multi-LLM chat room',    ctx: 'project', icon: '\u275D' },
   { id: 'documentation', name: 'Documentation', desc: 'Product docs & guides', ctx: 'tool', icon: '\u2630' },
   { id: 'voice',    name: 'Voice',     desc: 'Speech-to-text',           ctx: 'tool',    icon: '\u25C9' },
   { id: 'keymap',   name: 'Keymap',    desc: 'Keyboard shortcuts',       ctx: 'tool',    icon: '\u2328' },

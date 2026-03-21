@@ -19,9 +19,9 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/MCP_Tools-56-22c55e" alt="56 MCP Tools" />
-  <img src="https://img.shields.io/badge/MCP_Servers-8-3b82f6" alt="8 MCP Servers" />
-  <img src="https://img.shields.io/badge/App_Modules-10-f59e0b" alt="10 App Modules" />
+  <img src="https://img.shields.io/badge/MCP_Tools-61-22c55e" alt="61 MCP Tools" />
+  <img src="https://img.shields.io/badge/MCP_Servers-9-3b82f6" alt="9 MCP Servers" />
+  <img src="https://img.shields.io/badge/App_Modules-11-f59e0b" alt="11 App Modules" />
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js >= 22" />
 </p>
@@ -51,7 +51,7 @@ devglide setup
 devglide dev
 ```
 
-Open **http://localhost:7000** — that's it. Claude Code can now use all 56 MCP tools.
+Open **http://localhost:7000** — that's it. Claude Code can now use all 61 MCP tools.
 
 > **Requirements:** Node.js >= 22, [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
 >
@@ -59,7 +59,7 @@ Open **http://localhost:7000** — that's it. Claude Code can now use all 56 MCP
 
 ## Modules
 
-DevGlide ships 10 integrated modules. Eight expose MCP servers that Claude Code calls directly; two are dashboard-only tools.
+DevGlide ships 11 integrated modules. Nine expose MCP servers that Claude Code calls directly; two are dashboard-only tools.
 
 ### Kanban — Task Management
 
@@ -103,6 +103,10 @@ Product docs and guides served directly in the dashboard with navigation, module
 
 <img src="assets/screenshots/documentation.png" alt="Documentation viewer with module cards" width="800" />
 
+### Chat — Multi-LLM Communication
+
+Shared chat room where the user and multiple LLM instances (Claude Code, Cursor, Codex, etc.) communicate via @mention addressing. The server assigns each participant a unique memorable name. Messages are delivered to LLMs via PTY injection into their shell panes.
+
 ### And More
 
 | Module | Type | What it does |
@@ -124,9 +128,9 @@ Product docs and guides served directly in the dashboard with navigation, module
              │ stdio (MCP)           │ stdio (MCP)
              ▼                       ▼
 ┌────────────────────────────────────────────────────────┐
-│              DevGlide MCP Servers (x8)                 │
+│              DevGlide MCP Servers (x9)                 │
 │                                                        │
-│  kanban  shell  test  workflow  vocab  voice  log  prompts │
+│  kanban  shell  test  workflow  vocab  voice  log  prompts  chat │
 └────────────────────────┬───────────────────────────────┘
                          │
                     shared state
@@ -149,11 +153,11 @@ Product docs and guides served directly in the dashboard with navigation, module
 └────────────────────────────────────────────────────────┘
 ```
 
-**How it works:** `devglide setup` registers 8 MCP servers with Claude Code. Each server runs as an isolated stdio process. The same tools are also available via HTTP on the unified server, so the browser dashboard and Claude Code always share the same state.
+**How it works:** `devglide setup` registers 9 MCP servers with Claude Code. Each server runs as an isolated stdio process. The same tools are also available via HTTP on the unified server, so the browser dashboard and Claude Code always share the same state.
 
 ## MCP Tools
 
-56 tools across 8 servers. Expand each section for the full reference.
+61 tools across 9 servers. Expand each section for the full reference.
 
 <details>
 <summary><strong>Kanban</strong> — 15 tools</summary>
@@ -275,6 +279,19 @@ Product docs and guides served directly in the dashboard with navigation, module
 
 </details>
 
+<details>
+<summary><strong>Chat</strong> — 5 tools</summary>
+
+| Tool | Description |
+|------|-------------|
+| `chat_join` | Join the chat room; pass a live `paneId` from `DEVGLIDE_PANE_ID` with `submitKey: "cr"` (default, correct for all known clients) |
+| `chat_leave` | Leave the chat room |
+| `chat_send` | Send a message (use @mentions to target recipients) |
+| `chat_read` | Read message history with limit, since, and topic filters |
+| `chat_members` | List active participants with pane link status |
+
+</details>
+
 ## CLI Reference
 
 ```bash
@@ -320,6 +337,7 @@ devglide/
 │   │   ├── voice/           # Speech-to-text
 │   │   ├── log/             # Console capture
 │   │   ├── prompts/         # Prompt templates
+│   │   ├── chat/            # Multi-LLM chat room
 │   │   ├── coder/           # In-browser editor
 │   │   └── keymap/          # Keyboard shortcuts
 │   └── packages/

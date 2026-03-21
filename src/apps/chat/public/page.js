@@ -1,0 +1,557 @@
+// ── Chat App — Page Module ────────────────────────────────────────
+// ES module that exports mount(container, ctx), unmount(container),
+// and onProjectChange(project).
+
+import { escapeHtml } from '/shared-assets/ui-utils.js';
+import { dashboardSocket } from '/state.js';
+
+let _container = null;
+let _socket = null;
+let _members = [];
+let _messages = [];
+let _autoScroll = true;
+let _mentionIdx = -1;
+let _voiceHandler = null;
+
+const DRAFT_KEY = 'devglide-chat-draft';
+
+// ── Participant colors ──────────────────────────────────────────────
+// Distinct hues that work on dark backgrounds. Colors are assigned in
+// order as new participants appear — no hash collisions possible.
+
+const PARTICIPANT_COLORS = [
+  '#60a5fa', // blue
+  '#f472b6', // pink
+  '#34d399', // emerald
+  '#fb923c', // orange
+  '#a78bfa', // violet
+  '#22d3ee', // cyan
+  '#fbbf24', // amber
+  '#e879f9', // fuchsia
+  '#f87171', // red
+  '#a3e635', // lime
+];
+
+const _colorMap = new Map();
+let _nextColorIdx = 0;
+
+function getParticipantColor(name) {
+  if (_colorMap.has(name)) return _colorMap.get(name);
+  const color = PARTICIPANT_COLORS[_nextColorIdx % PARTICIPANT_COLORS.length];
+  _nextColorIdx++;
+  _colorMap.set(name, color);
+  return color;
+}
+
+// ── API helpers ─────────────────────────────────────────────────────
+
+async function api(path, opts) {
+  return fetch('/api/chat' + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+  });
+}
+
+// ── HTML ────────────────────────────────────────────────────────────
+
+const BODY_HTML = `
+  <header>
+    <div class="brand">Chat</div>
+    <div class="header-meta">
+      <span id="chat-member-count"></span>
+    </div>
+    <div class="toolbar-actions">
+      <button class="btn btn-secondary btn-sm" id="chat-btn-clear">Clear</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="chat-members-panel" id="chat-members-panel">
+      <div class="chat-members-title" id="chat-members-title">Members (0)</div>
+      <div id="chat-members-list"></div>
+    </div>
+
+    <div class="chat-messages-area">
+      <div class="chat-messages-list" id="chat-messages-list"></div>
+      <div class="chat-new-indicator hidden" id="chat-new-indicator">New messages below</div>
+      <div class="chat-input-area" style="position:relative">
+        <div class="chat-mention-popup hidden" id="chat-mention-popup"></div>
+        <input type="text" class="chat-input" id="chat-input" placeholder="Type a message... (@mention for direct)" autocomplete="off" />
+        <button class="btn btn-primary btn-sm chat-send-btn" id="chat-send-btn">Send</button>
+      </div>
+    </div>
+  </main>
+`;
+
+// ── Socket setup ────────────────────────────────────────────────────
+// Reuse the shared dashboard socket (same default namespace used by shell,
+// dashboard, etc.) instead of opening a separate connection.
+
+function connectSocket() {
+  if (_socket) return;
+  _socket = dashboardSocket;
+
+  _socket.on('chat:members', onMembers);
+  _socket.on('chat:join', onJoin);
+  _socket.on('chat:leave', onLeave);
+  _socket.on('chat:message', onMessage);
+  _socket.on('chat:cleared', onCleared);
+}
+
+function disconnectSocket() {
+  if (_socket) {
+    _socket.off('chat:members', onMembers);
+    _socket.off('chat:join', onJoin);
+    _socket.off('chat:leave', onLeave);
+    _socket.off('chat:message', onMessage);
+    _socket.off('chat:cleared', onCleared);
+    // Don't disconnect — shared socket, other pages need it
+    _socket = null;
+  }
+}
+
+function onMembers(members) {
+  _members = members;
+  renderMembers();
+}
+
+function onJoin(participant) {
+  const existing = _members.findIndex(m => m.name === participant.name);
+  if (existing >= 0) _members[existing] = participant;
+  else _members.push(participant);
+  renderMembers();
+}
+
+function onLeave({ name }) {
+  _members = _members.filter(m => m.name !== name);
+  renderMembers();
+}
+
+function onMessage(msg) {
+  // Deduplicate by id
+  if (_messages.some(m => m.id === msg.id)) return;
+  _messages.push(msg);
+  appendMessageEl(msg);
+}
+
+function onCleared() {
+  _messages = [];
+  renderAllMessages();
+}
+
+// ── Rendering: Members ──────────────────────────────────────────────
+
+function renderMembers() {
+  const listEl = _container?.querySelector('#chat-members-list');
+  const titleEl = _container?.querySelector('#chat-members-title');
+  const countEl = _container?.querySelector('#chat-member-count');
+  if (!listEl) return;
+
+  // Always show "user" at top
+  const allMembers = [
+    { name: 'user', kind: 'user', paneId: null, isUser: true },
+    ..._members.filter(m => m.name !== 'user'),
+  ];
+
+  if (titleEl) titleEl.textContent = `Members (${allMembers.length})`;
+  if (countEl) countEl.textContent = `${allMembers.length} online`;
+
+  listEl.innerHTML = '';
+  for (const m of allMembers) {
+    const item = document.createElement('div');
+    item.className = 'chat-member-item';
+
+    const dot = document.createElement('span');
+    dot.className = 'chat-member-dot ' + (m.paneId || m.isUser ? 'connected' : 'disconnected');
+
+    const name = document.createElement('span');
+    name.className = 'chat-member-name';
+    name.textContent = m.name;
+
+    // Assign unique color to LLM participants
+    if (!m.isUser) {
+      const color = getParticipantColor(m.name);
+      dot.style.background = color;
+      name.style.color = color;
+    }
+
+    item.appendChild(dot);
+    item.appendChild(name);
+
+    if (m.isUser) {
+      const tag = document.createElement('span');
+      tag.className = 'chat-member-tag';
+      tag.textContent = '(you)';
+      item.appendChild(tag);
+    } else if (m.model) {
+      const tag = document.createElement('span');
+      tag.className = 'chat-member-tag';
+      tag.textContent = `(${m.model})`;
+      item.appendChild(tag);
+    }
+
+    listEl.appendChild(item);
+  }
+}
+
+// ── Rendering: Messages ─────────────────────────────────────────────
+
+function renderAllMessages() {
+  const listEl = _container?.querySelector('#chat-messages-list');
+  if (!listEl) return;
+
+  listEl.innerHTML = '';
+
+  if (_messages.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'chat-empty-state';
+    empty.innerHTML = `
+      <div class="chat-empty-icon">\u275D</div>
+      <div>No messages yet</div>
+      <div class="chat-empty-hint">Send a message or have an LLM join with chat_join</div>
+    `;
+    listEl.appendChild(empty);
+    return;
+  }
+
+  for (const msg of _messages) {
+    appendMessageEl(msg, false);
+  }
+  scrollToBottom();
+}
+
+function appendMessageEl(msg, doScroll = true) {
+  const listEl = _container?.querySelector('#chat-messages-list');
+  if (!listEl) return;
+
+  // Remove empty state if present
+  const empty = listEl.querySelector('.chat-empty-state');
+  if (empty) empty.remove();
+
+  const el = document.createElement('div');
+  el.className = 'chat-msg';
+  el.dataset.id = msg.id;
+
+  if (msg.type === 'system' || msg.type === 'join' || msg.type === 'leave') {
+    el.classList.add('from-system');
+    el.textContent = msg.body;
+  } else if (msg.from === 'user') {
+    el.classList.add('from-user');
+    const body = document.createElement('div');
+    body.className = 'chat-msg-body';
+    body.textContent = msg.body;
+    const time = document.createElement('div');
+    time.className = 'chat-msg-time';
+    time.textContent = formatTime(msg.ts);
+    el.appendChild(body);
+    el.appendChild(time);
+  } else {
+    el.classList.add('from-llm');
+    const color = getParticipantColor(msg.from);
+    el.style.borderLeftColor = color;
+    const sender = document.createElement('div');
+    sender.className = 'chat-msg-sender';
+    sender.style.color = color;
+    sender.textContent = msg.from + (msg.to ? ` \u2192 ${msg.to}` : '');
+    const body = document.createElement('div');
+    body.className = 'chat-msg-body';
+    body.textContent = msg.body;
+    const time = document.createElement('div');
+    time.className = 'chat-msg-time';
+    time.textContent = formatTime(msg.ts);
+    el.appendChild(sender);
+    el.appendChild(body);
+    el.appendChild(time);
+  }
+
+  listEl.appendChild(el);
+
+  if (doScroll) {
+    if (_autoScroll) {
+      scrollToBottom();
+    } else {
+      showNewIndicator();
+    }
+  }
+}
+
+function formatTime(ts) {
+  try {
+    const d = new Date(ts);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+}
+
+function scrollToBottom() {
+  const listEl = _container?.querySelector('#chat-messages-list');
+  if (listEl) {
+    listEl.scrollTop = listEl.scrollHeight;
+  }
+  hideNewIndicator();
+}
+
+function showNewIndicator() {
+  const el = _container?.querySelector('#chat-new-indicator');
+  if (el) el.classList.remove('hidden');
+}
+
+function hideNewIndicator() {
+  const el = _container?.querySelector('#chat-new-indicator');
+  if (el) el.classList.add('hidden');
+}
+
+// ── Input handling ──────────────────────────────────────────────────
+
+function sendMessage() {
+  const input = _container?.querySelector('#chat-input');
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  sessionStorage.removeItem(DRAFT_KEY);
+  closeMentionPopup();
+  input.focus();
+
+  // Let the server resolve all @mentions from the message body
+  _socket.emit('chat:send', { message: text });
+}
+
+// ── @mention autocomplete ───────────────────────────────────────────
+
+function onInputChange(e) {
+  const input = e.target;
+  const val = input.value;
+  const cursorPos = input.selectionStart;
+  const before = val.substring(0, cursorPos);
+
+  // Check for @mention
+  const atMatch = before.match(/@(\w*)$/);
+  if (atMatch) {
+    const query = atMatch[1].toLowerCase();
+    const matches = _members
+      .filter(m => m.name !== 'user' && m.name.toLowerCase().startsWith(query))
+      .map(m => m.name);
+
+    if (matches.length > 0) {
+      showMentionPopup(matches, atMatch.index);
+      return;
+    }
+  }
+
+  closeMentionPopup();
+}
+
+function showMentionPopup(names, atIndex) {
+  const popup = _container?.querySelector('#chat-mention-popup');
+  if (!popup) return;
+
+  _mentionIdx = 0;
+  popup.innerHTML = '';
+  popup.classList.remove('hidden');
+
+  for (let i = 0; i < names.length; i++) {
+    const item = document.createElement('div');
+    item.className = 'chat-mention-item' + (i === 0 ? ' selected' : '');
+    item.textContent = '@' + names[i];
+    item.dataset.name = names[i];
+    item.addEventListener('click', () => insertMention(names[i], atIndex));
+    popup.appendChild(item);
+  }
+}
+
+function closeMentionPopup() {
+  const popup = _container?.querySelector('#chat-mention-popup');
+  if (popup) {
+    popup.classList.add('hidden');
+    popup.innerHTML = '';
+  }
+  _mentionIdx = -1;
+}
+
+function insertMention(name, atIndex) {
+  const input = _container?.querySelector('#chat-input');
+  if (!input) return;
+  const val = input.value;
+  const before = val.substring(0, atIndex);
+  const afterCursor = val.substring(input.selectionStart);
+  input.value = before + '@' + name + ' ' + afterCursor;
+  const newPos = before.length + name.length + 2;
+  input.setSelectionRange(newPos, newPos);
+  closeMentionPopup();
+  input.focus();
+}
+
+function onInputKeyDown(e) {
+  const popup = _container?.querySelector('#chat-mention-popup');
+  const isPopupOpen = popup && !popup.classList.contains('hidden');
+
+  if (isPopupOpen) {
+    const items = popup.querySelectorAll('.chat-mention-item');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      items[_mentionIdx]?.classList.remove('selected');
+      _mentionIdx = (_mentionIdx + 1) % items.length;
+      items[_mentionIdx]?.classList.add('selected');
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      items[_mentionIdx]?.classList.remove('selected');
+      _mentionIdx = (_mentionIdx - 1 + items.length) % items.length;
+      items[_mentionIdx]?.classList.add('selected');
+      return;
+    }
+    if (e.key === 'Tab' || e.key === 'Enter') {
+      e.preventDefault();
+      const selected = items[_mentionIdx];
+      if (selected) {
+        const input = _container?.querySelector('#chat-input');
+        const before = input.value.substring(0, input.selectionStart);
+        const atMatch = before.match(/@(\w*)$/);
+        if (atMatch) {
+          insertMention(selected.dataset.name, atMatch.index);
+        }
+      }
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeMentionPopup();
+      return;
+    }
+  }
+
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+// ── Data loading ────────────────────────────────────────────────────
+
+async function loadInitialData() {
+  try {
+    const [messagesRes, membersRes] = await Promise.all([
+      api('/messages?limit=50'),
+      api('/members'),
+    ]);
+    if (messagesRes.ok) {
+      _messages = await messagesRes.json();
+    }
+    if (membersRes.ok) {
+      _members = await membersRes.json();
+    }
+    renderMembers();
+    renderAllMessages();
+  } catch (err) {
+    console.error('[chat] Failed to load initial data:', err);
+  }
+}
+
+// ── Event binding ───────────────────────────────────────────────────
+
+function bindEvents() {
+  if (!_container) return;
+
+  _container.querySelector('#chat-send-btn')?.addEventListener('click', sendMessage);
+
+  const input = _container.querySelector('#chat-input');
+  if (input) {
+    input.addEventListener('keydown', onInputKeyDown);
+    input.addEventListener('input', onInputChange);
+  }
+
+  _container.querySelector('#chat-btn-clear')?.addEventListener('click', async () => {
+    await api('/messages', { method: 'DELETE' });
+    _messages = [];
+    renderAllMessages();
+  });
+
+  // Auto-scroll detection
+  const listEl = _container.querySelector('#chat-messages-list');
+  if (listEl) {
+    listEl.addEventListener('scroll', () => {
+      const threshold = 50;
+      _autoScroll = listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - threshold;
+      if (_autoScroll) hideNewIndicator();
+    });
+  }
+
+  // New messages indicator click
+  _container.querySelector('#chat-new-indicator')?.addEventListener('click', scrollToBottom);
+}
+
+// ── Exports ─────────────────────────────────────────────────────────
+
+export function mount(container, ctx) {
+  _container = container;
+  _messages = [];
+  _members = [];
+  _autoScroll = true;
+
+  container.classList.add('page-chat');
+  container.innerHTML = BODY_HTML;
+
+  bindEvents();
+  loadInitialData();
+  connectSocket();
+
+  // Voice STT — insert transcribed text into chat input
+  _voiceHandler = (e) => {
+    const text = e.detail?.text;
+    if (!text) return;
+    const input = container.querySelector('#chat-input');
+    if (!input) return;
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? input.value.length;
+    input.value = input.value.slice(0, start) + text + input.value.slice(end);
+    input.selectionStart = input.selectionEnd = start + text.length;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+  };
+  document.addEventListener('voice:result', _voiceHandler);
+
+  // Restore draft text
+  const draft = sessionStorage.getItem(DRAFT_KEY);
+  if (draft) {
+    const input = container.querySelector('#chat-input');
+    if (input) input.value = draft;
+  }
+}
+
+export function unmount(container) {
+  // Save draft text before teardown
+  const input = container.querySelector('#chat-input');
+  if (input?.value) {
+    sessionStorage.setItem(DRAFT_KEY, input.value);
+  } else {
+    sessionStorage.removeItem(DRAFT_KEY);
+  }
+
+  if (_voiceHandler) {
+    document.removeEventListener('voice:result', _voiceHandler);
+    _voiceHandler = null;
+  }
+  closeMentionPopup();
+  disconnectSocket();
+  container.classList.remove('page-chat');
+  container.innerHTML = '';
+  _container = null;
+  _messages = [];
+  _members = [];
+  _colorMap.clear();
+  _nextColorIdx = 0;
+}
+
+export function onProjectChange(project) {
+  _messages = [];
+  _members = [];
+  _colorMap.clear();
+  _nextColorIdx = 0;
+  if (_container) {
+    loadInitialData();
+  }
+}

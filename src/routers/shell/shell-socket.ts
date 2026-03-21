@@ -18,6 +18,7 @@ import {
 import { SHELL_CONFIGS, safeEnv } from '../../apps/shell/src/runtime/shell-config.js';
 import { spawnGlobalPty, killPty } from '../../apps/shell/src/runtime/pty-manager.js';
 import { detectEntryPoint } from './shell-routes.js';
+import { onPaneClosed as onChatPaneClosed } from '../../apps/chat/services/chat-registry.js';
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -123,7 +124,7 @@ export function initShell(nsp: Namespace): void {
         // so sockets must already be in the room to receive the initial prompt.
         nsp.socketsJoin(`pane:${id}`);
 
-        spawnGlobalPty(id, config.command, args, config.env, cols ?? 80, rows ?? 24,
+        spawnGlobalPty(id, config.command, args, { ...config.env, DEVGLIDE_PANE_ID: id }, cols ?? 80, rows ?? 24,
           true, false, startCwd);
 
         const paneInfo: PaneInfo = { id, shellType, title, num, cwd: startCwd, projectId: getActiveProject()?.id || null };
@@ -263,6 +264,9 @@ export function initShell(nsp: Namespace): void {
         killPty(entry.ptyProcess);
         globalPtys.delete(id);
       }
+
+      // Notify chat that this pane was closed (unlinks participant, posts system message)
+      onChatPaneClosed(id);
 
       // Find index of closing pane before removal so we can select the previous one
       const closedIdx: number = dashboardState.panes.findIndex((p: PaneInfo) => p.id === id);

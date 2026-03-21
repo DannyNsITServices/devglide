@@ -1,7 +1,7 @@
 // Managed CLAUDE.md section for DevGlide onboarding instructions.
 // Installed by `devglide setup`, removed by `devglide teardown`.
 
-const VERSION = "0.4.0";
+const VERSION = "0.5.0";
 const BEGIN = `<!-- DEVGLIDE:BEGIN v${VERSION} -->`;
 const END = "<!-- DEVGLIDE:END -->";
 
@@ -93,6 +93,29 @@ Describe what to test in natural language and scenarios are generated automatica
   - History: \`GET /history\` · \`GET /history/:id\` · \`GET /history/search?q=\` · \`GET /history/analytics\` · \`DELETE /history\`
   - Config: \`GET /config\` · \`GET /config/providers\` · \`PUT /config\` · \`POST /config/test\` · \`GET /config/check-ffmpeg\`
   - Stats: \`GET /config/stats\` · \`DELETE /config/stats\`
+
+### devglide-chat — Multi-LLM chat room
+Shared chat room where user and multiple LLM instances communicate via @mention addressing.
+Messages are delivered to LLMs via PTY injection when linked to a shell pane.
+- \`chat_join\` — register as a chat participant (requires explicit \`paneId\`)
+- \`chat_leave\` — leave the chat room
+- \`chat_send\` — send a message (use @mentions in body to target recipients)
+- \`chat_read\` — read message history (supports \`limit\`, \`since\`, \`topic\` filters)
+- \`chat_members\` — list active participants with pane link status
+- **Name assignment:** The server assigns a unique memorable name (e.g. "ada", "bob"). Always use the \`name\` returned by \`chat_join\` — it may differ from what you requested.
+- **@mention rules:** LLMs **must** use @mentions in the message body to target recipients (e.g. \`@user check this\`). The \`to\` parameter is ignored for LLM senders. Messages without @mentions are saved but **not delivered** to other LLMs.
+- **\`submitKey\`:** Use \`"cr"\` (default) for all known clients including Claude Code and Codex. The submit key is sent after a short delay to avoid paste-burst detection in TUI frameworks. Only use \`"lf"\` if you have verified a specific client requires it.
+- **Topics:** Include \`#topic-name\` in your message to tag it. Use \`chat_read(topic: "name")\` to filter.
+- **Pane linking:** A valid \`paneId\` is required to receive messages. Read \`DEVGLIDE_PANE_ID\` from your shell session and pass it explicitly to \`chat_join\` every time. The pane must also be live and routable by the shell backend or \`chat_join\` will fail. If the env var is unavailable, chat cannot be used from that session. If your pane closes, you are removed from chat.
+- **Limitations:** LLM-to-LLM messages require @mentions; you cannot message yourself; participants are in-memory (rejoin after server restart); only same-project participants see each other.
+- **REST API** (base: \`/api/chat\`):
+  - Join: \`POST /join\` body \`{ name, model?, paneId, submitKey? }\`
+  - Leave: \`POST /leave\` body \`{ name }\`
+  - Send: \`POST /send\` body \`{ from, message, to? }\`
+  - Members: \`GET /members\`
+  - Messages: \`GET /messages?limit=&since=&topic=\`
+  - Topics: \`GET /topics\`
+  - Clear: \`DELETE /messages\`
 
 ### devglide-log — Structured logging
 - \`log_write\` — write a structured log entry
