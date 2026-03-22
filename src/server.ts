@@ -257,11 +257,11 @@ mountMcpHttp(app, createVocabularyMcpServer, '/mcp/vocabulary');
 mountMcpHttp(app, createPromptsMcpServer, '/mcp/prompts');
 mountMcpHttp(app, createChatMcpServer, '/mcp/chat', {
   onSessionClose: (server) => {
-    const names = chatServerSessions.get(server);
-    if (names) {
+    const entries = chatServerSessions.get(server);
+    if (entries) {
       // Detach instead of leave — alias stays reserved for reclaim on rejoin.
       // Full removal happens only on pane closure or explicit chat_leave.
-      for (const name of names) chatRegistry.detach(name);
+      for (const entry of entries) chatRegistry.detach(entry.name, entry.projectId);
       chatServerSessions.delete(server);
     }
   },

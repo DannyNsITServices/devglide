@@ -230,4 +230,56 @@ describe('chat-registry PTY delivery', () => {
     registry.leave(target.name);
     registry.leave(observer.name);
   });
+
+  it('can still enumerate a joined project after the global active project changes', () => {
+    globalPtys.set('pane-5', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+
+    const participant = registry.join('claude', 'llm', 'pane-5', 'claude', '\r');
+    setActiveProject({ id: 'project-other', name: 'Other', path: '/tmp/other' });
+
+    expect(registry.listParticipants()).toEqual([]);
+    expect(registry.listParticipants('project-chat').map((p) => p.name)).toEqual([participant.name]);
+
+    registry.leave(participant.name, 'project-chat');
+  });
+
+  it('same display name in two projects does not collide', () => {
+    globalPtys.set('pane-p1', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    globalPtys.set('pane-p2', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+
+    // Join project-chat (active) as claude
+    const p1 = registry.join('claude', 'llm', 'pane-p1', 'claude', '\r');
+
+    // Switch to project-other and join as claude with same pane num
+    setActiveProject({ id: 'project-other', name: 'Other', path: '/tmp/other' });
+    const p2 = registry.join('claude', 'llm', 'pane-p2', 'claude', '\r', 'project-other');
+
+    // Both should coexist — same display name, different projects
+    expect(p1.name).toMatch(/^claude/);
+    expect(p2.name).toMatch(/^claude/);
+    expect(p1.projectId).toBe('project-chat');
+    expect(p2.projectId).toBe('project-other');
+
+    // Each project sees only its own participant
+    expect(registry.listParticipants('project-chat').map(p => p.name)).toEqual([p1.name]);
+    expect(registry.listParticipants('project-other').map(p => p.name)).toEqual([p2.name]);
+
+    // Leaving one does not affect the other
+    registry.leave(p2.name, 'project-other');
+    expect(registry.listParticipants('project-chat').map(p => p.name)).toEqual([p1.name]);
+
+    registry.leave(p1.name, 'project-chat');
+  });
 });

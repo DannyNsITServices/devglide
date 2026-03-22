@@ -35,6 +35,11 @@ vi.mock('../apps/shell/src/runtime/shell-state.js', () => ({
   globalPtys: new Map([
     ['pane-1', { ptyProcess: { write: vi.fn() }, chunks: [], totalLen: 0 }],
   ]),
+  dashboardState: {
+    panes: [{ id: 'pane-1', projectId: 'project-1', num: 1, title: '1', shellType: 'default', cwd: '/tmp' }],
+    activeTab: 'grid',
+    activePaneId: 'pane-1',
+  },
 }));
 vi.mock('../apps/chat/mcp.js', () => ({
   createChatMcpServer: vi.fn(),
@@ -112,6 +117,33 @@ describe('chat router rules of engagement', () => {
         paneId: 'pane-1',
         rules: '## Rules\n\nOnly reply when asked.',
       });
+      expect(registryMock.join).toHaveBeenCalledWith('codex', 'llm', 'pane-1', 'codex', '\r', 'project-1');
+    });
+  });
+
+  it('joins the pane project even when the active project is different', async () => {
+    projectContextMock.getActiveProject.mockReturnValue({ id: 'project-2', name: 'Other Project', path: '/tmp/project-2' });
+    registryMock.join.mockReturnValue({
+      name: 'codex-1',
+      kind: 'llm',
+      model: 'codex',
+      paneId: 'pane-1',
+      projectId: 'project-1',
+      submitKey: '\r',
+      joinedAt: '2026-03-22T00:00:00.000Z',
+      lastSeen: '2026-03-22T00:00:00.000Z',
+      detached: false,
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/join`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'codex', model: 'codex', paneId: 'pane-1' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect(registryMock.join).toHaveBeenCalledWith('codex', 'llm', 'pane-1', 'codex', '\r', 'project-1');
     });
   });
 

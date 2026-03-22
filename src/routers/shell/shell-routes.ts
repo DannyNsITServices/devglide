@@ -11,12 +11,15 @@ import {
   getShellNsp,
   MAX_PANES,
   nextPaneId,
+  nextNumForProject,
+  panesForProject,
   paneActiveSocket,
   socketDimensions,
   renumberPanes,
 } from '../../apps/shell/src/runtime/shell-state.js';
 import { SHELL_CONFIGS } from '../../apps/shell/src/runtime/shell-config.js';
 import { killPty, spawnGlobalPty } from '../../apps/shell/src/runtime/pty-manager.js';
+import { onPaneClosed as onChatPaneClosed } from '../../apps/chat/services/chat-registry.js';
 import type { PaneInfo } from '../../apps/shell/src/shell-types.js';
 import { safeFetch } from '../../packages/ssrf-guard.js';
 
@@ -188,8 +191,9 @@ router.post('/panes', asyncHandler(async (req: Request, res: Response) => {
   }
   const { shellType, cwd } = parsed.data;
 
-  if (globalPtys.size >= MAX_PANES) {
-    return conflict(res, `Maximum pane limit (${MAX_PANES}) reached`);
+  const currentProjectId = getActiveProject()?.id || null;
+  if (panesForProject(currentProjectId) >= MAX_PANES) {
+    return conflict(res, `Maximum pane limit (${MAX_PANES}) per project reached`);
   }
 
   if (cwd) {
@@ -208,12 +212,12 @@ router.post('/panes', asyncHandler(async (req: Request, res: Response) => {
   const startCwd = cwd || process.env.HOME || process.env.USERPROFILE || '/';
 
   const id = nextPaneId();
-  const num = dashboardState.panes.length + 1;
+  const num = nextNumForProject(currentProjectId);
   const title = String(num);
 
   spawnGlobalPty(id, config.command, config.args, config.env, 80, 24, true, false, startCwd);
 
-  const paneInfo: PaneInfo = { id, shellType, title, num, cwd: startCwd, projectId: getActiveProject()?.id || null };
+  const paneInfo: PaneInfo = { id, shellType, title, num, cwd: startCwd, projectId: currentProjectId };
   dashboardState.panes.push(paneInfo);
   dashboardState.activePaneId = id;
   getShellNsp()?.emit('state:pane-added', paneInfo);
@@ -240,6 +244,10 @@ router.delete('/panes/:id', (req: Request, res: Response) => {
     killPty(entry.ptyProcess);
     globalPtys.delete(paneId);
   }
+
+  // Notify chat before removing the pane (need projectId from pane info)
+  const closingPane = dashboardState.panes.find((p) => p.id === paneId);
+  onChatPaneClosed(paneId, closingPane?.projectId ?? null);
 
   const closedIdx = dashboardState.panes.findIndex((p) => p.id === paneId);
   dashboardState.panes = dashboardState.panes.filter((p) => p.id !== paneId);

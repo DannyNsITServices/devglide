@@ -5,27 +5,32 @@ import type { ChatMessage } from '../types.js';
 import { getActiveProject } from '../../../project-context.js';
 import { projectDataDir } from '../../../packages/paths.js';
 
-function getChatDir(): string | null {
-  const project = getActiveProject();
-  if (!project) return null;
-  return projectDataDir(project.id, 'chat');
+/**
+ * Resolve the chat data directory for a given project.
+ * An explicit projectId avoids relying on the global active-project singleton,
+ * which can point to a different project when the user switches the dashboard.
+ */
+function getChatDir(projectId?: string | null): string | null {
+  const pid = projectId ?? getActiveProject()?.id;
+  if (!pid) return null;
+  return projectDataDir(pid, 'chat');
 }
 
-function getMessagesPath(): string | null {
-  const dir = getChatDir();
+function getMessagesPath(projectId?: string | null): string | null {
+  const dir = getChatDir(projectId);
   if (!dir) return null;
   mkdirSync(dir, { recursive: true });
   return join(dir, 'messages.jsonl');
 }
 
-export function appendMessage(msg: Omit<ChatMessage, 'id' | 'ts'>): ChatMessage {
+export function appendMessage(msg: Omit<ChatMessage, 'id' | 'ts'>, projectId?: string | null): ChatMessage {
   const full: ChatMessage = {
     id: randomUUID(),
     ts: new Date().toISOString(),
     ...msg,
   };
 
-  const filePath = getMessagesPath();
+  const filePath = getMessagesPath(projectId);
   if (filePath) {
     appendFileSync(filePath, JSON.stringify(full) + '\n');
   }
@@ -33,8 +38,8 @@ export function appendMessage(msg: Omit<ChatMessage, 'id' | 'ts'>): ChatMessage 
   return full;
 }
 
-export function readMessages(opts?: { limit?: number; since?: string }): ChatMessage[] {
-  const filePath = getMessagesPath();
+export function readMessages(opts?: { limit?: number; since?: string }, projectId?: string | null): ChatMessage[] {
+  const filePath = getMessagesPath(projectId);
   if (!filePath || !existsSync(filePath)) return [];
 
   const raw = readFileSync(filePath, 'utf8').trim();
@@ -62,8 +67,8 @@ export function readMessages(opts?: { limit?: number; since?: string }): ChatMes
   return messages;
 }
 
-export function clearMessages(): void {
-  const filePath = getMessagesPath();
+export function clearMessages(projectId?: string | null): void {
+  const filePath = getMessagesPath(projectId);
   if (filePath && existsSync(filePath)) {
     writeFileSync(filePath, '');
   }

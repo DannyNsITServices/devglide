@@ -266,7 +266,8 @@ export function initShell(nsp: Namespace): void {
       }
 
       // Notify chat that this pane was closed (unlinks participant, posts system message)
-      onChatPaneClosed(id);
+      const closingPane = dashboardState.panes.find((p: PaneInfo) => p.id === id);
+      onChatPaneClosed(id, closingPane?.projectId ?? null);
 
       // Find index of closing pane before removal so we can select the previous one
       const closedIdx: number = dashboardState.panes.findIndex((p: PaneInfo) => p.id === id);

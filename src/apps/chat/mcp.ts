@@ -1,15 +1,18 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { jsonResult, errorResult, createDevglideMcpServer } from '../../packages/mcp-utils/src/index.js';
+import * as registry from './services/chat-registry.js';
 import * as store from './services/chat-store.js';
 import { getEffectiveRules } from './services/chat-rules.js';
 
 const UNIFIED_BASE = `http://localhost:${process.env.PORT ?? 7000}`;
 
-/** Maps each per-session McpServer instance to all participant names it owns.
- *  Tracks every name joined during the session so onSessionClose can clean up
+export interface ChatSessionEntry { name: string; projectId: string | null }
+
+/** Maps each per-session McpServer instance to all participants it owns.
+ *  Tracks every (name, projectId) joined during the session so onSessionClose can clean up
  *  all of them — even if a prior /leave failed and the name was not removed. */
-export const chatServerSessions = new WeakMap<McpServer, Set<string>>();
+export const chatServerSessions = new WeakMap<McpServer, ChatSessionEntry[]>();
 
 /** POST/GET helper for the unified server's chat REST API. */
 async function chatApi(path: string, body?: unknown): Promise<{ ok: boolean; status: number; data: unknown }> {
@@ -84,8 +87,13 @@ export function createChatMcpServer(): McpServer {
     },
   );
 
-  // Track the name this MCP session joined as
+  // Track the name and project this MCP session joined as
   let sessionName: string | null = null;
+  let sessionProjectId: string | null = null;
+
+  function getSessionProjectId(): string | null {
+    return sessionProjectId;
+  }
 
   // ── 1. chat_join ──────────────────────────────────────────────────────
 
@@ -106,11 +114,16 @@ export function createChatMcpServer(): McpServer {
       // Use full leave here (not detach) since the same MCP session is explicitly
       // re-joining — the old alias is no longer needed for reclaim.
       if (sessionName) {
-        const leaveRes = await chatApi('/leave', { name: sessionName }).catch(() => null);
+        const leaveRes = await chatApi('/leave', { name: sessionName, projectId: sessionProjectId }).catch(() => null);
         if (leaveRes?.ok) {
-          chatServerSessions.get(server)?.delete(sessionName);
+          const entries = chatServerSessions.get(server);
+          if (entries) {
+            const idx = entries.findIndex(e => e.name === sessionName && e.projectId === sessionProjectId);
+            if (idx >= 0) entries.splice(idx, 1);
+          }
         }
         sessionName = null;
+        sessionProjectId = null;
       }
 
       if (!paneId) {
@@ -130,8 +143,9 @@ export function createChatMcpServer(): McpServer {
       // Use the resolved name from the server (may be a generated unique name)
       const participant = res.data as { name: string; projectId?: string | null };
       sessionName = participant.name;
-      if (!chatServerSessions.has(server)) chatServerSessions.set(server, new Set());
-      chatServerSessions.get(server)!.add(sessionName);
+      sessionProjectId = participant.projectId ?? null;
+      if (!chatServerSessions.has(server)) chatServerSessions.set(server, []);
+      chatServerSessions.get(server)!.push({ name: sessionName, projectId: sessionProjectId });
       // Attach rules of engagement so the joining LLM knows how to behave
       const rules = getEffectiveRules(participant.projectId);
       return jsonResult({ ...participant, rules });
@@ -146,10 +160,15 @@ export function createChatMcpServer(): McpServer {
     {},
     async () => {
       if (!sessionName) return errorResult('Not joined — call chat_join first');
-      const res = await chatApi('/leave', { name: sessionName });
+      const res = await chatApi('/leave', { name: sessionName, projectId: sessionProjectId });
       if (!res.ok) return errorResult((res.data as { error?: string })?.error ?? 'Leave failed');
-      chatServerSessions.get(server)?.delete(sessionName);
+      const entries = chatServerSessions.get(server);
+      if (entries) {
+        const idx = entries.findIndex(e => e.name === sessionName && e.projectId === sessionProjectId);
+        if (idx >= 0) entries.splice(idx, 1);
+      }
       sessionName = null;
+      sessionProjectId = null;
       return jsonResult(res.data);
     },
   );
@@ -165,7 +184,7 @@ export function createChatMcpServer(): McpServer {
     },
     async ({ message, to }) => {
       if (!sessionName) return errorResult('Not joined — call chat_join first');
-      const res = await chatApi('/send', { from: sessionName, message, to });
+      const res = await chatApi('/send', { from: sessionName, message, to, projectId: sessionProjectId });
       if (!res.ok) return errorResult((res.data as { error?: string })?.error ?? 'Send failed');
       return jsonResult(res.data);
     },
@@ -181,7 +200,7 @@ export function createChatMcpServer(): McpServer {
       since: z.string().optional().describe('ISO timestamp — only return messages after this time'),
     },
     async ({ limit, since }) => {
-      const messages = store.readMessages({ limit, since });
+      const messages = store.readMessages({ limit, since }, getSessionProjectId());
       return jsonResult(messages);
     },
   );
@@ -193,9 +212,7 @@ export function createChatMcpServer(): McpServer {
     'List active chat participants with their pane link status.',
     {},
     async () => {
-      const res = await chatApi('/members');
-      if (!res.ok) return errorResult('Failed to fetch members');
-      return jsonResult(res.data);
+      return jsonResult(registry.listParticipants(getSessionProjectId()));
     },
   );
 

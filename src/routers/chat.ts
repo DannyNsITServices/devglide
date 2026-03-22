@@ -7,7 +7,7 @@ import * as registry from '../apps/chat/services/chat-registry.js';
 import * as store from '../apps/chat/services/chat-store.js';
 import { getEffectiveRules, getDefaultRules, saveProjectRules, deleteProjectRules, hasProjectRules } from '../apps/chat/services/chat-rules.js';
 import { getActiveProject, onProjectChange } from '../project-context.js';
-import { globalPtys } from '../apps/shell/src/runtime/shell-state.js';
+import { globalPtys, dashboardState } from '../apps/shell/src/runtime/shell-state.js';
 
 export { createChatMcpServer, chatServerSessions } from '../apps/chat/mcp.js';
 
@@ -40,12 +40,14 @@ const joinSchema = z.object({
 
 const leaveSchema = z.object({
   name: z.string().min(1),
+  projectId: z.string().nullable().optional(),
 });
 
 const sendSchema = z.object({
   from: z.string().min(1),
   message: z.string().min(1),
   to: z.string().optional(),
+  projectId: z.string().nullable().optional(),
 });
 
 // ── REST API ─────────────────────────────────────────────────────────────────
@@ -97,8 +99,10 @@ router.post('/join', (req: Request, res: Response) => {
     badRequest(res, `Pane not found or not routable for PTY delivery: ${paneId}`);
     return;
   }
+  const paneInfo = dashboardState.panes.find(p => p.id === paneId);
+  const projectId = paneInfo?.projectId ?? getActiveProject()?.id ?? null;
   const resolvedSubmitKey = submitKey === 'lf' ? '\n' : '\r';
-  const participant = registry.join(name, 'llm', paneId, model ?? null, resolvedSubmitKey);
+  const participant = registry.join(name, 'llm', paneId, model ?? null, resolvedSubmitKey, projectId);
   const rules = getEffectiveRules(participant.projectId);
   res.status(201).json({ ...participant, rules });
 });
@@ -110,12 +114,13 @@ router.post('/leave', (req: Request, res: Response) => {
     badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
     return;
   }
-  const removed = registry.leave(parsed.data.name);
+  const { name, projectId } = parsed.data;
+  const removed = registry.leave(name, projectId ?? undefined);
   if (!removed) {
     res.status(404).json({ error: 'Not found in participant list' });
     return;
   }
-  res.json({ ok: true, left: parsed.data.name });
+  res.json({ ok: true, left: name });
 });
 
 // POST /send — send a message as any participant (used by MCP bridge)
@@ -125,8 +130,8 @@ router.post('/send', (req: Request, res: Response) => {
     badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
     return;
   }
-  const { from, message, to } = parsed.data;
-  const msg = registry.send(from, message, to);
+  const { from, message, to, projectId } = parsed.data;
+  const msg = registry.send(from, message, to, projectId ?? undefined);
   res.status(201).json(msg);
 });
 
