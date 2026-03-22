@@ -97,7 +97,6 @@ let isDragging = false;
 let isDialogOpen = false;
 let searchQuery = '';
 let featureSearchQuery = '';
-let featureSortBy = 'name';
 let sortableInstances = [];
 let selectedColor = FEATURE_COLORS[0];
 let deleteTargetFeature = null;
@@ -145,11 +144,6 @@ function renderFeatureList() {
         <input type="text" class="search-input" data-field="feature-search-input" placeholder="Search features...  ( / )" value="${escapeAttr(featureSearchQuery)}" autocomplete="off">
         <button class="search-clear ${featureSearchQuery ? '' : 'hidden'}" data-action="feature-search-clear" aria-label="Clear search">&times;</button>
       </div>
-      <select id="feature-sort" class="feature-sort-select" title="Sort features">
-        <option value="name"${featureSortBy === 'name' ? ' selected' : ''}>Name</option>
-        <option value="issues"${featureSortBy === 'issues' ? ' selected' : ''}>Issue count</option>
-        <option value="updated"${featureSortBy === 'updated' ? ' selected' : ''}>Recently updated</option>
-      </select>
     </div>
     <main class="features-container"></main>
     ${_getDialogHTML()}
@@ -179,11 +173,6 @@ function initFeatureSearch() {
     input.focus();
     renderFeatures();
   });
-
-  $('#feature-sort')?.addEventListener('change', (e) => {
-    featureSortBy = e.target.value;
-    renderFeatures();
-  });
 }
 
 function getFilteredFeatures() {
@@ -195,15 +184,7 @@ function getFilteredFeatures() {
       (f.description || '').toLowerCase().includes(q)
     );
   }
-  const sorted = [...filtered];
-  if (featureSortBy === 'issues') {
-    sorted.sort((a, b) => (b._count.issues) - (a._count.issues));
-  } else if (featureSortBy === 'updated') {
-    sorted.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  } else {
-    sorted.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
-  }
-  return sorted;
+  return filtered;
 }
 
 function renderFeatures() {
@@ -1778,7 +1759,7 @@ export function unmount(container) {
   deleteTargetFeature = null;
   editTargetFeature = null;
   featureSearchQuery = '';
-  featureSortBy = 'name';
+
 }
 
 export function onProjectChange(project) {
@@ -1794,7 +1775,7 @@ export function onProjectChange(project) {
   boardFeature = null;
   searchQuery = '';
   featureSearchQuery = '';
-  featureSortBy = 'name';
+
   dialogState = null;
   deleteTargetFeature = null;
   editTargetFeature = null;

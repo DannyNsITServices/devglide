@@ -135,36 +135,6 @@
   margin-bottom: var(--df-space-4);
 }
 
-/* ── Feature Sort ────────────────────────────────────────────────────────── */
-
-.page-kanban .feature-sort-select {
-  background: var(--df-color-bg-raised);
-  border: 1px solid var(--df-color-border-default);
-  color: var(--df-color-text-primary);
-  font-family: var(--df-font-mono);
-  font-size: var(--df-font-size-xs);
-  padding: var(--df-space-1) var(--df-space-3);
-  padding-right: var(--df-space-5);
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23636e7b'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  transition: border-color var(--df-duration-fast);
-  margin-left: var(--df-space-2);
-}
-
-.page-kanban .feature-sort-select:hover,
-.page-kanban .feature-sort-select:focus-visible {
-  border-color: var(--df-color-accent-default);
-}
-
-@media (max-width: 639px) {
-  .page-kanban .feature-sort-select {
-    display: none;
-  }
-}
-
 /* ── Feature List ────────────────────────────────────────────────────────── */
 
 .page-kanban .features-container {
@@ -335,8 +305,6 @@
 /* ── Search Bar ──────────────────────────────────────────────────────────── */
 
 .page-kanban .board-search {
-  display: flex;
-  align-items: center;
   padding: var(--df-space-3) var(--df-space-4) 0;
 }
 
