@@ -6,6 +6,7 @@
 // that renders terminal panes directly in the app shell container.
 
 import { shellSocket as socket } from '/state.js';
+import { createHeader } from '/shared-ui/components/header.js';
 
 // ── Module state ─────────────────────────────────────────────────────
 
@@ -109,16 +110,10 @@ async function ensureXterm() {
 // ── HTML ─────────────────────────────────────────────────────────────
 
 const BODY_HTML = `
-  <header>
-    <div class="brand">Shell</div>
-    <div class="header-meta">
-      <span class="pane-count" data-ref="paneCount">0 panes</span>
-      <div class="mobile-actions" data-ref="mobileActions">
-        <button class="mobile-action-btn" data-action="new-terminal" title="New Terminal">&gt;_</button>
-        <button class="mobile-action-btn" data-action="new-browser" title="New Browser">&#x25A1;</button>
-      </div>
-    </div>
-  </header>
+  ${createHeader({
+    brand: 'Shell',
+    meta: '<span class="pane-count" data-ref="paneCount">0 panes</span><div class="mobile-actions" data-ref="mobileActions"><button class="mobile-action-btn" data-action="new-terminal" title="New Terminal">&gt;_</button><button class="mobile-action-btn" data-action="new-browser" title="New Browser">&#x25A1;</button></div>',
+  })}
   <div class="shell-disconnect-banner" data-ref="disconnect">Disconnected — reconnecting...</div>
   <div class="shell-tab-bar" data-ref="tabBar" role="tablist">
     <button class="shell-tab active" data-tab="grid" role="tab">Dashboard</button>
@@ -1418,7 +1413,7 @@ export async function mount(container, ctx) {
   _container = container;
 
   // 1. Scope the container
-  container.classList.add('page-shell');
+  container.classList.add('page-shell', 'app-page');
 
   // 2. Build HTML
   container.innerHTML = BODY_HTML;
@@ -1645,7 +1640,7 @@ export function unmount(container) {
 
   // 6. Remove scope class & clear HTML
   _restoring = false;
-  container.classList.remove('page-shell');
+  container.classList.remove('page-shell', 'app-page');
   container.innerHTML = '';
 
   // 7. Clear module reference

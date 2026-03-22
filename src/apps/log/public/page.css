@@ -1,6 +1,16 @@
 /* ── Log — App-specific styles ─────────────────────────────────────────────── */
 /* Common primitives (page root, header, scrollbar) are in shared-ui.css.      */
 
+  .page-log {
+    font-family: var(--df-font-mono);
+    background: var(--df-color-bg-base);
+    color: var(--df-color-text-primary);
+    -webkit-font-smoothing: antialiased;
+    font-size: var(--df-font-size-md);
+    min-height: 100vh;
+    background-image: none;
+  }
+
   /* -- Header (app-specific additions) -------------------------------- */
   .page-log .brand {
     cursor: pointer;

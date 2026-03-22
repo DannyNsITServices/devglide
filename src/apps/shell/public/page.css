@@ -1,21 +1,8 @@
 /* Project scoping — hide panes/tabs from other projects */
 .page-shell .project-hidden { display: none !important; }
 
-.page-shell {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: var(--df-color-bg-base);
-  color: var(--df-color-text-primary);
-  font-family: var(--df-font-mono);
-  -webkit-font-smoothing: antialiased;
-  overflow: hidden;
-}
-
-/* ── Header (app-specific additions) ─────────────────────────────── */
-.page-shell header {
-  flex-shrink: 0;
-}
+/* ── Shell — App-specific styles ─────────────────────────────────────────────── */
+/* Common primitives (page root, header, scrollbar) are in shared-ui.css.      */
 
 .page-shell .pane-count {
   color: var(--df-color-text-muted);

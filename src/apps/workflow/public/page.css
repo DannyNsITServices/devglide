@@ -3,16 +3,8 @@
   50%       { box-shadow: 0 0 16px color-mix(in srgb, var(--df-color-state-recording) 80%, transparent); }
 }
 
-.page-workflow {
-  font-family: var(--df-font-mono);
-  background: var(--df-color-bg-base);
-  color: var(--df-color-text-primary);
-  -webkit-font-smoothing: antialiased;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
+/* ── Workflow — App-specific styles ──────────────────────────────────────────── */
+/* Common primitives (page root, header, scrollbar) are in shared-ui.css.      */
 
 
 /* ── Reduced motion ──────────────────────────────────────────────── */
@@ -371,36 +363,4 @@
   background: color-mix(in srgb, var(--df-color-accent-default) 10%, transparent);
 }
 
-/* ── Toast ────────────────────────────────────────────────────── */
-.page-workflow .wf-toast-container {
-  position: fixed;
-  bottom: var(--df-space-4);
-  right: var(--df-space-4);
-  z-index: calc(var(--df-z-index-modal) + 1);
-  display: flex;
-  flex-direction: column;
-  gap: var(--df-space-2);
-  pointer-events: none;
-}
-.page-workflow .wf-toast {
-  font-family: var(--df-font-mono);
-  font-size: var(--df-font-size-xs);
-  text-transform: uppercase;
-  letter-spacing: var(--df-letter-spacing-wide);
-  padding: var(--df-space-2) var(--df-space-4);
-  border: 1px solid var(--df-color-border-default);
-  background: var(--df-color-bg-surface);
-  color: var(--df-color-text-primary);
-  border-radius: 8px;
-  pointer-events: auto;
-  box-shadow: 0 4px 16px color-mix(in srgb, var(--df-color-bg-base) 50%, transparent);
-  transition: opacity var(--df-duration-normal) ease;
-}
-.page-workflow .wf-toast-success {
-  border-color: color-mix(in srgb, var(--df-color-state-success) 40%, transparent);
-  color: var(--df-color-state-success);
-}
-.page-workflow .wf-toast-error {
-  border-color: color-mix(in srgb, var(--df-color-state-error) 40%, transparent);
-  color: var(--df-color-state-error);
-}
+/* ── Toast — now provided by shared-ui ────────────────────────── */

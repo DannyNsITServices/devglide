@@ -393,7 +393,7 @@ function handleSourceToggle(e) {
 
 export function mount(container, ctx) {
   _container = container;
-  container.classList.add('page-log', 'app-page');
+  container.classList.add('page-log');
 
   // Reset module state
   currentView = 'sessions';
@@ -449,7 +449,7 @@ export function unmount(container) {
 
   // Clean up container
   if (container) {
-    container.classList.remove('page-log', 'app-page');
+    container.classList.remove('page-log');
     container.innerHTML = '';
   }
 

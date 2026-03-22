@@ -186,8 +186,7 @@ async function render() {
 
   _container.append(header, loading);
 
-  const newBtn = _container.querySelector('[data-action="new-workflow"]');
-  if (newBtn) newBtn.addEventListener('click', () => _onNew?.());
+  newBtn.addEventListener('click', () => _onNew?.());
 
   await renderList();
 }

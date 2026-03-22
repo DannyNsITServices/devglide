@@ -5,6 +5,9 @@
 // All DOM queries are scoped to `_root` (the container).
 
 import { escapeHtml, escapeAttr, normalizeEscapes, sanitizeHtml } from '/shared-assets/ui-utils.js';
+import { createHeader } from '/shared-ui/components/header.js';
+import { showToast as suiToast, clearToasts } from '/shared-ui/components/toast.js';
+import { confirmModal } from '/shared-ui/components/modal.js';
 
 let _root = null;
 let _projectId = null;
@@ -56,20 +59,9 @@ function apiFetch(url, options = {}) {
   return fetch(url, { ...options, headers });
 }
 
-let _toastTimer = null;
 function showToast(msg, type = 'error') {
   if (!_root) return;
-  let toast = _root.querySelector('.toast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.className = 'toast';
-    _root.appendChild(toast);
-  }
-  toast.textContent = msg;
-  toast.dataset.type = type;
-  toast.classList.add('visible');
-  clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => toast.classList.remove('visible'), 4000);
+  suiToast(_root, msg, type);
 }
 
 // ── Scoped query helpers ─────────────────────────────────────────────────────
@@ -130,15 +122,11 @@ function renderFeatureList() {
       <span class="sync-dot"></span>
       Board updated
     </div>
-    <header class="app-header">
-      <span class="app-name">Kanban</span>
-      <div class="header-actions">
-        <span class="sync-badge hidden" data-sync="list-sync">
-          <span class="sync-dot"></span> Updated
-        </span>
-        <button class="btn btn-primary" data-action="new-feature">+ New Feature</button>
-      </div>
-    </header>
+    ${createHeader({
+      brand: 'Kanban',
+      meta: '<span class="sync-badge hidden" data-sync="list-sync"><span class="sync-dot"></span> Updated</span>',
+      actions: '<button class="btn btn-primary" data-action="new-feature">+ New Feature</button>',
+    })}
     <div class="board-search" role="search">
       <div class="search-bar">
         <input type="text" class="search-input" data-field="feature-search-input" placeholder="Search features...  ( / )" value="${escapeAttr(featureSearchQuery)}" autocomplete="off">
@@ -372,63 +360,19 @@ function _bindNewFeatureDialog() {
 
 // ── Delete Feature Dialog ────────────────────────────────────────────────────
 
-function openDeleteFeatureDialog(feature) {
-  deleteTargetFeature = feature;
-  const dialog = $('.modal-overlay[data-dialog="delete-feature"]');
-  if (!dialog) return;
-  const msg = dialog.querySelector('[data-field="delete-feature-msg"]');
-  let text = `Are you sure you want to delete <strong>${escapeHtml(feature.name)}</strong>?`;
+async function openDeleteFeatureDialog(feature) {
+  let message = `Are you sure you want to delete <strong>${escapeHtml(feature.name)}</strong>?`;
   if (feature._count.issues > 0) {
-    text += ` This will permanently remove ${feature._count.issues} item${feature._count.issues !== 1 ? 's' : ''}.`;
+    message += ` This will permanently remove ${feature._count.issues} item${feature._count.issues !== 1 ? 's' : ''}.`;
   }
-  msg.innerHTML = text;
-  dialog.classList.remove('hidden');
+  const ok = await confirmModal(_root, { title: 'Delete Feature', message, confirmLabel: 'Delete', confirmCls: 'btn-danger' });
+  if (!ok) return;
+  await apiFetch(`/api/kanban/features/${feature.id}`, { method: 'DELETE' });
+  features = features.filter(f => f.id !== feature.id);
+  renderFeatures();
 }
 
-function _bindDeleteFeatureDialog() {
-  const dialog = $('.modal-overlay[data-dialog="delete-feature"]');
-  if (!dialog) return;
-
-  dialog.querySelector('[data-action="df-cancel"]')?.addEventListener('click', () => {
-    dialog.classList.add('hidden');
-    deleteTargetFeature = null;
-  });
-
-  dialog.querySelector('[data-action="df-confirm"]')?.addEventListener('click', async () => {
-    if (!deleteTargetFeature) return;
-    await apiFetch(`/api/kanban/features/${deleteTargetFeature.id}`, { method: 'DELETE' });
-    features = features.filter(f => f.id !== deleteTargetFeature.id);
-    renderFeatures();
-    dialog.classList.add('hidden');
-    deleteTargetFeature = null;
-  });
-}
-
-function _bindDeleteIssueDialog() {
-  const dialog = $('.modal-overlay[data-dialog="delete-issue"]');
-  if (!dialog) return;
-
-  dialog.querySelector('[data-action="di-cancel"]')?.addEventListener('click', () => {
-    dialog.classList.add('hidden');
-    $('.modal-overlay[data-dialog="issue"]')?.classList.remove('hidden');
-  });
-
-  dialog.querySelector('[data-action="di-confirm"]')?.addEventListener('click', async () => {
-    const s = dialogState;
-    if (!s.issue) return;
-    dialog.classList.add('hidden');
-    await apiFetch(`/api/kanban/issues/${s.issue.id}`, { method: 'DELETE' });
-    s.onDelete(s.issue.id);
-    closeDialog();
-  });
-
-  dialog.addEventListener('click', (e) => {
-    if (e.target === dialog) {
-      dialog.classList.add('hidden');
-      $('.modal-overlay[data-dialog="issue"]')?.classList.remove('hidden');
-    }
-  });
-}
+// Delete issue dialog replaced by confirmModal() — no binding needed
 
 // ── Edit Feature Dialog ──────────────────────────────────────────────────────
 
@@ -529,8 +473,6 @@ function _bindModalOverlays() {
   });
 
   _bindNewFeatureDialog();
-  _bindDeleteFeatureDialog();
-  _bindDeleteIssueDialog();
   _bindEditFeatureDialog();
 }
 
@@ -565,15 +507,11 @@ function renderBoardUI() {
       <span class="sync-dot"></span>
       Board updated
     </div>
-    <header class="app-header">
+    <header>
       <a href="#/" class="back-btn" title="Back to features">&larr;</a>
-      <span class="app-name">${escapeHtml(f.name)}</span>
-      <button class="board-edit-btn" data-action="edit-board-feature" title="Edit feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
-      <div class="header-actions">
-        <span class="sync-badge hidden" data-sync="board-sync">
-          <span class="sync-dot"></span> Updated
-        </span>
-      </div>
+      <div class="brand">${escapeHtml(f.name)}</div>
+      <div class="header-meta"><button class="board-edit-btn" data-action="edit-board-feature" title="Edit feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button></div>
+      <div class="toolbar-actions"><span class="sync-badge hidden" data-sync="board-sync"><span class="sync-dot"></span> Updated</span></div>
     </header>
     <div class="board-search" role="search">
       <div class="search-bar">
@@ -1279,15 +1217,15 @@ function bindDialogEvents() {
   // Cancel
   $('[data-action="dlg-cancel"]')?.addEventListener('click', closeDialog);
 
-  // Delete — show styled confirmation dialog
-  $('[data-action="dlg-delete"]')?.addEventListener('click', () => {
+  // Delete — show shared confirmation modal
+  $('[data-action="dlg-delete"]')?.addEventListener('click', async () => {
     if (!s.issue) return;
-    const dialog = $('.modal-overlay[data-dialog="delete-issue"]');
-    if (!dialog) return;
-    const msg = dialog.querySelector('[data-field="delete-issue-msg"]');
-    if (msg) msg.innerHTML = `Are you sure you want to delete <strong>${escapeHtml(s.issue.title)}</strong>? This action cannot be undone.`;
     $('.modal-overlay[data-dialog="issue"]')?.classList.add('hidden');
-    dialog.classList.remove('hidden');
+    const ok = await confirmModal(_root, { title: 'Delete Item', message: `Are you sure you want to delete <strong>${escapeHtml(s.issue.title)}</strong>? This action cannot be undone.`, confirmLabel: 'Delete', confirmCls: 'btn-danger' });
+    if (!ok) { $('.modal-overlay[data-dialog="issue"]')?.classList.remove('hidden'); return; }
+    await apiFetch(`/api/kanban/issues/${s.issue.id}`, { method: 'DELETE' });
+    s.onDelete(s.issue.id);
+    closeDialog();
   });
 
   // Close on overlay click
@@ -1502,33 +1440,7 @@ function _getDialogHTML() {
       </div>
     </div>
 
-    <!-- Delete Feature Confirmation Dialog -->
-    <div class="modal-overlay hidden" data-dialog="delete-feature" role="dialog" aria-modal="true">
-      <div class="modal">
-        <div class="modal-header">
-          <h2>Delete Feature</h2>
-          <p class="modal-desc" data-field="delete-feature-msg"></p>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-secondary" data-action="df-cancel">Cancel</button>
-          <button class="btn btn-danger" data-action="df-confirm">Delete</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Delete Issue Confirmation Dialog -->
-    <div class="modal-overlay hidden" data-dialog="delete-issue" role="dialog" aria-modal="true">
-      <div class="modal">
-        <div class="modal-header">
-          <h2>Delete Item</h2>
-          <p class="modal-desc" data-field="delete-issue-msg"></p>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-secondary" data-action="di-cancel">Cancel</button>
-          <button class="btn btn-danger" data-action="di-confirm">Delete</button>
-        </div>
-      </div>
-    </div>
+    <!-- Delete confirmation dialogs use shared-ui confirmModal() -->
 
     <!-- Edit Feature Dialog -->
     <div class="modal-overlay hidden" data-dialog="edit-feature" role="dialog" aria-modal="true">

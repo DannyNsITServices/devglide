@@ -332,6 +332,7 @@ export function listParticipants(): ChatParticipant[] {
       result.push(p);
     }
   }
+  result.sort((a, b) => a.name.localeCompare(b.name));
   return result;
 }
 
