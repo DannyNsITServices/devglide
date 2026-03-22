@@ -1,5 +1,5 @@
 import type { Namespace } from 'socket.io';
-import type { ChatParticipant, ChatMessage } from '../types.js';
+import type { ChatParticipant, ChatMessage, ChatAssignment } from '../types.js';
 import { globalPtys, dashboardState, getShellNsp } from '../../shell/src/runtime/shell-state.js';
 import { appendMessage, clearMessages } from './chat-store.js';
 import { getActiveProject, onProjectChange } from '../../../project-context.js';
@@ -9,9 +9,13 @@ const participants = new Map<string, ChatParticipant>();
 let chatNsp: Namespace | null = null;
 const paneDeliveryQueues = new Map<string, Promise<void>>();
 const participantSessionEpochs = new Map<string, number>();
+const projectAssignments = new Map<string, ChatAssignment & { mode: 'auto' | 'explicit' }>();
+const projectRoundRobinIndex = new Map<string, number>();
+const assignmentTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 const PTY_SUBMIT_DELAY_MS = 500;
 const PTY_RETRY_SUBMIT_DELAY_MS = 1000;
+const ASSIGNMENT_IDLE_TIMEOUT_MS = 20_000;
 
 function bumpParticipantSessionEpoch(name: string): number {
   const next = (participantSessionEpochs.get(name) ?? 0) + 1;
@@ -25,6 +29,127 @@ function currentParticipantSessionEpoch(name: string): number {
 
 function activeProjectId(): string | null {
   return getActiveProject()?.id ?? null;
+}
+
+function getProjectActiveLlms(projectId: string | null): ChatParticipant[] {
+  if (!projectId) return [];
+  return [...participants.values()]
+    .filter((p) => p.projectId === projectId && p.kind === 'llm' && !p.detached && Boolean(p.paneId))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function emitMembers(projectId?: string | null): void {
+  emitToProject('chat:members', listParticipants(projectId), projectId);
+}
+
+function clearAssignmentTimer(projectId: string | null): void {
+  if (!projectId) return;
+  const timer = assignmentTimers.get(projectId);
+  if (timer) clearTimeout(timer);
+  assignmentTimers.delete(projectId);
+}
+
+function emitAssignment(projectId: string | null): void {
+  if (!projectId) return;
+  const assignment = projectAssignments.get(projectId);
+  emitToProject('chat:assignment', assignment ?? null, projectId);
+  emitMembers(projectId);
+}
+
+function getNextOwner(projectId: string | null, excludeName?: string | null): string | null {
+  const candidates = getProjectActiveLlms(projectId).filter((p) => p.name !== excludeName);
+  if (candidates.length === 0) return null;
+
+  const start = projectRoundRobinIndex.get(projectId ?? '') ?? -1;
+  const nextIndex = (start + 1) % candidates.length;
+  projectRoundRobinIndex.set(projectId ?? '', nextIndex);
+  return candidates[nextIndex]?.name ?? null;
+}
+
+function scheduleIdleReassignment(projectId: string | null): void {
+  if (!projectId) return;
+  clearAssignmentTimer(projectId);
+
+  const assignment = projectAssignments.get(projectId);
+  if (!assignment || assignment.mode !== 'auto' || assignment.status !== 'assigned' || !assignment.owner) return;
+
+  assignment.expiresAt = new Date(Date.now() + ASSIGNMENT_IDLE_TIMEOUT_MS).toISOString();
+  assignmentTimers.set(projectId, setTimeout(() => {
+    const live = projectAssignments.get(projectId);
+    if (!live || live.mode !== 'auto' || live.status !== 'assigned' || !live.owner) return;
+
+    const nextOwner = getNextOwner(projectId, live.owner);
+    if (!nextOwner || nextOwner === live.owner) return;
+
+    live.owner = nextOwner;
+    live.assignedAt = new Date().toISOString();
+    live.expiresAt = new Date(Date.now() + ASSIGNMENT_IDLE_TIMEOUT_MS).toISOString();
+
+    const systemMsg = appendMessage({
+      from: 'system',
+      to: null,
+      body: `Auto-dispatch reassigned to ${nextOwner} after inactivity.`,
+      type: 'system',
+    });
+    emitToProject('chat:message', systemMsg, projectId);
+    emitAssignment(projectId);
+    scheduleIdleReassignment(projectId);
+  }, ASSIGNMENT_IDLE_TIMEOUT_MS));
+}
+
+function setAssignment(projectId: string | null, assignment: (ChatAssignment & { mode: 'auto' | 'explicit' }) | null): void {
+  if (!projectId) return;
+  clearAssignmentTimer(projectId);
+  if (!assignment) {
+    projectAssignments.delete(projectId);
+    emitAssignment(projectId);
+    return;
+  }
+  projectAssignments.set(projectId, assignment);
+  emitAssignment(projectId);
+  if (assignment.mode === 'auto') scheduleIdleReassignment(projectId);
+}
+
+function markAssignmentActive(projectId: string | null, owner: string): void {
+  if (!projectId) return;
+  const assignment = projectAssignments.get(projectId);
+  if (!assignment || assignment.owner !== owner || assignment.status !== 'assigned') return;
+  assignment.status = 'active';
+  assignment.expiresAt = null;
+  clearAssignmentTimer(projectId);
+  emitAssignment(projectId);
+}
+
+function handleOwnerUnavailable(projectId: string | null, owner: string): void {
+  if (!projectId) return;
+  const assignment = projectAssignments.get(projectId);
+  if (!assignment || assignment.owner !== owner) return;
+
+  if (assignment.mode !== 'auto') {
+    setAssignment(projectId, null);
+    return;
+  }
+
+  const nextOwner = getNextOwner(projectId, owner);
+  if (!nextOwner) {
+    setAssignment(projectId, null);
+    return;
+  }
+
+  assignment.owner = nextOwner;
+  assignment.status = 'assigned';
+  assignment.assignedAt = new Date().toISOString();
+  assignment.expiresAt = new Date(Date.now() + ASSIGNMENT_IDLE_TIMEOUT_MS).toISOString();
+
+  const systemMsg = appendMessage({
+    from: 'system',
+    to: null,
+    body: `Auto-dispatch reassigned to ${nextOwner} because ${owner} became unavailable.`,
+    type: 'system',
+  });
+  emitToProject('chat:message', systemMsg, projectId);
+  emitAssignment(projectId);
+  scheduleIdleReassignment(projectId);
 }
 
 export function setChatNsp(nsp: Namespace): void {
@@ -45,7 +170,8 @@ function emitToProject(event: string, data: unknown, projectId?: string | null):
 
 // Emit refreshed member list when the active project changes
 onProjectChange(() => {
-  emitToProject('chat:members', listParticipants());
+  emitMembers();
+  emitAssignment(activeProjectId());
 });
 
 export function getChatNsp(): Namespace | null {
@@ -122,6 +248,7 @@ export function join(name: string, kind: 'user' | 'llm', paneId: string | null, 
     });
     emitToProject('chat:join', existing);
     emitToProject('chat:message', msg);
+    emitMembers(existing.projectId);
 
     return existing;
   }
@@ -153,6 +280,7 @@ export function join(name: string, kind: 'user' | 'llm', paneId: string | null, 
   });
   emitToProject('chat:join', participant);
   emitToProject('chat:message', msg);
+  emitMembers(participant.projectId);
 
   return participant;
 }
@@ -163,6 +291,7 @@ export function leave(name: string): boolean {
   const removed = participants.delete(name);
   if (removed) {
     participantSessionEpochs.delete(name);
+    handleOwnerUnavailable(pid, name);
     const msg = appendMessage({
       from: name,
       to: null,
@@ -182,7 +311,8 @@ export function detach(name: string): boolean {
   if (!participant) return false;
   participant.detached = true;
   bumpParticipantSessionEpoch(name);
-  emitToProject('chat:members', listParticipants());
+  handleOwnerUnavailable(participant.projectId, name);
+  emitMembers(participant.projectId);
   return true;
 }
 
@@ -204,25 +334,49 @@ export function send(from: string, body: string, to?: string): ChatMessage {
 
   // Determine sender kind for routing rules
   const senderKind = sender?.kind ?? (from === 'user' ? 'user' : 'llm');
+  const pid = activeProjectId();
 
   // Resolve targets:
   // - User senders: explicit `to` takes priority, then body @mentions
   // - LLM senders: always extract @mentions from body (ignore `to` param)
   const targets = resolveTargets(from, body, to, senderKind);
+  const explicitOwner = senderKind === 'user' && targets.length === 1 ? targets[0] : undefined;
+  const autoOwner = senderKind === 'user' && !to && targets.length === 0 ? getNextOwner(pid) : undefined;
+  const assignedOwner = explicitOwner ?? autoOwner ?? null;
+  const assignmentMode = explicitOwner ? 'explicit' : autoOwner ? 'auto' : null;
 
   const msg = appendMessage({
     from,
     to: targets.length === 1 ? targets[0] : targets.length > 1 ? targets.join(',') : null,
     body,
     type: 'message',
+    assignedTo: senderKind === 'user' ? assignedOwner : undefined,
+    assignmentStatus: senderKind === 'user' && assignedOwner ? 'assigned' : undefined,
   });
+
+  if (senderKind === 'user') {
+    if (assignedOwner && assignmentMode) {
+      const now = new Date().toISOString();
+      setAssignment(pid, {
+        messageId: msg.id,
+        owner: assignedOwner,
+        status: 'assigned',
+        assignedAt: now,
+        expiresAt: assignmentMode === 'auto' ? new Date(Date.now() + ASSIGNMENT_IDLE_TIMEOUT_MS).toISOString() : null,
+        mode: assignmentMode,
+      });
+    } else {
+      setAssignment(pid, null);
+    }
+  } else if (senderKind === 'llm') {
+    markAssignmentActive(pid, from);
+  }
 
   // Emit to dashboard clients viewing this project only
   emitToProject('chat:message', msg);
 
   // PTY delivery — broadcast every message to all same-project participants except the sender.
   // `targets` remain semantic metadata for intent and UI display.
-  const pid = activeProjectId();
   for (const [name, p] of participants) {
     if (name !== from && p.paneId && p.projectId === pid) {
       deliverToPty(name, msg);
@@ -321,15 +475,20 @@ function deliverToPty(targetName: string, msg: ChatMessage): void {
   paneDeliveryQueues.set(paneId, next);
 }
 
-export function listParticipants(): ChatParticipant[] {
+export function listParticipants(projectId?: string | null): ChatParticipant[] {
   pruneStaleParticipants();
 
-  const pid = activeProjectId();
+  const pid = projectId ?? activeProjectId();
+  const assignment = pid ? projectAssignments.get(pid) : undefined;
   const result: ChatParticipant[] = [];
   for (const p of participants.values()) {
     // Only return participants that belong to the active project
     if (p.projectId === pid) {
-      result.push(p);
+      result.push({
+        ...p,
+        isAssigned: Boolean(assignment?.owner && assignment.owner === p.name),
+        assignmentStatus: assignment?.owner === p.name ? assignment.status : null,
+      });
     }
   }
   result.sort((a, b) => a.name.localeCompare(b.name));
@@ -342,6 +501,7 @@ export function getParticipant(name: string): ChatParticipant | undefined {
 
 /** Clear chat history for the active project and notify dashboard clients. */
 export function clearHistory(): void {
+  setAssignment(activeProjectId(), null);
   clearMessages();
   emitToProject('chat:cleared', {});
 }
@@ -353,4 +513,17 @@ export function onPaneClosed(paneId: string): void {
       leave(name);
     }
   }
+}
+
+export function getCurrentAssignment(projectId?: string | null): ChatAssignment | null {
+  const pid = projectId ?? activeProjectId();
+  const assignment = pid ? projectAssignments.get(pid) : null;
+  if (!assignment) return null;
+  return {
+    messageId: assignment.messageId,
+    owner: assignment.owner,
+    status: assignment.status,
+    assignedAt: assignment.assignedAt,
+    expiresAt: assignment.expiresAt,
+  };
 }

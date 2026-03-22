@@ -5,6 +5,8 @@ export interface ChatMessage {
   to: string | null;    // null = broadcast, "name" = direct
   body: string;         // markdown text
   type: 'message' | 'join' | 'leave' | 'system';
+  assignedTo?: string | null;
+  assignmentStatus?: 'assigned' | 'active' | 'done' | null;
 }
 
 export interface ChatParticipant {
@@ -18,8 +20,18 @@ export interface ChatParticipant {
   lastSeen: string;
   detached: boolean;     // true when MCP session closed but pane is still alive — awaiting reclaim
   clientId?: string;     // optional stable identity for future strong-reclaim support
+  isAssigned?: boolean;
+  assignmentStatus?: 'assigned' | 'active' | 'done' | null;
 }
 
 export interface ChatJoinResponse extends ChatParticipant {
   rules: string;        // effective rules of engagement (markdown)
+}
+
+export interface ChatAssignment {
+  messageId: string;
+  owner: string | null;
+  status: 'assigned' | 'active' | 'done';
+  assignedAt: string;
+  expiresAt: string | null;
 }

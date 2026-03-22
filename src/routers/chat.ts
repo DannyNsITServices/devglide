@@ -217,6 +217,8 @@ export function initChat(nsp: Namespace): void {
       socket.emit('chat:message', msg);
     }
 
+    socket.emit('chat:assignment', registry.getCurrentAssignment());
+
     // Handle send from dashboard
     socket.on('chat:send', ({ message, to }: { message: string; to?: string }) => {
       if (!message || typeof message !== 'string') return;
