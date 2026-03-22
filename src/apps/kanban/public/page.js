@@ -137,39 +137,53 @@ function renderFeatureList() {
         <span class="sync-badge hidden" data-sync="list-sync">
           <span class="sync-dot"></span> Updated
         </span>
-        <input type="text" id="feature-search" class="feature-search-input" placeholder="Search features..." autocomplete="off" value="${escapeAttr(featureSearchQuery)}" />
-        <select id="feature-sort" class="feature-sort-select" title="Sort features">
-          <option value="name"${featureSortBy === 'name' ? ' selected' : ''}>Name</option>
-          <option value="issues"${featureSortBy === 'issues' ? ' selected' : ''}>Issue count</option>
-          <option value="updated"${featureSortBy === 'updated' ? ' selected' : ''}>Recently updated</option>
-        </select>
         <button class="btn btn-primary" data-action="new-feature">+ New Feature</button>
       </div>
     </header>
+    <div class="board-search" role="search">
+      <div class="search-bar">
+        <input type="text" class="search-input" data-field="feature-search-input" placeholder="Search features...  ( / )" value="${escapeAttr(featureSearchQuery)}" autocomplete="off">
+        <button class="search-clear ${featureSearchQuery ? '' : 'hidden'}" data-action="feature-search-clear" aria-label="Clear search">&times;</button>
+      </div>
+      <select id="feature-sort" class="feature-sort-select" title="Sort features">
+        <option value="name"${featureSortBy === 'name' ? ' selected' : ''}>Name</option>
+        <option value="issues"${featureSortBy === 'issues' ? ' selected' : ''}>Issue count</option>
+        <option value="updated"${featureSortBy === 'updated' ? ' selected' : ''}>Recently updated</option>
+      </select>
+    </div>
     <main class="features-container"></main>
     ${_getDialogHTML()}
   `;
 
   $('[data-action="new-feature"]')?.addEventListener('click', openNewFeatureDialog);
+  initFeatureSearch();
+  _bindModalOverlays();
+  renderFeatures();
+}
 
-  // Search input
-  let featureSearchTimer = null;
-  $('#feature-search')?.addEventListener('input', (e) => {
-    clearTimeout(featureSearchTimer);
-    featureSearchTimer = setTimeout(() => {
-      featureSearchQuery = e.target.value;
-      renderFeatures();
-    }, 150);
+function initFeatureSearch() {
+  const input = $('[data-field="feature-search-input"]');
+  const clear = $('[data-action="feature-search-clear"]');
+  if (!input) return;
+
+  input.addEventListener('input', () => {
+    featureSearchQuery = input.value;
+    clear?.classList.toggle('hidden', !featureSearchQuery);
+    renderFeatures();
   });
 
-  // Sort dropdown
+  clear?.addEventListener('click', () => {
+    featureSearchQuery = '';
+    input.value = '';
+    clear.classList.add('hidden');
+    input.focus();
+    renderFeatures();
+  });
+
   $('#feature-sort')?.addEventListener('change', (e) => {
     featureSortBy = e.target.value;
     renderFeatures();
   });
-
-  _bindModalOverlays();
-  renderFeatures();
 }
 
 function getFilteredFeatures() {

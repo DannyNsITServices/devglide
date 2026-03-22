@@ -135,28 +135,7 @@
   margin-bottom: var(--df-space-4);
 }
 
-/* ── Feature Search & Sort ───────────────────────────────────────────────── */
-
-.page-kanban .feature-search-input {
-  background: var(--df-color-bg-raised);
-  border: 1px solid var(--df-color-border-default);
-  color: var(--df-color-text-primary);
-  font-family: var(--df-font-mono);
-  font-size: var(--df-font-size-xs);
-  padding: var(--df-space-1) var(--df-space-3);
-  min-width: 160px;
-  outline: none;
-  transition: border-color var(--df-duration-fast);
-}
-
-.page-kanban .feature-search-input::placeholder {
-  color: var(--df-color-text-muted);
-}
-
-.page-kanban .feature-search-input:focus-visible {
-  border-color: var(--df-color-accent-default);
-  box-shadow: inset 0 0 0 1px var(--df-color-accent-dim);
-}
+/* ── Feature Sort ────────────────────────────────────────────────────────── */
 
 .page-kanban .feature-sort-select {
   background: var(--df-color-bg-raised);
@@ -172,6 +151,7 @@
   background-repeat: no-repeat;
   background-position: right 8px center;
   transition: border-color var(--df-duration-fast);
+  margin-left: var(--df-space-2);
 }
 
 .page-kanban .feature-sort-select:hover,
@@ -180,9 +160,6 @@
 }
 
 @media (max-width: 639px) {
-  .page-kanban .feature-search-input {
-    min-width: 100px;
-  }
   .page-kanban .feature-sort-select {
     display: none;
   }
@@ -358,6 +335,8 @@
 /* ── Search Bar ──────────────────────────────────────────────────────────── */
 
 .page-kanban .board-search {
+  display: flex;
+  align-items: center;
   padding: var(--df-space-3) var(--df-space-4) 0;
 }
 
