@@ -41,7 +41,7 @@ export function createChatMcpServer(): McpServer {
         '',
         '### Joining',
         '- Use `chat_join` to register as a participant. Provide your `name` (e.g. "claude-code") and optionally `model` (e.g. "claude", "gpt-5").',
-        '- **Name assignment:** The server always assigns a unique memorable name from a pool (e.g. "ada", "bob", "luna"). Your requested `name` is used as a hint but the assigned name may differ. **Always use the `name` returned by `chat_join`** — that is your identity for the session.',
+        '- **Name assignment:** The server derives your name from `model` + pane number (e.g. "claude-1" for model "claude" on pane-1). **Always use the `name` returned by `chat_join`** — that is your identity for the session.',
         '- `"user"` and `"system"` are **reserved names** — do not use them.',
         '- `chat_join` requires an explicit `paneId`. Read `DEVGLIDE_PANE_ID` from your shell session and pass it as `paneId` every time. Do not rely on MCP process env inheritance.',
         '- **`submitKey` parameter:** Controls the character sent after PTY-injected messages to trigger input submission. Use `"cr"` (carriage return, default) for all known clients including Claude Code and Codex. The submit key is sent after a short delay to avoid paste-burst detection in TUI frameworks like crossterm.',
@@ -50,14 +50,13 @@ export function createChatMcpServer(): McpServer {
         '### Rules of Engagement',
         '- On `chat_join`, you receive a `rules` field containing the project\'s **Rules of Engagement** (markdown).',
         '- **Follow these rules exactly** — they define when you should respond and when to stay silent.',
-        '- Default rule: reply if @mentioned, or claim a clearly defined part of a global user request before acting. Do not let multiple LLMs answer the same global request uncoordinated.',
+        '- Default rule: reply if @mentioned, or if the user makes a global request only after your claim has been explicitly confirmed by the other active LLM participants. Do not let multiple LLMs answer the same global request uncoordinated.',
         '- Rules can be customized per project. Always follow the rules returned by `chat_join`.',
         '',
         '### Sending messages',
         '- Use `chat_send` to send a message. Use **@mentions in the message body** to address specific participants (e.g. `@user check this`).',
         '- **All messages are broadcast** to every participant in the project. @mentions are a semantic signal (who should act), not a delivery filter.',
         '- Never @mention yourself — messages are never delivered back to the sender.',
-        '- Use `#topics` when a thread branches (for example `#rules`, `#kanban`, `#chat`). Topics are stored with the message and can be filtered in history.',
         '- Markdown is supported in message bodies.',
         '',
         '### Reading history',
@@ -79,7 +78,7 @@ export function createChatMcpServer(): McpServer {
         '- `chat_join(name, model?, paneId, submitKey?)` — register. `paneId` is required and should come from `DEVGLIDE_PANE_ID` in your shell. Check returned `name` (server assigns it). `"user"`/`"system"` reserved. `submitKey`: `"cr"` (default, correct for all known clients including Claude Code and Codex).',
         '- `chat_leave()` — unregister from the chat room.',
         '- `chat_send(message, to?)` — send a message. Delivery is broadcast within the project; use `@mentions` only to signal who should respond.',
-        '- `chat_read(limit?, since?, topic?)` — read message history, optionally filtered by `#topic`.',
+        '- `chat_read(limit?, since?)` — read message history.',
         '- `chat_members()` — list active participants with pane link status.',
       ],
     },
@@ -180,10 +179,9 @@ export function createChatMcpServer(): McpServer {
     {
       limit: z.number().optional().describe('Max messages to return (default 50)'),
       since: z.string().optional().describe('ISO timestamp — only return messages after this time'),
-      topic: z.string().optional().describe('Optional topic name without `#` to filter history to a specific thread'),
     },
-    async ({ limit, since, topic }) => {
-      const messages = store.readMessages({ limit, since, topic });
+    async ({ limit, since }) => {
+      const messages = store.readMessages({ limit, since });
       return jsonResult(messages);
     },
   );

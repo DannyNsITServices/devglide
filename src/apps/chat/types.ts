@@ -4,7 +4,6 @@ export interface ChatMessage {
   from: string;         // participant name
   to: string | null;    // null = broadcast, "name" = direct
   body: string;         // markdown text
-  topic: string | null; // extracted from first #hashtag in body, null = main chat
   type: 'message' | 'join' | 'leave' | 'system';
 }
 

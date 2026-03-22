@@ -1,118 +1,8 @@
-@keyframes pr-slide-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+/* ── Prompts — App-specific styles ─────────────────────────────────────────── */
+/* Common primitives (page root, header, main, search, groups, scrollbar,      */
+/* filter-select, empty-state, entry-actions) are provided by shared-ui.css.   */
 
-.page-prompts {
-  font-family: var(--df-font-mono);
-  background: var(--df-color-bg-base);
-  color: var(--df-color-text-primary);
-  -webkit-font-smoothing: antialiased;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-
-/* ── Header ─────────────────────────────────────────────────────── */
-.page-prompts header {
-  flex-shrink: 0;
-}
-
-.page-prompts .toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--df-space-2);
-}
-
-.page-prompts .pr-filter-select {
-  background: var(--df-color-bg-raised);
-  border: 1px solid var(--df-color-border-default);
-  color: var(--df-color-text-primary);
-  font-family: var(--df-font-mono);
-  font-size: var(--df-font-size-xs);
-  padding: var(--df-space-1) var(--df-space-3);
-  padding-right: var(--df-space-5);
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23636e7b'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  transition: border-color var(--df-duration-fast);
-}
-
-.page-prompts .pr-filter-select:hover,
-.page-prompts .pr-filter-select:focus-visible {
-  border-color: var(--df-color-accent-default);
-}
-
-/* ── Main layout ────────────────────────────────────────────────── */
-.page-prompts main {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: var(--df-space-6) var(--df-space-4);
-  scrollbar-width: thin;
-  scrollbar-color: var(--df-color-border-default) transparent;
-}
-
-.page-prompts .pr-container {
-  max-width: var(--df-max-width-md);
-  margin: 0 auto;
-}
-
-/* ── Search bar ─────────────────────────────────────────────────── */
-.page-prompts .pr-search-bar {
-  margin-bottom: var(--df-space-4);
-}
-
-.page-prompts .pr-search-input {
-  width: 100%;
-  background: var(--df-color-bg-raised);
-  border: 1px solid var(--df-color-border-default);
-  color: var(--df-color-text-primary);
-  font-family: var(--df-font-mono);
-  font-size: var(--df-font-size-sm);
-  padding: var(--df-space-2) var(--df-space-3);
-  outline: none;
-  transition: border-color var(--df-duration-fast);
-}
-
-.page-prompts .pr-search-input::placeholder {
-  color: var(--df-color-text-muted);
-}
-
-.page-prompts .pr-search-input:focus-visible {
-  border-color: var(--df-color-accent-default);
-  box-shadow: inset 0 0 0 1px var(--df-color-accent-dim);
-}
-
-/* ── Groups ─────────────────────────────────────────────────────── */
-.page-prompts .pr-group {
-  margin-bottom: var(--df-space-4);
-  background: var(--df-color-bg-surface);
-  border: 1px solid var(--df-color-border-subtle);
-  clip-path: var(--df-clip-md);
-  overflow: hidden;
-  animation: pr-slide-up var(--df-duration-base) var(--df-easing-default) both;
-}
-
-.page-prompts .pr-group-title {
-  display: flex;
-  align-items: center;
-  gap: var(--df-space-2);
-  padding: var(--df-space-2) var(--df-space-4);
-  font-size: var(--df-font-size-xs);
-  font-weight: normal;
-  color: var(--df-color-text-muted);
-  letter-spacing: var(--df-letter-spacing-wider);
-  text-transform: uppercase;
-  background: var(--df-color-bg-raised);
-  border-bottom: 1px solid var(--df-color-border-subtle);
-  user-select: none;
-}
-
-/* ── Entry cards ────────────────────────────────────────────────── */
+/* ── Entry cards ────────────────────────────────────────────────────── */
 .page-prompts .pr-entry-card {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -191,23 +81,17 @@
   margin-left: auto;
 }
 
-.page-prompts .pr-entry-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--df-space-2);
-  flex-shrink: 0;
+.page-prompts .pr-entry-card .entry-actions {
   grid-column: 2;
   grid-row: 1 / 4;
   align-self: center;
-  opacity: 0;
-  transition: opacity var(--df-duration-fast);
 }
 
-.page-prompts .pr-entry-card:hover .pr-entry-actions {
+.page-prompts .pr-entry-card:hover .entry-actions--hover {
   opacity: 1;
 }
 
-/* ── Variable detection ─────────────────────────────────────────── */
+/* ── Variable detection ─────────────────────────────────────────────── */
 .page-prompts .pr-vars-detected,
 .pr-vars-detected {
   display: flex;
@@ -219,7 +103,7 @@
   min-height: 1.4em;
 }
 
-/* ── Rating input ───────────────────────────────────────────────── */
+/* ── Rating input ───────────────────────────────────────────────────── */
 .page-prompts .pr-rating-input,
 .pr-rating-input {
   display: flex;
@@ -250,65 +134,27 @@
   transform: scale(1.15);
 }
 
-/* ── Modal error ────────────────────────────────────────────────── */
-.page-prompts .pr-modal-error,
-.pr-modal-error {
-  font-size: var(--df-font-size-xs);
-  color: var(--df-color-state-error);
-  min-height: 1.2em;
-  margin-top: var(--df-space-1);
-}
-
-/* ── Stagger animation ──────────────────────────────────────────── */
-.page-prompts .pr-group:nth-child(1) { animation-delay: 0ms; }
-.page-prompts .pr-group:nth-child(2) { animation-delay: 60ms; }
-.page-prompts .pr-group:nth-child(3) { animation-delay: 120ms; }
-.page-prompts .pr-group:nth-child(4) { animation-delay: 180ms; }
-.page-prompts .pr-group:nth-child(5) { animation-delay: 240ms; }
-
-/* ── Scrollbar ──────────────────────────────────────────────────── */
-.page-prompts ::-webkit-scrollbar { width: 8px; }
-.page-prompts ::-webkit-scrollbar-track { background: transparent; }
-.page-prompts ::-webkit-scrollbar-thumb { background: var(--df-color-border-default); border-radius: var(--df-radius-full); }
-.page-prompts ::-webkit-scrollbar-thumb:hover { background: var(--df-color-border-strong); }
-
-/* ── Reduced motion ─────────────────────────────────────────────── */
+/* ── Reduced motion ─────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .page-prompts .pr-group { animation: none; }
+  .page-prompts .group { animation: none; }
 }
 
-/* ── Mobile ─────────────────────────────────────────────────────── */
+/* ── Mobile ─────────────────────────────────────────────────────────── */
 @media (max-width: 639px) {
-  .page-prompts main {
-    padding: var(--df-space-3);
-  }
-
-  .page-prompts .toolbar-actions {
-    gap: var(--df-space-1);
-  }
-
   .page-prompts .pr-entry-card {
     grid-template-columns: 1fr;
   }
 
-  .page-prompts .pr-entry-actions {
+  .page-prompts .pr-entry-card .entry-actions {
     opacity: 1;
     grid-column: 1;
     grid-row: 4;
     justify-content: flex-end;
   }
-
-  .page-prompts .pr-filter-select {
-    display: none;
-  }
 }
 
-/* ── Large screens ──────────────────────────────────────────────── */
+/* ── Large screens ──────────────────────────────────────────────────── */
 @media (min-width: 1440px) {
-  .page-prompts .pr-container {
-    max-width: var(--df-max-width-lg);
-  }
-
   .page-prompts .pr-entry-card {
     padding: var(--df-space-3) var(--df-space-5);
   }

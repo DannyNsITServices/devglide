@@ -1,136 +1,8 @@
-@keyframes vc-slide-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+/* ── Vocabulary — App-specific styles ──────────────────────────────────────── */
+/* Common primitives (page root, header, main, search, groups, scrollbar,      */
+/* filter-select, empty-state, entry-row, entry-actions) are in shared-ui.css. */
 
-.page-vocabulary {
-  font-family: var(--df-font-mono);
-  background: var(--df-color-bg-base);
-  color: var(--df-color-text-primary);
-  -webkit-font-smoothing: antialiased;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-
-/* ── Header ─────────────────────────────────────────────────────── */
-.page-vocabulary header {
-  flex-shrink: 0;
-}
-
-.page-vocabulary .toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--df-space-2);
-}
-
-.page-vocabulary .vc-filter-select {
-  background: var(--df-color-bg-raised);
-  border: 1px solid var(--df-color-border-default);
-  color: var(--df-color-text-primary);
-  font-family: var(--df-font-mono);
-  font-size: var(--df-font-size-xs);
-  padding: var(--df-space-1) var(--df-space-3);
-  padding-right: var(--df-space-5);
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23636e7b'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  transition: border-color var(--df-duration-fast);
-}
-
-.page-vocabulary .vc-filter-select:hover,
-.page-vocabulary .vc-filter-select:focus-visible {
-  border-color: var(--df-color-accent-default);
-}
-
-/* ── Main layout ────────────────────────────────────────────────── */
-.page-vocabulary main {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: var(--df-space-6) var(--df-space-4);
-  scrollbar-width: thin;
-  scrollbar-color: var(--df-color-border-default) transparent;
-}
-
-.page-vocabulary .vc-container {
-  max-width: var(--df-max-width-md);
-  margin: 0 auto;
-}
-
-/* ── Search bar ─────────────────────────────────────────────────── */
-.page-vocabulary .vc-search-bar {
-  margin-bottom: var(--df-space-4);
-}
-
-.page-vocabulary .vc-search-input {
-  width: 100%;
-  background: var(--df-color-bg-raised);
-  border: 1px solid var(--df-color-border-default);
-  color: var(--df-color-text-primary);
-  font-family: var(--df-font-mono);
-  font-size: var(--df-font-size-sm);
-  padding: var(--df-space-2) var(--df-space-3);
-  outline: none;
-  transition: border-color var(--df-duration-fast);
-}
-
-.page-vocabulary .vc-search-input::placeholder {
-  color: var(--df-color-text-muted);
-}
-
-.page-vocabulary .vc-search-input:focus-visible {
-  border-color: var(--df-color-accent-default);
-  box-shadow: inset 0 0 0 1px var(--df-color-accent-dim);
-}
-
-/* ── Groups ─────────────────────────────────────────────────────── */
-.page-vocabulary .vc-group {
-  margin-bottom: var(--df-space-4);
-  background: var(--df-color-bg-surface);
-  border: 1px solid var(--df-color-border-subtle);
-  clip-path: var(--df-clip-md);
-  overflow: hidden;
-  animation: vc-slide-up var(--df-duration-base) var(--df-easing-default) both;
-}
-
-.page-vocabulary .vc-group-title {
-  display: flex;
-  align-items: center;
-  gap: var(--df-space-2);
-  padding: var(--df-space-2) var(--df-space-4);
-  font-size: var(--df-font-size-xs);
-  font-weight: normal;
-  color: var(--df-color-text-muted);
-  letter-spacing: var(--df-letter-spacing-wider);
-  text-transform: uppercase;
-  background: var(--df-color-bg-raised);
-  border-bottom: 1px solid var(--df-color-border-subtle);
-  user-select: none;
-}
-
-/* ── Entry rows ─────────────────────────────────────────────────── */
-.page-vocabulary .vc-entry-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--df-space-3);
-  padding: var(--df-space-3) var(--df-space-4);
-  border-bottom: 1px solid var(--df-color-border-subtle);
-  transition: background var(--df-duration-fast) ease;
-}
-
-.page-vocabulary .vc-entry-row:last-child {
-  border-bottom: none;
-}
-
-.page-vocabulary .vc-entry-row:hover {
-  background: color-mix(in srgb, var(--df-color-accent-default) 4%, transparent);
-}
-
+/* ── Entry content ──────────────────────────────────────────────────── */
 .page-vocabulary .vc-entry-left {
   flex: 1;
   min-width: 0;
@@ -164,84 +36,34 @@
   margin-top: var(--df-space-2);
 }
 
-.page-vocabulary .vc-entry-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--df-space-2);
-  flex-shrink: 0;
-  opacity: 0;
-  transition: opacity var(--df-duration-fast);
-}
-
-.page-vocabulary .vc-entry-row:hover .vc-entry-actions {
-  opacity: 1;
-}
-
 .page-vocabulary .vc-delete-msg {
   font-size: var(--df-font-size-xs);
   color: var(--df-color-state-error);
   white-space: nowrap;
 }
 
-/* ── Modal error ────────────────────────────────────────────────── */
-.page-vocabulary .vc-modal-error {
-  font-size: var(--df-font-size-xs);
-  color: var(--df-color-state-error);
-  min-height: 1.2em;
-  margin-top: var(--df-space-1);
-}
-
-/* ── Stagger animation ──────────────────────────────────────────── */
-.page-vocabulary .vc-group:nth-child(1) { animation-delay: 0ms; }
-.page-vocabulary .vc-group:nth-child(2) { animation-delay: 60ms; }
-.page-vocabulary .vc-group:nth-child(3) { animation-delay: 120ms; }
-.page-vocabulary .vc-group:nth-child(4) { animation-delay: 180ms; }
-.page-vocabulary .vc-group:nth-child(5) { animation-delay: 240ms; }
-
-/* ── Scrollbar ──────────────────────────────────────────────────── */
-.page-vocabulary ::-webkit-scrollbar { width: 8px; }
-.page-vocabulary ::-webkit-scrollbar-track { background: transparent; }
-.page-vocabulary ::-webkit-scrollbar-thumb { background: var(--df-color-border-default); border-radius: var(--df-radius-full); }
-.page-vocabulary ::-webkit-scrollbar-thumb:hover { background: var(--df-color-border-strong); }
-
-/* ── Reduced motion ─────────────────────────────────────────────── */
+/* ── Reduced motion ─────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .page-vocabulary .vc-group { animation: none; }
+  .page-vocabulary .group { animation: none; }
 }
 
-/* ── Mobile ─────────────────────────────────────────────────────── */
+/* ── Mobile ─────────────────────────────────────────────────────────── */
 @media (max-width: 639px) {
-  .page-vocabulary main {
-    padding: var(--df-space-3);
-  }
-
-  .page-vocabulary .toolbar-actions {
-    gap: var(--df-space-1);
-  }
-
-  .page-vocabulary .vc-entry-row {
+  .page-vocabulary .entry-row {
     flex-direction: column;
     gap: var(--df-space-2);
   }
 
-  .page-vocabulary .vc-entry-actions {
+  .page-vocabulary .entry-actions--hover {
     opacity: 1;
     width: 100%;
     justify-content: flex-end;
   }
-
-  .page-vocabulary .vc-filter-select {
-    display: none;
-  }
 }
 
-/* ── Large screens ──────────────────────────────────────────────── */
+/* ── Large screens ──────────────────────────────────────────────────── */
 @media (min-width: 1440px) {
-  .page-vocabulary .vc-container {
-    max-width: var(--df-max-width-lg);
-  }
-
-  .page-vocabulary .vc-entry-row {
+  .page-vocabulary .entry-row {
     padding: var(--df-space-3) var(--df-space-5);
   }
 }

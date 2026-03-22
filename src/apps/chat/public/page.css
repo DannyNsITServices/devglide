@@ -3,36 +3,21 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ── Chat — App-specific styles ────────────────────────────────────────────── */
+/* Common primitives (page root, header, scrollbar) are in shared-ui.css.      */
+
 .page-chat {
-  font-family: var(--df-font-mono);
-  background: var(--df-color-bg-base);
-  color: var(--df-color-text-primary);
-  -webkit-font-smoothing: antialiased;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
   position: relative;
 }
 
 /* ── Header ─────────────────────────────────────────────────────── */
 .page-chat header {
-  flex-shrink: 0;
 }
 
 .page-chat .toolbar-actions {
   display: flex;
   align-items: center;
   gap: var(--df-space-2);
-}
-
-.chat-topic-filter {
-  background: var(--df-color-bg-raised);
-  border: 1px solid var(--df-color-border-default);
-  color: var(--df-color-text-primary);
-  font-family: var(--df-font-mono);
-  font-size: var(--df-font-size-xs);
-  padding: var(--df-space-1) var(--df-space-3);
 }
 
 /* ── Main layout ────────────────────────────────────────────────── */
@@ -161,18 +146,6 @@
   align-items: center;
   gap: var(--df-space-2);
   margin-bottom: 4px;
-}
-
-.chat-topic-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--df-color-accent-default) 14%, var(--df-color-bg-raised));
-  border: 1px solid color-mix(in srgb, var(--df-color-accent-default) 30%, transparent);
-  color: var(--df-color-accent-default);
-  font-size: var(--df-font-size-xs);
-  line-height: 1;
 }
 
 .chat-msg-body {

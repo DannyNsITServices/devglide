@@ -1,0 +1,359 @@
+/* ── shared-ui.css — Common CSS primitives for dashboard apps ──────────────── */
+/* Uses existing design tokens: var(--df-*) CSS custom properties.              */
+/* App-specific styles remain in each app's page.css.                           */
+
+/* ── Animations ────────────────────────────────────────────────────────────── */
+
+@keyframes sui-slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sui-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── App page root ─────────────────────────────────────────────────────────── */
+
+.app-page {
+  font-family: var(--df-font-mono);
+  background: var(--df-color-bg-base);
+  color: var(--df-color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+
+.app-page header {
+  flex-shrink: 0;
+}
+
+.app-page .toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+}
+
+/* ── Main content ──────────────────────────────────────────────────────────── */
+
+.app-page main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--df-space-6) var(--df-space-4);
+  scrollbar-width: thin;
+  scrollbar-color: var(--df-color-border-default) transparent;
+}
+
+.app-page .content-container {
+  max-width: var(--df-max-width-md);
+  margin: 0 auto;
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────────── */
+/* Base .btn and variants are defined in the dashboard's global CSS.            */
+/* These are additional shared patterns for app-specific button contexts.       */
+
+/* ── Badges ────────────────────────────────────────────────────────────────── */
+/* Base .badge is defined in the dashboard's global CSS.                        */
+
+/* ── Filter select (toolbar dropdowns) ─────────────────────────────────────── */
+
+.app-page .filter-select {
+  background: var(--df-color-bg-raised);
+  border: 1px solid var(--df-color-border-default);
+  color: var(--df-color-text-primary);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-xs);
+  padding: var(--df-space-1) var(--df-space-3);
+  padding-right: var(--df-space-5);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23636e7b'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  transition: border-color var(--df-duration-fast);
+}
+
+.app-page .filter-select:hover,
+.app-page .filter-select:focus-visible {
+  border-color: var(--df-color-accent-default);
+}
+
+/* ── Search input ──────────────────────────────────────────────────────────── */
+
+.app-page .search-bar {
+  margin-bottom: var(--df-space-4);
+}
+
+.app-page .search-input {
+  width: 100%;
+  background: var(--df-color-bg-raised);
+  border: 1px solid var(--df-color-border-default);
+  color: var(--df-color-text-primary);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-sm);
+  padding: var(--df-space-2) var(--df-space-3);
+  outline: none;
+  transition: border-color var(--df-duration-fast);
+}
+
+.app-page .search-input::placeholder {
+  color: var(--df-color-text-muted);
+}
+
+.app-page .search-input:focus-visible {
+  border-color: var(--df-color-accent-default);
+  box-shadow: inset 0 0 0 1px var(--df-color-accent-dim);
+}
+
+/* ── Modal ─────────────────────────────────────────────────────────────────── */
+
+.sui-modal-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(7, 10, 18, 0.7);
+  backdrop-filter: blur(8px);
+  z-index: 40;
+  animation: sui-fade-in var(--df-duration-fast) ease;
+}
+
+.sui-modal {
+  background: var(--df-color-bg-surface);
+  border: 1px solid var(--df-color-border-default);
+  clip-path: var(--df-clip-lg);
+  width: 90%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: sui-slide-up var(--df-duration-base) var(--df-easing-default);
+}
+
+.sui-modal-lg {
+  max-width: 640px;
+}
+
+.sui-modal-header {
+  padding: var(--df-space-4) var(--df-space-5);
+  border-bottom: 1px solid var(--df-color-border-subtle);
+}
+
+.sui-modal-header h2 {
+  font-size: var(--df-font-size-sm);
+  font-weight: 600;
+  color: var(--df-color-text-primary);
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wider);
+  margin: 0;
+}
+
+.sui-modal-header p {
+  font-size: var(--df-font-size-sm);
+  color: var(--df-color-text-secondary);
+  margin: var(--df-space-1) 0 0;
+}
+
+.sui-modal-body {
+  padding: var(--df-space-4) var(--df-space-5);
+}
+
+.sui-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--df-space-2);
+  padding: var(--df-space-3) var(--df-space-5);
+  border-top: 1px solid var(--df-color-border-subtle);
+}
+
+.sui-modal-error {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-state-error);
+  min-height: 1.2em;
+  margin-top: var(--df-space-1);
+}
+
+/* ── Toast ─────────────────────────────────────────────────────────────────── */
+
+.sui-toast-container {
+  position: fixed;
+  bottom: var(--df-space-4);
+  left: var(--df-space-4);
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  gap: var(--df-space-2);
+  pointer-events: none;
+}
+
+.sui-toast {
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-sm);
+  padding: var(--df-space-2) var(--df-space-4);
+  border: 1px solid var(--df-color-border-default);
+  background: var(--df-color-bg-surface);
+  color: var(--df-color-text-primary);
+  clip-path: var(--df-clip-md);
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity var(--df-duration-fast), transform var(--df-duration-fast);
+}
+
+.sui-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.sui-toast--success {
+  border-color: var(--df-color-state-success, #22c55e);
+  color: var(--df-color-state-success, #22c55e);
+}
+
+.sui-toast--warning {
+  border-color: var(--df-color-state-warning, #f59e0b);
+  color: var(--df-color-state-warning, #f59e0b);
+}
+
+.sui-toast--error {
+  border-color: var(--df-color-state-error, #ef4444);
+  color: var(--df-color-state-error, #ef4444);
+}
+
+/* ── Empty state ───────────────────────────────────────────────────────────── */
+
+.app-page .empty-state {
+  text-align: center;
+  padding: var(--df-space-8) var(--df-space-4);
+  color: var(--df-color-text-muted);
+  font-size: var(--df-font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--df-letter-spacing-wider);
+}
+
+/* ── Groups (card sections) ────────────────────────────────────────────────── */
+
+.app-page .group {
+  margin-bottom: var(--df-space-4);
+  background: var(--df-color-bg-surface);
+  border: 1px solid var(--df-color-border-subtle);
+  clip-path: var(--df-clip-md);
+  overflow: hidden;
+  animation: sui-slide-up var(--df-duration-base) var(--df-easing-default) both;
+}
+
+.app-page .group-title {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+  padding: var(--df-space-2) var(--df-space-4);
+  font-size: var(--df-font-size-xs);
+  font-weight: normal;
+  color: var(--df-color-text-muted);
+  letter-spacing: var(--df-letter-spacing-wider);
+  text-transform: uppercase;
+  background: var(--df-color-bg-raised);
+  border-bottom: 1px solid var(--df-color-border-subtle);
+  user-select: none;
+}
+
+/* ── Entry rows / cards ────────────────────────────────────────────────────── */
+
+.app-page .entry-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--df-space-3);
+  padding: var(--df-space-3) var(--df-space-4);
+  border-bottom: 1px solid var(--df-color-border-subtle);
+  transition: background var(--df-duration-fast) ease;
+}
+
+.app-page .entry-row:last-child {
+  border-bottom: none;
+}
+
+.app-page .entry-row:hover {
+  background: color-mix(in srgb, var(--df-color-accent-default) 4%, transparent);
+}
+
+.app-page .entry-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+  flex-shrink: 0;
+}
+
+/* Hover-reveal: opt-in via .entry-actions--hover on the actions container.
+   The parent row/card must define its own :hover rule to reveal. */
+.app-page .entry-actions--hover {
+  opacity: 0;
+  transition: opacity var(--df-duration-fast);
+}
+
+.app-page .entry-row:hover .entry-actions--hover {
+  opacity: 1;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+
+.app-page ::-webkit-scrollbar { width: 8px; }
+.app-page ::-webkit-scrollbar-track { background: transparent; }
+.app-page ::-webkit-scrollbar-thumb { background: var(--df-color-border-default); border-radius: var(--df-radius-full); }
+.app-page ::-webkit-scrollbar-thumb:hover { background: var(--df-color-border-strong); }
+
+/* ── Stagger animation (up to 5 groups) ────────────────────────────────────── */
+
+.app-page .group:nth-child(1) { animation-delay: 0ms; }
+.app-page .group:nth-child(2) { animation-delay: 60ms; }
+.app-page .group:nth-child(3) { animation-delay: 120ms; }
+.app-page .group:nth-child(4) { animation-delay: 180ms; }
+.app-page .group:nth-child(5) { animation-delay: 240ms; }
+
+/* ── Reduced motion ────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .app-page .group { animation: none; }
+  .sui-modal { animation: none; }
+  .sui-toast { transition: none; }
+}
+
+/* ── Mobile ────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 639px) {
+  .app-page main {
+    padding: var(--df-space-3);
+  }
+
+  .app-page .toolbar-actions {
+    gap: var(--df-space-1);
+  }
+
+  .app-page .filter-select {
+    display: none;
+  }
+
+  .app-page .entry-actions--hover {
+    opacity: 1;
+  }
+
+  .sui-modal {
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px);
+  }
+}
+
+/* ── Large screens ─────────────────────────────────────────────────────────── */
+
+@media (min-width: 1440px) {
+  .app-page .content-container {
+    max-width: var(--df-max-width-lg);
+  }
+}

@@ -23,7 +23,6 @@ const sendMessageSchema = z.object({
 const messagesQuerySchema = z.object({
   limit: z.coerce.number().int().positive().optional(),
   since: z.string().optional(),
-  topic: z.string().min(1).optional(),
 });
 
 function badRequest(res: Response, message: string): void {

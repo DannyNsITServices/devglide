@@ -52,25 +52,32 @@ export function getChatNsp(): Namespace | null {
   return chatNsp;
 }
 
-// ── Memorable name generator ────────────────────────────────────────────────
-const NAMES = [
-  'bob', 'nick', 'mike', 'alex', 'sam', 'max', 'leo', 'ray', 'jay', 'kai',
-  'zoe', 'ada', 'eva', 'ivy', 'mia', 'ava', 'eli', 'ben', 'tom', 'dan',
-  'finn', 'hugo', 'iris', 'luna', 'nora', 'owen', 'reed', 'ruby', 'seth', 'vera',
-];
+// ── Identity-based name assignment ──────────────────────────────────────────
+// Names are derived from model + pane ID number (e.g. "claude-1", "codex-2").
+// The pane number makes names deterministic and tied to the shell session.
 
-/** Pick a unique name from the pool (e.g. "bob", "ada"). */
-function generateUniqueName(): string {
+/** Extract the numeric part from a pane ID (e.g. "pane-1" → "1", "pane-42" → "42"). */
+function extractPaneNumber(paneId: string | null): string | null {
+  if (!paneId) return null;
+  const match = paneId.match(/(\d+)/);
+  return match?.[1] ?? null;
+}
+
+/** Derive a name from model + pane number (e.g. "claude-1"). */
+function deriveUniqueName(hint: string, model: string | null, paneId: string | null): string {
+  const base = (model || hint || 'agent').toLowerCase().replace(/[^a-z0-9-]/g, '');
+  const paneNum = extractPaneNumber(paneId);
+
+  // Use model-paneNumber format (e.g. "claude-1")
+  const name = paneNum ? `${base}-${paneNum}` : base;
+
+  // If somehow still taken, append a sequential suffix
   const usedNames = new Set(participants.keys());
-  // Shuffle and pick first available
-  const shuffled = [...NAMES].sort(() => Math.random() - 0.5);
-  for (const name of shuffled) {
-    if (!usedNames.has(name)) return name;
-  }
-  // Fallback: sequential if all names taken
+  if (!usedNames.has(name)) return name;
+
   let i = 1;
-  while (usedNames.has(`agent-${i}`)) i++;
-  return `agent-${i}`;
+  while (usedNames.has(`${name}-${i}`)) i++;
+  return `${name}-${i}`;
 }
 
 /** Update the shell pane tab title to show the chat name. */
@@ -119,8 +126,8 @@ export function join(name: string, kind: 'user' | 'llm', paneId: string | null, 
     return existing;
   }
 
-  // No reclaim candidate — create fresh alias
-  const uniqueName = generateUniqueName();
+  // No reclaim candidate — derive name from model/identity
+  const uniqueName = deriveUniqueName(name, model, paneId);
   const participant: ChatParticipant = {
     name: uniqueName,
     kind,

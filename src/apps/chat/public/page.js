@@ -4,6 +4,7 @@
 
 import { escapeHtml } from '/shared-assets/ui-utils.js';
 import { dashboardSocket } from '/state.js';
+import { createHeader } from '/shared-ui/components/header.js';
 
 let _container = null;
 let _socket = null;
@@ -14,7 +15,6 @@ let _mentionIdx = -1;
 let _voiceHandler = null;
 let _rulesDraft = '';
 let _rulesLoaded = false;
-let _activeTopicFilter = '';
 
 const DRAFT_KEY = 'devglide-chat-draft';
 
@@ -66,19 +66,14 @@ async function parseJsonSafely(response) {
 // ── HTML ────────────────────────────────────────────────────────────
 
 const BODY_HTML = `
-  <header>
-    <div class="brand">Chat</div>
-    <div class="header-meta">
-      <span id="chat-member-count"></span>
-    </div>
-    <div class="toolbar-actions">
-      <select id="chat-topic-filter" class="chat-topic-filter" title="Filter by topic">
-        <option value="">All topics</option>
-      </select>
+  ${createHeader({
+    brand: 'Chat',
+    meta: '<span id="chat-member-count"></span>',
+    actions: `
       <button class="btn btn-secondary btn-sm" id="chat-btn-rules">Rules</button>
       <button class="btn btn-secondary btn-sm" id="chat-btn-clear">Clear</button>
-    </div>
-  </header>
+    `,
+  })}
 
   <main>
     <div class="chat-members-panel" id="chat-members-panel">
@@ -169,15 +164,11 @@ function onMessage(msg) {
   // Deduplicate by id
   if (_messages.some(m => m.id === msg.id)) return;
   _messages.push(msg);
-  syncTopicFilterOptions();
-  if (!_activeTopicFilter || msg.topic === _activeTopicFilter) {
-    appendMessageEl(msg);
-  }
+  appendMessageEl(msg);
 }
 
 function onCleared() {
   _messages = [];
-  syncTopicFilterOptions();
   renderAllMessages();
 }
 
@@ -250,34 +241,22 @@ function renderAllMessages() {
   if (!listEl) return;
 
   listEl.innerHTML = '';
-  const visibleMessages = _activeTopicFilter
-    ? _messages.filter((msg) => msg.topic === _activeTopicFilter)
-    : _messages;
-
-  if (visibleMessages.length === 0) {
+  if (_messages.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'chat-empty-state';
     empty.innerHTML = `
       <div class="chat-empty-icon">\u275D</div>
-      <div>${_activeTopicFilter ? `No messages for #${escapeHtml(_activeTopicFilter)}` : 'No messages yet'}</div>
-      <div class="chat-empty-hint">${_activeTopicFilter ? 'Pick another topic or clear the filter.' : 'Send a message or have an LLM join with chat_join'}</div>
+      <div>No messages yet</div>
+      <div class="chat-empty-hint">Send a message or have an LLM join with chat_join</div>
     `;
     listEl.appendChild(empty);
     return;
   }
 
-  for (const msg of visibleMessages) {
+  for (const msg of _messages) {
     appendMessageEl(msg, false);
   }
   scrollToBottom();
-}
-
-function createTopicBadge(topic) {
-  const badge = document.createElement('span');
-  badge.className = 'chat-topic-badge';
-  badge.textContent = '#' + topic;
-  badge.title = `Topic: #${topic}`;
-  return badge;
 }
 
 function appendMessageEl(msg, doScroll = true) {
@@ -297,12 +276,6 @@ function appendMessageEl(msg, doScroll = true) {
     el.textContent = msg.body;
   } else if (msg.from === 'user') {
     el.classList.add('from-user');
-    if (msg.topic) {
-      const meta = document.createElement('div');
-      meta.className = 'chat-msg-meta';
-      meta.appendChild(createTopicBadge(msg.topic));
-      el.appendChild(meta);
-    }
     const body = document.createElement('div');
     body.className = 'chat-msg-body';
     body.textContent = msg.body;
@@ -326,12 +299,6 @@ function appendMessageEl(msg, doScroll = true) {
     time.className = 'chat-msg-time';
     time.textContent = formatTime(msg.ts);
     el.appendChild(sender);
-    if (msg.topic) {
-      const meta = document.createElement('div');
-      meta.className = 'chat-msg-meta';
-      meta.appendChild(createTopicBadge(msg.topic));
-      el.appendChild(meta);
-    }
     el.appendChild(body);
     el.appendChild(time);
   }
@@ -372,26 +339,6 @@ function showNewIndicator() {
 function hideNewIndicator() {
   const el = _container?.querySelector('#chat-new-indicator');
   if (el) el.classList.add('hidden');
-}
-
-function syncTopicFilterOptions() {
-  const select = _container?.querySelector('#chat-topic-filter');
-  if (!select) return;
-
-  const topics = [...new Set(_messages.map((msg) => msg.topic).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b));
-  const nextValue = topics.includes(_activeTopicFilter) ? _activeTopicFilter : '';
-
-  select.innerHTML = '<option value="">All topics</option>';
-  for (const topic of topics) {
-    const option = document.createElement('option');
-    option.value = topic;
-    option.textContent = '#' + topic;
-    select.appendChild(option);
-  }
-
-  select.value = nextValue;
-  _activeTopicFilter = nextValue;
 }
 
 function setRulesStatus(message, tone = 'info') {
@@ -619,7 +566,6 @@ async function loadInitialData() {
       _members = await membersRes.json();
     }
     renderMembers();
-    syncTopicFilterOptions();
     renderAllMessages();
   } catch (err) {
     console.error('[chat] Failed to load initial data:', err);
@@ -642,13 +588,7 @@ function bindEvents() {
   _container.querySelector('#chat-btn-clear')?.addEventListener('click', async () => {
     await api('/messages', { method: 'DELETE' });
     _messages = [];
-    syncTopicFilterOptions();
     renderAllMessages();
-  });
-
-  _container.querySelector('#chat-topic-filter')?.addEventListener('change', (e) => {
-    _activeTopicFilter = e.target.value;
-    loadInitialData();
   });
 
   _container.querySelector('#chat-btn-rules')?.addEventListener('click', openRulesEditor);
@@ -683,9 +623,9 @@ export function mount(container, ctx) {
   _autoScroll = true;
   _rulesDraft = '';
   _rulesLoaded = false;
-  _activeTopicFilter = '';
 
-  container.classList.add('page-chat');
+
+  container.classList.add('page-chat', 'app-page');
   container.innerHTML = BODY_HTML;
 
   bindEvents();
@@ -730,14 +670,14 @@ export function unmount(container) {
   }
   closeMentionPopup();
   disconnectSocket();
-  container.classList.remove('page-chat');
+  container.classList.remove('page-chat', 'app-page');
   container.innerHTML = '';
   _container = null;
   _messages = [];
   _members = [];
   _rulesDraft = '';
   _rulesLoaded = false;
-  _activeTopicFilter = '';
+
   _colorMap.clear();
   _nextColorIdx = 0;
 }
@@ -747,7 +687,7 @@ export function onProjectChange(project) {
   _members = [];
   _rulesDraft = '';
   _rulesLoaded = false;
-  _activeTopicFilter = '';
+
   _colorMap.clear();
   _nextColorIdx = 0;
   if (_container) {

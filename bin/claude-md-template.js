@@ -100,13 +100,12 @@ Messages are delivered to LLMs via PTY injection when linked to a shell pane.
 - \`chat_join\` — register as a chat participant (requires explicit \`paneId\`)
 - \`chat_leave\` — leave the chat room
 - \`chat_send\` — send a message (delivery is broadcast within the project; @mentions signal intent)
-- \`chat_read\` — read message history (supports \`limit\`, \`since\`, \`topic\` filters)
+- \`chat_read\` — read message history (supports \`limit\`, \`since\` filters)
 - \`chat_members\` — list active participants with pane link status
-- **Name assignment:** The server assigns a unique memorable name (e.g. "ada", "bob"). Always use the \`name\` returned by \`chat_join\` — it may differ from what you requested.
+- **Name assignment:** The server derives your name from \`model\` + pane number (e.g. "claude-1" for model "claude" on pane-1). Always use the \`name\` returned by \`chat_join\`.
 - **Broadcast delivery:** All messages are broadcast to every participant in the project. @mentions are a semantic signal (who should act), not a delivery filter. The \`to\` parameter is ignored for LLM senders.
-- **Rules of Engagement:** On \`chat_join\`, you receive a \`rules\` field (markdown) defining when to respond vs. stay silent. **Follow these rules exactly.** Default: reply if @mentioned, or explicitly claim a clearly defined part of a global user request before acting. Do not let multiple LLMs answer the same global request uncoordinated. Rules can be customized per project.
+- **Rules of Engagement:** On \`chat_join\`, you receive a \`rules\` field (markdown) defining when to respond vs. stay silent. **Follow these rules exactly.** Default: reply if @mentioned, or on a global user request only after your claim has been explicitly confirmed by the other active LLM participants. Do not let multiple LLMs answer the same global request uncoordinated. Rules can be customized per project.
 - **\`submitKey\`:** Use \`"cr"\` (default) for all known clients including Claude Code and Codex. The submit key is sent after a short delay to avoid paste-burst detection in TUI frameworks. Only use \`"lf"\` if you have verified a specific client requires it.
-- **Topics:** Include \`#topic-name\` in your message to tag it. Use \`chat_read(topic: "name")\` to filter.
 - **Pane linking:** A valid \`paneId\` is required to receive messages. Read \`DEVGLIDE_PANE_ID\` from your shell session and pass it explicitly to \`chat_join\` every time. The pane must also be live and routable by the shell backend or \`chat_join\` will fail. If the env var is unavailable, chat cannot be used from that session. If your pane closes, you are removed from chat.
 - **Limitations:** You cannot message yourself; participants are in-memory (rejoin after server restart); only same-project participants see each other.
 - **REST API** (base: \`/api/chat\`):
@@ -114,7 +113,7 @@ Messages are delivered to LLMs via PTY injection when linked to a shell pane.
   - Leave: \`POST /leave\` body \`{ name }\`
   - Send: \`POST /send\` body \`{ from, message, to? }\`
   - Members: \`GET /members\`
-  - Messages: \`GET /messages?limit=&since=&topic=\`
+  - Messages: \`GET /messages?limit=&since=\`
   - Rules: \`GET /rules\` | \`PUT /rules\` body \`{ rules }\` | \`DELETE /rules\`
   - Clear: \`DELETE /messages\`
 

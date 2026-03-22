@@ -16,45 +16,24 @@ afterEach(() => {
 });
 
 describe('chat-store', () => {
-  it('extracts the first #topic from message bodies', () => {
-    const message = appendMessage({
-      from: 'user',
-      to: null,
-      body: 'Please handle #rules cleanup first',
-      type: 'message',
-    });
-
-    expect(message.topic).toBe('rules');
-  });
-
-  it('filters history by topic', () => {
+  it('persists and reads messages', () => {
     appendMessage({
       from: 'user',
       to: null,
-      body: 'Discuss #rules first',
-      type: 'message',
-    });
-    appendMessage({
-      from: 'user',
-      to: null,
-      body: 'Then review #kanban next',
+      body: 'Hello world',
       type: 'message',
     });
 
-    const rulesMessages = readMessages({ topic: 'rules' });
-    const kanbanMessages = readMessages({ topic: 'kanban' });
-
-    expect(rulesMessages).toHaveLength(1);
-    expect(rulesMessages[0]?.topic).toBe('rules');
-    expect(kanbanMessages).toHaveLength(1);
-    expect(kanbanMessages[0]?.topic).toBe('kanban');
+    const messages = readMessages();
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.body).toBe('Hello world');
   });
 
   it('clears persisted message history', () => {
     appendMessage({
       from: 'user',
       to: null,
-      body: 'clear #chat please',
+      body: 'test message',
       type: 'message',
     });
 

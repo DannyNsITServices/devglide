@@ -3,6 +3,7 @@
 // and onProjectChange(project).
 
 import { timeAgo, formatDuration } from '/shared-assets/ui-utils.js';
+import { createHeader } from '/shared-ui/components/header.js';
 
 let activeProjectPath = null;
 let _refreshTimer = null;
@@ -12,18 +13,16 @@ let _visibilityHandler = null;
 // ── HTML (body content, no script tags) ──────────────────────────────
 
 const BODY_HTML = `
-  <header>
-    <div class="brand">
-      Test
-    </div>
-    <div class="header-meta">
+  ${createHeader({
+    brand: 'Test',
+    meta: `
       <span class="badge badge-idle" id="status-badge" role="status" aria-live="polite">idle</span>
       <span>
         auto-refresh 5s
         <span class="refresh-indicator" id="refresh-dot"></span>
       </span>
-    </div>
-  </header>
+    `,
+  })}
 
   <main>
     <div class="saved-section">
@@ -357,7 +356,7 @@ export function mount(container, ctx) {
   _container = container;
 
   // 1. Scope the container
-  container.classList.add('page-test');
+  container.classList.add('page-test', 'app-page');
 
   // 2. Build HTML
   container.innerHTML = BODY_HTML;
@@ -391,7 +390,7 @@ export function unmount(container) {
   }
 
   // 3. Remove scope class & clear HTML
-  container.classList.remove('page-test');
+  container.classList.remove('page-test', 'app-page');
   container.innerHTML = '';
 
   // 4. Clear module references

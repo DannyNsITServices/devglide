@@ -2,6 +2,7 @@
 
 import { escapeHtml, timeAgo } from '/shared-assets/ui-utils.js';
 
+// Log keeps a custom header because the brand is clickable (data-action="show-sessions").
 const HTML = `
   <header>
     <div class="brand" data-action="show-sessions">Log</div>
@@ -392,7 +393,7 @@ function handleSourceToggle(e) {
 
 export function mount(container, ctx) {
   _container = container;
-  container.classList.add('page-log');
+  container.classList.add('page-log', 'app-page');
 
   // Reset module state
   currentView = 'sessions';
@@ -448,7 +449,7 @@ export function unmount(container) {
 
   // Clean up container
   if (container) {
-    container.classList.remove('page-log');
+    container.classList.remove('page-log', 'app-page');
     container.innerHTML = '';
   }
 
