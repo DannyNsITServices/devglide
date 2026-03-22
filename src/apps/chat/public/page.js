@@ -15,7 +15,6 @@ let _mentionIdx = -1;
 let _voiceHandler = null;
 let _rulesDraft = '';
 let _rulesLoaded = false;
-let _currentAssignment = null;
 
 const DRAFT_KEY = 'devglide-chat-draft';
 
@@ -129,7 +128,6 @@ function connectSocket() {
   _socket.on('chat:join', onJoin);
   _socket.on('chat:leave', onLeave);
   _socket.on('chat:message', onMessage);
-  _socket.on('chat:assignment', onAssignment);
   _socket.on('chat:cleared', onCleared);
 }
 
@@ -139,7 +137,6 @@ function disconnectSocket() {
     _socket.off('chat:join', onJoin);
     _socket.off('chat:leave', onLeave);
     _socket.off('chat:message', onMessage);
-    _socket.off('chat:assignment', onAssignment);
     _socket.off('chat:cleared', onCleared);
     // Don't disconnect — shared socket, other pages need it
     _socket = null;
@@ -168,19 +165,6 @@ function onMessage(msg) {
   if (_messages.some(m => m.id === msg.id)) return;
   _messages.push(msg);
   appendMessageEl(msg);
-}
-
-function onAssignment(assignment) {
-  _currentAssignment = assignment;
-  if (assignment?.messageId) {
-    const msg = _messages.find((m) => m.id === assignment.messageId);
-    if (msg) {
-      msg.assignedTo = assignment.owner;
-      msg.assignmentStatus = assignment.status;
-      updateMessageEl(msg);
-    }
-  }
-  renderMembers();
 }
 
 function onCleared() {
@@ -234,11 +218,6 @@ function renderMembers() {
       tag.className = 'chat-member-tag';
       tag.textContent = '(you)';
       item.appendChild(tag);
-    } else if (m.isAssigned) {
-      const tag = document.createElement('span');
-      tag.className = `chat-member-badge ${m.assignmentStatus === 'active' ? 'active' : 'assigned'}`;
-      tag.textContent = m.assignmentStatus === 'active' ? 'ACTIVE' : 'ON DECK';
-      item.appendChild(tag);
     } else if (m.detached) {
       const tag = document.createElement('span');
       tag.className = 'chat-member-tag detached';
@@ -268,7 +247,7 @@ function renderAllMessages() {
     empty.innerHTML = `
       <div class="chat-empty-icon">\u275D</div>
       <div>No messages yet</div>
-      <div class="chat-empty-hint">Send a message and the server will assign one responder by default.</div>
+      <div class="chat-empty-hint">Send a message or have an LLM join with chat_join</div>
     `;
     listEl.appendChild(empty);
     return;
@@ -288,7 +267,41 @@ function appendMessageEl(msg, doScroll = true) {
   const empty = listEl.querySelector('.chat-empty-state');
   if (empty) empty.remove();
 
-  const el = buildMessageEl(msg);
+  const el = document.createElement('div');
+  el.className = 'chat-msg';
+  el.dataset.id = msg.id;
+
+  if (msg.type === 'system' || msg.type === 'join' || msg.type === 'leave') {
+    el.classList.add('from-system');
+    el.textContent = msg.body;
+  } else if (msg.from === 'user') {
+    el.classList.add('from-user');
+    const body = document.createElement('div');
+    body.className = 'chat-msg-body';
+    body.textContent = msg.body;
+    const time = document.createElement('div');
+    time.className = 'chat-msg-time';
+    time.textContent = formatTime(msg.ts);
+    el.appendChild(body);
+    el.appendChild(time);
+  } else {
+    el.classList.add('from-llm');
+    const color = getParticipantColor(msg.from);
+    el.style.borderLeftColor = color;
+    const sender = document.createElement('div');
+    sender.className = 'chat-msg-sender';
+    sender.style.color = color;
+    sender.textContent = msg.from + (msg.to ? ` \u2192 ${msg.to}` : '');
+    const body = document.createElement('div');
+    body.className = 'chat-msg-body';
+    body.textContent = msg.body;
+    const time = document.createElement('div');
+    time.className = 'chat-msg-time';
+    time.textContent = formatTime(msg.ts);
+    el.appendChild(sender);
+    el.appendChild(body);
+    el.appendChild(time);
+  }
 
   listEl.appendChild(el);
 
@@ -299,68 +312,6 @@ function appendMessageEl(msg, doScroll = true) {
       showNewIndicator();
     }
   }
-}
-
-function updateMessageEl(msg) {
-  const existing = _container?.querySelector(`.chat-msg[data-id="${CSS.escape(msg.id)}"]`);
-  if (!existing) return;
-  existing.replaceWith(buildMessageEl(msg));
-}
-
-function buildMessageEl(msg) {
-  const el = document.createElement('div');
-  el.className = 'chat-msg';
-  el.dataset.id = msg.id;
-
-  if (msg.type === 'system' || msg.type === 'join' || msg.type === 'leave') {
-    el.classList.add('from-system');
-    el.textContent = msg.body;
-    return el;
-  }
-
-  if (msg.from === 'user') {
-    el.classList.add('from-user');
-    const body = document.createElement('div');
-    body.className = 'chat-msg-body';
-    body.textContent = msg.body;
-
-    const footer = document.createElement('div');
-    footer.className = 'chat-msg-footer';
-
-    if (msg.assignedTo) {
-      const assignment = document.createElement('span');
-      assignment.className = `chat-assignment-badge ${msg.assignmentStatus === 'active' ? 'active' : 'assigned'}`;
-      assignment.textContent = `${msg.assignmentStatus === 'active' ? 'Active' : 'Assigned'}: ${msg.assignedTo}`;
-      footer.appendChild(assignment);
-    }
-
-    const time = document.createElement('div');
-    time.className = 'chat-msg-time';
-    time.textContent = formatTime(msg.ts);
-    footer.appendChild(time);
-
-    el.appendChild(body);
-    el.appendChild(footer);
-    return el;
-  }
-
-  el.classList.add('from-llm');
-  const color = getParticipantColor(msg.from);
-  el.style.borderLeftColor = color;
-  const sender = document.createElement('div');
-  sender.className = 'chat-msg-sender';
-  sender.style.color = color;
-  sender.textContent = msg.from + (msg.to ? ` \u2192 ${msg.to}` : '');
-  const body = document.createElement('div');
-  body.className = 'chat-msg-body';
-  body.textContent = msg.body;
-  const time = document.createElement('div');
-  time.className = 'chat-msg-time';
-  time.textContent = formatTime(msg.ts);
-  el.appendChild(sender);
-  el.appendChild(body);
-  el.appendChild(time);
-  return el;
 }
 
 function formatTime(ts) {
@@ -614,13 +565,6 @@ async function loadInitialData() {
     if (membersRes.ok) {
       _members = await membersRes.json();
     }
-    if (_currentAssignment?.messageId) {
-      const msg = _messages.find((m) => m.id === _currentAssignment.messageId);
-      if (msg) {
-        msg.assignedTo = _currentAssignment.owner;
-        msg.assignmentStatus = _currentAssignment.status;
-      }
-    }
     renderMembers();
     renderAllMessages();
   } catch (err) {
@@ -676,7 +620,6 @@ export function mount(container, ctx) {
   _container = container;
   _messages = [];
   _members = [];
-  _currentAssignment = null;
   _autoScroll = true;
   _rulesDraft = '';
   _rulesLoaded = false;
@@ -732,7 +675,6 @@ export function unmount(container) {
   _container = null;
   _messages = [];
   _members = [];
-  _currentAssignment = null;
   _rulesDraft = '';
   _rulesLoaded = false;
 
@@ -743,7 +685,6 @@ export function unmount(container) {
 export function onProjectChange(project) {
   _messages = [];
   _members = [];
-  _currentAssignment = null;
   _rulesDraft = '';
   _rulesLoaded = false;
 

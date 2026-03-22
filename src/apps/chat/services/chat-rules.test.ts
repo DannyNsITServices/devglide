@@ -28,9 +28,8 @@ describe('chat-rules', () => {
     expect(getDefaultRules()).toBe(DEFAULT_RULES);
     expect(getEffectiveRules(TEST_PROJECT_ID)).toBe(DEFAULT_RULES);
     expect(hasProjectRules(TEST_PROJECT_ID)).toBe(false);
-    expect(DEFAULT_RULES).toContain('server assigned you as the default responder');
-    expect(DEFAULT_RULES).toContain('Trust assignment state over chat negotiation');
-    expect(DEFAULT_RULES).toContain('that same LLM must not also review it');
+    expect(DEFAULT_RULES).toContain('Claims stay pending until confirmed');
+    expect(DEFAULT_RULES).toContain('your claim has been explicitly confirmed by the other active LLM participants');
   });
 
   it('saves and resolves a project-specific override', () => {
