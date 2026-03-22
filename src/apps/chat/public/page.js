@@ -12,6 +12,9 @@ let _messages = [];
 let _autoScroll = true;
 let _mentionIdx = -1;
 let _voiceHandler = null;
+let _rulesDraft = '';
+let _rulesLoaded = false;
+let _activeTopicFilter = '';
 
 const DRAFT_KEY = 'devglide-chat-draft';
 
@@ -52,6 +55,14 @@ async function api(path, opts) {
   });
 }
 
+async function parseJsonSafely(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 // ── HTML ────────────────────────────────────────────────────────────
 
 const BODY_HTML = `
@@ -61,6 +72,10 @@ const BODY_HTML = `
       <span id="chat-member-count"></span>
     </div>
     <div class="toolbar-actions">
+      <select id="chat-topic-filter" class="chat-topic-filter" title="Filter by topic">
+        <option value="">All topics</option>
+      </select>
+      <button class="btn btn-secondary btn-sm" id="chat-btn-rules">Rules</button>
       <button class="btn btn-secondary btn-sm" id="chat-btn-clear">Clear</button>
     </div>
   </header>
@@ -76,11 +91,34 @@ const BODY_HTML = `
       <div class="chat-new-indicator hidden" id="chat-new-indicator">New messages below</div>
       <div class="chat-input-area" style="position:relative">
         <div class="chat-mention-popup hidden" id="chat-mention-popup"></div>
-        <input type="text" class="chat-input" id="chat-input" placeholder="Type a message... (@mention for direct)" autocomplete="off" />
+        <input type="text" class="chat-input" id="chat-input" placeholder="Type a message... (@mention to signal who should act)" autocomplete="off" />
         <button class="btn btn-primary btn-sm chat-send-btn" id="chat-send-btn">Send</button>
       </div>
     </div>
   </main>
+
+  <div class="chat-rules-overlay hidden" id="chat-rules-overlay" role="dialog" aria-modal="true" aria-labelledby="chat-rules-title">
+    <div class="chat-rules-modal">
+      <div class="chat-rules-header">
+        <div>
+          <h2 id="chat-rules-title">Rules Of Engagement</h2>
+          <p class="chat-rules-desc">Broadcast keeps every LLM in sync. These rules decide when an LLM is allowed to reply.</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="chat-rules-close" aria-label="Close rules editor">Close</button>
+      </div>
+      <div class="chat-rules-body">
+        <div class="chat-rules-note">
+          Project rules override the built-in default. Reset removes the project override and falls back to the default rules.
+        </div>
+        <div class="chat-rules-status hidden" id="chat-rules-status"></div>
+        <textarea class="chat-rules-textarea" id="chat-rules-textarea" rows="16" spellcheck="false" placeholder="Chat rules markdown"></textarea>
+      </div>
+      <div class="chat-rules-actions">
+        <button class="btn btn-secondary btn-sm" id="chat-rules-reset">Reset To Default</button>
+        <button class="btn btn-primary btn-sm" id="chat-rules-save">Save Rules</button>
+      </div>
+    </div>
+  </div>
 `;
 
 // ── Socket setup ────────────────────────────────────────────────────
@@ -131,11 +169,15 @@ function onMessage(msg) {
   // Deduplicate by id
   if (_messages.some(m => m.id === msg.id)) return;
   _messages.push(msg);
-  appendMessageEl(msg);
+  syncTopicFilterOptions();
+  if (!_activeTopicFilter || msg.topic === _activeTopicFilter) {
+    appendMessageEl(msg);
+  }
 }
 
 function onCleared() {
   _messages = [];
+  syncTopicFilterOptions();
   renderAllMessages();
 }
 
@@ -153,8 +195,9 @@ function renderMembers() {
     ..._members.filter(m => m.name !== 'user'),
   ];
 
+  const onlineCount = allMembers.filter(m => m.isUser || !m.detached).length;
   if (titleEl) titleEl.textContent = `Members (${allMembers.length})`;
-  if (countEl) countEl.textContent = `${allMembers.length} online`;
+  if (countEl) countEl.textContent = `${onlineCount} online`;
 
   listEl.innerHTML = '';
   for (const m of allMembers) {
@@ -162,16 +205,17 @@ function renderMembers() {
     item.className = 'chat-member-item';
 
     const dot = document.createElement('span');
-    dot.className = 'chat-member-dot ' + (m.paneId || m.isUser ? 'connected' : 'disconnected');
+    const isConnected = m.isUser || (m.paneId && !m.detached);
+    dot.className = 'chat-member-dot ' + (isConnected ? 'connected' : m.detached ? 'detached' : 'disconnected');
 
     const name = document.createElement('span');
     name.className = 'chat-member-name';
     name.textContent = m.name;
 
-    // Assign unique color to LLM participants
+    // Assign unique color to LLM participants (skip dot color for detached — let CSS handle it)
     if (!m.isUser) {
       const color = getParticipantColor(m.name);
-      dot.style.background = color;
+      if (!m.detached) dot.style.background = color;
       name.style.color = color;
     }
 
@@ -182,6 +226,11 @@ function renderMembers() {
       const tag = document.createElement('span');
       tag.className = 'chat-member-tag';
       tag.textContent = '(you)';
+      item.appendChild(tag);
+    } else if (m.detached) {
+      const tag = document.createElement('span');
+      tag.className = 'chat-member-tag detached';
+      tag.textContent = m.model ? `(${m.model} · detached)` : '(detached)';
       item.appendChild(tag);
     } else if (m.model) {
       const tag = document.createElement('span');
@@ -201,23 +250,34 @@ function renderAllMessages() {
   if (!listEl) return;
 
   listEl.innerHTML = '';
+  const visibleMessages = _activeTopicFilter
+    ? _messages.filter((msg) => msg.topic === _activeTopicFilter)
+    : _messages;
 
-  if (_messages.length === 0) {
+  if (visibleMessages.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'chat-empty-state';
     empty.innerHTML = `
       <div class="chat-empty-icon">\u275D</div>
-      <div>No messages yet</div>
-      <div class="chat-empty-hint">Send a message or have an LLM join with chat_join</div>
+      <div>${_activeTopicFilter ? `No messages for #${escapeHtml(_activeTopicFilter)}` : 'No messages yet'}</div>
+      <div class="chat-empty-hint">${_activeTopicFilter ? 'Pick another topic or clear the filter.' : 'Send a message or have an LLM join with chat_join'}</div>
     `;
     listEl.appendChild(empty);
     return;
   }
 
-  for (const msg of _messages) {
+  for (const msg of visibleMessages) {
     appendMessageEl(msg, false);
   }
   scrollToBottom();
+}
+
+function createTopicBadge(topic) {
+  const badge = document.createElement('span');
+  badge.className = 'chat-topic-badge';
+  badge.textContent = '#' + topic;
+  badge.title = `Topic: #${topic}`;
+  return badge;
 }
 
 function appendMessageEl(msg, doScroll = true) {
@@ -237,6 +297,12 @@ function appendMessageEl(msg, doScroll = true) {
     el.textContent = msg.body;
   } else if (msg.from === 'user') {
     el.classList.add('from-user');
+    if (msg.topic) {
+      const meta = document.createElement('div');
+      meta.className = 'chat-msg-meta';
+      meta.appendChild(createTopicBadge(msg.topic));
+      el.appendChild(meta);
+    }
     const body = document.createElement('div');
     body.className = 'chat-msg-body';
     body.textContent = msg.body;
@@ -260,6 +326,12 @@ function appendMessageEl(msg, doScroll = true) {
     time.className = 'chat-msg-time';
     time.textContent = formatTime(msg.ts);
     el.appendChild(sender);
+    if (msg.topic) {
+      const meta = document.createElement('div');
+      meta.className = 'chat-msg-meta';
+      meta.appendChild(createTopicBadge(msg.topic));
+      el.appendChild(meta);
+    }
     el.appendChild(body);
     el.appendChild(time);
   }
@@ -300,6 +372,108 @@ function showNewIndicator() {
 function hideNewIndicator() {
   const el = _container?.querySelector('#chat-new-indicator');
   if (el) el.classList.add('hidden');
+}
+
+function syncTopicFilterOptions() {
+  const select = _container?.querySelector('#chat-topic-filter');
+  if (!select) return;
+
+  const topics = [...new Set(_messages.map((msg) => msg.topic).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  const nextValue = topics.includes(_activeTopicFilter) ? _activeTopicFilter : '';
+
+  select.innerHTML = '<option value="">All topics</option>';
+  for (const topic of topics) {
+    const option = document.createElement('option');
+    option.value = topic;
+    option.textContent = '#' + topic;
+    select.appendChild(option);
+  }
+
+  select.value = nextValue;
+  _activeTopicFilter = nextValue;
+}
+
+function setRulesStatus(message, tone = 'info') {
+  const el = _container?.querySelector('#chat-rules-status');
+  if (!el) return;
+  if (!message) {
+    el.textContent = '';
+    el.className = 'chat-rules-status hidden';
+    return;
+  }
+  el.textContent = message;
+  el.className = `chat-rules-status ${tone}`;
+}
+
+function syncRulesDraftFromInput() {
+  const textarea = _container?.querySelector('#chat-rules-textarea');
+  if (!textarea) return;
+  _rulesDraft = textarea.value;
+}
+
+async function loadRules(force = false) {
+  if (_rulesLoaded && !force) return true;
+  setRulesStatus('Loading rules...');
+  try {
+    const res = await api('/rules');
+    const data = await parseJsonSafely(res);
+    if (!res.ok) throw new Error(data?.error || 'Failed to load rules');
+
+    const rules = typeof data?.rules === 'string' ? data.rules : '';
+    _rulesDraft = rules;
+    _rulesLoaded = true;
+    const textarea = _container?.querySelector('#chat-rules-textarea');
+    if (textarea) textarea.value = rules;
+    setRulesStatus(data?.isDefault ? 'Loaded default rules.' : 'Loaded project override rules.');
+    return true;
+  } catch (err) {
+    setRulesStatus(err instanceof Error ? err.message : 'Failed to load rules.', 'error');
+    return false;
+  }
+}
+
+async function openRulesEditor() {
+  const overlay = _container?.querySelector('#chat-rules-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+  const ok = await loadRules();
+  if (ok) _container?.querySelector('#chat-rules-textarea')?.focus();
+}
+
+function closeRulesEditor() {
+  _container?.querySelector('#chat-rules-overlay')?.classList.add('hidden');
+}
+
+async function saveRules() {
+  syncRulesDraftFromInput();
+  setRulesStatus('Saving rules...');
+  try {
+    const res = await api('/rules', {
+      method: 'PUT',
+      body: JSON.stringify({ rules: _rulesDraft }),
+    });
+    const data = await parseJsonSafely(res);
+    if (!res.ok) throw new Error(data?.error || 'Failed to save rules');
+    _rulesLoaded = true;
+    setRulesStatus('Project rules saved.', 'success');
+  } catch (err) {
+    setRulesStatus(err instanceof Error ? err.message : 'Failed to save rules.', 'error');
+  }
+}
+
+async function resetRules() {
+  setRulesStatus('Resetting rules...');
+  try {
+    const res = await api('/rules', { method: 'DELETE' });
+    const data = await parseJsonSafely(res);
+    if (!res.ok) throw new Error(data?.error || 'Failed to reset rules');
+    _rulesLoaded = false;
+    await loadRules(true);
+    setRulesStatus('Project override removed. Using default rules.', 'success');
+  } catch (err) {
+    setRulesStatus(err instanceof Error ? err.message : 'Failed to reset rules.', 'error');
+  }
 }
 
 // ── Input handling ──────────────────────────────────────────────────
@@ -445,6 +619,7 @@ async function loadInitialData() {
       _members = await membersRes.json();
     }
     renderMembers();
+    syncTopicFilterOptions();
     renderAllMessages();
   } catch (err) {
     console.error('[chat] Failed to load initial data:', err);
@@ -467,7 +642,22 @@ function bindEvents() {
   _container.querySelector('#chat-btn-clear')?.addEventListener('click', async () => {
     await api('/messages', { method: 'DELETE' });
     _messages = [];
+    syncTopicFilterOptions();
     renderAllMessages();
+  });
+
+  _container.querySelector('#chat-topic-filter')?.addEventListener('change', (e) => {
+    _activeTopicFilter = e.target.value;
+    loadInitialData();
+  });
+
+  _container.querySelector('#chat-btn-rules')?.addEventListener('click', openRulesEditor);
+  _container.querySelector('#chat-rules-close')?.addEventListener('click', closeRulesEditor);
+  _container.querySelector('#chat-rules-save')?.addEventListener('click', saveRules);
+  _container.querySelector('#chat-rules-reset')?.addEventListener('click', resetRules);
+  _container.querySelector('#chat-rules-textarea')?.addEventListener('input', syncRulesDraftFromInput);
+  _container.querySelector('#chat-rules-overlay')?.addEventListener('click', (e) => {
+    if (e.target?.id === 'chat-rules-overlay') closeRulesEditor();
   });
 
   // Auto-scroll detection
@@ -491,6 +681,9 @@ export function mount(container, ctx) {
   _messages = [];
   _members = [];
   _autoScroll = true;
+  _rulesDraft = '';
+  _rulesLoaded = false;
+  _activeTopicFilter = '';
 
   container.classList.add('page-chat');
   container.innerHTML = BODY_HTML;
@@ -542,6 +735,9 @@ export function unmount(container) {
   _container = null;
   _messages = [];
   _members = [];
+  _rulesDraft = '';
+  _rulesLoaded = false;
+  _activeTopicFilter = '';
   _colorMap.clear();
   _nextColorIdx = 0;
 }
@@ -549,6 +745,9 @@ export function unmount(container) {
 export function onProjectChange(project) {
   _messages = [];
   _members = [];
+  _rulesDraft = '';
+  _rulesLoaded = false;
+  _activeTopicFilter = '';
   _colorMap.clear();
   _nextColorIdx = 0;
   if (_container) {

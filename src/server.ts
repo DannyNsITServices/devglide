@@ -258,7 +258,9 @@ mountMcpHttp(app, createChatMcpServer, '/mcp/chat', {
   onSessionClose: (server) => {
     const names = chatServerSessions.get(server);
     if (names) {
-      for (const name of names) chatRegistry.leave(name);
+      // Detach instead of leave — alias stays reserved for reclaim on rejoin.
+      // Full removal happens only on pane closure or explicit chat_leave.
+      for (const name of names) chatRegistry.detach(name);
       chatServerSessions.delete(server);
     }
   },

@@ -5,6 +5,11 @@ import type { ChatMessage } from '../types.js';
 import { getActiveProject } from '../../../project-context.js';
 import { projectDataDir } from '../../../packages/paths.js';
 
+function extractTopic(body: string): string | null {
+  const match = body.match(/(^|\s)#([a-zA-Z][\w-]*)\b/);
+  return match?.[2] ?? null;
+}
+
 function getChatDir(): string | null {
   const project = getActiveProject();
   if (!project) return null;
@@ -18,12 +23,12 @@ function getMessagesPath(): string | null {
   return join(dir, 'messages.jsonl');
 }
 
-export function appendMessage(msg: Omit<ChatMessage, 'id' | 'ts' | 'topic'>): ChatMessage {
+export function appendMessage(msg: Omit<ChatMessage, 'id' | 'ts' | 'topic'> & { topic?: string | null }): ChatMessage {
   const full: ChatMessage = {
     id: randomUUID(),
     ts: new Date().toISOString(),
-    topic: null,
     ...msg,
+    topic: msg.topic ?? extractTopic(msg.body),
   };
 
   const filePath = getMessagesPath();
@@ -34,7 +39,7 @@ export function appendMessage(msg: Omit<ChatMessage, 'id' | 'ts' | 'topic'>): Ch
   return full;
 }
 
-export function readMessages(opts?: { limit?: number; since?: string }): ChatMessage[] {
+export function readMessages(opts?: { limit?: number; since?: string; topic?: string }): ChatMessage[] {
   const filePath = getMessagesPath();
   if (!filePath || !existsSync(filePath)) return [];
 
@@ -53,6 +58,10 @@ export function readMessages(opts?: { limit?: number; since?: string }): ChatMes
   if (opts?.since) {
     const sinceDate = new Date(opts.since).getTime();
     messages = messages.filter((m) => new Date(m.ts).getTime() > sinceDate);
+  }
+
+  if (opts?.topic) {
+    messages = messages.filter((m) => m.topic === opts.topic);
   }
 
   const limit = opts?.limit ?? 50;

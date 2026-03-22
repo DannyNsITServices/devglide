@@ -7,6 +7,21 @@ import { getActiveProject, onProjectChange } from '../../../project-context.js';
 // In-memory participant registry
 const participants = new Map<string, ChatParticipant>();
 let chatNsp: Namespace | null = null;
+const paneDeliveryQueues = new Map<string, Promise<void>>();
+const participantSessionEpochs = new Map<string, number>();
+
+const PTY_SUBMIT_DELAY_MS = 500;
+const PTY_RETRY_SUBMIT_DELAY_MS = 1000;
+
+function bumpParticipantSessionEpoch(name: string): number {
+  const next = (participantSessionEpochs.get(name) ?? 0) + 1;
+  participantSessionEpochs.set(name, next);
+  return next;
+}
+
+function currentParticipantSessionEpoch(name: string): number {
+  return participantSessionEpochs.get(name) ?? 0;
+}
 
 function activeProjectId(): string | null {
   return getActiveProject()?.id ?? null;
@@ -68,9 +83,44 @@ function updatePaneTitle(paneId: string, chatName: string): void {
   getShellNsp()?.emit('state:pane-chat-name', { id: paneId, chatName });
 }
 
+/** Find an existing participant that can be reclaimed by projectId + paneId + model. */
+function findReclaimCandidate(paneId: string | null, model: string | null): ChatParticipant | null {
+  if (!paneId) return null;
+  const pid = activeProjectId();
+  for (const p of participants.values()) {
+    if (p.paneId === paneId && p.model === model && p.projectId === pid) return p;
+  }
+  return null;
+}
+
 export function join(name: string, kind: 'user' | 'llm', paneId: string | null, model: string | null = null, submitKey: string = '\r'): ChatParticipant {
-  const uniqueName = generateUniqueName();
   const now = new Date().toISOString();
+
+  // Claim-or-create: try to reclaim an existing participant by paneId + model
+  const existing = findReclaimCandidate(paneId, model);
+  if (existing) {
+    // Reattach: keep the same alias, update session fields
+    existing.detached = false;
+    existing.submitKey = submitKey;
+    existing.lastSeen = now;
+    bumpParticipantSessionEpoch(existing.name);
+
+    if (paneId) updatePaneTitle(paneId, existing.name);
+
+    const msg = appendMessage({
+      from: existing.name,
+      to: null,
+      body: `${existing.name} reconnected${paneId ? ` (${paneId})` : ''}`,
+      type: 'join',
+    });
+    emitToProject('chat:join', existing);
+    emitToProject('chat:message', msg);
+
+    return existing;
+  }
+
+  // No reclaim candidate — create fresh alias
+  const uniqueName = generateUniqueName();
   const participant: ChatParticipant = {
     name: uniqueName,
     kind,
@@ -80,8 +130,10 @@ export function join(name: string, kind: 'user' | 'llm', paneId: string | null, 
     submitKey,
     joinedAt: now,
     lastSeen: now,
+    detached: false,
   };
   participants.set(uniqueName, participant);
+  bumpParticipantSessionEpoch(uniqueName);
 
   // Update the pane tab to show the chat name
   if (paneId) updatePaneTitle(paneId, uniqueName);
@@ -103,6 +155,7 @@ export function leave(name: string): boolean {
   const pid = participant?.projectId ?? null;
   const removed = participants.delete(name);
   if (removed) {
+    participantSessionEpochs.delete(name);
     const msg = appendMessage({
       from: name,
       to: null,
@@ -115,10 +168,22 @@ export function leave(name: string): boolean {
   return removed;
 }
 
+/** Mark a participant as detached (MCP session closed but pane still alive).
+ *  The alias stays reserved so a subsequent join from the same pane + model reclaims it. */
+export function detach(name: string): boolean {
+  const participant = participants.get(name);
+  if (!participant) return false;
+  participant.detached = true;
+  bumpParticipantSessionEpoch(name);
+  emitToProject('chat:members', listParticipants());
+  return true;
+}
+
 function pruneStaleParticipants(): void {
   for (const [name, participant] of participants) {
     if (participant.kind !== 'llm' || !participant.paneId) continue;
     if (globalPtys.has(participant.paneId)) continue;
+    // Pane is gone — full removal regardless of detached state
     leave(name);
   }
 }
@@ -148,22 +213,12 @@ export function send(from: string, body: string, to?: string): ChatMessage {
   // Emit to dashboard clients viewing this project only
   emitToProject('chat:message', msg);
 
-  // PTY delivery — only to resolved targets, never back to the sender
-  if (targets.length > 0) {
-    // Targeted: deliver only to mentioned participants
-    for (const target of targets) {
-      if (target !== from) deliverToPty(target, msg);
-    }
-  } else {
-    // Broadcast: no @mentions — only propagate if sender is a user.
-    // LLM messages without explicit @mentions are NOT delivered to other LLMs.
-    if (senderKind === 'user') {
-      const pid = activeProjectId();
-      for (const [name, p] of participants) {
-        if (name !== from && p.paneId && p.projectId === pid) {
-          deliverToPty(name, msg);
-        }
-      }
+  // PTY delivery — broadcast every message to all same-project participants except the sender.
+  // `targets` remain semantic metadata for intent and UI display.
+  const pid = activeProjectId();
+  for (const [name, p] of participants) {
+    if (name !== from && p.paneId && p.projectId === pid) {
+      deliverToPty(name, msg);
     }
   }
 
@@ -200,23 +255,63 @@ function resolveTargets(from: string, body: string, to?: string, senderKind?: 'u
 
 function deliverToPty(targetName: string, msg: ChatMessage): void {
   const target = participants.get(targetName);
-  if (!target?.paneId) return;
+  if (!target?.paneId || target.detached) return;
 
-  const entry = globalPtys.get(target.paneId);
-  if (!entry) {
-    // Pane closed — unlink but keep participant
-    target.paneId = null;
-    return;
-  }
+  const paneId = target.paneId;
+  const sessionEpoch = currentParticipantSessionEpoch(targetName);
+  const previous = paneDeliveryQueues.get(paneId) ?? Promise.resolve();
+  const next = previous
+    .catch(() => {})
+    .then(async () => {
+      const liveTarget = participants.get(targetName);
+      if (!liveTarget?.paneId || liveTarget.detached || liveTarget.paneId !== paneId || currentParticipantSessionEpoch(targetName) !== sessionEpoch) return;
 
-  const formatted = `[DevGlide Chat] @${msg.from}: ${msg.body}`;
-  entry.ptyProcess.write(formatted);
-  // Delay the submit key so TUI apps (e.g. Codex/crossterm) finish processing
-  // the text input before receiving Enter. Without the delay, rapid-fire text
-  // followed by CR can be swallowed by paste-burst detection.
-  setTimeout(() => {
-    entry.ptyProcess.write(target.submitKey);
-  }, 500);
+      const entry = globalPtys.get(paneId);
+      if (!entry) {
+        // Pane closed — unlink but keep participant
+        liveTarget.paneId = null;
+        return;
+      }
+
+      const formatted = `[DevGlide Chat] @${msg.from}: ${msg.body}`;
+      entry.ptyProcess.write(formatted);
+
+      // Keep the delayed submit coupled to this specific injected message.
+      await new Promise((resolve) => setTimeout(resolve, PTY_SUBMIT_DELAY_MS));
+
+      const refreshed = participants.get(targetName);
+      if (!refreshed?.paneId || refreshed.detached || refreshed.paneId !== paneId || currentParticipantSessionEpoch(targetName) !== sessionEpoch) return;
+
+      const refreshedEntry = globalPtys.get(paneId);
+      if (!refreshedEntry) {
+        refreshed.paneId = null;
+        return;
+      }
+
+      refreshedEntry.ptyProcess.write(refreshed.submitKey);
+
+      // Retry submit after additional delay — sometimes the first CR is swallowed
+      // by TUI frameworks (e.g. crossterm paste-burst detection).
+      await new Promise((resolve) => setTimeout(resolve, PTY_RETRY_SUBMIT_DELAY_MS));
+
+      const retryTarget = participants.get(targetName);
+      if (!retryTarget?.paneId || retryTarget.detached || retryTarget.paneId !== paneId || currentParticipantSessionEpoch(targetName) !== sessionEpoch) return;
+
+      const retryEntry = globalPtys.get(paneId);
+      if (!retryEntry) {
+        retryTarget.paneId = null;
+        return;
+      }
+
+      retryEntry.ptyProcess.write(retryTarget.submitKey);
+    })
+    .finally(() => {
+      if (paneDeliveryQueues.get(paneId) === next) {
+        paneDeliveryQueues.delete(paneId);
+      }
+    });
+
+  paneDeliveryQueues.set(paneId, next);
 }
 
 export function listParticipants(): ChatParticipant[] {

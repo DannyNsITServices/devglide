@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { jsonResult, errorResult, createDevglideMcpServer } from '../../packages/mcp-utils/src/index.js';
 import * as store from './services/chat-store.js';
+import { getEffectiveRules } from './services/chat-rules.js';
 
 const UNIFIED_BASE = `http://localhost:${process.env.PORT ?? 7000}`;
 
@@ -35,7 +36,7 @@ export function createChatMcpServer(): McpServer {
         '',
         '### Purpose',
         '- Chat provides a shared room where the user and multiple LLM instances communicate.',
-        '- Messages use **@mention addressing** for targeted delivery.',
+        '- Messages are **broadcast within the active project** so every participant stays current.',
         '- LLMs receive messages via PTY injection when linked to a shell pane.',
         '',
         '### Joining',
@@ -46,11 +47,17 @@ export function createChatMcpServer(): McpServer {
         '- **`submitKey` parameter:** Controls the character sent after PTY-injected messages to trigger input submission. Use `"cr"` (carriage return, default) for all known clients including Claude Code and Codex. The submit key is sent after a short delay to avoid paste-burst detection in TUI frameworks like crossterm.',
         '- If you call `chat_join` while already joined, the previous session is automatically cleaned up (re-join is safe).',
         '',
+        '### Rules of Engagement',
+        '- On `chat_join`, you receive a `rules` field containing the project\'s **Rules of Engagement** (markdown).',
+        '- **Follow these rules exactly** — they define when you should respond and when to stay silent.',
+        '- Default rule: reply if @mentioned, or claim a clearly defined part of a global user request before acting. Do not let multiple LLMs answer the same global request uncoordinated.',
+        '- Rules can be customized per project. Always follow the rules returned by `chat_join`.',
+        '',
         '### Sending messages',
         '- Use `chat_send` to send a message. Use **@mentions in the message body** to address specific participants (e.g. `@user check this`).',
-        '- **LLMs must use @mentions** — the `to` parameter is ignored for LLM senders. Only @mentions in the body determine delivery targets.',
-        '- **Broadcast rule:** LLM messages without @mentions are saved to history and visible on the dashboard, but are **not delivered** to other LLMs\' PTYs. Always @mention your intended recipient.',
+        '- **All messages are broadcast** to every participant in the project. @mentions are a semantic signal (who should act), not a delivery filter.',
         '- Never @mention yourself — messages are never delivered back to the sender.',
+        '- Use `#topics` when a thread branches (for example `#rules`, `#kanban`, `#chat`). Topics are stored with the message and can be filtered in history.',
         '- Markdown is supported in message bodies.',
         '',
         '### Reading history',
@@ -63,17 +70,16 @@ export function createChatMcpServer(): McpServer {
         '- If your pane closes, you are automatically removed from the chat.',
         '',
         '### Limitations',
-        '- LLM-to-LLM messages **require @mentions** — without them, the message is saved but never delivered.',
         '- You cannot send messages to yourself (self-mentions are ignored).',
         '- Only participants in the same project see each other and can exchange messages.',
-        '- The `to` parameter on `chat_send` is only effective for user senders. LLMs must always use @mentions in the message body.',
+        '- The `to` parameter on `chat_send` is only effective for user senders. LLMs should rely on the returned rules of engagement and message-body intent.',
         '- Participants are in-memory only — if the server restarts, everyone must rejoin.',
         '',
         '### Quick reference — commonly confused parameters',
         '- `chat_join(name, model?, paneId, submitKey?)` — register. `paneId` is required and should come from `DEVGLIDE_PANE_ID` in your shell. Check returned `name` (server assigns it). `"user"`/`"system"` reserved. `submitKey`: `"cr"` (default, correct for all known clients including Claude Code and Codex).',
         '- `chat_leave()` — unregister from the chat room.',
-        '- `chat_send(message, to?)` — send a message. **LLMs: use @mentions in body, `to` is ignored.**',
-        '- `chat_read(limit?, since?)` — read message history.',
+        '- `chat_send(message, to?)` — send a message. Delivery is broadcast within the project; use `@mentions` only to signal who should respond.',
+        '- `chat_read(limit?, since?, topic?)` — read message history, optionally filtered by `#topic`.',
         '- `chat_members()` — list active participants with pane link status.',
       ],
     },
@@ -98,13 +104,13 @@ export function createChatMcpServer(): McpServer {
       if (name === 'system') return errorResult('"system" is reserved');
 
       // Leave previous session if re-joining (prevents orphaned participants).
+      // Use full leave here (not detach) since the same MCP session is explicitly
+      // re-joining — the old alias is no longer needed for reclaim.
       if (sessionName) {
         const leaveRes = await chatApi('/leave', { name: sessionName }).catch(() => null);
         if (leaveRes?.ok) {
           chatServerSessions.get(server)?.delete(sessionName);
         }
-        // If leave failed, the old name stays in the set so onSessionClose
-        // can still clean it up when the session eventually dies.
         sessionName = null;
       }
 
@@ -123,10 +129,13 @@ export function createChatMcpServer(): McpServer {
       const res = await chatApi('/join', { name, model: model ?? null, paneId, submitKey: submitKey ?? undefined });
       if (!res.ok) return errorResult((res.data as { error?: string })?.error ?? 'Join failed');
       // Use the resolved name from the server (may be a generated unique name)
-      sessionName = (res.data as { name: string }).name;
+      const participant = res.data as { name: string; projectId?: string | null };
+      sessionName = participant.name;
       if (!chatServerSessions.has(server)) chatServerSessions.set(server, new Set());
       chatServerSessions.get(server)!.add(sessionName);
-      return jsonResult(res.data);
+      // Attach rules of engagement so the joining LLM knows how to behave
+      const rules = getEffectiveRules(participant.projectId);
+      return jsonResult({ ...participant, rules });
     },
   );
 
@@ -171,9 +180,10 @@ export function createChatMcpServer(): McpServer {
     {
       limit: z.number().optional().describe('Max messages to return (default 50)'),
       since: z.string().optional().describe('ISO timestamp — only return messages after this time'),
+      topic: z.string().optional().describe('Optional topic name without `#` to filter history to a specific thread'),
     },
-    async ({ limit, since }) => {
-      const messages = store.readMessages({ limit, since });
+    async ({ limit, since, topic }) => {
+      const messages = store.readMessages({ limit, since, topic });
       return jsonResult(messages);
     },
   );

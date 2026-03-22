@@ -17,4 +17,10 @@ export interface ChatParticipant {
   submitKey: string;     // character sent after delayed PTY injection to trigger submit (default \r, correct for all known clients)
   joinedAt: string;
   lastSeen: string;
+  detached: boolean;     // true when MCP session closed but pane is still alive — awaiting reclaim
+  clientId?: string;     // optional stable identity for future strong-reclaim support
+}
+
+export interface ChatJoinResponse extends ChatParticipant {
+  rules: string;        // effective rules of engagement (markdown)
 }

@@ -23,7 +23,8 @@ Monorepo managed with **pnpm workspaces** and **Turborepo**.
   `chat_send`, etc.). Participants and message delivery are in-memory;
   message history is persisted per-project as JSONL. `chat_join` requires
   an explicit `paneId`, which should be read from `DEVGLIDE_PANE_ID` in
-  the shell session.
+  the shell session. The effective chat rules of engagement are returned
+  on join and can be overridden per project.
 
 ## MCP Server Pattern
 
@@ -99,7 +100,7 @@ These rules are intentional — do not change an app's scoping without discussio
 | **Test** | `projects/{id}/scenarios.json` | Saved test scenarios |
 | **Log** | `projects/{id}/logs/` | Log file tailing scoped to active project |
 | **Shell** | In-memory | Panes belong to a project session, no disk persistence |
-| **Chat** | `projects/{id}/chat/messages.jsonl` | Message history per project; participants are in-memory |
+| **Chat** | `projects/{id}/chat/` | Message history (`messages.jsonl`) and rules override (`rules.md`) per project; participants are in-memory |
 
 ### Hybrid (global + per-project overlay; per-project takes precedence)
 | App | Path | Notes |

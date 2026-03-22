@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { asyncHandler } from '../packages/error-middleware.js';
 import * as registry from '../apps/chat/services/chat-registry.js';
 import * as store from '../apps/chat/services/chat-store.js';
+import { getEffectiveRules, getDefaultRules, saveProjectRules, deleteProjectRules, hasProjectRules } from '../apps/chat/services/chat-rules.js';
 import { getActiveProject, onProjectChange } from '../project-context.js';
 import { globalPtys } from '../apps/shell/src/runtime/shell-state.js';
 
@@ -22,6 +23,7 @@ const sendMessageSchema = z.object({
 const messagesQuerySchema = z.object({
   limit: z.coerce.number().int().positive().optional(),
   since: z.string().optional(),
+  topic: z.string().min(1).optional(),
 });
 
 function badRequest(res: Response, message: string): void {
@@ -98,7 +100,8 @@ router.post('/join', (req: Request, res: Response) => {
   }
   const resolvedSubmitKey = submitKey === 'lf' ? '\n' : '\r';
   const participant = registry.join(name, 'llm', paneId, model ?? null, resolvedSubmitKey);
-  res.status(201).json(participant);
+  const rules = getEffectiveRules(participant.projectId);
+  res.status(201).json({ ...participant, rules });
 });
 
 // POST /leave — unregister a participant (used by MCP bridge)
@@ -126,6 +129,47 @@ router.post('/send', (req: Request, res: Response) => {
   const { from, message, to } = parsed.data;
   const msg = registry.send(from, message, to);
   res.status(201).json(msg);
+});
+
+// ── Rules of Engagement CRUD ──────────────────────────────────────────────────
+
+const rulesSchema = z.object({
+  rules: z.string().min(1, 'rules text is required'),
+});
+
+// GET /rules — get effective rules for active project
+router.get('/rules', (_req: Request, res: Response) => {
+  const project = getActiveProject();
+  const rules = getEffectiveRules(project?.id);
+  const isDefault = !project || !hasProjectRules(project.id);
+  res.json({ rules, isDefault, defaultRules: getDefaultRules() });
+});
+
+// PUT /rules — save per-project rules override
+router.put('/rules', (req: Request, res: Response) => {
+  const project = getActiveProject();
+  if (!project) {
+    badRequest(res, 'No active project');
+    return;
+  }
+  const parsed = rulesSchema.safeParse(req.body);
+  if (!parsed.success) {
+    badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
+    return;
+  }
+  saveProjectRules(project.id, parsed.data.rules);
+  res.json({ ok: true, rules: parsed.data.rules });
+});
+
+// DELETE /rules — delete per-project override (revert to default)
+router.delete('/rules', (_req: Request, res: Response) => {
+  const project = getActiveProject();
+  if (!project) {
+    badRequest(res, 'No active project');
+    return;
+  }
+  const deleted = deleteProjectRules(project.id);
+  res.json({ ok: true, deleted, rules: getDefaultRules() });
 });
 
 // DELETE /messages — clear chat history for the active project
