@@ -96,6 +96,8 @@ let boardPollTimer = null;
 let isDragging = false;
 let isDialogOpen = false;
 let searchQuery = '';
+let featureSearchQuery = '';
+let featureSortBy = 'name';
 let sortableInstances = [];
 let selectedColor = FEATURE_COLORS[0];
 let deleteTargetFeature = null;
@@ -135,6 +137,12 @@ function renderFeatureList() {
         <span class="sync-badge hidden" data-sync="list-sync">
           <span class="sync-dot"></span> Updated
         </span>
+        <input type="text" id="feature-search" class="feature-search-input" placeholder="Search features..." autocomplete="off" value="${escapeAttr(featureSearchQuery)}" />
+        <select id="feature-sort" class="feature-sort-select" title="Sort features">
+          <option value="name"${featureSortBy === 'name' ? ' selected' : ''}>Name</option>
+          <option value="issues"${featureSortBy === 'issues' ? ' selected' : ''}>Issue count</option>
+          <option value="updated"${featureSortBy === 'updated' ? ' selected' : ''}>Recently updated</option>
+        </select>
         <button class="btn btn-primary" data-action="new-feature">+ New Feature</button>
       </div>
     </header>
@@ -143,8 +151,45 @@ function renderFeatureList() {
   `;
 
   $('[data-action="new-feature"]')?.addEventListener('click', openNewFeatureDialog);
+
+  // Search input
+  let featureSearchTimer = null;
+  $('#feature-search')?.addEventListener('input', (e) => {
+    clearTimeout(featureSearchTimer);
+    featureSearchTimer = setTimeout(() => {
+      featureSearchQuery = e.target.value;
+      renderFeatures();
+    }, 150);
+  });
+
+  // Sort dropdown
+  $('#feature-sort')?.addEventListener('change', (e) => {
+    featureSortBy = e.target.value;
+    renderFeatures();
+  });
+
   _bindModalOverlays();
   renderFeatures();
+}
+
+function getFilteredFeatures() {
+  let filtered = features;
+  const q = featureSearchQuery.toLowerCase().trim();
+  if (q) {
+    filtered = filtered.filter(f =>
+      f.name.toLowerCase().includes(q) ||
+      (f.description || '').toLowerCase().includes(q)
+    );
+  }
+  const sorted = [...filtered];
+  if (featureSortBy === 'issues') {
+    sorted.sort((a, b) => (b._count.issues) - (a._count.issues));
+  } else if (featureSortBy === 'updated') {
+    sorted.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  } else {
+    sorted.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  }
+  return sorted;
 }
 
 function renderFeatures() {
@@ -165,10 +210,26 @@ function renderFeatures() {
     return;
   }
 
+  const filtered = getFilteredFeatures();
+  const countLabel = featureSearchQuery
+    ? `${filtered.length} of ${features.length} feature${features.length !== 1 ? 's' : ''}`
+    : `${features.length} feature${features.length !== 1 ? 's' : ''}`;
+
+  if (filtered.length === 0) {
+    main.innerHTML = `
+      <h1 class="section-title">${escapeHtml(countLabel)}</h1>
+      <div class="empty-state">
+        <div class="empty-icon" style="font-size:48px;opacity:0.15">\u{1F50D}</div>
+        <p class="empty-text">No matching features</p>
+      </div>
+    `;
+    return;
+  }
+
   main.innerHTML = `
-    <h1 class="section-title">Features</h1>
+    <h1 class="section-title">${escapeHtml(countLabel)}</h1>
     <div class="features-grid">
-      ${features.map(f => `
+      ${filtered.map(f => `
         <a href="#/features/${f.id}" class="feature-card" data-id="${f.id}">
           <div class="feature-card-top">
             <div class="feature-card-icon" style="background-color: ${f.color}30">
@@ -1694,6 +1755,8 @@ export function unmount(container) {
   dialogState = null;
   deleteTargetFeature = null;
   editTargetFeature = null;
+  featureSearchQuery = '';
+  featureSortBy = 'name';
 }
 
 export function onProjectChange(project) {
@@ -1708,6 +1771,8 @@ export function onProjectChange(project) {
   features = [];
   boardFeature = null;
   searchQuery = '';
+  featureSearchQuery = '';
+  featureSortBy = 'name';
   dialogState = null;
   deleteTargetFeature = null;
   editTargetFeature = null;
