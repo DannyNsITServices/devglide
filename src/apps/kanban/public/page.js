@@ -702,9 +702,11 @@ function initSearch() {
 }
 
 function _handleSearchKeydown(e) {
-  const input = $('[data-field="search-input"]');
+  // Support both board search and feature-list search inputs
+  const input = $('[data-field="search-input"]') || $('[data-field="feature-search-input"]');
   if (!input) return;
 
+  const isFeatureList = input.dataset.field === 'feature-search-input';
   const action = typeof KeymapRegistry !== 'undefined' ? KeymapRegistry.resolve(e) : null;
   const isFocusSearch = action === 'kanban:focus-search' || (!action && e.key === '/');
   const isClearSearch = action === 'kanban:clear-search' || (!action && e.key === 'Escape');
@@ -717,11 +719,17 @@ function _handleSearchKeydown(e) {
     input.focus();
   }
   if (isClearSearch && document.activeElement === input) {
-    searchQuery = '';
     input.value = '';
-    $('[data-action="search-clear"]')?.classList.add('hidden');
     input.blur();
-    rerenderColumns();
+    if (isFeatureList) {
+      featureSearchQuery = '';
+      $('[data-action="feature-search-clear"]')?.classList.add('hidden');
+      renderFeatures();
+    } else {
+      searchQuery = '';
+      $('[data-action="search-clear"]')?.classList.add('hidden');
+      rerenderColumns();
+    }
   }
 }
 
