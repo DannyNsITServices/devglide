@@ -3,7 +3,7 @@
  * Centralizes column resolution, Backlog/Todo restriction, and default values.
  */
 import type Database from 'better-sqlite3';
-import { generateId, nowIso, type IssueRow } from './db.js';
+import { generateId, nowIso, ftsInsert, type IssueRow } from './db.js';
 import { normalizeEscapes } from './mcp-helpers.js';
 import { KANBAN_PRIORITIES, KANBAN_ITEM_TYPES_EXTENDED } from '../../../packages/shared-types/src/index.js';
 
@@ -93,6 +93,9 @@ export function createKanbanItem(db: Database.Database, input: CreateItemInput):
     columnId,
     now,
   );
+
+  // Sync FTS index
+  ftsInsert(db, id, input.title, input.description ? normalizeEscapes(input.description) : null, JSON.stringify(input.labels ?? []));
 
   const item = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(id) as IssueRow;
   return { ok: true, item };

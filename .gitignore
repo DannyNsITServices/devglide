@@ -38,3 +38,6 @@ src/apps/test/data/scenarios.json
 
 # Environment-specific project settings
 .claude/settings.json
+
+# Articles (drafts, images, exports)
+articles/

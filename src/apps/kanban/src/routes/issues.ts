@@ -1,11 +1,12 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
-import { getDb, nowIso, appendVersionedEntry, getVersionedEntries } from "../db.js";
+import { getDb, nowIso, appendVersionedEntry, getVersionedEntries, ftsUpdate, ftsDelete } from "../db.js";
 import path from "path";
 import fs from "fs";
 import { getUploadsDir } from "./attachments.js";
 import type { IssueRow } from "../db.js";
 import { createKanbanItem } from "../kanban-create-helper.js";
+import { sanitizeFtsQuery } from "../mcp-helpers.js";
 import { asyncHandler } from "../../../../packages/error-middleware.js";
 
 declare module "express" {
@@ -155,6 +156,66 @@ issuesRouter.post("/", asyncHandler(async (req: Request, res: Response) => {
     res.status(201).json(mapIssue(result.item));
 }));
 
+// GET /api/issues/search  (defined before /:id to avoid route conflict)
+issuesRouter.get("/search", asyncHandler(async (req: Request, res: Response) => {
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (!q) {
+      badRequest(res, "Query parameter 'q' is required");
+      return;
+    }
+    const safeQuery = sanitizeFtsQuery(q);
+    if (!safeQuery) {
+      badRequest(res, "Search query is empty or contains only special characters.");
+      return;
+    }
+    const featureId = typeof req.query.featureId === 'string' ? req.query.featureId : undefined;
+    const columnName = typeof req.query.columnName === 'string' ? req.query.columnName : undefined;
+    const priority = typeof req.query.priority === 'string' ? req.query.priority : undefined;
+    const type = typeof req.query.type === 'string' ? req.query.type : undefined;
+    const limit = Math.min(parseInt(typeof req.query.limit === 'string' ? req.query.limit : '20', 10) || 20, 50);
+
+    const db = getDb(req.projectId);
+
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+
+    if (featureId) { conditions.push(`i."projectId" = ?`); params.push(featureId); }
+    if (columnName) { conditions.push(`c."name" = ?`); params.push(columnName); }
+    if (priority) { conditions.push(`i."priority" = ?`); params.push(priority); }
+    if (type) { conditions.push(`i."type" = ?`); params.push(type); }
+
+    const extraWhere = conditions.length > 0 ? `AND ${conditions.join(" AND ")}` : "";
+
+    const rows = db.prepare(
+      `SELECT i."id", i."title", i."priority", i."type", i."labels",
+              c."name" AS columnName,
+              p."name" AS featureName, i."projectId" AS featureId,
+              rank
+       FROM "IssueFts" fts
+       JOIN "Issue" i ON fts."id" = i."id"
+       LEFT JOIN "Column" c ON i."columnId" = c."id"
+       LEFT JOIN "Project" p ON i."projectId" = p."id"
+       WHERE "IssueFts" MATCH ?
+       ${extraWhere}
+       ORDER BY rank
+       LIMIT ?`
+    ).all(safeQuery, ...params, limit);
+
+    res.json({
+      data: (rows as JsonRow[]).map(r => ({
+        id: r.id,
+        title: r.title,
+        priority: r.priority,
+        type: r.type,
+        labels: r.labels,
+        columnName: r.columnName,
+        featureName: r.featureName,
+        featureId: r.featureId ?? r.projectId,
+      })),
+      total: rows.length,
+    });
+}));
+
 // POST /api/issues/reorder  (defined before /:id to avoid route conflict)
 issuesRouter.post("/reorder", asyncHandler(async (req: Request, res: Response) => {
     const parsed = reorderSchema.safeParse(req.body);
@@ -274,9 +335,41 @@ issuesRouter.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
     };
 
     // Redirect reviewFeedback to versioned entry
-    const { reviewFeedback, ...updateFields } = parsed.data;
+    const { reviewFeedback, featureId: targetFeatureId, ...updateFields } = parsed.data;
     if (reviewFeedback && reviewFeedback.trim()) {
       appendVersionedEntry(db, id, "review", reviewFeedback.trim());
+    }
+
+    // Handle cross-feature move: validate target feature and resolve column
+    if (targetFeatureId && targetFeatureId !== (existing as IssueRow).projectId) {
+      const targetFeature = db.prepare(`SELECT "id" FROM "Project" WHERE "id" = ?`).get(targetFeatureId) as { id: string } | undefined;
+      if (!targetFeature) {
+        badRequest(res, `Target feature "${targetFeatureId}" not found.`);
+        return;
+      }
+
+      // If columnId is also provided, verify it belongs to the target feature
+      if (updateFields.columnId) {
+        const col = db.prepare(`SELECT "projectId" FROM "Column" WHERE "id" = ?`).get(updateFields.columnId) as { projectId: string } | undefined;
+        if (!col || col.projectId !== targetFeatureId) {
+          badRequest(res, "Provided columnId does not belong to the target feature.");
+          return;
+        }
+      } else {
+        // Resolve current column name in the target feature
+        const currentCol = db.prepare(`SELECT "name" FROM "Column" WHERE "id" = ?`).get((existing as IssueRow).columnId) as { name: string } | undefined;
+        const colName = currentCol?.name ?? 'Backlog';
+        const resolved = db.prepare(`SELECT "id" FROM "Column" WHERE "projectId" = ? AND "name" = ?`).get(targetFeatureId, colName) as { id: string } | undefined;
+        if (!resolved) {
+          badRequest(res, `Column "${colName}" not found in target feature.`);
+          return;
+        }
+        updateFields.columnId = resolved.id;
+      }
+
+      // Add projectId to the update
+      allowedFields.projectId = '"projectId"';
+      (updateFields as Record<string, unknown>).projectId = targetFeatureId;
     }
 
     const setClauses: string[] = [];
@@ -301,6 +394,16 @@ issuesRouter.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
     updateParams.push(now);
 
     updateParams.push(id);
+
+    // Sync FTS index if any indexed fields changed
+    if (data.title !== undefined || data.description !== undefined || data.labels !== undefined) {
+      const current = db.prepare(`SELECT "title", "description", "labels" FROM "Issue" WHERE "id" = ?`).get(id) as { title: string; description: string | null; labels: string };
+      ftsUpdate(db, id,
+        (data.title as string) ?? current.title,
+        data.description !== undefined ? (data.description as string | null) : current.description,
+        data.labels !== undefined ? (data.labels as string) : current.labels,
+      );
+    }
 
     db.prepare(`UPDATE "Issue" SET ${setClauses.join(", ")} WHERE "id" = ?`).run(...updateParams);
 
@@ -410,6 +513,9 @@ issuesRouter.delete("/:id", asyncHandler(async (req: Request, res: Response) => 
         // Ignore errors (file may not exist)
       }
     }
+
+    // Remove from FTS index before deleting
+    ftsDelete(db, id);
 
     // Delete the issue (CASCADE handles attachment DB records)
     db.prepare(`DELETE FROM "Issue" WHERE "id" = ?`).run(id);

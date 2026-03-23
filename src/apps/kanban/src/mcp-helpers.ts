@@ -46,6 +46,28 @@ export function resolveColumnId(
   return col?.id ?? null;
 }
 
+// ── FTS query sanitization ───────────────────────────────────────────────────
+
+/**
+ * Sanitize a plain-text search query for safe use with SQLite FTS5 MATCH.
+ * Strips FTS5 operators and special characters that could cause parser errors,
+ * then wraps each remaining token with `"..."` to force literal matching.
+ * Returns null if the query produces no usable tokens.
+ */
+export function sanitizeFtsQuery(raw: string): string | null {
+  // Remove characters that are FTS5 syntax: " ( ) { } * ^
+  const stripped = raw.replace(/["""(){}*^]/g, ' ');
+  // Split into tokens, drop FTS5 keywords used as bare operators
+  const ftsKeywords = new Set(['AND', 'OR', 'NOT', 'NEAR']);
+  const tokens = stripped
+    .split(/\s+/)
+    .map(t => t.trim())
+    .filter(t => t.length > 0 && !ftsKeywords.has(t.toUpperCase()));
+  if (tokens.length === 0) return null;
+  // Quote each token for literal matching
+  return tokens.map(t => `"${t}"`).join(' ');
+}
+
 const DESC_TRUNCATE_LEN = 200;
 export function truncateDescription(desc: string | null | undefined): string | null {
   if (!desc) return desc ?? null;

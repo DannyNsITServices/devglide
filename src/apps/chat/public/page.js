@@ -2,7 +2,7 @@
 // ES module that exports mount(container, ctx), unmount(container),
 // and onProjectChange(project).
 
-import { escapeHtml } from '/shared-assets/ui-utils.js';
+import { escapeHtml, escapeAttr, sanitizeHtml } from '/shared-assets/ui-utils.js';
 import { dashboardSocket } from '/state.js';
 import { createHeader } from '/shared-ui/components/header.js';
 
@@ -17,6 +17,227 @@ let _rulesDraft = '';
 let _rulesLoaded = false;
 
 const DRAFT_KEY = 'devglide-chat-draft';
+let _markedReady = false;
+let _mermaidReady = false;
+let _mermaidFailed = false;
+let _mermaidIdCounter = 0;
+
+function loadScript(src, globalName) {
+  if (window[globalName]) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      if (window[globalName]) { resolve(); return; }
+      existing.addEventListener('load', resolve, { once: true });
+      existing.addEventListener('error', reject, { once: true });
+      return;
+    }
+    const el = document.createElement('script');
+    el.src = src;
+    el.onload = resolve;
+    el.onerror = reject;
+    document.head.appendChild(el);
+  });
+}
+
+function initMarked() {
+  if (typeof marked === 'undefined' || !marked.use) return;
+  const dangerousUrlRe = /^\s*(javascript|vbscript|data)\s*:/i;
+  marked.use({
+    breaks: true,
+    renderer: {
+      html({ text }) { return escapeHtml(text); },
+      code({ text, lang }) {
+        // Mermaid blocks: emit a placeholder that renderMermaidBlocks() will process
+        // after sanitization (since sanitizeHtml strips SVG).
+        if (lang === 'mermaid') {
+          const encoded = escapeAttr(text);
+          return `<div class="chat-mermaid-pending" data-mermaid-src="${encoded}"></div>`;
+        }
+        const escaped = escapeHtml(text);
+        const langClass = lang ? ` class="language-${escapeAttr(lang)}"` : '';
+        const langLabel = lang ? `<span class="chat-code-lang">${escapeHtml(lang)}</span>` : '';
+        return `<pre class="chat-codeblock">${langLabel}<code${langClass}>${escaped}</code></pre>`;
+      },
+      link({ href, title, tokens }) {
+        const text = this.parser.parseInline(tokens);
+        if (dangerousUrlRe.test(href)) return text;
+        const titleAttr = title ? ` title="${escapeAttr(title)}"` : '';
+        return `<a href="${escapeAttr(href)}"${titleAttr} target="_blank" rel="noopener">${text}</a>`;
+      },
+      image({ href, title, text }) {
+        if (dangerousUrlRe.test(href)) return escapeHtml(text);
+        const titleAttr = title ? ` title="${escapeAttr(title)}"` : '';
+        return `<img src="${escapeAttr(href)}" alt="${escapeAttr(text)}"${titleAttr}>`;
+      },
+    },
+  });
+  _markedReady = true;
+}
+
+/** Render a message body as sanitized markdown HTML, preserving @mention highlights. */
+function renderMarkdown(text) {
+  if (!_markedReady || !text) return escapeHtml(text || '');
+  try {
+    const html = sanitizeHtml(marked.parse(text));
+    // Highlight @mentions in text nodes only (not inside attributes or code blocks)
+    const doc = new DOMParser().parseFromString(`<div>${html}</div>`, 'text/html');
+    const SKIP_TAGS = new Set(['CODE', 'PRE', 'SCRIPT', 'STYLE']);
+    const walker = doc.createTreeWalker(doc.body.firstChild, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        let parent = node.parentElement;
+        while (parent && parent !== doc.body.firstChild) {
+          if (SKIP_TAGS.has(parent.tagName)) return NodeFilter.FILTER_REJECT;
+          parent = parent.parentElement;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    const textNodes = [];
+    let n;
+    while ((n = walker.nextNode())) textNodes.push(n);
+    const mentionRe = /@([\w-]+)/g;
+    for (const tNode of textNodes) {
+      const val = tNode.nodeValue;
+      if (!mentionRe.test(val)) continue;
+      mentionRe.lastIndex = 0;
+      const frag = doc.createDocumentFragment();
+      let lastIdx = 0;
+      let m;
+      while ((m = mentionRe.exec(val)) !== null) {
+        if (m.index > lastIdx) frag.appendChild(doc.createTextNode(val.slice(lastIdx, m.index)));
+        const span = doc.createElement('span');
+        span.className = 'chat-mention';
+        span.textContent = m[0];
+        frag.appendChild(span);
+        lastIdx = m.index + m[0].length;
+      }
+      if (lastIdx < val.length) frag.appendChild(doc.createTextNode(val.slice(lastIdx)));
+      tNode.parentNode.replaceChild(frag, tNode);
+    }
+    return doc.body.firstChild.innerHTML;
+  } catch {
+    return escapeHtml(text);
+  }
+}
+
+/** Initialize Mermaid with DevGlide dark theme. */
+function initMermaid() {
+  if (typeof mermaid === 'undefined' || !mermaid.initialize) return;
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'strict',
+    theme: 'dark',
+    themeVariables: {
+      darkMode: true,
+      background: 'transparent',
+      primaryColor: '#1a3a3a',
+      primaryTextColor: '#adbac7',
+      primaryBorderColor: '#00afaf',
+      secondaryColor: '#2d333b',
+      secondaryTextColor: '#adbac7',
+      secondaryBorderColor: '#373e47',
+      tertiaryColor: '#22272e',
+      tertiaryTextColor: '#adbac7',
+      lineColor: '#00afaf',
+      textColor: '#adbac7',
+      mainBkg: '#1a3a3a',
+      nodeBorder: '#00afaf',
+      clusterBkg: '#22272e',
+      clusterBorder: '#373e47',
+      titleColor: '#adbac7',
+      edgeLabelBackground: '#2d333b',
+      nodeTextColor: '#adbac7',
+    },
+    flowchart: { curve: 'basis', padding: 12 },
+    fontFamily: 'var(--df-font-mono, monospace)',
+    fontSize: 13,
+  });
+  _mermaidReady = true;
+}
+
+/**
+ * Find all pending mermaid placeholders in a container and render them.
+ * Placeholders are <div class="chat-mermaid-pending" data-mermaid-src="...">
+ * produced by the marked renderer. This runs AFTER sanitizeHtml so the
+ * generated SVG is never stripped.
+ */
+async function renderMermaidBlocks(root) {
+  if (!_mermaidReady) {
+    // If mermaid load already failed, fall back immediately for new messages
+    if (_mermaidFailed) {
+      const pending = (root || _container)?.querySelectorAll('.chat-mermaid-pending');
+      if (pending?.length) {
+        for (const el of pending) {
+          const src = el.getAttribute('data-mermaid-src') || '';
+          const pre = document.createElement('pre');
+          pre.className = 'chat-codeblock';
+          const langLabel = document.createElement('span');
+          langLabel.className = 'chat-code-lang';
+          langLabel.textContent = 'mermaid';
+          const code = document.createElement('code');
+          code.className = 'language-mermaid';
+          code.textContent = src;
+          pre.appendChild(langLabel);
+          pre.appendChild(code);
+          el.replaceWith(pre);
+        }
+      }
+    }
+    return;
+  }
+  const pending = (root || _container)?.querySelectorAll('.chat-mermaid-pending');
+  if (!pending?.length) return;
+
+  for (const el of pending) {
+    const src = el.getAttribute('data-mermaid-src');
+    if (!src) continue;
+    const id = `chat-mermaid-${_mermaidIdCounter++}`;
+    try {
+      const { svg } = await mermaid.render(id, src);
+      el.className = 'chat-mermaid-rendered';
+      el.removeAttribute('data-mermaid-src');
+      el.innerHTML = svg;
+    } catch {
+      // Fallback: show source as a regular code block
+      el.className = '';
+      const pre = document.createElement('pre');
+      pre.className = 'chat-codeblock';
+      const langLabel = document.createElement('span');
+      langLabel.className = 'chat-code-lang';
+      langLabel.textContent = 'mermaid';
+      const code = document.createElement('code');
+      code.className = 'language-mermaid';
+      code.textContent = src;
+      pre.appendChild(langLabel);
+      pre.appendChild(code);
+      el.replaceWith(pre);
+    }
+  }
+}
+
+/**
+ * Convert all pending mermaid placeholders to code-block fallbacks.
+ * Called when mermaid.js fails to load (CDN blocked, offline, CSP, etc.).
+ */
+function fallbackAllMermaidBlocks() {
+  const pending = _container?.querySelectorAll('.chat-mermaid-pending');
+  if (!pending?.length) return;
+  for (const el of pending) {
+    const src = el.getAttribute('data-mermaid-src') || '';
+    const pre = document.createElement('pre');
+    pre.className = 'chat-codeblock';
+    const langLabel = document.createElement('span');
+    langLabel.className = 'chat-code-lang';
+    langLabel.textContent = 'mermaid';
+    const code = document.createElement('code');
+    code.className = 'language-mermaid';
+    code.textContent = src;
+    pre.appendChild(langLabel);
+    pre.appendChild(code);
+    el.replaceWith(pre);
+  }
+}
 
 // ── Participant colors ──────────────────────────────────────────────
 // Distinct hues that work on dark backgrounds. Colors are assigned in
@@ -256,6 +477,7 @@ function renderAllMessages() {
   for (const msg of _messages) {
     appendMessageEl(msg, false);
   }
+  renderMermaidBlocks();
   scrollToBottom();
 }
 
@@ -277,8 +499,8 @@ function appendMessageEl(msg, doScroll = true) {
   } else if (msg.from === 'user') {
     el.classList.add('from-user');
     const body = document.createElement('div');
-    body.className = 'chat-msg-body';
-    body.textContent = msg.body;
+    body.className = 'chat-msg-body chat-markdown';
+    body.innerHTML = renderMarkdown(msg.body);
     const time = document.createElement('div');
     time.className = 'chat-msg-time';
     time.textContent = formatTime(msg.ts);
@@ -293,8 +515,8 @@ function appendMessageEl(msg, doScroll = true) {
     sender.style.color = color;
     sender.textContent = msg.from + (msg.to ? ` \u2192 ${msg.to}` : '');
     const body = document.createElement('div');
-    body.className = 'chat-msg-body';
-    body.textContent = msg.body;
+    body.className = 'chat-msg-body chat-markdown';
+    body.innerHTML = renderMarkdown(msg.body);
     const time = document.createElement('div');
     time.className = 'chat-msg-time';
     time.textContent = formatTime(msg.ts);
@@ -304,6 +526,7 @@ function appendMessageEl(msg, doScroll = true) {
   }
 
   listEl.appendChild(el);
+  renderMermaidBlocks(el);
 
   if (doScroll) {
     if (_autoScroll) {
@@ -628,6 +851,16 @@ export function mount(container, ctx) {
   container.classList.add('page-chat', 'app-page');
   container.innerHTML = BODY_HTML;
 
+  // Load marked.js for markdown rendering (reuse kanban's vendored copy)
+  loadScript('/app/kanban/vendor/marked.min.js', 'marked')
+    .then(() => { initMarked(); renderAllMessages(); })
+    .catch(() => { /* graceful degradation — messages render as plain text */ });
+
+  // Load mermaid.js for chart rendering (CDN, ESM build)
+  loadScript('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js', 'mermaid')
+    .then(() => { initMermaid(); renderMermaidBlocks(); })
+    .catch(() => { _mermaidFailed = true; fallbackAllMermaidBlocks(); });
+
   bindEvents();
   loadInitialData();
   connectSocket();
@@ -680,6 +913,8 @@ export function unmount(container) {
 
   _colorMap.clear();
   _nextColorIdx = 0;
+  _mermaidIdCounter = 0;
+  _mermaidFailed = false;
 }
 
 export function onProjectChange(project) {
