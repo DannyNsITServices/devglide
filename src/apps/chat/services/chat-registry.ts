@@ -1,7 +1,7 @@
 import type { Namespace } from 'socket.io';
-import type { ChatParticipant, ChatMessage } from '../types.js';
+import type { ChatParticipant, ChatMessage, DeliveryInfo, DeliveryStatus } from '../types.js';
 import { globalPtys, dashboardState, getShellNsp } from '../../shell/src/runtime/shell-state.js';
-import { appendMessage, clearMessages } from './chat-store.js';
+import { appendMessage, clearMessages, updateMessageDelivery } from './chat-store.js';
 import { getActiveProject, onProjectChange } from '../../../project-context.js';
 
 // In-memory participant registry
@@ -16,6 +16,9 @@ const PTY_SUBMIT_DELAY_MS = 500;
 const PTY_RETRY_SUBMIT_DELAY_MS = 1000;
 const PARTICIPANT_IDLE_TIMEOUT_MS = 30_000;
 const PROMPT_QUIESCENCE_MS = 2000;
+const PANE_DISCONNECT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes before auto-removal
+
+const paneDisconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function bumpParticipantSessionEpoch(name: string, projectId?: string | null): number {
   const key = participantKey(name, projectId);
@@ -338,11 +341,16 @@ export function join(
   if (existing) {
     // Reattach: keep the same alias, update session fields
     existing.detached = false;
+    existing.paneId = paneId;
     existing.submitKey = submitKey;
     existing.lastSeen = now;
     existing.status = 'idle';
     clearParticipantStatusTimer(existing.name, resolvedProjectId);
     bumpParticipantSessionEpoch(existing.name, resolvedProjectId);
+    // Cancel any pending auto-removal timer
+    const disconnectKey = participantKey(existing.name, resolvedProjectId);
+    const disconnectTimer = paneDisconnectTimers.get(disconnectKey);
+    if (disconnectTimer) { clearTimeout(disconnectTimer); paneDisconnectTimers.delete(disconnectKey); }
 
     if (paneId) updatePaneTitle(paneId, existing.name);
 
@@ -402,9 +410,12 @@ export function leave(name: string, projectId?: string | null): boolean {
   const pid = participant.projectId;
   const removed = participants.delete(participantKey(name, pid));
   if (removed) {
+    const key = participantKey(name, pid);
     clearParticipantStatusTimer(name, pid);
-    stopPanePromptWatcher(participantKey(name, pid));
-    participantSessionEpochs.delete(participantKey(name, pid));
+    stopPanePromptWatcher(key);
+    participantSessionEpochs.delete(key);
+    const disconnectTimer = paneDisconnectTimers.get(key);
+    if (disconnectTimer) { clearTimeout(disconnectTimer); paneDisconnectTimers.delete(key); }
     const msg = appendMessage({
       from: name,
       to: null,
@@ -436,9 +447,34 @@ function pruneStaleParticipants(): void {
   for (const participant of [...participants.values()]) {
     if (participant.kind !== 'llm' || !participant.paneId) continue;
     if (globalPtys.has(participant.paneId)) continue;
-    // Pane is gone — full removal regardless of detached state
-    leave(participant.name, participant.projectId);
+    // Pane is gone — detach gracefully instead of removing
+    disconnectParticipant(participant.name, participant.projectId, 'pane disappeared');
   }
+}
+
+/** Gracefully disconnect a participant: unlink pane, keep in registry, start auto-removal timer. */
+function disconnectParticipant(name: string, projectId: string | null, reason: string): void {
+  const participant = getParticipantExact(name, projectId);
+  if (!participant) return;
+
+  participant.paneId = null;
+  participant.detached = true;
+  clearParticipantStatusTimer(name, projectId);
+  stopPanePromptWatcher(participantKey(name, projectId));
+  bumpParticipantSessionEpoch(name, projectId);
+  emitMembers(projectId);
+
+  // Start auto-removal timer — if not reclaimed within timeout, fully remove
+  const key = participantKey(name, projectId);
+  const existing = paneDisconnectTimers.get(key);
+  if (existing) clearTimeout(existing);
+  paneDisconnectTimers.set(key, setTimeout(() => {
+    paneDisconnectTimers.delete(key);
+    const p = getParticipantExact(name, projectId);
+    if (p && p.detached) {
+      leave(name, projectId);
+    }
+  }, PANE_DISCONNECT_TIMEOUT_MS));
 }
 
 export function send(from: string, body: string, to?: string, projectId?: string | null): ChatMessage {
@@ -523,7 +559,10 @@ function resolveTargets(from: string, body: string, to?: string, senderKind?: 'u
 
 function deliverToPty(targetName: string, projectId: string | null, msg: ChatMessage): void {
   const target = getParticipantExact(targetName, projectId);
-  if (!target?.paneId || target.detached) return;
+  if (!target?.paneId || target.detached) {
+    emitDeliveryStatus(msg.id, targetName, projectId, 'failed', target?.detached ? 'participant detached' : 'no pane linked');
+    return;
+  }
 
   const paneId = target.paneId;
   const sessionEpoch = currentParticipantSessionEpoch(targetName, projectId);
@@ -532,47 +571,75 @@ function deliverToPty(targetName: string, projectId: string | null, msg: ChatMes
     .catch(() => {})
     .then(async () => {
       const liveTarget = getParticipantExact(targetName, projectId);
-      if (!liveTarget?.paneId || liveTarget.detached || liveTarget.paneId !== paneId || currentParticipantSessionEpoch(targetName, projectId) !== sessionEpoch) return;
+      if (!liveTarget?.paneId || liveTarget.detached || liveTarget.paneId !== paneId || currentParticipantSessionEpoch(targetName, projectId) !== sessionEpoch) {
+        emitDeliveryStatus(msg.id, targetName, projectId, 'failed', 'session changed during delivery');
+        return;
+      }
 
       const entry = globalPtys.get(paneId);
       if (!entry) {
-        // Pane closed — unlink but keep participant
-        liveTarget.paneId = null;
+        disconnectParticipant(targetName, projectId, 'pane disappeared during delivery');
+        emitDeliveryStatus(msg.id, targetName, projectId, 'failed', 'pane closed');
         return;
       }
 
       const formatted = `[DevGlide Chat] @${msg.from}: ${msg.body}`;
 
+      // Snapshot status before write — used later to detect if submit caused a transition
+      const statusBeforeWrite = liveTarget.status;
+
       entry.ptyProcess.write(formatted);
 
-      // Keep the delayed submit coupled to this specific injected message.
+      // Wait before sending submit key
       await new Promise((resolve) => setTimeout(resolve, PTY_SUBMIT_DELAY_MS));
 
       const refreshed = getParticipantExact(targetName, projectId);
-      if (!refreshed?.paneId || refreshed.detached || refreshed.paneId !== paneId || currentParticipantSessionEpoch(targetName, projectId) !== sessionEpoch) return;
+      if (!refreshed?.paneId || refreshed.detached || refreshed.paneId !== paneId || currentParticipantSessionEpoch(targetName, projectId) !== sessionEpoch) {
+        emitDeliveryStatus(msg.id, targetName, projectId, 'failed', 'session changed before submit');
+        return;
+      }
 
       const refreshedEntry = globalPtys.get(paneId);
       if (!refreshedEntry) {
-        refreshed.paneId = null;
+        disconnectParticipant(targetName, projectId, 'pane disappeared before submit');
+        emitDeliveryStatus(msg.id, targetName, projectId, 'failed', 'pane closed before submit');
         return;
       }
 
       refreshedEntry.ptyProcess.write(refreshed.submitKey);
 
-      // Retry submit after additional delay — sometimes the first CR is swallowed
-      // by TUI frameworks (e.g. crossterm paste-burst detection).
+      // Wait and check if the target started working (output-based confirmation).
+      // If the participant transitions to 'working', the submit was accepted.
+      // Only retry if still idle after the timeout.
       await new Promise((resolve) => setTimeout(resolve, PTY_RETRY_SUBMIT_DELAY_MS));
 
       const retryTarget = getParticipantExact(targetName, projectId);
-      if (!retryTarget?.paneId || retryTarget.detached || retryTarget.paneId !== paneId || currentParticipantSessionEpoch(targetName, projectId) !== sessionEpoch) return;
+      if (!retryTarget?.paneId || retryTarget.detached || retryTarget.paneId !== paneId || currentParticipantSessionEpoch(targetName, projectId) !== sessionEpoch) {
+        // Session changed but first submit was sent — uncertain
+        emitDeliveryStatus(msg.id, targetName, projectId, 'uncertain', 'session changed after submit');
+        return;
+      }
 
+      // Check for a status *transition* to 'working' after our write+submit.
+      // Only counts as confirmation if the target was NOT already 'working' before —
+      // otherwise the status could be from unrelated activity or assignment heuristics.
+      if (retryTarget.status === 'working' && statusBeforeWrite !== 'working') {
+        emitDeliveryStatus(msg.id, targetName, projectId, 'delivered', 'target transitioned to working');
+        return;
+      }
+
+      // No confirmed transition — retry submit once
       const retryEntry = globalPtys.get(paneId);
       if (!retryEntry) {
-        retryTarget.paneId = null;
+        disconnectParticipant(targetName, projectId, 'pane disappeared before retry');
+        emitDeliveryStatus(msg.id, targetName, projectId, 'failed', 'pane closed before retry');
         return;
       }
 
       retryEntry.ptyProcess.write(retryTarget.submitKey);
+
+      // After retry, status is uncertain — we can't know if it was accepted
+      emitDeliveryStatus(msg.id, targetName, projectId, 'uncertain', 'retry submitted, no confirmation');
     })
     .finally(() => {
       if (paneDeliveryQueues.get(paneId) === next) {
@@ -581,6 +648,20 @@ function deliverToPty(targetName: string, projectId: string | null, msg: ChatMes
     });
 
   paneDeliveryQueues.set(paneId, next);
+}
+
+/** Emit delivery status update for a specific message + target to dashboard,
+ *  and persist it into the message JSONL store. */
+function emitDeliveryStatus(
+  messageId: string,
+  targetName: string,
+  projectId: string | null,
+  status: DeliveryStatus,
+  reason?: string,
+): void {
+  const info: DeliveryInfo = { target: targetName, status, reason };
+  emitToProject('chat:delivery', { messageId, ...info }, projectId);
+  updateMessageDelivery(messageId, info, projectId);
 }
 
 export function listParticipants(projectId?: string | null): ChatParticipant[] {
@@ -615,13 +696,13 @@ export function clearHistory(projectId?: string | null): void {
   emitToProject('chat:cleared', {}, pid);
 }
 
-/** Handle pane closure — remove participants linked to this pane.
- *  Scoped by projectId to avoid removing participants from other projects
- *  that happen to share the same pane ID format. */
+/** Handle pane closure — gracefully disconnect participants linked to this pane.
+ *  Participants are detached (not removed) so they can reclaim within the timeout window.
+ *  Scoped by projectId to avoid affecting participants from other projects. */
 export function onPaneClosed(paneId: string, projectId?: string | null): void {
   for (const p of [...participants.values()]) {
     if (p.paneId === paneId && (projectId == null || p.projectId === projectId)) {
-      leave(p.name, p.projectId);
+      disconnectParticipant(p.name, p.projectId, 'pane closed');
     }
   }
 }

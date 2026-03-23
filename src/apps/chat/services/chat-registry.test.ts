@@ -21,6 +21,7 @@ const chatStoreMock = vi.hoisted(() => {
 vi.mock('./chat-store.js', () => ({
   appendMessage: chatStoreMock.appendMessage,
   clearMessages: chatStoreMock.clearMessages,
+  updateMessageDelivery: vi.fn(),
 }));
 
 const registry = await import('./chat-registry.js');
