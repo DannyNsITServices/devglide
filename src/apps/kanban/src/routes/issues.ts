@@ -375,7 +375,7 @@ issuesRouter.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
       // This matches the MCP tool behavior in item-tools.ts
       const destColumnId = updateFields.columnId!;
       const maxOrder = db.prepare(`SELECT MAX("order") AS maxOrd FROM "Issue" WHERE "columnId" = ?`).get(destColumnId) as { maxOrd: number | null } | undefined;
-      updateFields.order = (maxOrder?.maxOrd ?? -1) + 1;
+      (updateFields as Record<string, unknown>).order = (maxOrder?.maxOrd ?? -1) + 1;
     }
 
     const setClauses: string[] = [];

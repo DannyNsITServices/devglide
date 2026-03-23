@@ -28,8 +28,8 @@ describe('chat-rules', () => {
     expect(getDefaultRules()).toBe(DEFAULT_RULES);
     expect(getEffectiveRules(TEST_PROJECT_ID)).toBe(DEFAULT_RULES);
     expect(hasProjectRules(TEST_PROJECT_ID)).toBe(false);
-    expect(DEFAULT_RULES).toContain('Planning mode');
-    expect(DEFAULT_RULES).toContain('Only the assigned LLM executes');
+    expect(DEFAULT_RULES).toContain('Discussion only');
+    expect(DEFAULT_RULES).toContain('Execution mode: explicit assignment only');
   });
 
   it('saves and resolves a project-specific override', () => {

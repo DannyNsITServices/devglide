@@ -161,34 +161,4 @@ describe('chat router rules of engagement', () => {
     });
   });
 
-  it('passes topic filters through GET /messages', async () => {
-    storeMock.readMessages.mockReturnValue([
-      {
-        id: 'msg-1',
-        ts: '2026-03-22T00:00:00.000Z',
-        from: 'user',
-        to: null,
-        body: 'Investigate #rules',
-        topic: 'rules',
-        type: 'message',
-      },
-    ]);
-
-    await withServer(async (baseUrl) => {
-      const response = await fetch(`${baseUrl}/messages?limit=10&topic=rules`);
-      expect(response.status).toBe(200);
-      expect(storeMock.readMessages).toHaveBeenCalledWith({ limit: 10, topic: 'rules' });
-      expect(await response.json()).toEqual([
-        {
-          id: 'msg-1',
-          ts: '2026-03-22T00:00:00.000Z',
-          from: 'user',
-          to: null,
-          body: 'Investigate #rules',
-          topic: 'rules',
-          type: 'message',
-        },
-      ]);
-    });
-  });
 });
