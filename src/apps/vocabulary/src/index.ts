@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createVocabularyMcpServer } from "../mcp.js";
+import { createVocabularyMcpServer } from "./mcp.js";
 import { runStdio } from "../../../packages/mcp-utils/src/index.js";
 
 // ── Stdio MCP mode ──────────────────────────────────────────────────────────

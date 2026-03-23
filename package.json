@@ -47,11 +47,12 @@
   "scripts": {
     "dev": "turbo dev --concurrency 20",
     "dev:server": "tsx src/server.ts",
-    "build": "turbo build",
+    "build": "turbo build && node scripts/build-mcp.mjs && node scripts/check-structure.mjs",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
     "test": "vitest run",
     "build:mcp": "node scripts/build-mcp.mjs",
+    "check:structure": "node scripts/check-structure.mjs",
     "clean": "turbo clean && rm -rf node_modules"
   },
   "dependencies": {

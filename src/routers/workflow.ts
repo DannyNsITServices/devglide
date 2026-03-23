@@ -44,7 +44,7 @@ const instructionsQuerySchema = z.object({
   projectId: z.string().optional(),
 });
 
-export { createWorkflowMcpServer } from '../apps/workflow/mcp.js';
+export { createWorkflowMcpServer } from '../apps/workflow/src/mcp.js';
 
 export const router: Router = Router();
 

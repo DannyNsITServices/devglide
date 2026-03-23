@@ -9,7 +9,7 @@ import { getEffectiveRules, getDefaultRules, saveProjectRules, deleteProjectRule
 import { getActiveProject, onProjectChange } from '../project-context.js';
 import { globalPtys, dashboardState } from '../apps/shell/src/runtime/shell-state.js';
 
-export { createChatMcpServer, chatServerSessions } from '../apps/chat/mcp.js';
+export { createChatMcpServer, chatServerSessions } from '../apps/chat/src/mcp.js';
 
 export const router: Router = Router();
 

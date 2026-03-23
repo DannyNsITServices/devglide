@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { VocabularyStore } from './services/vocabulary-store.js';
-import { jsonResult, errorResult, createDevglideMcpServer } from '../../packages/mcp-utils/src/index.js';
+import { VocabularyStore } from '../services/vocabulary-store.js';
+import { jsonResult, errorResult, createDevglideMcpServer } from '../../../packages/mcp-utils/src/index.js';
 
 export function createVocabularyMcpServer(): McpServer {
   const server = createDevglideMcpServer(

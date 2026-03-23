@@ -1,9 +1,9 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { jsonResult, errorResult, createDevglideMcpServer } from '../../packages/mcp-utils/src/index.js';
-import * as registry from './services/chat-registry.js';
-import * as store from './services/chat-store.js';
-import { getEffectiveRules } from './services/chat-rules.js';
+import { jsonResult, errorResult, createDevglideMcpServer } from '../../../packages/mcp-utils/src/index.js';
+import * as registry from '../services/chat-registry.js';
+import * as store from '../services/chat-store.js';
+import { getEffectiveRules } from '../services/chat-rules.js';
 
 const UNIFIED_BASE = `http://localhost:${process.env.PORT ?? 7000}`;
 

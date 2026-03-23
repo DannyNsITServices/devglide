@@ -39,7 +39,7 @@ const vocabularyContextQuerySchema = z.object({
   projectId: z.string().optional(),
 });
 
-export { createVocabularyMcpServer } from '../apps/vocabulary/mcp.js';
+export { createVocabularyMcpServer } from '../apps/vocabulary/src/mcp.js';
 
 export const router: Router = Router();
 

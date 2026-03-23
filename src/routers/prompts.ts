@@ -44,7 +44,7 @@ const listPromptsQuerySchema = z.object({
   search: z.string().optional(),
 });
 
-export { createPromptsMcpServer } from '../apps/prompts/mcp.js';
+export { createPromptsMcpServer } from '../apps/prompts/src/mcp.js';
 
 export const router: Router = Router();
 

@@ -1,0 +1,130 @@
+{
+  "$comment": "Canonical structure manifest for DevGlide monorepo. Used by scripts/check-structure.mjs to enforce boundaries and detect drift.",
+  "kindEnums": {
+    "app": ["mcp-app", "ui-app", "static-app"],
+    "package": ["lib-package", "asset-package", "config-package"]
+  },
+  "apps": {
+    "kanban": {
+      "kind": "mcp-app",
+      "entrypoints": ["src/mcp.ts", "src/index.ts"],
+      "buildTarget": true,
+      "expectedPackageName": "@devglide/kanban"
+    },
+    "log": {
+      "kind": "mcp-app",
+      "entrypoints": ["src/mcp.ts", "src/index.ts"],
+      "buildTarget": true,
+      "expectedPackageName": "@devglide/log"
+    },
+    "shell": {
+      "kind": "mcp-app",
+      "entrypoints": ["src/mcp.ts", "src/index.ts"],
+      "buildTarget": true,
+      "expectedPackageName": "@devglide/shell"
+    },
+    "test": {
+      "kind": "mcp-app",
+      "entrypoints": ["src/mcp.ts", "src/index.ts"],
+      "buildTarget": true,
+      "expectedPackageName": "@devglide/test"
+    },
+    "voice": {
+      "kind": "mcp-app",
+      "entrypoints": ["src/mcp.ts", "src/index.ts"],
+      "buildTarget": true,
+      "expectedPackageName": "@devglide/voice"
+    },
+    "chat": {
+      "kind": "mcp-app",
+      "entrypoints": ["src/mcp.ts", "src/index.ts"],
+      "buildTarget": true,
+      "expectedPackageName": "@devglide/chat",
+      "allowedCrossAppDeps": ["shell"]
+    },
+    "prompts": {
+      "kind": "mcp-app",
+      "entrypoints": ["src/mcp.ts", "src/index.ts"],
+      "buildTarget": true,
+      "expectedPackageName": "@devglide/prompts"
+    },
+    "vocabulary": {
+      "kind": "mcp-app",
+      "entrypoints": ["src/mcp.ts", "src/index.ts"],
+      "buildTarget": true,
+      "expectedPackageName": "@devglide/vocabulary"
+    },
+    "workflow": {
+      "kind": "mcp-app",
+      "entrypoints": ["src/mcp.ts", "src/index.ts"],
+      "buildTarget": true,
+      "expectedPackageName": "@devglide/workflow",
+      "allowedCrossAppDeps": ["test", "kanban", "log"]
+    },
+    "coder": {
+      "kind": "ui-app",
+      "entrypoints": ["public/"],
+      "expectedPackageName": "@devglide/coder"
+    },
+    "keymap": {
+      "kind": "ui-app",
+      "entrypoints": ["public/"],
+      "expectedPackageName": "@devglide/keymap"
+    },
+    "documentation": {
+      "kind": "static-app",
+      "entrypoints": ["public/"]
+    }
+  },
+  "packages": {
+    "design-tokens": {
+      "kind": "lib-package",
+      "entrypoints": ["tokens.json", "build.js"],
+      "expectedPackageName": "@devglide/design-tokens"
+    },
+    "eslint-config": {
+      "kind": "config-package",
+      "entrypoints": ["index.js"],
+      "expectedPackageName": "@devglide/eslint-config"
+    },
+    "mcp-utils": {
+      "kind": "lib-package",
+      "entrypoints": ["src/index.ts"],
+      "expectedPackageName": "@devglide/mcp-utils"
+    },
+    "project-context": {
+      "kind": "lib-package",
+      "entrypoints": ["index.js"],
+      "expectedPackageName": "@devglide/project-context"
+    },
+    "shared-assets": {
+      "kind": "asset-package",
+      "entrypoints": ["voice-widget.js"],
+      "expectedPackageName": "@devglide/shared-assets"
+    },
+    "shared-types": {
+      "kind": "lib-package",
+      "entrypoints": ["src/index.ts"],
+      "expectedPackageName": "@devglide/shared-types"
+    },
+    "shared-ui": {
+      "kind": "asset-package",
+      "entrypoints": ["shared-ui.css"]
+    },
+    "tsconfig": {
+      "kind": "config-package",
+      "entrypoints": ["base.json"],
+      "expectedPackageName": "@devglide/tsconfig"
+    }
+  },
+  "standaloneFiles": [
+    "auth-middleware.ts",
+    "devtools-middleware.ts",
+    "error-middleware.ts",
+    "json-file-store.ts",
+    "paths.ts",
+    "project-store.ts",
+    "server-sniffer.ts",
+    "ssrf-guard.ts"
+  ]
+}

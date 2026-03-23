@@ -1,7 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { PromptStore } from './services/prompt-store.js';
-import { jsonResult, errorResult, createDevglideMcpServer } from '../../packages/mcp-utils/src/index.js';
+import { PromptStore } from '../services/prompt-store.js';
+import { jsonResult, errorResult, createDevglideMcpServer } from '../../../packages/mcp-utils/src/index.js';
 
 export function createPromptsMcpServer(): McpServer {
   const server = createDevglideMcpServer(

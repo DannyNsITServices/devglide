@@ -1,9 +1,9 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { WorkflowStore } from './services/workflow-store.js';
-import { getActiveProject } from '../../project-context.js';
-import type { Workflow, WorkflowNode, WorkflowEdge, VariableDefinition } from './types.js';
-import { jsonResult, errorResult, createDevglideMcpServer } from '../../packages/mcp-utils/src/index.js';
+import { WorkflowStore } from '../services/workflow-store.js';
+import { getActiveProject } from '../../../project-context.js';
+import type { Workflow, WorkflowNode, WorkflowEdge, VariableDefinition } from '../types.js';
+import { jsonResult, errorResult, createDevglideMcpServer } from '../../../packages/mcp-utils/src/index.js';
 
 // ── Zod schemas for validating MCP input ─────────────────────────────────────
 const nodeInputSchema = z.array(z.object({
