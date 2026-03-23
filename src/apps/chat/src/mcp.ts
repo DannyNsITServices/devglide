@@ -219,5 +219,60 @@ export function createChatMcpServer(): McpServer {
     },
   );
 
+  // ── 6. chat_status ────────────────────────────────────────────────────
+
+  server.tool(
+    'chat_status',
+    'Check your current chat connection status and diagnostics. Use this to debug delivery issues or verify your session is healthy.',
+    {},
+    async () => {
+      const pid = getSessionProjectId();
+
+      // Session state
+      const joined = !!sessionName;
+      const participant = joined ? registry.listParticipants(pid).find(p => p.name === sessionName) : null;
+
+      // Pane routability check — scope to session's project, not dashboard active project
+      const paneId = participant?.paneId ?? null;
+      let paneRoutable = false;
+      const panesQuery = pid ? `?projectId=${encodeURIComponent(pid)}` : '';
+      let panes: Array<{ id: string; claimed: boolean }> = [];
+      {
+        const res = await chatApi(`/panes${panesQuery}`);
+        if (res.ok) panes = res.data as Array<{ id: string; claimed: boolean }>;
+      }
+      if (paneId) {
+        paneRoutable = panes.some(p => p.id === paneId);
+      }
+
+      // What auto-resolution would pick right now (scoped to session project)
+      let autoResolveResult: string | null = null;
+      const unclaimed = panes.filter(p => !p.claimed);
+      if (unclaimed.length === 1) autoResolveResult = unclaimed[0].id;
+      else if (unclaimed.length === 0) autoResolveResult = '(no unclaimed panes)';
+      else autoResolveResult = `(ambiguous: ${unclaimed.map(p => p.id).join(', ')})`;
+
+      // Other active members
+      const members = registry.listParticipants(pid);
+
+      return jsonResult({
+        joined,
+        name: sessionName,
+        projectId: pid,
+        paneId,
+        paneRoutable,
+        detached: participant?.detached ?? false,
+        status: participant?.status ?? null,
+        autoResolveWouldPick: autoResolveResult,
+        activeMembers: members.map(m => ({
+          name: m.name,
+          status: m.status,
+          paneId: m.paneId,
+          detached: m.detached,
+        })),
+      });
+    },
+  );
+
   return server;
 }

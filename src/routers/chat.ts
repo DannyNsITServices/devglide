@@ -261,8 +261,55 @@ function resolvePane(suppliedPaneId: string | null | undefined, projectId: strin
 // ── REST API ─────────────────────────────────────────────────────────────────
 
 // GET /panes — list routable panes for chat join
-router.get('/panes', (_req: Request, res: Response) => {
-  res.json(getRoutablePanes());
+// Accepts optional ?projectId= to scope to a specific project (defaults to active project)
+router.get('/panes', (req: Request, res: Response) => {
+  const projectId = req.query.projectId as string | undefined;
+  res.json(getRoutablePanes(projectId ?? undefined));
+});
+
+// GET /status — connection diagnostics for a participant
+// Accepts optional ?projectId= to scope to a specific project (defaults to active project)
+// Accepts optional ?name= to get diagnostics for a specific participant
+router.get('/status', (req: Request, res: Response) => {
+  const name = req.query.name as string | undefined;
+  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+
+  if (!name) {
+    // Return general status: all members + pane info
+    const members = registry.listParticipants(projectId);
+    const panes = getRoutablePanes(projectId);
+    const unclaimed = panes.filter(p => !p.claimed);
+    res.json({
+      projectId,
+      activeMembers: members.map(m => ({ name: m.name, status: m.status, paneId: m.paneId, detached: m.detached })),
+      routablePanes: panes,
+      autoResolveWouldPick: unclaimed.length === 1 ? unclaimed[0].id : unclaimed.length === 0 ? null : `ambiguous: ${unclaimed.map(p => p.id).join(', ')}`,
+    });
+    return;
+  }
+
+  // Specific participant status
+  const participant = registry.getParticipant(name, projectId);
+  if (!participant) {
+    res.status(404).json({ error: `Participant "${name}" not found`, joined: false });
+    return;
+  }
+
+  const paneRoutable = participant.paneId ? globalPtys.has(participant.paneId) : false;
+  const panes = getRoutablePanes(projectId);
+  const unclaimed = panes.filter(p => !p.claimed);
+
+  res.json({
+    joined: true,
+    name: participant.name,
+    projectId: participant.projectId,
+    paneId: participant.paneId,
+    paneRoutable,
+    detached: participant.detached,
+    status: participant.status,
+    autoResolveWouldPick: unclaimed.length === 1 ? unclaimed[0].id : unclaimed.length === 0 ? null : `ambiguous: ${unclaimed.map(p => p.id).join(', ')}`,
+    activeMembers: registry.listParticipants(projectId).map(m => ({ name: m.name, status: m.status, paneId: m.paneId, detached: m.detached })),
+  });
 });
 
 // GET /messages — read message history
