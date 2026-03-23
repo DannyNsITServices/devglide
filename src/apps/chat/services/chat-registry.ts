@@ -96,11 +96,21 @@ function markAssignedParticipantStatus(body: string, targetName: string): ChatPa
   const targetMention = `@${targetName.toLowerCase()}`;
   const reviewTerms = '(verify|verification|review|check|inspect|validate|confirm|test)';
   const reviewRe = new RegExp(`(${escapeRegExp(targetMention)}\\b[^\\n]{0,120}\\b${reviewTerms}\\b|\\b${reviewTerms}\\b[^\\n]{0,120}${escapeRegExp(targetMention)}\\b)`, 'i');
-  if (reviewRe.test(lowered)) return 'reviewing';
+  if (reviewRe.test(lowered)) return 'working';
 
   const workTerms = '(fix|handle|implement|patch|update|investigate|look\\s+into|take|pick\\s+up|work\\s+on|resolve|debug)';
   const workRe = new RegExp(`(${escapeRegExp(targetMention)}\\b[^\\n]{0,120}\\b${workTerms}\\b|\\b${workTerms}\\b[^\\n]{0,120}${escapeRegExp(targetMention)}\\b)`, 'i');
   return workRe.test(lowered) ? 'working' : null;
+}
+
+function requestsUserInputInChat(body: string): boolean {
+  const stripped = body.trim();
+  if (!stripped) return false;
+
+  const mentionsUser = /(^|\s)@user\b/i.test(stripped);
+  const asksQuestion = /\?(\s|$)/m.test(stripped);
+  const asksChoice = /\b(confirm|approve|allow|choose|pick|select|which|what should i|want me to|should i|can you|could you|would you like|do you want)\b/i.test(stripped);
+  return mentionsUser ? (asksQuestion || asksChoice) : false;
 }
 
 // ── PTY activity & prompt detection ───────────────────────────────────────
@@ -174,10 +184,7 @@ function startPanePromptWatcher(name: string, projectId: string | null, paneId: 
     if (hasNontrivialContent(data)) {
       const participant = getParticipantExact(name, projectId);
       if (participant && participant.kind === 'llm' && !participant.detached) {
-        // Don't override chat-assigned reviewing status
-        if (participant.status !== 'reviewing') {
-          setParticipantStatus(name, projectId, 'working', false);
-        }
+        setParticipantStatus(name, projectId, 'working', false);
         // Reset inactivity timer → idle
         if (idleTimer) clearTimeout(idleTimer);
         idleTimer = setTimeout(() => {
@@ -196,8 +203,6 @@ function startPanePromptWatcher(name: string, projectId: string | null, paneId: 
       quiescenceTimer = null;
       const participant = getParticipantExact(name, projectId);
       if (!participant || participant.kind !== 'llm' || participant.detached) return;
-      // Don't override explicit reviewing status from chat assignment
-      if (participant.status === 'reviewing') return;
 
       // Scan only the delta buffer (output since last check), not full scrollback
       const stripped = stripAnsi(deltaBuffer);
@@ -449,10 +454,17 @@ export function send(from: string, body: string, to?: string, projectId?: string
     setParticipantStatus(sender.name, resolvedSenderProjectId, sender.status);
   }
   if (senderKind === 'user') {
+    for (const participant of participants.values()) {
+      if (participant.kind === 'llm' && participant.projectId === resolvedSenderProjectId && participant.status === 'awaiting-user') {
+        setParticipantStatus(participant.name, resolvedSenderProjectId, 'working');
+      }
+    }
     for (const targetName of targets) {
       const status = markAssignedParticipantStatus(body, targetName);
       if (status) setParticipantStatus(targetName, resolvedSenderProjectId, status);
     }
+  } else if (sender?.kind === 'llm' && sender.projectId === resolvedSenderProjectId && requestsUserInputInChat(body)) {
+    setParticipantStatus(sender.name, resolvedSenderProjectId, 'awaiting-user', false);
   }
 
   const msg = appendMessage({

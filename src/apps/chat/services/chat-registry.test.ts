@@ -330,7 +330,7 @@ describe('chat-registry PTY delivery', () => {
     registry.leave(worker.name);
   });
 
-  it('marks explicit review assignments as reviewing', () => {
+  it('marks explicit review assignments as working', () => {
     globalPtys.set('pane-status-review', {
       ptyProcess: { write: vi.fn() } as never,
       chunks: [],
@@ -341,7 +341,7 @@ describe('chat-registry PTY delivery', () => {
 
     registry.send('user', `@${reviewer.name} verify the fix`);
 
-    expect(registry.getParticipant(reviewer.name)?.status).toBe('reviewing');
+    expect(registry.getParticipant(reviewer.name)?.status).toBe('working');
 
     registry.leave(reviewer.name);
   });
@@ -500,18 +500,18 @@ describe('chat-registry PTY prompt detection (awaiting-user)', () => {
     registry.leave(participant.name);
   });
 
-  it('does not override reviewing status with PTY-driven working', async () => {
+  it('keeps review assignments in working during PTY activity', async () => {
     createPtyWithOnData('pane-pty-w4');
     const participant = registry.join('claude', 'llm', 'pane-pty-w4', 'claude', '\r');
 
-    // Set reviewing via chat assignment
+    // Review work now shares the same working state
     registry.send('user', `@${participant.name} verify the fix`);
-    expect(registry.getParticipant(participant.name)?.status).toBe('reviewing');
+    expect(registry.getParticipant(participant.name)?.status).toBe('working');
 
-    // PTY output should not downgrade to working
+    // PTY output should leave the participant in working
     emitPtyData('pane-pty-w4', 'Reading file...');
 
-    expect(registry.getParticipant(participant.name)?.status).toBe('reviewing');
+    expect(registry.getParticipant(participant.name)?.status).toBe('working');
 
     registry.leave(participant.name);
   });
@@ -590,19 +590,19 @@ describe('chat-registry PTY prompt detection (awaiting-user)', () => {
     registry.leave(participant.name);
   });
 
-  it('does not override reviewing status with awaiting-user', async () => {
+  it('allows awaiting-user to override working review assignments when a prompt appears', async () => {
     createPtyWithOnData('pane-prompt-4');
     const participant = registry.join('claude', 'llm', 'pane-prompt-4', 'claude', '\r');
 
-    // Set reviewing via chat assignment
+    // Review work now shares the same working state
     registry.send('user', `@${participant.name} verify the fix`);
-    expect(registry.getParticipant(participant.name)?.status).toBe('reviewing');
+    expect(registry.getParticipant(participant.name)?.status).toBe('working');
 
-    // PTY output has a prompt, but should not override reviewing
+    // PTY output has a prompt and should move the participant to awaiting-user
     emitPtyData('pane-prompt-4', 'Allow Edit /src/code.ts');
     await vi.advanceTimersByTimeAsync(2000);
 
-    expect(registry.getParticipant(participant.name)?.status).toBe('reviewing');
+    expect(registry.getParticipant(participant.name)?.status).toBe('awaiting-user');
 
     registry.leave(participant.name);
   });
@@ -615,6 +615,31 @@ describe('chat-registry PTY prompt detection (awaiting-user)', () => {
     await vi.advanceTimersByTimeAsync(2000);
 
     expect(registry.getParticipant(participant.name)?.status).toBe('awaiting-user');
+
+    registry.leave(participant.name);
+  });
+
+  it('marks an llm as awaiting-user when it asks @user for a decision in chat', () => {
+    createPtyWithOnData('pane-prompt-chat-1');
+    const participant = registry.join('claude', 'llm', 'pane-prompt-chat-1', 'claude', '\r');
+
+    registry.send(participant.name, '@user should I apply the fix now?');
+
+    expect(registry.getParticipant(participant.name)?.status).toBe('awaiting-user');
+
+    registry.leave(participant.name);
+  });
+
+  it('returns awaiting-user participants to working when the user replies in chat', () => {
+    createPtyWithOnData('pane-prompt-chat-2');
+    const participant = registry.join('claude', 'llm', 'pane-prompt-chat-2', 'claude', '\r');
+
+    registry.send(participant.name, '@user choose one option?');
+    expect(registry.getParticipant(participant.name)?.status).toBe('awaiting-user');
+
+    registry.send('user', 'option 1');
+
+    expect(registry.getParticipant(participant.name)?.status).toBe('working');
 
     registry.leave(participant.name);
   });
