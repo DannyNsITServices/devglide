@@ -1,7 +1,8 @@
 import type { Namespace } from 'socket.io';
 import type { ChatParticipant, ChatMessage, DeliveryInfo, DeliveryStatus } from '../types.js';
 import { globalPtys, dashboardState, getShellNsp } from '../../shell/src/runtime/shell-state.js';
-import { appendMessage, clearMessages, updateMessageDelivery } from './chat-store.js';
+import { appendMessage, clearMessages, updateMessageDelivery, saveParticipants, loadParticipants } from './chat-store.js';
+import type { PersistedParticipant } from './chat-store.js';
 import { getActiveProject, onProjectChange } from '../../../project-context.js';
 
 // In-memory participant registry
@@ -248,6 +249,80 @@ function stopPanePromptWatcher(key: string): void {
   }
 }
 
+// ── Participant persistence ──────────────────────────────────────────────────
+
+/** Persist current LLM participants to disk for a given project. */
+function persistParticipantsForProject(projectId: string | null): void {
+  if (!projectId) return;
+  const llmParticipants: PersistedParticipant[] = [];
+  for (const p of participants.values()) {
+    if (p.kind !== 'llm' || p.projectId !== projectId) continue;
+    llmParticipants.push({
+      name: p.name,
+      model: p.model,
+      paneId: p.paneId,
+      projectId: p.projectId,
+      submitKey: p.submitKey,
+      joinedAt: p.joinedAt,
+      lastSeen: p.lastSeen,
+    });
+  }
+  saveParticipants(llmParticipants, projectId);
+}
+
+/** Restore participants from disk after server restart.
+ *  Only reattaches participants whose pane still exists and matches exactly.
+ *  Returns arrays of restored and failed participants. */
+export function restoreParticipants(projectId: string | null): { restored: string[]; failed: string[] } {
+  if (!projectId) return { restored: [], failed: [] };
+  const persisted = loadParticipants(projectId);
+  if (persisted.length === 0) return { restored: [], failed: [] };
+
+  const restored: string[] = [];
+  const failed: string[] = [];
+
+  for (const p of persisted) {
+    // Only reattach if pane + project match exactly
+    if (!p.paneId || !globalPtys.has(p.paneId)) {
+      failed.push(p.name);
+      continue;
+    }
+
+    // Check the pane still belongs to this project
+    const paneInfo = dashboardState.panes.find(d => d.id === p.paneId);
+    if (paneInfo?.projectId && p.projectId && paneInfo.projectId !== p.projectId) {
+      failed.push(p.name);
+      continue;
+    }
+
+    // Reattach — create participant in detached state, ready for reclaim
+    const key = participantKey(p.name, p.projectId);
+    if (participants.has(key)) continue; // already exists (shouldn't happen after restart)
+
+    const participant: ChatParticipant = {
+      name: p.name,
+      kind: 'llm',
+      model: p.model,
+      paneId: p.paneId,
+      projectId: p.projectId,
+      submitKey: p.submitKey,
+      joinedAt: p.joinedAt,
+      lastSeen: new Date().toISOString(),
+      detached: true, // detached until the MCP session reclaims
+      status: 'idle',
+    };
+    participants.set(key, participant);
+    bumpParticipantSessionEpoch(p.name, p.projectId);
+    restored.push(p.name);
+  }
+
+  // Do NOT persist here — failed entries should stay in the file so they
+  // remain available for manual rejoin. They will be removed when the
+  // participant explicitly leaves or the disconnect timeout fires.
+
+  return { restored, failed };
+}
+
 export function setChatNsp(nsp: Namespace): void {
   chatNsp = nsp;
 }
@@ -364,6 +439,7 @@ export function join(
     emitToProject('chat:message', msg, existing.projectId);
 
     if (paneId) startPanePromptWatcher(existing.name, existing.projectId, paneId);
+    persistParticipantsForProject(existing.projectId);
 
     return existing;
   }
@@ -398,6 +474,7 @@ export function join(
   emitToProject('chat:message', msg, participant.projectId);
 
   if (paneId) startPanePromptWatcher(uniqueName, participant.projectId, paneId);
+  persistParticipantsForProject(participant.projectId);
 
   return participant;
 }
@@ -424,6 +501,7 @@ export function leave(name: string, projectId?: string | null): boolean {
     }, pid);
     emitToProject('chat:leave', { name }, pid);
     emitToProject('chat:message', msg, pid);
+    persistParticipantsForProject(pid);
   }
   return removed;
 }
@@ -463,6 +541,7 @@ function disconnectParticipant(name: string, projectId: string | null, reason: s
   stopPanePromptWatcher(participantKey(name, projectId));
   bumpParticipantSessionEpoch(name, projectId);
   emitMembers(projectId);
+  persistParticipantsForProject(projectId);
 
   // Start auto-removal timer — if not reclaimed within timeout, fully remove
   const key = participantKey(name, projectId);

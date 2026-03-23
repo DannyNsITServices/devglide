@@ -7,6 +7,7 @@ import * as registry from '../apps/chat/services/chat-registry.js';
 import * as store from '../apps/chat/services/chat-store.js';
 import { getEffectiveRules, getDefaultRules, saveProjectRules, deleteProjectRules, hasProjectRules } from '../apps/chat/services/chat-rules.js';
 import { getActiveProject, onProjectChange } from '../project-context.js';
+import { listProjects } from '../packages/project-store.js';
 import { globalPtys, dashboardState } from '../apps/shell/src/runtime/shell-state.js';
 
 export { createChatMcpServer, chatServerSessions } from '../apps/chat/src/mcp.js';
@@ -465,6 +466,35 @@ function leaveAllProjectRooms(socket: import('socket.io').Socket): void {
 
 export function initChat(nsp: Namespace): void {
   registry.setChatNsp(nsp);
+
+  // Restore participants from disk after server restart — per-project with scoped notifications
+  const allProjects = listProjects().projects;
+  const projectResults: Array<{ projectId: string; restored: string[]; failed: string[] }> = [];
+  for (const proj of allProjects) {
+    const { restored, failed } = registry.restoreParticipants(proj.id);
+    if (restored.length > 0 || failed.length > 0) {
+      projectResults.push({ projectId: proj.id, restored, failed });
+    }
+  }
+  if (projectResults.length > 0) {
+    // Emit per-project notifications after nsp is set so dashboard clients see them
+    setTimeout(() => {
+      for (const { projectId, restored, failed } of projectResults) {
+        const msg = store.appendMessage({
+          from: 'system',
+          to: null,
+          body: `Server restarted.${restored.length > 0 ? ` Restored (awaiting reclaim): ${restored.join(', ')}.` : ''}${failed.length > 0 ? ` Failed to restore: ${failed.join(', ')}.` : ''}`,
+          type: 'system',
+        }, projectId);
+        // Emit scoped to this project's room
+        nsp.to(`project:${projectId}`).emit('chat:message', msg);
+        nsp.to(`project:${projectId}`).emit('chat:members', registry.listParticipants(projectId));
+        if (failed.length > 0) {
+          nsp.to(`project:${projectId}`).emit('chat:session-lost', { participants: failed, reason: 'pane no longer exists after restart' });
+        }
+      }
+    }, 100);
+  }
 
   // When the active project changes, move all connected sockets to the new room
   onProjectChange((p) => {

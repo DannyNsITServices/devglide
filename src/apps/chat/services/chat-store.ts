@@ -101,6 +101,49 @@ export function updateMessageDelivery(messageId: string, info: DeliveryInfo, pro
   }
 }
 
+// ── Participant persistence ──────────────────────────────────────────────────
+
+export interface PersistedParticipant {
+  name: string;
+  model: string | null;
+  paneId: string | null;
+  projectId: string | null;
+  submitKey: string;
+  joinedAt: string;
+  lastSeen: string;
+}
+
+function getParticipantsPath(projectId?: string | null): string | null {
+  const dir = getChatDir(projectId);
+  if (!dir) return null;
+  mkdirSync(dir, { recursive: true });
+  return join(dir, 'participants.json');
+}
+
+export function saveParticipants(participants: PersistedParticipant[], projectId?: string | null): void {
+  const filePath = getParticipantsPath(projectId);
+  if (!filePath) return;
+  writeFileSync(filePath, JSON.stringify(participants, null, 2));
+}
+
+export function loadParticipants(projectId?: string | null): PersistedParticipant[] {
+  const filePath = getParticipantsPath(projectId);
+  if (!filePath || !existsSync(filePath)) return [];
+  try {
+    const raw = readFileSync(filePath, 'utf8');
+    return JSON.parse(raw) as PersistedParticipant[];
+  } catch {
+    return [];
+  }
+}
+
+export function clearParticipantsFile(projectId?: string | null): void {
+  const filePath = getParticipantsPath(projectId);
+  if (filePath && existsSync(filePath)) {
+    writeFileSync(filePath, '[]');
+  }
+}
+
 export function clearMessages(projectId?: string | null): void {
   const filePath = getMessagesPath(projectId);
   if (filePath && existsSync(filePath)) {
