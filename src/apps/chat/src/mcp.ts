@@ -99,11 +99,11 @@ export function createChatMcpServer(): McpServer {
 
   server.tool(
     'chat_join',
-    'Join the chat room as a participant. Requires explicit paneId from DEVGLIDE_PANE_ID in your shell, and that pane must be live/routable by the shell backend.',
+    'Join the chat room as a participant. Pass paneId from DEVGLIDE_PANE_ID, or use "auto" for server-side pane resolution. If omitted, the server will attempt auto-resolution.',
     {
       name: z.string().describe('Your participant name (e.g. "claude-code", "cursor")'),
       model: z.string().optional().describe('Model/tool identifier shown next to name (e.g. "claude", "cursor", "codex")'),
-      paneId: z.string().optional().describe('Shell pane ID for PTY delivery. Read DEVGLIDE_PANE_ID from your shell and pass it explicitly. The pane must be live and routable by the shell backend.'),
+      paneId: z.string().optional().describe('Shell pane ID for PTY delivery, or "auto" for server-side resolution. Read DEVGLIDE_PANE_ID from your shell, or pass "auto" to let the server pick the best available pane.'),
       submitKey: z.enum(['cr', 'lf']).optional().describe('Character to trigger submit after PTY injection: "cr" (default, correct for all known clients including Claude Code and Codex). Only use "lf" if you have verified a specific client requires it'),
     },
     async ({ name, model, paneId, submitKey }) => {
@@ -126,20 +126,23 @@ export function createChatMcpServer(): McpServer {
         sessionProjectId = null;
       }
 
-      if (!paneId) {
+      // Resolve paneId: use explicit value, fall back to env var, then "auto" for server resolution
+      let resolvedPaneId = paneId;
+      if (!resolvedPaneId) {
         const envPaneId = process.env.DEVGLIDE_PANE_ID;
-        if (envPaneId) {
-          return errorResult(
-            `chat_join requires explicit paneId. Read DEVGLIDE_PANE_ID from your shell and call chat_join with paneId: "${envPaneId}".`,
-          );
-        }
-        return errorResult(
-          'chat_join requires explicit paneId, and DEVGLIDE_PANE_ID is not available in this MCP process. Chat cannot be used until you read DEVGLIDE_PANE_ID from your shell environment and pass it as paneId.',
-        );
+        resolvedPaneId = envPaneId ?? 'auto';
       }
 
-      const res = await chatApi('/join', { name, model: model ?? null, paneId, submitKey: submitKey ?? undefined });
-      if (!res.ok) return errorResult((res.data as { error?: string })?.error ?? 'Join failed');
+      const res = await chatApi('/join', { name, model: model ?? null, paneId: resolvedPaneId, submitKey: submitKey ?? undefined });
+      if (!res.ok) {
+        const data = res.data as { error?: string; diagnostics?: unknown };
+        const errMsg = data?.error ?? 'Join failed';
+        const diag = data?.diagnostics;
+        if (diag) {
+          return errorResult(`${errMsg}\n\nDiagnostics: ${JSON.stringify(diag, null, 2)}`);
+        }
+        return errorResult(errMsg);
+      }
       // Use the resolved name from the server (may be a generated unique name)
       const participant = res.data as { name: string; projectId?: string | null };
       sessionName = participant.name;
