@@ -310,6 +310,42 @@ describe('chat-registry PTY delivery', () => {
     registry.leave(observer.name);
   });
 
+  it('marks assigned participants as working and returns them to idle after inactivity', async () => {
+    globalPtys.set('pane-status-working', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+
+    const worker = registry.join('codex', 'llm', 'pane-status-working', 'codex', '\r');
+
+    registry.send('user', `@${worker.name} fix the rendering bug`);
+    expect(registry.getParticipant(worker.name)?.status).toBe('working');
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    await flushDeliveryQueue();
+
+    expect(registry.getParticipant(worker.name)?.status).toBe('idle');
+
+    registry.leave(worker.name);
+  });
+
+  it('marks explicit review assignments as reviewing', () => {
+    globalPtys.set('pane-status-review', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+
+    const reviewer = registry.join('claude', 'llm', 'pane-status-review', 'claude', '\r');
+
+    registry.send('user', `@${reviewer.name} verify the fix`);
+
+    expect(registry.getParticipant(reviewer.name)?.status).toBe('reviewing');
+
+    registry.leave(reviewer.name);
+  });
+
   it('can still enumerate a joined project after the global active project changes', () => {
     globalPtys.set('pane-5', {
       ptyProcess: { write: vi.fn() } as never,
@@ -360,5 +396,250 @@ describe('chat-registry PTY delivery', () => {
     expect(registry.listParticipants('project-chat').map(p => p.name)).toEqual([p1.name]);
 
     registry.leave(p1.name, 'project-chat');
+  });
+});
+
+describe('chat-registry PTY prompt detection (awaiting-user)', () => {
+  let dataListeners: Array<(data: string) => void>;
+
+  function createPtyWithOnData(paneId: string) {
+    dataListeners = [];
+    const mockEntry = {
+      ptyProcess: {
+        write: vi.fn(),
+        onData: vi.fn((listener: (data: string) => void) => {
+          dataListeners.push(listener);
+          return {
+            dispose: vi.fn(() => {
+              const idx = dataListeners.indexOf(listener);
+              if (idx >= 0) dataListeners.splice(idx, 1);
+            }),
+          };
+        }),
+      } as never,
+      chunks: [] as string[],
+      totalLen: 0,
+    };
+    globalPtys.set(paneId, mockEntry);
+    return mockEntry;
+  }
+
+  function emitPtyData(paneId: string, data: string) {
+    const entry = globalPtys.get(paneId) as { chunks: string[]; totalLen: number };
+    if (entry) {
+      entry.chunks.push(data);
+      entry.totalLen += data.length;
+    }
+    for (const listener of [...dataListeners]) {
+      listener(data);
+    }
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    chatStoreMock.reset();
+    chatStoreMock.appendMessage.mockClear();
+    chatStoreMock.clearMessages.mockClear();
+    globalPtys.clear();
+    dataListeners = [];
+    setActiveProject({ id: 'project-chat', name: 'Chat', path: '/tmp/chat' });
+
+    for (const participant of registry.listParticipants()) {
+      registry.leave(participant.name);
+    }
+  });
+
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+    globalPtys.clear();
+    for (const participant of registry.listParticipants()) {
+      registry.leave(participant.name);
+    }
+    setActiveProject(null);
+  });
+
+  // ── PTY-driven working status ──────────────────────────────────
+
+  it('sets working on nontrivial PTY output', async () => {
+    createPtyWithOnData('pane-pty-w1');
+    const participant = registry.join('claude', 'llm', 'pane-pty-w1', 'claude', '\r');
+    expect(registry.getParticipant(participant.name)?.status).toBe('idle');
+
+    emitPtyData('pane-pty-w1', 'Compiling src/main.ts...');
+
+    expect(registry.getParticipant(participant.name)?.status).toBe('working');
+
+    registry.leave(participant.name);
+  });
+
+  it('returns to idle after PTY inactivity timeout (8s)', async () => {
+    createPtyWithOnData('pane-pty-w2');
+    const participant = registry.join('claude', 'llm', 'pane-pty-w2', 'claude', '\r');
+
+    emitPtyData('pane-pty-w2', 'Building...');
+    expect(registry.getParticipant(participant.name)?.status).toBe('working');
+
+    // After 8s of silence → idle
+    await vi.advanceTimersByTimeAsync(8000);
+
+    expect(registry.getParticipant(participant.name)?.status).toBe('idle');
+
+    registry.leave(participant.name);
+  });
+
+  it('does not set working on ANSI-only / whitespace-only output', async () => {
+    createPtyWithOnData('pane-pty-w3');
+    const participant = registry.join('claude', 'llm', 'pane-pty-w3', 'claude', '\r');
+
+    // Pure ANSI escape (cursor move) — no printable content
+    emitPtyData('pane-pty-w3', '\x1b[2J\x1b[H');
+
+    expect(registry.getParticipant(participant.name)?.status).toBe('idle');
+
+    registry.leave(participant.name);
+  });
+
+  it('does not override reviewing status with PTY-driven working', async () => {
+    createPtyWithOnData('pane-pty-w4');
+    const participant = registry.join('claude', 'llm', 'pane-pty-w4', 'claude', '\r');
+
+    // Set reviewing via chat assignment
+    registry.send('user', `@${participant.name} verify the fix`);
+    expect(registry.getParticipant(participant.name)?.status).toBe('reviewing');
+
+    // PTY output should not downgrade to working
+    emitPtyData('pane-pty-w4', 'Reading file...');
+
+    expect(registry.getParticipant(participant.name)?.status).toBe('reviewing');
+
+    registry.leave(participant.name);
+  });
+
+  // ── Prompt detection (awaiting-user) ──────────────────────────
+
+  it('sets awaiting-user when PTY output matches a prompt pattern after quiescence', async () => {
+    createPtyWithOnData('pane-prompt-1');
+    const participant = registry.join('claude', 'llm', 'pane-prompt-1', 'claude', '\r');
+
+    emitPtyData('pane-prompt-1', 'Allow Edit /src/file.ts');
+
+    // Before quiescence timeout — should be working (nontrivial output), not yet awaiting
+    expect(registry.getParticipant(participant.name)?.status).toBe('working');
+
+    // After quiescence (2000ms), should detect the prompt
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(registry.getParticipant(participant.name)?.status).toBe('awaiting-user');
+
+    registry.leave(participant.name);
+  });
+
+  it('clears awaiting-user and transitions to working when nontrivial output resumes', async () => {
+    createPtyWithOnData('pane-prompt-2');
+    const participant = registry.join('claude', 'llm', 'pane-prompt-2', 'claude', '\r');
+
+    // Trigger awaiting-user
+    emitPtyData('pane-prompt-2', 'Allow Bash npm test');
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(registry.getParticipant(participant.name)?.status).toBe('awaiting-user');
+
+    // User responds — nontrivial output arrives → working (not idle)
+    emitPtyData('pane-prompt-2', 'Running tests...');
+
+    expect(registry.getParticipant(participant.name)?.status).toBe('working');
+
+    registry.leave(participant.name);
+  });
+
+  it('does not re-trigger awaiting-user from stale prompt text after user responds', async () => {
+    createPtyWithOnData('pane-prompt-retrigger');
+    const participant = registry.join('claude', 'llm', 'pane-prompt-retrigger', 'claude', '\r');
+
+    // First: prompt appears → awaiting-user
+    emitPtyData('pane-prompt-retrigger', 'Allow Edit /src/file.ts');
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(registry.getParticipant(participant.name)?.status).toBe('awaiting-user');
+
+    // User responds → new output resets status
+    emitPtyData('pane-prompt-retrigger', 'File saved successfully');
+
+    // Wait another quiescence period — the old "Allow Edit" is still in
+    // the pane buffer, but the delta buffer was cleared so it should NOT re-trigger
+    await vi.advanceTimersByTimeAsync(2000);
+
+    // Should NOT be awaiting-user again — delta only has "File saved successfully"
+    expect(registry.getParticipant(participant.name)?.status).not.toBe('awaiting-user');
+
+    registry.leave(participant.name);
+  });
+
+  it('does not auto-reset awaiting-user after 30s idle timeout', async () => {
+    createPtyWithOnData('pane-prompt-3');
+    const participant = registry.join('claude', 'llm', 'pane-prompt-3', 'claude', '\r');
+
+    emitPtyData('pane-prompt-3', 'Allow Read /tmp/data.json');
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(registry.getParticipant(participant.name)?.status).toBe('awaiting-user');
+
+    // Wait 30s — the normal idle timeout should NOT reset awaiting-user
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(registry.getParticipant(participant.name)?.status).toBe('awaiting-user');
+
+    registry.leave(participant.name);
+  });
+
+  it('does not override reviewing status with awaiting-user', async () => {
+    createPtyWithOnData('pane-prompt-4');
+    const participant = registry.join('claude', 'llm', 'pane-prompt-4', 'claude', '\r');
+
+    // Set reviewing via chat assignment
+    registry.send('user', `@${participant.name} verify the fix`);
+    expect(registry.getParticipant(participant.name)?.status).toBe('reviewing');
+
+    // PTY output has a prompt, but should not override reviewing
+    emitPtyData('pane-prompt-4', 'Allow Edit /src/code.ts');
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(registry.getParticipant(participant.name)?.status).toBe('reviewing');
+
+    registry.leave(participant.name);
+  });
+
+  it('detects generic yes/no prompts', async () => {
+    createPtyWithOnData('pane-prompt-5');
+    const participant = registry.join('codex', 'llm', 'pane-prompt-5', 'codex', '\r');
+
+    emitPtyData('pane-prompt-5', 'Do you want to overwrite? (y/n)');
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(registry.getParticipant(participant.name)?.status).toBe('awaiting-user');
+
+    registry.leave(participant.name);
+  });
+
+  // ── Watcher lifecycle ─────────────────────────────────────────
+
+  it('cleans up watcher on leave', async () => {
+    const mockEntry = createPtyWithOnData('pane-prompt-6');
+    const participant = registry.join('claude', 'llm', 'pane-prompt-6', 'claude', '\r');
+
+    expect((mockEntry.ptyProcess as { onData: ReturnType<typeof vi.fn> }).onData).toHaveBeenCalled();
+
+    registry.leave(participant.name);
+
+    expect(dataListeners.length).toBe(0);
+  });
+
+  it('cleans up watcher on detach', async () => {
+    createPtyWithOnData('pane-prompt-7');
+    const participant = registry.join('claude', 'llm', 'pane-prompt-7', 'claude', '\r');
+
+    registry.detach(participant.name);
+
+    expect(dataListeners.length).toBe(0);
+
+    registry.leave(participant.name);
   });
 });

@@ -11,6 +11,7 @@ export interface ChatParticipant {
   name: string;
   kind: 'user' | 'llm';
   model: string | null;  // e.g. "claude", "cursor", "codex"
+  status?: 'idle' | 'working' | 'reviewing' | 'awaiting-user';
   paneId: string | null; // linked shell pane for PTY delivery
   projectId: string | null; // project this participant belongs to
   submitKey: string;     // character sent after delayed PTY injection to trigger submit (default \r, correct for all known clients)

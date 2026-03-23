@@ -9,6 +9,8 @@ const participants = new Map<string, ChatParticipant>();
 let chatNsp: Namespace | null = null;
 const paneDeliveryQueues = new Map<string, Promise<void>>();
 const participantSessionEpochs = new Map<string, number>();
+const participantStatusTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const panePromptWatchers = new Map<string, { dispose: () => void }>();
 
 const PTY_SUBMIT_BASE_DELAY_MS = 500;
 const PTY_SUBMIT_PER_CHAR_MS = 1;
@@ -16,6 +18,8 @@ const PTY_SUBMIT_MAX_DELAY_MS = 5000;
 const PTY_RETRY_SUBMIT_DELAY_MS = 1000;
 const PTY_CHUNK_SIZE = 1024;
 const PTY_CHUNK_DELAY_MS = 50;
+const PARTICIPANT_IDLE_TIMEOUT_MS = 30_000;
+const PROMPT_QUIESCENCE_MS = 2000;
 
 function bumpParticipantSessionEpoch(name: string, projectId?: string | null): number {
   const key = participantKey(name, projectId);
@@ -44,6 +48,186 @@ function resolveProjectId(projectId?: string | null): string | null {
   return projectId ?? activeProjectId();
 }
 
+function emitMembers(projectId?: string | null): void {
+  emitToProject('chat:members', listParticipants(projectId), projectId);
+}
+
+function clearParticipantStatusTimer(name: string, projectId?: string | null): void {
+  const key = participantKey(name, projectId);
+  const timer = participantStatusTimers.get(key);
+  if (timer) {
+    clearTimeout(timer);
+    participantStatusTimers.delete(key);
+  }
+}
+
+function setParticipantStatus(
+  name: string,
+  projectId: string | null,
+  status: ChatParticipant['status'],
+  resetIdleTimer = true,
+): void {
+  const participant = getParticipantExact(name, projectId);
+  if (!participant || participant.kind !== 'llm') return;
+  const changed = participant.status !== status;
+  participant.status = status;
+  if (resetIdleTimer) {
+    clearParticipantStatusTimer(name, projectId);
+    if (status !== 'idle' && status !== 'awaiting-user') {
+      const key = participantKey(name, projectId);
+      participantStatusTimers.set(key, setTimeout(() => {
+        participantStatusTimers.delete(key);
+        const current = getParticipantExact(name, projectId);
+        if (!current || current.kind !== 'llm') return;
+        current.status = 'idle';
+        emitMembers(projectId);
+      }, PARTICIPANT_IDLE_TIMEOUT_MS));
+    }
+  }
+  if (changed) emitMembers(projectId);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function markAssignedParticipantStatus(body: string, targetName: string): ChatParticipant['status'] | null {
+  const lowered = body.toLowerCase();
+  const targetMention = `@${targetName.toLowerCase()}`;
+  const reviewTerms = '(verify|verification|review|check|inspect|validate|confirm|test)';
+  const reviewRe = new RegExp(`(${escapeRegExp(targetMention)}\\b[^\\n]{0,120}\\b${reviewTerms}\\b|\\b${reviewTerms}\\b[^\\n]{0,120}${escapeRegExp(targetMention)}\\b)`, 'i');
+  if (reviewRe.test(lowered)) return 'reviewing';
+
+  const workTerms = '(fix|handle|implement|patch|update|investigate|look\\s+into|take|pick\\s+up|work\\s+on|resolve|debug)';
+  const workRe = new RegExp(`(${escapeRegExp(targetMention)}\\b[^\\n]{0,120}\\b${workTerms}\\b|\\b${workTerms}\\b[^\\n]{0,120}${escapeRegExp(targetMention)}\\b)`, 'i');
+  return workRe.test(lowered) ? 'working' : null;
+}
+
+// ── PTY activity & prompt detection ───────────────────────────────────────
+// Watches linked pane output for:
+// 1. Nontrivial output → set 'working' (with inactivity timer → 'idle')
+// 2. Known approval/input prompt patterns after quiescence → 'awaiting-user'
+// 3. New output after 'awaiting-user' → reset to 'working'
+//
+// Prompt detection uses a delta buffer (output since last quiescence check)
+// rather than the full scrollback tail, preventing stale prompts from
+// re-triggering after the user has already responded.
+
+const STRIP_ANSI_RE = /[\x1b\x9b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\r/g;
+
+function stripAnsi(str: string): string {
+  return str.replace(STRIP_ANSI_RE, '');
+}
+
+/** Returns true if text contains printable (non-whitespace) characters after ANSI stripping. */
+function hasNontrivialContent(rawData: string): boolean {
+  const stripped = stripAnsi(rawData);
+  return /\S/.test(stripped);
+}
+
+const AWAITING_USER_PATTERNS: RegExp[] = [
+  // Claude Code tool permission prompts
+  /Allow\s+(?:Read|Edit|Write|Bash|MultiEdit|NotebookEdit|Glob|Grep|WebFetch|WebSearch|Agent|Skill|mcp_\w+)/,
+  // "wants to use/run" phrasing (Claude Code, similar tools)
+  /wants to (?:use|read|edit|write|run|execute|create|delete)\b/i,
+  // Generic yes/no confirmation at end of line
+  /\(y\/n\)\s*$/m,
+  /\[y\/n\]\s*$/im,
+  /\[yes\/no\]\s*$/im,
+  // Press to continue
+  /press (?:enter|any key|y) to (?:continue|proceed|confirm)/i,
+];
+
+function matchesPromptPattern(text: string): boolean {
+  return AWAITING_USER_PATTERNS.some(re => re.test(text));
+}
+
+const PTY_WORKING_IDLE_TIMEOUT_MS = 8000;
+
+function startPanePromptWatcher(name: string, projectId: string | null, paneId: string): void {
+  const key = participantKey(name, projectId);
+  stopPanePromptWatcher(key);
+
+  const entry = globalPtys.get(paneId);
+  if (!entry?.ptyProcess?.onData) return;
+
+  let quiescenceTimer: ReturnType<typeof setTimeout> | null = null;
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  let isAwaiting = false;
+  // Delta buffer: collects output since the last quiescence check,
+  // so prompt detection only scans recent output, not stale history.
+  let deltaBuffer = '';
+
+  const disposable = entry.ptyProcess.onData((data: string) => {
+    deltaBuffer += data;
+
+    // New output after awaiting → user responded, transition to working
+    if (isAwaiting) {
+      isAwaiting = false;
+      const participant = getParticipantExact(name, projectId);
+      if (participant?.status === 'awaiting-user') {
+        setParticipantStatus(name, projectId, 'idle');
+      }
+    }
+
+    // PTY-driven working: nontrivial output → set working
+    if (hasNontrivialContent(data)) {
+      const participant = getParticipantExact(name, projectId);
+      if (participant && participant.kind === 'llm' && !participant.detached) {
+        // Don't override chat-assigned reviewing status
+        if (participant.status !== 'reviewing') {
+          setParticipantStatus(name, projectId, 'working', false);
+        }
+        // Reset inactivity timer → idle
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          idleTimer = null;
+          const p = getParticipantExact(name, projectId);
+          if (p && p.kind === 'llm' && p.status === 'working') {
+            setParticipantStatus(name, projectId, 'idle');
+          }
+        }, PTY_WORKING_IDLE_TIMEOUT_MS);
+      }
+    }
+
+    // Debounce: check for prompt pattern after output settles
+    if (quiescenceTimer) clearTimeout(quiescenceTimer);
+    quiescenceTimer = setTimeout(() => {
+      quiescenceTimer = null;
+      const participant = getParticipantExact(name, projectId);
+      if (!participant || participant.kind !== 'llm' || participant.detached) return;
+      // Don't override explicit reviewing status from chat assignment
+      if (participant.status === 'reviewing') return;
+
+      // Scan only the delta buffer (output since last check), not full scrollback
+      const stripped = stripAnsi(deltaBuffer);
+      deltaBuffer = '';
+
+      if (matchesPromptPattern(stripped)) {
+        isAwaiting = true;
+        if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+        setParticipantStatus(name, projectId, 'awaiting-user', false);
+      }
+    }, PROMPT_QUIESCENCE_MS);
+  });
+
+  panePromptWatchers.set(key, {
+    dispose: () => {
+      disposable.dispose();
+      if (quiescenceTimer) clearTimeout(quiescenceTimer);
+      if (idleTimer) clearTimeout(idleTimer);
+    },
+  });
+}
+
+function stopPanePromptWatcher(key: string): void {
+  const watcher = panePromptWatchers.get(key);
+  if (watcher) {
+    watcher.dispose();
+    panePromptWatchers.delete(key);
+  }
+}
+
 export function setChatNsp(nsp: Namespace): void {
   chatNsp = nsp;
 }
@@ -62,7 +246,7 @@ function emitToProject(event: string, data: unknown, projectId?: string | null):
 
 // Emit refreshed member list when the active project changes
 onProjectChange((project) => {
-  emitToProject('chat:members', listParticipants(project?.id), project?.id);
+  emitMembers(project?.id);
 });
 
 export function getChatNsp(): Namespace | null {
@@ -139,6 +323,8 @@ export function join(
     existing.detached = false;
     existing.submitKey = submitKey;
     existing.lastSeen = now;
+    existing.status = 'idle';
+    clearParticipantStatusTimer(existing.name, resolvedProjectId);
     bumpParticipantSessionEpoch(existing.name, resolvedProjectId);
 
     if (paneId) updatePaneTitle(paneId, existing.name);
@@ -151,6 +337,8 @@ export function join(
     }, existing.projectId);
     emitToProject('chat:join', existing, existing.projectId);
     emitToProject('chat:message', msg, existing.projectId);
+
+    if (paneId) startPanePromptWatcher(existing.name, existing.projectId, paneId);
 
     return existing;
   }
@@ -166,6 +354,7 @@ export function join(
     submitKey,
     joinedAt: now,
     lastSeen: now,
+    status: kind === 'llm' ? 'idle' : undefined,
     detached: false,
   };
   participants.set(participantKey(uniqueName, resolvedProjectId), participant);
@@ -183,6 +372,8 @@ export function join(
   emitToProject('chat:join', participant, participant.projectId);
   emitToProject('chat:message', msg, participant.projectId);
 
+  if (paneId) startPanePromptWatcher(uniqueName, participant.projectId, paneId);
+
   return participant;
 }
 
@@ -194,6 +385,8 @@ export function leave(name: string, projectId?: string | null): boolean {
   const pid = participant.projectId;
   const removed = participants.delete(participantKey(name, pid));
   if (removed) {
+    clearParticipantStatusTimer(name, pid);
+    stopPanePromptWatcher(participantKey(name, pid));
     participantSessionEpochs.delete(participantKey(name, pid));
     const msg = appendMessage({
       from: name,
@@ -215,8 +408,10 @@ export function detach(name: string, projectId?: string | null): boolean {
     : getParticipant(name);
   if (!participant) return false;
   participant.detached = true;
+  clearParticipantStatusTimer(name, participant.projectId);
+  stopPanePromptWatcher(participantKey(name, participant.projectId));
   bumpParticipantSessionEpoch(name, participant.projectId);
-  emitToProject('chat:members', listParticipants(participant.projectId), participant.projectId);
+  emitMembers(participant.projectId);
   return true;
 }
 
@@ -243,27 +438,38 @@ export function send(from: string, body: string, to?: string, projectId?: string
   // Use the sender's project — NOT the global active project.
   // For dashboard/user sends (no participant record), fall back to activeProjectId().
   const senderProjectId = sender?.projectId ?? activeProjectId();
+  const resolvedSenderProjectId = resolveProjectId(senderProjectId);
 
   // Resolve targets:
   // - User senders: explicit `to` takes priority, then body @mentions
   // - LLM senders: always extract @mentions from body (ignore `to` param)
-  const targets = resolveTargets(from, body, to, senderKind, senderProjectId);
+  const targets = resolveTargets(from, body, to, senderKind, resolvedSenderProjectId);
+
+  if (sender?.kind === 'llm' && sender.projectId === resolvedSenderProjectId && sender.status && sender.status !== 'idle') {
+    setParticipantStatus(sender.name, resolvedSenderProjectId, sender.status);
+  }
+  if (senderKind === 'user') {
+    for (const targetName of targets) {
+      const status = markAssignedParticipantStatus(body, targetName);
+      if (status) setParticipantStatus(targetName, resolvedSenderProjectId, status);
+    }
+  }
 
   const msg = appendMessage({
     from,
     to: targets.length === 1 ? targets[0] : targets.length > 1 ? targets.join(',') : null,
     body,
     type: 'message',
-  }, senderProjectId);
+  }, resolvedSenderProjectId);
 
   // Emit to dashboard clients viewing this project only
-  emitToProject('chat:message', msg, senderProjectId);
+  emitToProject('chat:message', msg, resolvedSenderProjectId);
 
   // PTY delivery — broadcast every message to all same-project participants except the sender.
   // `targets` remain semantic metadata for intent and UI display.
   for (const p of participants.values()) {
-    if (p.name !== from && p.paneId && p.projectId === senderProjectId) {
-      deliverToPty(p.name, senderProjectId, msg);
+    if (p.name !== from && p.paneId && p.projectId === resolvedSenderProjectId) {
+      deliverToPty(p.name, resolvedSenderProjectId, msg);
     }
   }
 

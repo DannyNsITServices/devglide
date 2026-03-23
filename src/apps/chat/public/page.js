@@ -444,11 +444,18 @@ function renderMembers() {
       tag.className = 'chat-member-tag detached';
       tag.textContent = m.model ? `(${m.model} · detached)` : '(detached)';
       item.appendChild(tag);
-    } else if (m.model) {
-      const tag = document.createElement('span');
-      tag.className = 'chat-member-tag';
-      tag.textContent = `(${m.model})`;
-      item.appendChild(tag);
+    } else {
+      if (m.model) {
+        const tag = document.createElement('span');
+        tag.className = 'chat-member-tag';
+        tag.textContent = `(${m.model})`;
+        item.appendChild(tag);
+      }
+      const status = document.createElement('span');
+      const state = m.status || 'idle';
+      status.className = `chat-member-status ${state}`;
+      status.textContent = state.replace(/-/g, ' ');
+      item.appendChild(status);
     }
 
     listEl.appendChild(item);
