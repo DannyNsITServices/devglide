@@ -92,9 +92,19 @@ export function generateId(): string {
   return createId();
 }
 
-/** Return the current time as an ISO-8601 string (for updatedAt) */
+/**
+ * Return a monotonically increasing ISO-8601 timestamp (for updatedAt).
+ * If two calls happen in the same millisecond, the second is bumped by 1ms
+ * so polling clients that compare updatedAt always see a change.
+ */
+let _lastTimestamp = 0;
 export function nowIso(): string {
-  return new Date().toISOString();
+  let now = Date.now();
+  if (now <= _lastTimestamp) {
+    now = _lastTimestamp + 1;
+  }
+  _lastTimestamp = now;
+  return new Date(now).toISOString();
 }
 
 // ── Database path helpers ────────────────────────────────────────────────────
