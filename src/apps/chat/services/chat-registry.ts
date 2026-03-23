@@ -73,7 +73,7 @@ function setParticipantStatus(
   participant.status = status;
   if (resetIdleTimer) {
     clearParticipantStatusTimer(name, projectId);
-    if (status !== 'idle' && status !== 'awaiting-user') {
+    if (status !== 'idle') {
       const key = participantKey(name, projectId);
       participantStatusTimers.set(key, setTimeout(() => {
         participantStatusTimers.delete(key);
@@ -103,21 +103,12 @@ function markAssignedParticipantStatus(body: string, targetName: string): ChatPa
   return workRe.test(lowered) ? 'working' : null;
 }
 
-function requestsUserInputInChat(body: string): boolean {
-  const stripped = body.trim();
-  if (!stripped) return false;
-
-  const mentionsUser = /(^|\s)@user\b/i.test(stripped);
-  const asksQuestion = /\?(\s|$)/m.test(stripped);
-  const asksChoice = /\b(confirm|approve|allow|choose|pick|select|which|what should i|want me to|should i|can you|could you|would you like|do you want)\b/i.test(stripped);
-  return mentionsUser ? (asksQuestion || asksChoice) : false;
-}
 
 // ── PTY activity & prompt detection ───────────────────────────────────────
 // Watches linked pane output for:
 // 1. Nontrivial output → set 'working' (with inactivity timer → 'idle')
-// 2. Known approval/input prompt patterns after quiescence → 'awaiting-user'
-// 3. New output after 'awaiting-user' → reset to 'working'
+// 2. Known prompt patterns (y/n, tool approval) → hold 'working' (cancel idle timer)
+// 3. New nontrivial output after prompt → clear prompt flag, resume normal idle cycle
 //
 // Prompt detection uses a delta buffer (output since last quiescence check)
 // rather than the full scrollback tail, preventing stale prompts from
@@ -135,9 +126,17 @@ function hasNontrivialContent(rawData: string): boolean {
   return /\S/.test(stripped);
 }
 
+function hasNontrivialText(text: string): boolean {
+  return /\S/.test(text);
+}
+
+function isChatInjectedOutput(text: string): boolean {
+  return /^\[DevGlide Chat\] @\S+:/m.test(text.trim());
+}
+
 const AWAITING_USER_PATTERNS: RegExp[] = [
   // Claude Code tool permission prompts
-  /Allow\s+(?:Read|Edit|Write|Bash|MultiEdit|NotebookEdit|Glob|Grep|WebFetch|WebSearch|Agent|Skill|mcp_\w+)/,
+  /Allow\s+(?:Read|Edit|Write|Bash|MultiEdit|NotebookEdit|Glob|Grep|WebFetch|WebSearch|Agent|Skill|mcp_+[\w-]+)/i,
   // "wants to use/run" phrasing (Claude Code, similar tools)
   /wants to (?:use|read|edit|write|run|execute|create|delete)\b/i,
   // Generic yes/no confirmation at end of line
@@ -146,6 +145,9 @@ const AWAITING_USER_PATTERNS: RegExp[] = [
   /\[yes\/no\]\s*$/im,
   // Press to continue
   /press (?:enter|any key|y) to (?:continue|proceed|confirm)/i,
+  // Generic approval / permission prompts
+  /\b(?:approval|permission)\b.{0,80}\b(?:required|needed|requested)\b/i,
+  /\b(?:approve|allow|confirm)\b.{0,80}\b(?:tool|command|action|request)\b/i,
 ];
 
 function matchesPromptPattern(text: string): boolean {
@@ -163,37 +165,30 @@ function startPanePromptWatcher(name: string, projectId: string | null, paneId: 
 
   let quiescenceTimer: ReturnType<typeof setTimeout> | null = null;
   let idleTimer: ReturnType<typeof setTimeout> | null = null;
-  let isAwaiting = false;
+  let promptVisible = false;
   // Delta buffer: collects output since the last quiescence check,
   // so prompt detection only scans recent output, not stale history.
   let deltaBuffer = '';
 
   const disposable = entry.ptyProcess.onData((data: string) => {
     deltaBuffer += data;
-
-    // New output after awaiting → user responded, transition to working
-    if (isAwaiting) {
-      isAwaiting = false;
-      const participant = getParticipantExact(name, projectId);
-      if (participant?.status === 'awaiting-user') {
-        setParticipantStatus(name, projectId, 'idle');
-      }
-    }
+    const participant = getParticipantExact(name, projectId);
 
     // PTY-driven working: nontrivial output → set working
     if (hasNontrivialContent(data)) {
-      const participant = getParticipantExact(name, projectId);
       if (participant && participant.kind === 'llm' && !participant.detached) {
         setParticipantStatus(name, projectId, 'working', false);
-        // Reset inactivity timer → idle
+        // Reset inactivity timer → idle (unless a prompt is holding working)
         if (idleTimer) clearTimeout(idleTimer);
-        idleTimer = setTimeout(() => {
-          idleTimer = null;
-          const p = getParticipantExact(name, projectId);
-          if (p && p.kind === 'llm' && p.status === 'working') {
-            setParticipantStatus(name, projectId, 'idle');
-          }
-        }, PTY_WORKING_IDLE_TIMEOUT_MS);
+        if (!promptVisible) {
+          idleTimer = setTimeout(() => {
+            idleTimer = null;
+            const p = getParticipantExact(name, projectId);
+            if (p && p.kind === 'llm' && p.status === 'working') {
+              setParticipantStatus(name, projectId, 'idle');
+            }
+          }, PTY_WORKING_IDLE_TIMEOUT_MS);
+        }
       }
     }
 
@@ -209,10 +204,31 @@ function startPanePromptWatcher(name: string, projectId: string | null, paneId: 
       deltaBuffer = '';
 
       if (matchesPromptPattern(stripped)) {
-        isAwaiting = true;
+        // Prompt detected → hold working, cancel idle timer
+        promptVisible = true;
         if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
-        setParticipantStatus(name, projectId, 'awaiting-user', false);
+        setParticipantStatus(name, projectId, 'working', false);
+        return;
       }
+
+      if (promptVisible) {
+        // New output after prompt — if nontrivial and not chat-injected, prompt was answered
+        if (!hasNontrivialText(stripped) || isChatInjectedOutput(stripped)) return;
+
+        promptVisible = false;
+        setParticipantStatus(name, projectId, 'working', false);
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          idleTimer = null;
+          const p = getParticipantExact(name, projectId);
+          if (p && p.kind === 'llm' && p.status === 'working') {
+            setParticipantStatus(name, projectId, 'idle');
+          }
+        }, PTY_WORKING_IDLE_TIMEOUT_MS);
+        return;
+      }
+
+      // No prompt, no special state — let the idle timer run its course
     }, PROMPT_QUIESCENCE_MS);
   });
 
@@ -454,17 +470,10 @@ export function send(from: string, body: string, to?: string, projectId?: string
     setParticipantStatus(sender.name, resolvedSenderProjectId, sender.status);
   }
   if (senderKind === 'user') {
-    for (const participant of participants.values()) {
-      if (participant.kind === 'llm' && participant.projectId === resolvedSenderProjectId && participant.status === 'awaiting-user') {
-        setParticipantStatus(participant.name, resolvedSenderProjectId, 'working');
-      }
-    }
     for (const targetName of targets) {
       const status = markAssignedParticipantStatus(body, targetName);
       if (status) setParticipantStatus(targetName, resolvedSenderProjectId, status);
     }
-  } else if (sender?.kind === 'llm' && sender.projectId === resolvedSenderProjectId && requestsUserInputInChat(body)) {
-    setParticipantStatus(sender.name, resolvedSenderProjectId, 'awaiting-user', false);
   }
 
   const msg = appendMessage({
