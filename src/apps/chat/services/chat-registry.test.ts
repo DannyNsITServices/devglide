@@ -71,8 +71,8 @@ describe('chat-registry PTY delivery', () => {
       '[DevGlide Chat] @user: first',
     ]);
 
-    // Adaptive submit delay: 500ms base + 1ms per char (29 chars → 529ms)
-    await vi.advanceTimersByTimeAsync(529);
+    // First submit key after 500ms
+    await vi.advanceTimersByTimeAsync(500);
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
@@ -91,8 +91,8 @@ describe('chat-registry PTY delivery', () => {
       '[DevGlide Chat] @user: second',
     ]);
 
-    // Second message: adaptive submit (30 chars → 530ms)
-    await vi.advanceTimersByTimeAsync(530);
+    // Second message: first submit after 500ms
+    await vi.advanceTimersByTimeAsync(500);
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
@@ -119,82 +119,6 @@ describe('chat-registry PTY delivery', () => {
     registry.leave(participant.name);
   });
 
-  it('chunks long messages and uses adaptive submit delay', async () => {
-    const writes: string[] = [];
-    globalPtys.set('pane-5', {
-      ptyProcess: { write: vi.fn((chunk: string) => { writes.push(chunk); }) } as never,
-      chunks: [],
-      totalLen: 0,
-    });
-
-    const participant = registry.join('codex-long', 'llm', 'pane-5', 'codex', '\r');
-
-    // Send a message that exceeds 1024 bytes when formatted
-    const longBody = 'x'.repeat(1500);
-    registry.send('user', longBody);
-    await flushDeliveryQueue();
-
-    // First chunk written immediately (1024 chars)
-    const formatted = `[DevGlide Chat] @user: ${longBody}`;
-    expect(writes.length).toBe(1);
-    expect(writes[0]).toBe(formatted.slice(0, 1024));
-
-    // After 50ms chunk gap, second chunk is written
-    await vi.advanceTimersByTimeAsync(50);
-    await flushDeliveryQueue();
-    expect(writes.length).toBe(2);
-    expect(writes[0] + writes[1]).toBe(formatted);
-
-    // Adaptive submit delay: 500 + formatted.length chars, capped at 5000ms
-    const expectedDelay = Math.min(500 + formatted.length, 5000);
-    await vi.advanceTimersByTimeAsync(expectedDelay);
-    await flushDeliveryQueue();
-    expect(writes[2]).toBe('\r');
-
-    // Retry submit after 1000ms
-    await vi.advanceTimersByTimeAsync(1000);
-    await flushDeliveryQueue();
-    expect(writes[3]).toBe('\r');
-
-    registry.leave(participant.name);
-  });
-
-  it('stops chunked delivery when participant detaches mid-burst', async () => {
-    const writes: string[] = [];
-    globalPtys.set('pane-6', {
-      ptyProcess: { write: vi.fn((chunk: string) => { writes.push(chunk); }) } as never,
-      chunks: [],
-      totalLen: 0,
-    });
-
-    const participant = registry.join('codex-detach', 'llm', 'pane-6', 'codex', '\r');
-
-    // Send a long message that will require multiple chunks
-    const longBody = 'y'.repeat(2500);
-    registry.send('user', longBody);
-    await flushDeliveryQueue();
-
-    // First chunk written
-    expect(writes.length).toBe(1);
-
-    // Detach participant before second chunk arrives
-    registry.detach(participant.name);
-
-    // Advance past chunk delay — second chunk should NOT be written
-    await vi.advanceTimersByTimeAsync(50);
-    await flushDeliveryQueue();
-
-    // Only the first chunk was written, delivery stopped
-    expect(writes.length).toBe(1);
-
-    // No submit key either
-    await vi.advanceTimersByTimeAsync(10000);
-    await flushDeliveryQueue();
-    expect(writes.length).toBe(1);
-
-    registry.leave(participant.name);
-  });
-
   it('skips the delayed submit when the participant detaches before it fires', async () => {
     const writes: string[] = [];
     globalPtys.set('pane-2', {
@@ -209,8 +133,7 @@ describe('chat-registry PTY delivery', () => {
     await flushDeliveryQueue();
     registry.detach(participant.name);
 
-    // Adaptive delay: 500 + 29 chars = 529ms
-    await vi.advanceTimersByTimeAsync(529);
+    await vi.advanceTimersByTimeAsync(500);
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
@@ -235,8 +158,7 @@ describe('chat-registry PTY delivery', () => {
     registry.detach(participant.name);
     const reclaimed = registry.join('codex', 'llm', 'pane-4', 'codex', '\r');
 
-    // Adaptive delay: 500 + 36 chars = 536ms
-    await vi.advanceTimersByTimeAsync(536);
+    await vi.advanceTimersByTimeAsync(500);
     await flushDeliveryQueue();
 
     expect(reclaimed.name).toBe(participant.name);
@@ -261,8 +183,7 @@ describe('chat-registry PTY delivery', () => {
     await flushDeliveryQueue();
     globalPtys.delete('pane-3');
 
-    // Adaptive delay: 500 + 34 chars = 534ms
-    await vi.advanceTimersByTimeAsync(534);
+    await vi.advanceTimersByTimeAsync(500);
     await flushDeliveryQueue();
 
     expect(writes).toEqual([

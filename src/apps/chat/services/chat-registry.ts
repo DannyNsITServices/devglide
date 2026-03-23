@@ -12,12 +12,8 @@ const participantSessionEpochs = new Map<string, number>();
 const participantStatusTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const panePromptWatchers = new Map<string, { dispose: () => void }>();
 
-const PTY_SUBMIT_BASE_DELAY_MS = 500;
-const PTY_SUBMIT_PER_CHAR_MS = 1;
-const PTY_SUBMIT_MAX_DELAY_MS = 5000;
+const PTY_SUBMIT_DELAY_MS = 500;
 const PTY_RETRY_SUBMIT_DELAY_MS = 1000;
-const PTY_CHUNK_SIZE = 1024;
-const PTY_CHUNK_DELAY_MS = 50;
 const PARTICIPANT_IDLE_TIMEOUT_MS = 30_000;
 const PROMPT_QUIESCENCE_MS = 2000;
 
@@ -547,31 +543,10 @@ function deliverToPty(targetName: string, projectId: string | null, msg: ChatMes
 
       const formatted = `[DevGlide Chat] @${msg.from}: ${msg.body}`;
 
-      // Write text in chunks to avoid PTY buffer overflow and crossterm
-      // paste-burst detection issues with large messages. Revalidate
-      // pane/session state between chunks so we stop writing if the
-      // participant detaches or the pane closes mid-delivery.
-      for (let offset = 0; offset < formatted.length; offset += PTY_CHUNK_SIZE) {
-        if (offset > 0) {
-          await new Promise((resolve) => setTimeout(resolve, PTY_CHUNK_DELAY_MS));
-          const midTarget = getParticipantExact(targetName, projectId);
-          if (!midTarget?.paneId || midTarget.detached || midTarget.paneId !== paneId || currentParticipantSessionEpoch(targetName, projectId) !== sessionEpoch) return;
-          const midEntry = globalPtys.get(paneId);
-          if (!midEntry) { midTarget.paneId = null; return; }
-        }
-        const chunk = formatted.slice(offset, offset + PTY_CHUNK_SIZE);
-        const currentEntry = globalPtys.get(paneId);
-        if (!currentEntry) return;
-        currentEntry.ptyProcess.write(chunk);
-      }
+      entry.ptyProcess.write(formatted);
 
-      // Adaptive delay before submit: scale with message length so crossterm
-      // has time to finish processing the text before receiving CR.
-      const submitDelay = Math.min(
-        PTY_SUBMIT_BASE_DELAY_MS + formatted.length * PTY_SUBMIT_PER_CHAR_MS,
-        PTY_SUBMIT_MAX_DELAY_MS,
-      );
-      await new Promise((resolve) => setTimeout(resolve, submitDelay));
+      // Keep the delayed submit coupled to this specific injected message.
+      await new Promise((resolve) => setTimeout(resolve, PTY_SUBMIT_DELAY_MS));
 
       const refreshed = getParticipantExact(targetName, projectId);
       if (!refreshed?.paneId || refreshed.detached || refreshed.paneId !== paneId || currentParticipantSessionEpoch(targetName, projectId) !== sessionEpoch) return;
