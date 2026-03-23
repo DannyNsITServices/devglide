@@ -1,7 +1,7 @@
 import type { Namespace } from 'socket.io';
-import type { ChatParticipant, ChatMessage, DeliveryInfo, DeliveryStatus } from '../types.js';
+import type { ChatParticipant, ChatMessage } from '../types.js';
 import { globalPtys, dashboardState, getShellNsp } from '../../shell/src/runtime/shell-state.js';
-import { appendMessage, clearMessages, updateMessageDelivery, saveParticipants, loadParticipants } from './chat-store.js';
+import { appendMessage, clearMessages, saveParticipants, loadParticipants } from './chat-store.js';
 import type { PersistedParticipant } from './chat-store.js';
 import { getActiveProject, onProjectChange } from '../../../project-context.js';
 
@@ -14,7 +14,6 @@ const participantStatusTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const panePromptWatchers = new Map<string, { dispose: () => void }>();
 
 const PTY_SUBMIT_DELAY_MS = 500;
-const PTY_RETRY_SUBMIT_DELAY_MS = 1000;
 const PARTICIPANT_IDLE_TIMEOUT_MS = 30_000;
 const PROMPT_QUIESCENCE_MS = 2000;
 const PANE_DISCONNECT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes before auto-removal
@@ -556,7 +555,7 @@ function disconnectParticipant(name: string, projectId: string | null, reason: s
   }, PANE_DISCONNECT_TIMEOUT_MS));
 }
 
-export function send(from: string, body: string, to?: string, projectId?: string | null): ChatMessage {
+export async function send(from: string, body: string, to?: string, projectId?: string | null): Promise<ChatMessage> {
   pruneStaleParticipants();
 
   // Update lastSeen — use project-scoped lookup when available
@@ -601,7 +600,7 @@ export function send(from: string, body: string, to?: string, projectId?: string
   // `targets` remain semantic metadata for intent and UI display.
   for (const p of participants.values()) {
     if (p.name !== from && p.paneId && p.projectId === resolvedSenderProjectId) {
-      deliverToPty(p.name, resolvedSenderProjectId, msg);
+      await deliverToPty(p.name, resolvedSenderProjectId, msg);
     }
   }
 
@@ -636,11 +635,10 @@ function resolveTargets(from: string, body: string, to?: string, senderKind?: 'u
   return mentions;
 }
 
-function deliverToPty(targetName: string, projectId: string | null, msg: ChatMessage): void {
+function deliverToPty(targetName: string, projectId: string | null, msg: ChatMessage): Promise<void> {
   const target = getParticipantExact(targetName, projectId);
   if (!target?.paneId || target.detached) {
-    emitDeliveryStatus(msg.id, targetName, projectId, 'failed', target?.detached ? 'participant detached' : 'no pane linked');
-    return;
+    return Promise.resolve();
   }
 
   const paneId = target.paneId;
@@ -651,74 +649,33 @@ function deliverToPty(targetName: string, projectId: string | null, msg: ChatMes
     .then(async () => {
       const liveTarget = getParticipantExact(targetName, projectId);
       if (!liveTarget?.paneId || liveTarget.detached || liveTarget.paneId !== paneId || currentParticipantSessionEpoch(targetName, projectId) !== sessionEpoch) {
-        emitDeliveryStatus(msg.id, targetName, projectId, 'failed', 'session changed during delivery');
         return;
       }
 
       const entry = globalPtys.get(paneId);
       if (!entry) {
         disconnectParticipant(targetName, projectId, 'pane disappeared during delivery');
-        emitDeliveryStatus(msg.id, targetName, projectId, 'failed', 'pane closed');
         return;
       }
 
       const formatted = `[DevGlide Chat] @${msg.from}: ${msg.body}`;
 
-      // Snapshot status before write — used later to detect if submit caused a transition
-      const statusBeforeWrite = liveTarget.status;
-
       entry.ptyProcess.write(formatted);
 
-      // Wait before sending submit key
       await new Promise((resolve) => setTimeout(resolve, PTY_SUBMIT_DELAY_MS));
 
       const refreshed = getParticipantExact(targetName, projectId);
       if (!refreshed?.paneId || refreshed.detached || refreshed.paneId !== paneId || currentParticipantSessionEpoch(targetName, projectId) !== sessionEpoch) {
-        emitDeliveryStatus(msg.id, targetName, projectId, 'failed', 'session changed before submit');
         return;
       }
 
       const refreshedEntry = globalPtys.get(paneId);
       if (!refreshedEntry) {
         disconnectParticipant(targetName, projectId, 'pane disappeared before submit');
-        emitDeliveryStatus(msg.id, targetName, projectId, 'failed', 'pane closed before submit');
         return;
       }
 
       refreshedEntry.ptyProcess.write(refreshed.submitKey);
-
-      // Wait and check if the target started working (output-based confirmation).
-      // If the participant transitions to 'working', the submit was accepted.
-      // Only retry if still idle after the timeout.
-      await new Promise((resolve) => setTimeout(resolve, PTY_RETRY_SUBMIT_DELAY_MS));
-
-      const retryTarget = getParticipantExact(targetName, projectId);
-      if (!retryTarget?.paneId || retryTarget.detached || retryTarget.paneId !== paneId || currentParticipantSessionEpoch(targetName, projectId) !== sessionEpoch) {
-        // Session changed but first submit was sent — uncertain
-        emitDeliveryStatus(msg.id, targetName, projectId, 'uncertain', 'session changed after submit');
-        return;
-      }
-
-      // Check for a status *transition* to 'working' after our write+submit.
-      // Only counts as confirmation if the target was NOT already 'working' before —
-      // otherwise the status could be from unrelated activity or assignment heuristics.
-      if (retryTarget.status === 'working' && statusBeforeWrite !== 'working') {
-        emitDeliveryStatus(msg.id, targetName, projectId, 'delivered', 'target transitioned to working');
-        return;
-      }
-
-      // No confirmed transition — retry submit once
-      const retryEntry = globalPtys.get(paneId);
-      if (!retryEntry) {
-        disconnectParticipant(targetName, projectId, 'pane disappeared before retry');
-        emitDeliveryStatus(msg.id, targetName, projectId, 'failed', 'pane closed before retry');
-        return;
-      }
-
-      retryEntry.ptyProcess.write(retryTarget.submitKey);
-
-      // After retry, status is uncertain — we can't know if it was accepted
-      emitDeliveryStatus(msg.id, targetName, projectId, 'uncertain', 'retry submitted, no confirmation');
     })
     .finally(() => {
       if (paneDeliveryQueues.get(paneId) === next) {
@@ -727,20 +684,7 @@ function deliverToPty(targetName: string, projectId: string | null, msg: ChatMes
     });
 
   paneDeliveryQueues.set(paneId, next);
-}
-
-/** Emit delivery status update for a specific message + target to dashboard,
- *  and persist it into the message JSONL store. */
-function emitDeliveryStatus(
-  messageId: string,
-  targetName: string,
-  projectId: string | null,
-  status: DeliveryStatus,
-  reason?: string,
-): void {
-  const info: DeliveryInfo = { target: targetName, status, reason };
-  emitToProject('chat:delivery', { messageId, ...info }, projectId);
-  updateMessageDelivery(messageId, info, projectId);
+  return next;
 }
 
 export function listParticipants(projectId?: string | null): ChatParticipant[] {

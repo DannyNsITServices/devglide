@@ -1,11 +1,3 @@
-export type DeliveryStatus = 'delivered' | 'uncertain' | 'failed' | 'pending';
-
-export interface DeliveryInfo {
-  target: string;
-  status: DeliveryStatus;
-  reason?: string;
-}
-
 export interface ChatMessage {
   id: string;
   ts: string;           // ISO timestamp
@@ -13,7 +5,6 @@ export interface ChatMessage {
   to: string | null;    // null = broadcast, "name" = direct
   body: string;         // markdown text
   type: 'message' | 'join' | 'leave' | 'system';
-  delivery?: DeliveryInfo[];  // PTY delivery status per target (only for 'message' type)
 }
 
 export interface ChatParticipant {

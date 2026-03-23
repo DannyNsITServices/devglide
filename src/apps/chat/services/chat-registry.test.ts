@@ -21,7 +21,6 @@ const chatStoreMock = vi.hoisted(() => {
 vi.mock('./chat-store.js', () => ({
   appendMessage: chatStoreMock.appendMessage,
   clearMessages: chatStoreMock.clearMessages,
-  updateMessageDelivery: vi.fn(),
   saveParticipants: vi.fn(),
   loadParticipants: vi.fn(() => []),
 }));
@@ -66,8 +65,8 @@ describe('chat-registry PTY delivery', () => {
 
     const participant = registry.join('codex', 'llm', 'pane-1', 'codex', '\r');
 
-    registry.send('user', 'first');
-    registry.send('user', 'second');
+    const firstSend = registry.send('user', 'first');
+    const secondSend = registry.send('user', 'second');
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
@@ -81,43 +80,22 @@ describe('chat-registry PTY delivery', () => {
     expect(writes).toEqual([
       '[DevGlide Chat] @user: first',
       '\r',
-    ]);
-
-    // Retry submit after additional 1000ms, then second message starts
-    await vi.advanceTimersByTimeAsync(1000);
-    await flushDeliveryQueue();
-
-    expect(writes).toEqual([
-      '[DevGlide Chat] @user: first',
-      '\r',
-      '\r',
       '[DevGlide Chat] @user: second',
     ]);
 
-    // Second message: first submit after 500ms
+    // Second message: submit key after 500ms
     await vi.advanceTimersByTimeAsync(500);
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
       '[DevGlide Chat] @user: first',
       '\r',
-      '\r',
       '[DevGlide Chat] @user: second',
       '\r',
     ]);
 
-    // Second message: retry submit after additional 1000ms
-    await vi.advanceTimersByTimeAsync(1000);
-    await flushDeliveryQueue();
-
-    expect(writes).toEqual([
-      '[DevGlide Chat] @user: first',
-      '\r',
-      '\r',
-      '[DevGlide Chat] @user: second',
-      '\r',
-      '\r',
-    ]);
+    await firstSend;
+    await secondSend;
 
     registry.leave(participant.name);
   });
@@ -132,7 +110,7 @@ describe('chat-registry PTY delivery', () => {
 
     const participant = registry.join('claude', 'llm', 'pane-2', 'claude', '\r');
 
-    registry.send('user', 'hello');
+    const sendPromise = registry.send('user', 'hello');
     await flushDeliveryQueue();
     registry.detach(participant.name);
 
@@ -142,6 +120,8 @@ describe('chat-registry PTY delivery', () => {
     expect(writes).toEqual([
       '[DevGlide Chat] @user: hello',
     ]);
+
+    await sendPromise;
 
     registry.leave(participant.name);
   });
@@ -156,7 +136,7 @@ describe('chat-registry PTY delivery', () => {
 
     const participant = registry.join('codex', 'llm', 'pane-4', 'codex', '\r');
 
-    registry.send('user', 'reclaim-race');
+    const sendPromise = registry.send('user', 'reclaim-race');
     await flushDeliveryQueue();
     registry.detach(participant.name);
     const reclaimed = registry.join('codex', 'llm', 'pane-4', 'codex', '\r');
@@ -168,6 +148,8 @@ describe('chat-registry PTY delivery', () => {
     expect(writes).toEqual([
       '[DevGlide Chat] @user: reclaim-race',
     ]);
+
+    await sendPromise;
 
     registry.leave(participant.name);
   });
@@ -182,7 +164,7 @@ describe('chat-registry PTY delivery', () => {
 
     const participant = registry.join('cursor', 'llm', 'pane-3', 'cursor', '\r');
 
-    registry.send('user', 'close-soon');
+    const sendPromise = registry.send('user', 'close-soon');
     await flushDeliveryQueue();
     globalPtys.delete('pane-3');
 
@@ -194,7 +176,50 @@ describe('chat-registry PTY delivery', () => {
     ]);
     expect(registry.getParticipant(participant.name)?.paneId).toBeNull();
 
+    await sendPromise;
+
     registry.leave(participant.name);
+  });
+
+  it('delivers across panes sequentially', async () => {
+    const writesA: string[] = [];
+    const writesB: string[] = [];
+
+    globalPtys.set('pane-a', {
+      ptyProcess: { write: vi.fn((chunk: string) => { writesA.push(chunk); }) } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    globalPtys.set('pane-b', {
+      ptyProcess: { write: vi.fn((chunk: string) => { writesB.push(chunk); }) } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+
+    const first = registry.join('first', 'llm', 'pane-a', 'claude', '\r');
+    const second = registry.join('second', 'llm', 'pane-b', 'codex', '\r');
+
+    const sendPromise = registry.send('user', 'ordered');
+    await flushDeliveryQueue();
+
+    expect(writesA).toEqual(['[DevGlide Chat] @user: ordered']);
+    expect(writesB).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(500);
+    await flushDeliveryQueue();
+
+    expect(writesA).toEqual(['[DevGlide Chat] @user: ordered', '\r']);
+    expect(writesB).toEqual(['[DevGlide Chat] @user: ordered']);
+
+    await vi.advanceTimersByTimeAsync(500);
+    await flushDeliveryQueue();
+
+    expect(writesB).toEqual(['[DevGlide Chat] @user: ordered', '\r']);
+
+    await sendPromise;
+
+    registry.leave(first.name);
+    registry.leave(second.name);
   });
 
   it('broadcasts mentioned messages to every same-project participant except the sender', async () => {
@@ -222,12 +247,21 @@ describe('chat-registry PTY delivery', () => {
     const target = registry.join('target', 'llm', 'pane-b', 'claude', '\r');
     const observer = registry.join('observer', 'llm', 'pane-c', 'cursor', '\r');
 
-    registry.send(sender.name, `@${target.name} please handle this`);
+    const sendPromise = registry.send(sender.name, `@${target.name} please handle this`);
     await flushDeliveryQueue();
 
     expect(writesSender).toEqual([]);
     expect(writesA).toEqual([`[DevGlide Chat] @${sender.name}: @${target.name} please handle this`]);
+    expect(writesB).toEqual([]);
+
+    // First delivery completes (submit delay), second starts
+    await vi.advanceTimersByTimeAsync(500);
+    await flushDeliveryQueue();
+
     expect(writesB).toEqual([`[DevGlide Chat] @${sender.name}: @${target.name} please handle this`]);
+
+    await vi.advanceTimersByTimeAsync(500);
+    await sendPromise;
 
     registry.leave(sender.name);
     registry.leave(target.name);
@@ -243,18 +277,19 @@ describe('chat-registry PTY delivery', () => {
 
     const worker = registry.join('codex', 'llm', 'pane-status-working', 'codex', '\r');
 
-    registry.send('user', `@${worker.name} fix the rendering bug`);
+    const sendPromise = registry.send('user', `@${worker.name} fix the rendering bug`);
     expect(registry.getParticipant(worker.name)?.status).toBe('working');
 
     await vi.advanceTimersByTimeAsync(30_000);
     await flushDeliveryQueue();
+    await sendPromise;
 
     expect(registry.getParticipant(worker.name)?.status).toBe('idle');
 
     registry.leave(worker.name);
   });
 
-  it('marks explicit review assignments as working', () => {
+  it('marks explicit review assignments as working', async () => {
     globalPtys.set('pane-status-review', {
       ptyProcess: { write: vi.fn() } as never,
       chunks: [],
@@ -263,9 +298,14 @@ describe('chat-registry PTY delivery', () => {
 
     const reviewer = registry.join('claude', 'llm', 'pane-status-review', 'claude', '\r');
 
-    registry.send('user', `@${reviewer.name} verify the fix`);
+    const sendPromise = registry.send('user', `@${reviewer.name} verify the fix`);
 
     expect(registry.getParticipant(reviewer.name)?.status).toBe('working');
+
+    // Drain the delivery chain (submit delay)
+    await vi.advanceTimersByTimeAsync(500);
+    await flushDeliveryQueue();
+    await sendPromise;
 
     registry.leave(reviewer.name);
   });
@@ -428,13 +468,18 @@ describe('chat-registry PTY status detection (idle/working)', () => {
     createPtyWithOnData('pane-pty-w4');
     const participant = registry.join('claude', 'llm', 'pane-pty-w4', 'claude', '\r');
 
-    registry.send('user', `@${participant.name} verify the fix`);
+    const sendPromise = registry.send('user', `@${participant.name} verify the fix`);
     expect(registry.getParticipant(participant.name)?.status).toBe('working');
 
     // PTY output should keep the participant in working
     emitPtyData('pane-pty-w4', 'Reading file...');
 
     expect(registry.getParticipant(participant.name)?.status).toBe('working');
+
+    // Drain the delivery chain (submit delay)
+    await vi.advanceTimersByTimeAsync(500);
+    await flushDeliveryQueue();
+    await sendPromise;
 
     registry.leave(participant.name);
   });

@@ -350,7 +350,6 @@ function connectSocket() {
   _socket.on('chat:leave', onLeave);
   _socket.on('chat:message', onMessage);
   _socket.on('chat:cleared', onCleared);
-  _socket.on('chat:delivery', onDelivery);
 }
 
 function disconnectSocket() {
@@ -360,7 +359,6 @@ function disconnectSocket() {
     _socket.off('chat:leave', onLeave);
     _socket.off('chat:message', onMessage);
     _socket.off('chat:cleared', onCleared);
-    _socket.off('chat:delivery', onDelivery);
     // Don't disconnect — shared socket, other pages need it
     _socket = null;
   }
@@ -395,20 +393,6 @@ function onCleared() {
   renderAllMessages();
 }
 
-function onDelivery({ messageId, target, status, reason }) {
-  // Update in-memory message
-  const msg = _messages.find(m => m.id === messageId);
-  if (msg) {
-    if (!msg.delivery) msg.delivery = [];
-    const existing = msg.delivery.findIndex(d => d.target === target);
-    if (existing >= 0) msg.delivery[existing] = { target, status, reason };
-    else msg.delivery.push({ target, status, reason });
-  }
-
-  // Update DOM
-  const msgEl = _container?.querySelector(`.chat-msg[data-id="${CSS.escape(messageId)}"]`);
-  if (msgEl) renderDeliveryIndicator(msgEl, msg?.delivery);
-}
 
 // ── Rendering: Members ──────────────────────────────────────────────
 
@@ -543,10 +527,6 @@ function appendMessageEl(msg, doScroll = true) {
     el.appendChild(time);
   }
 
-  // Show delivery status if available (from history or live updates)
-  if (msg.type === 'message' && msg.from === 'user' && msg.delivery?.length) {
-    renderDeliveryIndicator(el, msg.delivery);
-  }
 
   listEl.appendChild(el);
   renderMermaidBlocks(el);
@@ -560,37 +540,6 @@ function appendMessageEl(msg, doScroll = true) {
   }
 }
 
-function renderDeliveryIndicator(msgEl, delivery) {
-  // Remove existing indicator
-  const old = msgEl.querySelector('.chat-delivery-status');
-  if (old) old.remove();
-
-  if (!delivery || delivery.length === 0) return;
-
-  const indicator = document.createElement('div');
-  indicator.className = 'chat-delivery-status';
-
-  const statuses = delivery.map(d => d.status);
-  const allDelivered = statuses.every(s => s === 'delivered');
-  const anyFailed = statuses.some(s => s === 'failed');
-
-  if (allDelivered) {
-    indicator.classList.add('status-delivered');
-    indicator.textContent = '\u2713 delivered';
-  } else if (anyFailed) {
-    const failedTargets = delivery.filter(d => d.status === 'failed').map(d => d.target);
-    indicator.classList.add('status-failed');
-    indicator.title = delivery.filter(d => d.status === 'failed').map(d => `${d.target}: ${d.reason || 'unknown'}`).join('\n');
-    indicator.textContent = `\u2717 failed: ${failedTargets.join(', ')}`;
-  } else {
-    const uncertain = delivery.filter(d => d.status === 'uncertain');
-    indicator.classList.add('status-uncertain');
-    indicator.title = uncertain.map(d => `${d.target}: ${d.reason || 'unknown'}`).join('\n');
-    indicator.textContent = '\u003F uncertain';
-  }
-
-  msgEl.appendChild(indicator);
-}
 
 function formatTime(ts) {
   try {

@@ -1,7 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { jsonResult, errorResult, createDevglideMcpServer } from '../../../packages/mcp-utils/src/index.js';
-import * as registry from '../services/chat-registry.js';
 import * as store from '../services/chat-store.js';
 import { getEffectiveRules } from '../services/chat-rules.js';
 
@@ -46,7 +45,8 @@ export function createChatMcpServer(): McpServer {
         '- Use `chat_join` to register as a participant. Provide your `name` (e.g. "claude-code") and optionally `model` (e.g. "claude", "gpt-5").',
         '- **Name assignment:** The server derives your name from `model` + pane number (e.g. "claude-1" for model "claude" on pane-1). **Always use the `name` returned by `chat_join`** — that is your identity for the session.',
         '- `"user"` and `"system"` are **reserved names** — do not use them.',
-        '- `chat_join` requires an explicit `paneId`. Read `DEVGLIDE_PANE_ID` from your shell session and pass it as `paneId` every time. Do not rely on MCP process env inheritance.',
+        '- `chat_join` requires an explicit `paneId`. Read `DEVGLIDE_PANE_ID` from your shell session and pass it as `paneId` every time. Do not use `"auto"` and do not rely on MCP process env inheritance.',
+        '- If your paneId collides with another participant, **both participants are disconnected** and a collision error is broadcast. Both must re-read `$DEVGLIDE_PANE_ID` and rejoin.',
         '- **`submitKey` parameter:** Controls the character sent after PTY-injected messages to trigger input submission. Use `"cr"` (carriage return, default) for all known clients including Claude Code and Codex. The submit key is sent after a short delay to avoid paste-burst detection in TUI frameworks like crossterm.',
         '- If you call `chat_join` while already joined, the previous session is automatically cleaned up (re-join is safe).',
         '',
@@ -78,7 +78,7 @@ export function createChatMcpServer(): McpServer {
         '- Participants are in-memory only — if the server restarts, everyone must rejoin.',
         '',
         '### Quick reference — commonly confused parameters',
-        '- `chat_join(name, model?, paneId, submitKey?)` — register. `paneId` is required and should come from `DEVGLIDE_PANE_ID` in your shell. Check returned `name` (server assigns it). `"user"`/`"system"` reserved. `submitKey`: `"cr"` (default, correct for all known clients including Claude Code and Codex).',
+        '- `chat_join(name, model?, paneId, submitKey?)` — register. `paneId` is required and must come from `DEVGLIDE_PANE_ID` in your shell (never `"auto"`). Check returned `name` (server assigns it). `"user"`/`"system"` reserved. `submitKey`: `"cr"` (default, correct for all known clients including Claude Code and Codex).',
         '- `chat_leave()` — unregister from the chat room.',
         '- `chat_send(message, to?)` — send a message. Delivery is broadcast within the project; use `@mentions` only to signal who should respond.',
         '- `chat_read(limit?, since?)` — read message history.',
@@ -99,16 +99,25 @@ export function createChatMcpServer(): McpServer {
 
   server.tool(
     'chat_join',
-    'Join the chat room as a participant. Pass paneId from DEVGLIDE_PANE_ID, or use "auto" for server-side pane resolution. If omitted, the server will attempt auto-resolution.',
+    'Join the chat room as a participant. Requires explicit paneId — read $DEVGLIDE_PANE_ID from your shell session and pass it directly. Do not use "auto" or omit paneId.',
     {
       name: z.string().describe('Your participant name (e.g. "claude-code", "cursor")'),
       model: z.string().optional().describe('Model/tool identifier shown next to name (e.g. "claude", "cursor", "codex")'),
-      paneId: z.string().optional().describe('Shell pane ID for PTY delivery, or "auto" for server-side resolution. Read DEVGLIDE_PANE_ID from your shell, or pass "auto" to let the server pick the best available pane.'),
+      paneId: z.string().describe('Shell pane ID for PTY delivery. Read DEVGLIDE_PANE_ID from your shell session and pass it directly. Do not use "auto" — the server will not guess your pane.'),
       submitKey: z.enum(['cr', 'lf']).optional().describe('Character to trigger submit after PTY injection: "cr" (default, correct for all known clients including Claude Code and Codex). Only use "lf" if you have verified a specific client requires it'),
     },
     async ({ name, model, paneId, submitKey }) => {
       if (name === 'user') return errorResult('"user" is reserved for the dashboard user');
       if (name === 'system') return errorResult('"system" is reserved');
+
+      // Reject "auto" — LLMs must pass their actual pane ID
+      if (paneId === 'auto') {
+        return errorResult(
+          'chat_join requires an explicit paneId for LLM participants. ' +
+          'Run "echo $DEVGLIDE_PANE_ID" in your shell and pass the result as paneId. ' +
+          'Do not use "auto" — the server cannot reliably guess your pane.',
+        );
+      }
 
       // Leave previous session if re-joining (prevents orphaned participants).
       // Use full leave here (not detach) since the same MCP session is explicitly
@@ -126,14 +135,7 @@ export function createChatMcpServer(): McpServer {
         sessionProjectId = null;
       }
 
-      // Resolve paneId: use explicit value, fall back to env var, then "auto" for server resolution
-      let resolvedPaneId = paneId;
-      if (!resolvedPaneId) {
-        const envPaneId = process.env.DEVGLIDE_PANE_ID;
-        resolvedPaneId = envPaneId ?? 'auto';
-      }
-
-      const res = await chatApi('/join', { name, model: model ?? null, paneId: resolvedPaneId, submitKey: submitKey ?? undefined });
+      const res = await chatApi('/join', { name, model: model ?? null, paneId, submitKey: submitKey ?? undefined });
       if (!res.ok) {
         const data = res.data as { error?: string; diagnostics?: unknown };
         const errMsg = data?.error ?? 'Join failed';
@@ -215,7 +217,11 @@ export function createChatMcpServer(): McpServer {
     'List active chat participants with their pane link status.',
     {},
     async () => {
-      return jsonResult(registry.listParticipants(getSessionProjectId()));
+      // Use REST API for consistent behavior — direct registry calls can miss
+      // participants when sessionProjectId is null (before join or after restart).
+      const res = await chatApi('/members');
+      if (!res.ok) return errorResult('Failed to fetch members');
+      return jsonResult(res.data);
     },
   );
 
@@ -227,49 +233,23 @@ export function createChatMcpServer(): McpServer {
     {},
     async () => {
       const pid = getSessionProjectId();
-
-      // Session state
       const joined = !!sessionName;
-      const participant = joined ? registry.listParticipants(pid).find(p => p.name === sessionName) : null;
 
-      // Pane routability check — scope to session's project, not dashboard active project
-      const paneId = participant?.paneId ?? null;
-      let paneRoutable = false;
-      const panesQuery = pid ? `?projectId=${encodeURIComponent(pid)}` : '';
-      let panes: Array<{ id: string; claimed: boolean }> = [];
-      {
-        const res = await chatApi(`/panes${panesQuery}`);
-        if (res.ok) panes = res.data as Array<{ id: string; claimed: boolean }>;
-      }
-      if (paneId) {
-        paneRoutable = panes.some(p => p.id === paneId);
+      // Use REST API for consistent behavior — avoids project-scoping issues
+      // when sessionProjectId is null (before join or after restart).
+      const statusQuery = sessionName ? `?name=${encodeURIComponent(sessionName)}${pid ? `&projectId=${encodeURIComponent(pid)}` : ''}` : '';
+      const statusRes = await chatApi(`/status${statusQuery}`);
+      if (statusRes.ok) {
+        const data = statusRes.data as Record<string, unknown>;
+        return jsonResult({ joined, name: sessionName, ...data });
       }
 
-      // What auto-resolution would pick right now (scoped to session project)
-      let autoResolveResult: string | null = null;
-      const unclaimed = panes.filter(p => !p.claimed);
-      if (unclaimed.length === 1) autoResolveResult = unclaimed[0].id;
-      else if (unclaimed.length === 0) autoResolveResult = '(no unclaimed panes)';
-      else autoResolveResult = `(ambiguous: ${unclaimed.map(p => p.id).join(', ')})`;
-
-      // Other active members
-      const members = registry.listParticipants(pid);
-
+      // Fallback to basic info if REST fails
       return jsonResult({
         joined,
         name: sessionName,
         projectId: pid,
-        paneId,
-        paneRoutable,
-        detached: participant?.detached ?? false,
-        status: participant?.status ?? null,
-        autoResolveWouldPick: autoResolveResult,
-        activeMembers: members.map(m => ({
-          name: m.name,
-          status: m.status,
-          paneId: m.paneId,
-          detached: m.detached,
-        })),
+        error: 'Could not fetch status from REST API',
       });
     },
   );

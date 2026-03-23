@@ -1,7 +1,7 @@
 import { mkdirSync, appendFileSync, readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
-import type { ChatMessage, DeliveryInfo } from '../types.js';
+import type { ChatMessage } from '../types.js';
 import { getActiveProject } from '../../../project-context.js';
 import { projectDataDir } from '../../../packages/paths.js';
 
@@ -67,39 +67,6 @@ export function readMessages(opts?: { limit?: number; since?: string }, projectI
   return messages;
 }
 
-/** Update the delivery status for a message in the JSONL store.
- *  Rewrites the specific line with the updated delivery array. */
-export function updateMessageDelivery(messageId: string, info: DeliveryInfo, projectId?: string | null): void {
-  const filePath = getMessagesPath(projectId);
-  if (!filePath || !existsSync(filePath)) return;
-
-  const raw = readFileSync(filePath, 'utf8');
-  const lines = raw.split('\n');
-  let updated = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    if (!lines[i]) continue;
-    try {
-      const msg = JSON.parse(lines[i]) as ChatMessage;
-      if (msg.id === messageId) {
-        if (!msg.delivery) msg.delivery = [];
-        const existing = msg.delivery.findIndex(d => d.target === info.target);
-        if (existing >= 0) {
-          msg.delivery[existing] = info;
-        } else {
-          msg.delivery.push(info);
-        }
-        lines[i] = JSON.stringify(msg);
-        updated = true;
-        break;
-      }
-    } catch { /* skip malformed lines */ }
-  }
-
-  if (updated) {
-    writeFileSync(filePath, lines.join('\n'));
-  }
-}
 
 // ── Participant persistence ──────────────────────────────────────────────────
 
@@ -137,12 +104,6 @@ export function loadParticipants(projectId?: string | null): PersistedParticipan
   }
 }
 
-export function clearParticipantsFile(projectId?: string | null): void {
-  const filePath = getParticipantsPath(projectId);
-  if (filePath && existsSync(filePath)) {
-    writeFileSync(filePath, '[]');
-  }
-}
 
 export function clearMessages(projectId?: string | null): void {
   const filePath = getMessagesPath(projectId);

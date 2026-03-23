@@ -331,7 +331,7 @@ router.post('/messages', asyncHandler(async (req: Request, res: Response) => {
     badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
     return;
   }
-  const msg = registry.send('user', parsed.data.message, parsed.data.to);
+  const msg = await registry.send('user', parsed.data.message, parsed.data.to);
   res.status(201).json(msg);
 }));
 
@@ -341,8 +341,8 @@ router.get('/members', (_req: Request, res: Response) => {
 });
 
 // POST /join — register a participant (used by MCP bridge)
-// Supports paneId: "auto" for server-side pane resolution.
-// On failure, returns structured diagnostics with available panes and suggested action.
+// Requires explicit paneId for LLM participants. Rejects "auto" for LLMs.
+// On pane collision: disconnects the existing claimer, broadcasts error, returns 409.
 router.post('/join', (req: Request, res: Response) => {
   const parsed = joinSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -355,8 +355,71 @@ router.post('/join', (req: Request, res: Response) => {
     return;
   }
 
+  // Reject "auto" for LLM participants — they must pass explicit paneId
+  if (paneId === 'auto' && model) {
+    res.status(400).json({
+      error: 'chat_join requires an explicit paneId for LLM participants. Run "echo $DEVGLIDE_PANE_ID" in your shell and pass the result as paneId.',
+    });
+    return;
+  }
+
   const projectId = getActiveProject()?.id ?? null;
   const resolution = resolvePane(paneId, projectId);
+
+  // Handle pane collision — if the pane is claimed by another LLM, disconnect both
+  if (!resolution.resolved && resolution.diagnostics.suppliedPaneId) {
+    const claimedPane = getRoutablePanesGlobal().find(
+      p => p.id === resolution.diagnostics.suppliedPaneId && p.claimed,
+    );
+    if (claimedPane?.claimedBy) {
+      const existingName = claimedPane.claimedBy;
+      const collisionPaneId = claimedPane.id;
+
+      // Use the claimed pane's project — NOT the active dashboard project —
+      // so the system message and member update reach the correct project room.
+      const collisionProjectId = claimedPane.projectId ?? projectId;
+
+      // Disconnect the existing claimer
+      registry.leave(existingName, collisionProjectId);
+
+      // Broadcast collision error via PTY to the contested pane
+      const ptyEntry = globalPtys.get(collisionPaneId);
+      if (ptyEntry) {
+        const collisionMsg = `[DevGlide Chat] System: paneId collision on ${collisionPaneId}. ` +
+          `"${existingName}" has been disconnected. ` +
+          `Both participants must re-read $DEVGLIDE_PANE_ID and rejoin with chat_join.`;
+        ptyEntry.ptyProcess.write(collisionMsg);
+        // Send submit key to ensure the message is processed
+        setTimeout(() => {
+          const refreshed = globalPtys.get(collisionPaneId);
+          if (refreshed) refreshed.ptyProcess.write('\r');
+        }, 500);
+      }
+
+      // Record the collision as a system message in the collided pane's project
+      const sysMsg = store.appendMessage({
+        from: 'system',
+        to: null,
+        body: `paneId collision on ${collisionPaneId}: "${existingName}" disconnected. Both participants must rejoin with correct paneId.`,
+        type: 'system',
+      }, collisionProjectId);
+      const chatNsp = registry.getChatNsp();
+      if (chatNsp && collisionProjectId) {
+        chatNsp.to(`project:${collisionProjectId}`).emit('chat:message', sysMsg);
+        chatNsp.to(`project:${collisionProjectId}`).emit('chat:members', registry.listParticipants(collisionProjectId));
+      }
+
+      res.status(409).json({
+        error: `paneId collision on ${collisionPaneId}. "${existingName}" was disconnected. Both participants must re-read $DEVGLIDE_PANE_ID and rejoin.`,
+        collision: {
+          paneId: collisionPaneId,
+          disconnected: existingName,
+        },
+        diagnostics: resolution.diagnostics,
+      });
+      return;
+    }
+  }
 
   if (!resolution.resolved || !resolution.paneId) {
     res.status(400).json({
@@ -392,16 +455,16 @@ router.post('/leave', (req: Request, res: Response) => {
 });
 
 // POST /send — send a message as any participant (used by MCP bridge)
-router.post('/send', (req: Request, res: Response) => {
+router.post('/send', asyncHandler(async (req: Request, res: Response) => {
   const parsed = sendSchema.safeParse(req.body);
   if (!parsed.success) {
     badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
     return;
   }
   const { from, message, to, projectId } = parsed.data;
-  const msg = registry.send(from, message, to, projectId ?? undefined);
+  const msg = await registry.send(from, message, to, projectId ?? undefined);
   res.status(201).json(msg);
-});
+}));
 
 // ── Rules of Engagement CRUD ──────────────────────────────────────────────────
 
@@ -489,9 +552,6 @@ export function initChat(nsp: Namespace): void {
         // Emit scoped to this project's room
         nsp.to(`project:${projectId}`).emit('chat:message', msg);
         nsp.to(`project:${projectId}`).emit('chat:members', registry.listParticipants(projectId));
-        if (failed.length > 0) {
-          nsp.to(`project:${projectId}`).emit('chat:session-lost', { participants: failed, reason: 'pane no longer exists after restart' });
-        }
       }
     }, 100);
   }
@@ -520,9 +580,9 @@ export function initChat(nsp: Namespace): void {
     }
 
     // Handle send from dashboard
-    socket.on('chat:send', ({ message, to }: { message: string; to?: string }) => {
+    socket.on('chat:send', async ({ message, to }: { message: string; to?: string }) => {
       if (!message || typeof message !== 'string') return;
-      registry.send('user', message, to);
+      await registry.send('user', message, to);
     });
 
     // Handle clear from dashboard
