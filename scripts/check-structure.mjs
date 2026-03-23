@@ -26,7 +26,10 @@
  */
 
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
-import { join, resolve, relative } from "node:path";
+import { join, resolve, relative, sep } from "node:path";
+
+/** Normalize path separators to forward slashes (Windows compat). */
+const toSlash = (p) => (sep === "\\" ? p.replaceAll("\\", "/") : p);
 
 const ROOT = resolve(import.meta.dirname, "..");
 const APPS_DIR = join(ROOT, "src/apps");
@@ -364,7 +367,7 @@ const CROSS_APP_PATH_RE = /\/apps\/([^/]+)\//;
 
 for (const filePath of allSourceFiles) {
   // Determine which app this file belongs to
-  const relToApps = relative(APPS_DIR, filePath);
+  const relToApps = toSlash(relative(APPS_DIR, filePath));
   const isInApp = !relToApps.startsWith("..");
   if (!isInApp) continue; // routers / server.ts — always allowed
 
@@ -380,7 +383,7 @@ for (const filePath of allSourceFiles) {
     const allowed = new Set(apps[sourceApp]?.allowedCrossAppDeps ?? []);
     if (!allowed.has(targetApp)) {
       error(
-        `cross-app import: ${relative(ROOT, filePath)}:${line} — "${sourceApp}" imports from "${targetApp}" (not in allowedCrossAppDeps)`,
+        `cross-app import: ${toSlash(relative(ROOT, filePath))}:${line} — "${sourceApp}" imports from "${targetApp}" (not in allowedCrossAppDeps)`,
       );
     }
   }
