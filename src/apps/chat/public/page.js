@@ -240,31 +240,37 @@ function fallbackAllMermaidBlocks() {
 }
 
 // ── Participant colors ──────────────────────────────────────────────
-// Distinct hues that work on dark backgrounds. Colors are assigned in
-// order as new participants appear — no hash collisions possible.
+// Distinct hues keyed by visible pane number so participant colors stay
+// stable across refreshes and independent of join order.
 
-const PARTICIPANT_COLORS = [
-  '#60a5fa', // blue
-  '#f472b6', // pink
-  '#34d399', // emerald
-  '#fb923c', // orange
-  '#a78bfa', // violet
-  '#22d3ee', // cyan
-  '#fbbf24', // amber
-  '#e879f9', // fuchsia
-  '#f87171', // red
-  '#a3e635', // lime
-];
+const PANE_COLORS = new Map([
+  [1, '#60a5fa'], // blue
+  [2, '#f472b6'], // pink
+  [3, '#34d399'], // emerald
+  [4, '#fb923c'], // orange
+  [5, '#a78bfa'], // violet
+  [6, '#22d3ee'], // cyan
+  [7, '#fbbf24'], // amber
+  [8, '#e879f9'], // fuchsia
+  [9, '#f87171'], // red
+]);
+const DEFAULT_PARTICIPANT_COLOR = 'var(--df-color-text-muted)';
 
-const _colorMap = new Map();
-let _nextColorIdx = 0;
+function getPaneNumber(paneId) {
+  if (!paneId) return null;
+  const match = /^pane-(\d+)$/.exec(paneId);
+  if (!match) return null;
+  const paneNumber = Number(match[1]);
+  return Number.isInteger(paneNumber) && paneNumber >= 1 ? paneNumber : null;
+}
 
-function getParticipantColor(name) {
-  if (_colorMap.has(name)) return _colorMap.get(name);
-  const color = PARTICIPANT_COLORS[_nextColorIdx % PARTICIPANT_COLORS.length];
-  _nextColorIdx++;
-  _colorMap.set(name, color);
-  return color;
+function getParticipantColor(participant) {
+  const paneNumber = getPaneNumber(participant?.paneId);
+  return PANE_COLORS.get(paneNumber) ?? DEFAULT_PARTICIPANT_COLOR;
+}
+
+function findParticipant(name) {
+  return _members.find((member) => member.name === name) ?? { name, paneId: null };
 }
 
 // ── API helpers ─────────────────────────────────────────────────────
@@ -427,7 +433,7 @@ function renderMembers() {
 
     // Assign unique color to LLM participants (skip dot color for detached — let CSS handle it)
     if (!m.isUser) {
-      const color = getParticipantColor(m.name);
+      const color = getParticipantColor(m);
       if (!m.detached) dot.style.background = color;
       name.style.color = color;
     }
@@ -510,7 +516,7 @@ function appendMessageEl(msg, doScroll = true) {
     el.appendChild(time);
   } else {
     el.classList.add('from-llm');
-    const color = getParticipantColor(msg.from);
+    const color = getParticipantColor(findParticipant(msg.from));
     el.style.borderLeftColor = color;
     const sender = document.createElement('div');
     sender.className = 'chat-msg-sender';
@@ -915,8 +921,6 @@ export function unmount(container) {
   _rulesDraft = '';
   _rulesLoaded = false;
 
-  _colorMap.clear();
-  _nextColorIdx = 0;
   _mermaidIdCounter = 0;
   _mermaidFailed = false;
 }
@@ -927,8 +931,6 @@ export function onProjectChange(project) {
   _rulesDraft = '';
   _rulesLoaded = false;
 
-  _colorMap.clear();
-  _nextColorIdx = 0;
   if (_container) {
     loadInitialData();
   }
