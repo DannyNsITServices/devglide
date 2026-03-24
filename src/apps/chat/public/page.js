@@ -906,6 +906,9 @@ export function mount(container, ctx) {
       autoResizeInput(input);
     }
   }
+
+  // Auto-focus the input when navigating to chat
+  container.querySelector('#chat-input')?.focus();
 }
 
 export function unmount(container) {

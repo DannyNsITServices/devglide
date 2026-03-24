@@ -13,7 +13,7 @@ const participantSessionEpochs = new Map<string, number>();
 const participantStatusTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const panePromptWatchers = new Map<string, { dispose: () => void }>();
 
-const PTY_SUBMIT_DELAY_MS = 500;
+const PTY_SUBMIT_DELAY_MS = 1000;
 const PARTICIPANT_IDLE_TIMEOUT_MS = 30_000;
 const PROMPT_QUIESCENCE_MS = 2000;
 const PANE_DISCONNECT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes before auto-removal
