@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import type { Namespace } from 'socket.io';
 import { z } from 'zod';
-import { asyncHandler } from '../packages/error-middleware.js';
+import { asyncHandler, badRequest } from '../packages/error-middleware.js';
 import * as registry from '../apps/chat/services/chat-registry.js';
 import * as store from '../apps/chat/services/chat-store.js';
 import { getEffectiveRules, getDefaultRules, saveProjectRules, deleteProjectRules, hasProjectRules } from '../apps/chat/services/chat-rules.js';
@@ -25,10 +25,6 @@ const messagesQuerySchema = z.object({
   limit: z.coerce.number().int().positive().optional(),
   since: z.string().optional(),
 });
-
-function badRequest(res: Response, message: string): void {
-  res.status(400).json({ error: message });
-}
 
 // ── Zod schemas (join/leave/send) ────────────────────────────────────────────
 

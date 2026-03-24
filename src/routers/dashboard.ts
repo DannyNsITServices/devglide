@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
-import { asyncHandler, errorMessage } from '../packages/error-middleware.js';
+import { asyncHandler, errorMessage, badRequest, notFound } from '../packages/error-middleware.js';
 import {
   listProjects,
   addProject,
@@ -35,14 +35,6 @@ const projectIdParamSchema = z.object({
 const browseQuerySchema = z.object({
   path: z.string().optional(),
 });
-
-function badRequest(res: { status: (code: number) => { json: (body: unknown) => void } }, message: string): void {
-  res.status(400).json({ error: message });
-}
-
-function notFound(res: { status: (code: number) => { json: (body: unknown) => void } }, message: string): void {
-  res.status(404).json({ error: message });
-}
 
 // ── REST API: Project context ──────────────────────────────────────────────
 

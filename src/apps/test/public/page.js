@@ -54,7 +54,7 @@ const BODY_HTML = `
         <strong>Setup for external apps:</strong> Add one script tag to enable automation:<br/>
         <code>&lt;script src="http://localhost:7000/devtools.js"&gt;&lt;/script&gt;</code><br/>
         DevGlide monorepo apps need no manual setup.<br/><br/>
-        <strong>Manual usage:</strong> Submit scenarios via <code>POST /api/trigger/scenarios</code>
+        <strong>Manual usage:</strong> Submit scenarios via <code>POST /api/test/trigger/scenarios</code>
         or the <code>test_run_scenario</code> MCP tool. Use simple app names as targets
         (e.g. <code>"kanban"</code>, <code>"dashboard"</code>) — absolute paths also work.
       </div>

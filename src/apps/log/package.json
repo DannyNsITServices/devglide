@@ -15,7 +15,6 @@
     "chokidar": "^4.0.3",
     "@modelcontextprotocol/sdk": "^1.12.1",
     "express": "^5.2.1",
-    "@devglide/project-context": "workspace:*",
     "zod": "^3.25.49"
   },
   "devDependencies": {

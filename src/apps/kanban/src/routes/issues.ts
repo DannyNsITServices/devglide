@@ -7,7 +7,7 @@ import { getUploadsDir } from "./attachments.js";
 import type { IssueRow } from "../db.js";
 import { createKanbanItem } from "../kanban-create-helper.js";
 import { sanitizeFtsQuery } from "../mcp-helpers.js";
-import { asyncHandler } from "../../../../packages/error-middleware.js";
+import { asyncHandler, badRequest, notFound } from "../../../../packages/error-middleware.js";
 
 declare module "express" {
   interface Request {
@@ -35,14 +35,6 @@ function mapIssue(row: IssueLikeRow | undefined): Record<string, unknown> | unde
   if (!row) return row;
   const { projectId, ...rest } = row;
   return { ...rest, featureId: projectId };
-}
-
-function badRequest(res: Response, message: string): void {
-  res.status(400).json({ error: message });
-}
-
-function notFound(res: Response, message: string): void {
-  res.status(404).json({ error: message });
 }
 
 // GET /api/issues

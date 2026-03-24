@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { z } from 'zod';
 import { getActiveProject } from '../project-context.js';
-import { asyncHandler, errorMessage } from '../packages/error-middleware.js';
+import { asyncHandler, errorMessage, badRequest, forbidden } from '../packages/error-middleware.js';
 
 // ── Zod schema for HTTP input validation ─────────────────────────────────────
 
@@ -138,14 +138,6 @@ async function isBinary(filePath: string): Promise<boolean> {
   } finally {
     await fh?.close();
   }
-}
-
-function badRequest(res: { status: (code: number) => { json: (body: unknown) => void } }, message: string): void {
-  res.status(400).json({ error: message });
-}
-
-function forbidden(res: { status: (code: number) => { json: (body: unknown) => void } }, message: string): void {
-  res.status(403).json({ error: message });
 }
 
 router.get('/tree', asyncHandler(async (req, res) => {

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import path from 'path';
 import fs from 'fs';
 import { getActiveProject } from '../../project-context.js';
-import { asyncHandler } from '../../packages/error-middleware.js';
+import { asyncHandler, errorMessage, badRequest, forbidden, notFound, conflict, badGateway } from '../../packages/error-middleware.js';
 import {
   globalPtys,
   dashboardState,
@@ -45,29 +45,6 @@ export function detectEntryPoint(projectPath: string): { file: string; base: str
 
 export const router: Router = Router();
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
-function badRequest(res: Response, message: string): void {
-  res.status(400).json({ error: message });
-}
-
-function forbidden(res: Response, message: string): void {
-  res.status(403).json({ error: message });
-}
-
-function notFound(res: Response, message: string): void {
-  res.status(404).json({ error: message });
-}
-
-function conflict(res: Response, message: string): void {
-  res.status(409).json({ error: message });
-}
-
-function badGateway(res: Response, message: string): void {
-  res.status(502).json({ error: message });
-}
 
 const proxyQuerySchema = z.object({
   url: z.string().min(1, 'url is required'),

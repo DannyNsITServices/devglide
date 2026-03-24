@@ -313,7 +313,7 @@ const BODY_HTML = `
       <div class="chat-new-indicator hidden" id="chat-new-indicator">New messages below</div>
       <div class="chat-input-area" style="position:relative">
         <div class="chat-mention-popup hidden" id="chat-mention-popup"></div>
-        <input type="text" class="chat-input" id="chat-input" placeholder="Type a message... (@mention to signal who should act)" autocomplete="off" />
+        <textarea class="chat-input" id="chat-input" rows="1" placeholder="Type a message... (@mention to signal who should act)" autocomplete="off"></textarea>
         <button class="btn btn-primary btn-sm chat-send-btn" id="chat-send-btn">Send</button>
       </div>
     </div>
@@ -658,13 +658,19 @@ async function resetRules() {
 
 // ── Input handling ──────────────────────────────────────────────────
 
+function autoResizeInput(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
 function sendMessage() {
   const input = _container?.querySelector('#chat-input');
   if (!input) return;
-  const text = input.value.trim();
-  if (!text) return;
+  if (!input.value.trim()) return;
+  const text = input.value;
 
   input.value = '';
+  autoResizeInput(input);
   sessionStorage.removeItem(DRAFT_KEY);
   closeMentionPopup();
   input.focus();
@@ -677,6 +683,7 @@ function sendMessage() {
 
 function onInputChange(e) {
   const input = e.target;
+  autoResizeInput(input);
   const val = input.value;
   const cursorPos = input.selectionStart;
   const before = val.substring(0, cursorPos);
@@ -894,7 +901,10 @@ export function mount(container, ctx) {
   const draft = sessionStorage.getItem(DRAFT_KEY);
   if (draft) {
     const input = container.querySelector('#chat-input');
-    if (input) input.value = draft;
+    if (input) {
+      input.value = draft;
+      autoResizeInput(input);
+    }
   }
 }
 

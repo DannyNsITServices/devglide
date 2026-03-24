@@ -4,7 +4,7 @@ import { z } from "zod";
 import fs from "fs/promises";
 import { LogWriter } from "../services/log-writer.js";
 import { safeLogPath } from "../safe-log-path.js";
-import { asyncHandler, errorMessage } from "../../../../packages/error-middleware.js";
+import { asyncHandler, errorMessage, badRequest, forbidden } from "../../../../packages/error-middleware.js";
 
 export const logRouter: RouterType = Router();
 const logWriter = new LogWriter();
@@ -196,14 +196,6 @@ const logEntrySchema = z.object({
 const targetPathQuerySchema = z.object({
   targetPath: z.string().min(1),
 });
-
-function badRequest(res: Response, message: string): void {
-  res.status(400).json({ error: message });
-}
-
-function forbidden(res: Response, message: string): void {
-  res.status(403).json({ error: message });
-}
 
 /**
  * POST /api/log — Append a log entry to the target JSONL file.

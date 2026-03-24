@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { VocabularyStore } from '../apps/vocabulary/services/vocabulary-store.js';
-import { asyncHandler } from '../packages/error-middleware.js';
+import { asyncHandler, badRequest, notFound } from '../packages/error-middleware.js';
 
 // ── Zod schemas for HTTP input validation ────────────────────────────────────
 
@@ -44,14 +44,6 @@ export { createVocabularyMcpServer } from '../apps/vocabulary/src/mcp.js';
 export const router: Router = Router();
 
 const store = VocabularyStore.getInstance();
-
-function badRequest(res: Response, message: string): void {
-  res.status(400).json({ error: message });
-}
-
-function notFound(res: Response, message: string): void {
-  res.status(404).json({ error: message });
-}
 
 // GET /entries — list all vocabulary entries
 router.get('/entries', asyncHandler(async (req: Request, res: Response) => {

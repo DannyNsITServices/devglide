@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { PromptStore } from '../apps/prompts/services/prompt-store.js';
-import { asyncHandler } from '../packages/error-middleware.js';
+import { asyncHandler, badRequest, notFound } from '../packages/error-middleware.js';
 
 // ── Zod schemas ───────────────────────────────────────────────────────────────
 
@@ -49,14 +49,6 @@ export { createPromptsMcpServer } from '../apps/prompts/src/mcp.js';
 export const router: Router = Router();
 
 const store = PromptStore.getInstance();
-
-function badRequest(res: Response, message: string): void {
-  res.status(400).json({ error: message });
-}
-
-function notFound(res: Response, message: string): void {
-  res.status(404).json({ error: message });
-}
 
 // GET /context — compiled markdown for LLM injection
 router.get('/context', asyncHandler(async (_req: Request, res: Response) => {

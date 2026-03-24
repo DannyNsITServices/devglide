@@ -111,7 +111,7 @@ const jsonDefault = express.json({ limit: '1mb' });
 const jsonLarge = express.json({ limit: '25mb' });
 
 app.use((req, res, next) => {
-  const isVoiceUpload = req.path.startsWith('/api/voice/transcribe') || req.path === '/api/transcribe';
+  const isVoiceUpload = req.path.startsWith('/api/voice/transcribe');
   (isVoiceUpload ? jsonLarge : jsonDefault)(req, res, next);
 });
 

@@ -31,7 +31,7 @@ const BLOCKED_HOSTS = new Set([
  * Returns `true` when `ip` belongs to a loopback, private, link-local, or
  * otherwise non-routable range.  Handles both IPv4 and IPv6 addresses.
  */
-export function isPrivateIP(ip: string): boolean {
+function isPrivateIP(ip: string): boolean {
   // --- IPv4 ---
   if (net.isIPv4(ip)) {
     const parts = ip.split('.').map(Number);
@@ -76,7 +76,7 @@ export function isPrivateIP(ip: string): boolean {
  *
  * Throws an `Error` describing the reason when the URL is unsafe.
  */
-export async function validateUrl(urlString: string): Promise<string | null> {
+async function validateUrl(urlString: string): Promise<string | null> {
   let parsed: URL;
   try {
     parsed = new URL(urlString);

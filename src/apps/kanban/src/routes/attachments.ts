@@ -6,7 +6,7 @@ import path from "path";
 import fs from "fs";
 import fsp from "fs/promises";
 import { PROJECTS_DIR } from "../../../../packages/paths.js";
-import { asyncHandler } from "../../../../packages/error-middleware.js";
+import { asyncHandler, badRequest, notFound } from "../../../../packages/error-middleware.js";
 
 export function getUploadsDir(projectId: string): string {
   return path.join(PROJECTS_DIR, projectId, 'uploads');
@@ -28,14 +28,6 @@ function sanitizeFilename(filename: string): string {
 }
 
 export const attachmentsRouter: Router = Router();
-
-function badRequest(res: Response, message: string): void {
-  res.status(400).json({ error: message });
-}
-
-function notFound(res: Response, message: string): void {
-  res.status(404).json({ error: message });
-}
 
 const ALLOWED_MIME_TYPES = [
   "image/jpeg",

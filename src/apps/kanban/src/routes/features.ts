@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import { getUploadsDir } from "./attachments.js";
 import { DEFAULT_COLUMNS } from "../mcp-helpers.js";
-import { asyncHandler } from "../../../../packages/error-middleware.js";
+import { asyncHandler, badRequest, notFound } from "../../../../packages/error-middleware.js";
 
 type JsonRow = Record<string, unknown>;
 type FeatureIssueRow = JsonRow & { columnId: string };
@@ -24,14 +24,6 @@ const idParamSchema = z.object({
 });
 
 export const featuresRouter: Router = Router();
-
-function badRequest(res: Response, message: string): void {
-  res.status(400).json({ error: message });
-}
-
-function notFound(res: Response, message: string): void {
-  res.status(404).json({ error: message });
-}
 
 function mapColumn(row: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
   if (!row) return row;

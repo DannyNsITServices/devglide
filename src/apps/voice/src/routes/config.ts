@@ -8,6 +8,7 @@ import {
 } from "../providers/index.js";
 import { configStore } from "../services/config-store.js";
 import type { CleanupConfig, TtsConfig } from "../services/config-store.js";
+import { errorMessage } from "../../../../packages/error-middleware.js";
 import { stats } from "../services/stats.js";
 import { handleTranscribe } from "./transcribe.js";
 import { checkFfmpeg } from "../providers/local-whisper.js";
@@ -156,7 +157,7 @@ configRouter.post("/test", (_req, res) => {
     }
     res.json({ ok: true, provider: provider.name, displayName: provider.displayName });
   } catch (err) {
-    res.json({ ok: false, reason: err instanceof Error ? err.message : String(err) });
+    res.json({ ok: false, reason: errorMessage(err) });
   }
 });
 
@@ -193,7 +194,7 @@ configRouter.delete("/stats", (_req, res) => {
   res.json({ ok: true });
 });
 
-// Alias for backwards compatibility — delegates to the canonical /api/transcribe handler
+// Alias for backwards compatibility — delegates to the canonical /api/voice/transcribe handler
 configRouter.post("/test-transcription", handleTranscribe);
 
 configRouter.get("/stats", (_req, res) => {

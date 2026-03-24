@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import dns from "node:dns";
-import { safeFetch, validateUrl } from "./ssrf-guard.js";
+import { safeFetch } from "./ssrf-guard.js";
 
 describe("ssrf-guard", () => {
   afterEach(() => {
@@ -13,7 +13,7 @@ describe("ssrf-guard", () => {
       family: 4,
     });
 
-    await expect(validateUrl("https://example.com/internal")).rejects.toThrow(
+    await expect(safeFetch("https://example.com/internal")).rejects.toThrow(
       "DNS rebinding blocked"
     );
   });

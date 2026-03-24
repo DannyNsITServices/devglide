@@ -367,6 +367,7 @@
 .chat-input-area {
   flex-shrink: 0;
   display: flex;
+  align-items: flex-end;
   gap: var(--df-space-2);
   padding: var(--df-space-3);
   border-top: 1px solid var(--df-color-border-default);
@@ -386,6 +387,8 @@
   resize: none;
   min-height: 36px;
   max-height: 120px;
+  overflow-y: auto;
+  line-height: 1.4;
 }
 
 .chat-input:focus {
@@ -393,7 +396,7 @@
 }
 
 .chat-send-btn {
-  align-self: stretch;
+  align-self: flex-end;
   min-height: 36px;
   padding-left: var(--df-space-4);
   padding-right: var(--df-space-4);

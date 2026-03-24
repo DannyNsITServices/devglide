@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { asyncHandler } from '../packages/error-middleware.js';
+import { asyncHandler, badRequest, notFound, unprocessableEntity } from '../packages/error-middleware.js';
 
 // Workflow imports
 import { WorkflowStore } from '../apps/workflow/services/workflow-store.js';
@@ -47,18 +47,6 @@ const instructionsQuerySchema = z.object({
 export { createWorkflowMcpServer } from '../apps/workflow/src/mcp.js';
 
 export const router: Router = Router();
-
-function badRequest(res: Response, message: string, extra?: Record<string, unknown>): void {
-  res.status(400).json({ error: message, ...extra });
-}
-
-function notFound(res: Response, message: string): void {
-  res.status(404).json({ error: message });
-}
-
-function unprocessableEntity(res: Response, message: string, extra?: Record<string, unknown>): void {
-  res.status(422).json({ error: message, ...extra });
-}
 
 // ── State ───────────────────────────────────────────────────────────────────
 

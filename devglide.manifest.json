@@ -92,11 +92,6 @@
       "entrypoints": ["src/index.ts"],
       "expectedPackageName": "@devglide/mcp-utils"
     },
-    "project-context": {
-      "kind": "lib-package",
-      "entrypoints": ["index.js"],
-      "expectedPackageName": "@devglide/project-context"
-    },
     "shared-assets": {
       "kind": "asset-package",
       "entrypoints": ["voice-widget.js"],
