@@ -100,6 +100,25 @@ importers:
 
   src/apps/coder: {}
 
+  src/apps/documentation:
+    dependencies:
+      '@devglide/mcp-utils':
+        specifier: workspace:*
+        version: link:../../packages/mcp-utils
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.12.1
+        version: 1.27.1(zod@3.25.76)
+      zod:
+        specifier: ^3.25.49
+        version: 3.25.76
+    devDependencies:
+      tsx:
+        specifier: ^4.19.4
+        version: 4.21.0
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+
   src/apps/kanban:
     dependencies:
       '@devglide/mcp-utils':

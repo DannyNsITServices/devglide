@@ -25,6 +25,12 @@ Monorepo managed with **pnpm workspaces** and **Turborepo**.
   an explicit `paneId`, which should be read from `DEVGLIDE_PANE_ID` in
   the shell session. The effective chat rules of engagement are returned
   on join and can be overridden per project.
+- **Documentation** — the MCP server for operational guidance on DevGlide
+  tools (`docs_list`, `docs_match`, `docs_context`, etc.). Provides tool
+  guides, workflows, examples, troubleshooting entries, and project
+  overrides. Hybrid-scoped: global docs in `~/.devglide/documentation/`,
+  project overrides in `projects/{id}/documentation/`. Seed content is
+  auto-installed on first use.
 
 ## MCP Server Pattern
 
@@ -73,12 +79,14 @@ All runtime state lives in `~/.devglide/`. The directory structure:
 │   ├── workflows/             #   project-scoped workflows
 │   ├── vocabulary/            #   project-scoped vocabulary
 │   ├── prompts/               #   project-scoped prompts
-│   └── chat/                  #   chat message history (messages.jsonl)
+│   ├── chat/                  #   chat message history (messages.jsonl)
+│   └── documentation/         #   project-scoped documentation overrides
 ├── voice/                     # global voice config, history, stats
 │   └── config.json
 ├── workflows/                 # global workflows
 ├── vocabulary/                # global vocabulary
 ├── prompts/                   # global prompts
+├── documentation/             # global documentation (tool guides, workflows, etc.)
 ├── logs/                      # server logs
 └── pids/                      # daemon PID files
 ```
@@ -108,6 +116,7 @@ These rules are intentional — do not change an app's scoping without discussio
 | **Workflow** | `~/.devglide/workflows/` + `projects/{id}/workflows/` | Project workflows override global |
 | **Vocabulary** | `~/.devglide/vocabulary/` + `projects/{id}/vocabulary/` | Project terms overlay global |
 | **Prompts** | `~/.devglide/prompts/` + `projects/{id}/prompts/` | Project prompts overlay global |
+| **Documentation** | `~/.devglide/documentation/` + `projects/{id}/documentation/` | Project docs override global by ID; seed content auto-installed |
 
 ## Platform Notes
 

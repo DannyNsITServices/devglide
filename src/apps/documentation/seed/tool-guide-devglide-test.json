@@ -1,0 +1,54 @@
+{
+  "id": "guide-devglide-test",
+  "type": "tool-guide",
+  "toolName": "devglide-test",
+  "summary": "Run browser automation scenarios against an app instrumented with devtools.js. Scenarios are described in natural language, translated into browser commands, and executed inside a real browser page.",
+  "executionModel": "Browser-driven, not server-driven. Submitting a scenario via test_run_scenario or test_run_saved only queues work on the server. Actual execution happens inside the browser page where devtools.js is loaded — it polls the server for pending scenarios and runs them in-page. The server never drives the browser directly.",
+  "prerequisites": [
+    "The app's dev server must be running and reachable at its expected URL.",
+    "A real browser page must be open on the app (not just a server process).",
+    "devtools.js must be loaded in the page — add <script src=\"http://localhost:7000/devtools.js\"></script> to the app's HTML in development.",
+    "The browser session must be active — devtools.js polls the DevGlide server; if the tab is closed or navigated away, polling stops.",
+    "The DevGlide server must be running (default port 7000)."
+  ],
+  "inputsExplained": {
+    "scenario": "A natural-language description of what to test. DevGlide translates this into a sequence of browser commands (navigate, click, type, assert, wait, etc.).",
+    "target": "The base URL of the app under test. Resolved from the active project if not specified.",
+    "steps": "When using test_run_scenario with explicit steps, each step is a command object (e.g. { command: 'click', selector: '#submit' })."
+  },
+  "resultSemantics": {
+    "passed": "All steps completed successfully. The scenario ran to completion without assertion failures.",
+    "failed": "One or more steps failed. Inspect the failed step details and check devglide-log for runtime errors.",
+    "no_result_found": "The browser has NOT consumed the scenario yet. This is NOT a test failure — it means devtools.js has not polled or the page is not open. Wait briefly and retry test_get_result, or verify the browser is open with devtools.js loaded."
+  },
+  "preferredPatterns": [
+    "Use click-based navigation after the initial page load. Simulate what a real user would do — click links, buttons, and menu items rather than navigating via URL.",
+    "Wait for state changes, not fixed timeouts. Use assertions or wait-for-element steps rather than arbitrary sleep durations.",
+    "Keep scenarios focused on one user flow. A scenario that tests club creation should not also test user settings.",
+    "Inspect devglide-log after every run — even if the scenario passes, the logs may contain runtime errors or unexpected warnings.",
+    "For stateful React forms with controlled inputs, add targeted data-testid attributes only where semantic selectors (role, label, placeholder) are unstable.",
+    "Prefer realistic data in scenarios — use plausible names, emails, and values rather than 'test123'."
+  ],
+  "antiPatterns": [
+    "Do not treat 'no result found' as a normal test failure. It means the scenario was not consumed by the browser.",
+    "Do not use excessive navigate steps. Each full navigation can reset React state, unmount components, and break stateful flows.",
+    "Do not rely only on scenario pass/fail without reviewing logs. A passing scenario can mask runtime errors visible in the console.",
+    "Do not use fragile CSS selectors like nth-child or deeply nested class chains. Prefer data-testid, role, or label-based selectors.",
+    "Do not run scenarios against a page that has not finished loading. Wait for the app to be interactive before submitting."
+  ],
+  "followUpChecks": [
+    "Read the browser log via devglide-log after every scenario run.",
+    "Distinguish expected noise (e.g. map tile 404s, style loading warnings) from real failures (unhandled exceptions, assertion errors).",
+    "If the scenario fails, check both the step failure details AND the logs — the root cause is often visible in the console before the step that failed."
+  ],
+  "commonFailures": [
+    "Scenario queued but never runs — browser tab closed, devtools.js not loaded, or wrong target URL.",
+    "Selector works in DevTools but automation fails — element not yet rendered, inside shadow DOM, or hidden behind an overlay.",
+    "React controlled input does not update — automation types text but React state does not reflect it. Use dispatchEvent with InputEvent or interact via the React fiber.",
+    "Navigate causes full reload and context loss — stateful app loses form data mid-flow. Use click navigation instead."
+  ],
+  "seeAlso": ["devglide-log"],
+  "tags": ["test", "browser", "automation", "devtools"],
+  "createdAt": "2026-03-24T00:00:00.000Z",
+  "updatedAt": "2026-03-24T00:00:00.000Z"
+}

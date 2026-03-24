@@ -122,6 +122,19 @@ Messages are delivered to LLMs via PTY injection when linked to a shell pane.
 - \`log_read\` — read log entries
 - \`log_clear\`, \`log_clear_all\` — clear logs
 
+### devglide-documentation — Operational guidance for DevGlide tools
+Provides tool guides, workflows, examples, troubleshooting, and project overrides.
+Helps LLMs correctly use devglide-test + devglide-log for UI verification.
+- \`docs_list\` — browse available documentation (filter by type, tool name, tag)
+- \`docs_match\` — search documentation by keyword query (ranked results)
+- \`docs_get_tool_guide\` — get the full operational guide for a tool
+- \`docs_get_workflow\` — get a step-by-step workflow by name
+- \`docs_get_troubleshooting\` — find troubleshooting by tool + symptom
+- \`docs_context\` — get compiled markdown for a task query (best for context injection)
+- \`docs_add\`, \`docs_update\`, \`docs_remove\` — manage documentation entries
+- **When to use:** Before using devglide-test for verification, call \`docs_context\` with your task.
+  When a tool run fails with a known symptom, call \`docs_get_troubleshooting\` or \`docs_match\`.
+
 ## Common Patterns
 
 ### Creating a feature

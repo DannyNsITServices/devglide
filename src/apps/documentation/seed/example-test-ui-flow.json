@@ -1,0 +1,40 @@
+{
+  "id": "ex-test-ui-flow",
+  "type": "example",
+  "toolName": "devglide-test",
+  "scenario": "Test a UI flow and inspect logs after run",
+  "startingAssumptions": [
+    "The app dev server is running.",
+    "A browser page is open on the app with devtools.js loaded.",
+    "The DevGlide server is running on port 7000.",
+    "You know which UI flow to test (e.g. 'create a new item', 'submit a form')."
+  ],
+  "toolSequence": [
+    "test_list_saved — check if a relevant saved scenario exists.",
+    "test_run_scenario with a natural language description of the flow (e.g. 'Navigate to the form page, fill in the name field with \"Test Club\", select a category, and click Submit. Verify a success message appears.')",
+    "Wait 3-5 seconds for the browser to consume and execute the scenario.",
+    "test_get_result — read the scenario outcome.",
+    "log_read with targetPath for the project log — read the browser console output after the run.",
+    "Assess: scenario passed + no unexpected errors in logs = verification success."
+  ],
+  "whatGoodLooksLike": [
+    "test_get_result returns status 'passed' with all steps completed.",
+    "log_read shows normal app output — no errors, only expected info/debug messages.",
+    "The UI reflects the expected state after the flow (e.g. the new item appears in a list)."
+  ],
+  "whatBadLooksLike": [
+    "test_get_result returns 'no result found' — the browser did not consume the scenario.",
+    "test_get_result returns status 'failed' with a step failure.",
+    "log_read shows error-level entries (unhandled exceptions, assertion failures).",
+    "test_get_result returns 'passed' but logs contain runtime errors."
+  ],
+  "whatToDoNext": [
+    "If 'no result found': verify browser is open with devtools.js, then retry.",
+    "If a step failed: read the failure details, check the selector and timing, and fix the scenario or app code.",
+    "If logs show errors: diagnose the root cause from the error message and stack trace, fix the app, and re-run.",
+    "If the scenario passed but logs have errors: treat as failure — add assertions or fix the underlying error."
+  ],
+  "tags": ["example", "test", "log", "verification", "ui"],
+  "createdAt": "2026-03-24T00:00:00.000Z",
+  "updatedAt": "2026-03-24T00:00:00.000Z"
+}

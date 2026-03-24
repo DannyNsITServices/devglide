@@ -1,0 +1,27 @@
+{
+  "id": "ts-controlled-input",
+  "type": "troubleshooting",
+  "toolName": "devglide-test",
+  "symptom": "React controlled input does not update as expected",
+  "likelyCauses": [
+    "The automation sets the input value directly (e.g. element.value = 'text') but React does not recognize the change because no synthetic event was fired.",
+    "React controlled inputs require an InputEvent or Change event dispatched through the React event system to trigger state updates.",
+    "The input has a debounce or validation handler that delays or rejects the change."
+  ],
+  "howToDiagnose": [
+    "Check if the input is controlled (has a value prop bound to React state).",
+    "After the type step, check whether the displayed value matches what was typed.",
+    "Look at React DevTools to see if the component state updated.",
+    "Check the browser console for React warnings about uncontrolled-to-controlled transitions."
+  ],
+  "howToFix": [
+    "Use the type command which simulates individual key presses — this usually fires the correct events for React.",
+    "If type does not work, the scenario may need to dispatch a native InputEvent: new InputEvent('input', { bubbles: true, data: 'text' }).",
+    "For complex form fields (date pickers, rich text editors), interact through their UI controls rather than setting values directly.",
+    "Add a data-testid to the input and verify the value via assertion after typing."
+  ],
+  "whenToRetry": "After switching to the type command or implementing proper event dispatch.",
+  "tags": ["test", "react", "input", "controlled", "form"],
+  "createdAt": "2026-03-24T00:00:00.000Z",
+  "updatedAt": "2026-03-24T00:00:00.000Z"
+}

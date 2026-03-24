@@ -1,0 +1,28 @@
+{
+  "id": "ts-pass-but-errors",
+  "type": "troubleshooting",
+  "toolName": "devglide-test",
+  "symptom": "scenario passes but console logs show runtime error",
+  "likelyCauses": [
+    "The runtime error occurs in async code (setTimeout, Promise, event handler) that is not part of the synchronous scenario execution flow.",
+    "The error occurs in a background component or service worker, not in the component being tested.",
+    "The scenario assertions do not check for error states — they only verify the happy path.",
+    "A race condition causes the error only sometimes, depending on timing."
+  ],
+  "howToDiagnose": [
+    "Read the full log output after the scenario run. Filter by level 'error'.",
+    "Correlate the error timestamp with the scenario steps to identify which action triggered it.",
+    "Check if the error is in app code or a third-party library.",
+    "Run the scenario multiple times to check if the error is consistent or intermittent."
+  ],
+  "howToFix": [
+    "Treat the runtime error as a real failure even though the scenario passed — the scenario assertions were incomplete.",
+    "Fix the runtime error in the app code.",
+    "Add assertion steps to the scenario that verify no error state is visible (e.g. check that no error toast or banner appeared).",
+    "If the error is in a third-party library and cannot be fixed: document it as expected noise in a project override."
+  ],
+  "whenToRetry": "After fixing the runtime error. Re-run the scenario and verify that both the scenario passes AND logs are clean.",
+  "tags": ["test", "log", "runtime-error", "false-positive"],
+  "createdAt": "2026-03-24T00:00:00.000Z",
+  "updatedAt": "2026-03-24T00:00:00.000Z"
+}

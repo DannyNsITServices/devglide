@@ -72,8 +72,10 @@
       "expectedPackageName": "@devglide/keymap"
     },
     "documentation": {
-      "kind": "static-app",
-      "entrypoints": ["public/"]
+      "kind": "mcp-app",
+      "entrypoints": ["src/mcp.ts", "src/index.ts"],
+      "buildTarget": true,
+      "expectedPackageName": "@devglide/documentation"
     }
   },
   "packages": {

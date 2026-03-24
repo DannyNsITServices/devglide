@@ -1,0 +1,48 @@
+{
+  "id": "guide-devglide-log",
+  "type": "tool-guide",
+  "toolName": "devglide-log",
+  "summary": "Read and manage structured log files captured from browser console output and server-side processes. Used alongside devglide-test to verify that apps run without runtime errors.",
+  "executionModel": "File-based log capture. The browser-side sniffer (devtools.js) intercepts console.log/warn/error calls and POSTs them to the DevGlide server, which appends them to a log file. Server-side logs are captured separately. log_read returns recent entries from a target log file.",
+  "prerequisites": [
+    "devtools.js must be loaded in the browser page for browser-side log capture.",
+    "The DevGlide server must be running to receive log POST requests.",
+    "A log session must be active — devtools.js creates a session on page load."
+  ],
+  "inputsExplained": {
+    "targetPath": "Path to the log file to read. For project-scoped logs, this is typically ~/.devglide/projects/{projectId}/logs/{project-name}-console.log. If omitted, reads the default DevGlide console log.",
+    "lines": "Number of recent lines to return. Defaults to 50.",
+    "level": "Optional filter by log level (log, warn, error, info, debug)."
+  },
+  "resultSemantics": {
+    "entries_returned": "Log entries matching the query. Each entry includes timestamp, level, source, and message.",
+    "empty_result": "No log entries found. This may mean: no logs captured yet, wrong targetPath, or devtools.js not loaded.",
+    "error_entries": "Entries with level 'error' indicate runtime exceptions or failed assertions in the app."
+  },
+  "preferredPatterns": [
+    "Always read logs after every devglide-test scenario run — log review is mandatory for verification, not optional.",
+    "To find the correct log path for a project: the pattern is ~/.devglide/projects/{projectId}/logs/{project-name}-console.log where project-name is the name registered in DevGlide.",
+    "Filter by level 'error' first to quickly identify runtime failures.",
+    "Distinguish expected noise from real failures. Common expected noise includes: map tile 404s, font loading warnings, style sheet 404s from optional dependencies, and development-mode React warnings.",
+    "When a scenario passes but logs show errors, treat the errors as failures — a passing scenario does not mean the app is healthy."
+  ],
+  "antiPatterns": [
+    "Do not skip log review after test runs. A scenario can pass while the app throws unhandled exceptions.",
+    "Do not assume an empty log means success — it may mean devtools.js is not capturing.",
+    "Do not treat all warnings as failures. Many frameworks emit development-mode warnings that are not bugs.",
+    "Do not read logs from a stale session. Check the session timestamp to ensure you are reading current output."
+  ],
+  "followUpChecks": [
+    "After identifying errors in logs, correlate them with the scenario step that was executing at that timestamp.",
+    "If logs show errors but the scenario passed, the error may be in a background process or async operation not covered by the scenario steps."
+  ],
+  "commonFailures": [
+    "No log entries despite running the app — devtools.js not loaded or posting to wrong server URL.",
+    "Log file path does not exist — project not registered in DevGlide or using wrong project name.",
+    "Logs show hundreds of entries — filter by level or use lines parameter to limit output."
+  ],
+  "seeAlso": ["devglide-test"],
+  "tags": ["log", "debugging", "verification", "console"],
+  "createdAt": "2026-03-24T00:00:00.000Z",
+  "updatedAt": "2026-03-24T00:00:00.000Z"
+}

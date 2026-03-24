@@ -92,7 +92,8 @@ const mcpServers = {
   workflow:   { cwd: "src/apps/workflow",   entry: "src/index.ts", runtime: "tsx" },
   vocabulary: { cwd: "src/apps/vocabulary", entry: "src/index.ts", runtime: "tsx" },
   prompts:    { cwd: "src/apps/prompts",    entry: "src/index.ts", runtime: "tsx" },
-  chat:       { cwd: "src/apps/chat",      entry: "src/index.ts", runtime: "tsx" },
+  chat:          { cwd: "src/apps/chat",          entry: "src/index.ts", runtime: "tsx" },
+  documentation: { cwd: "src/apps/documentation", entry: "src/index.ts", runtime: "tsx" },
 };
 
 // --- Codex integration ---
