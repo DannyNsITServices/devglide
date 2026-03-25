@@ -52,6 +52,39 @@ const sendSchema = z.object({
   projectId: z.string().nullable().optional(),
 });
 
+const PIPE_REF_RE = /#pipe-([a-z0-9-]+)/ig;
+
+function findRunningPipeReference(message: string, projectId?: string | null): string | null {
+  PIPE_REF_RE.lastIndex = 0;
+  const seen = new Set<string>();
+  for (const match of message.matchAll(PIPE_REF_RE)) {
+    const pipeId = match[1];
+    const normalized = pipeId.toLowerCase();
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+
+    const storeStatus = registry.getPipeStoreStatus(pipeId, projectId);
+    if (storeStatus?.status === 'running') return pipeId;
+
+    const pipeRun = registry.getPipeRun(pipeId, projectId);
+    if (pipeRun?.status === 'running') return pipeId;
+  }
+  return null;
+}
+
+function getBlockedPipeReferenceError(message: string, projectId?: string | null): string | null {
+  if (/^#pipe-/i.test(message.trimStart())) {
+    return 'Pipe submissions must use the dedicated pipe endpoint, not chat send. '
+      + 'Use POST /api/chat/pipes/:id/submit or the pipe_submit MCP tool.';
+  }
+
+  const runningPipeId = findRunningPipeReference(message, projectId);
+  if (!runningPipeId) return null;
+
+  return `Chat messages may not reference currently running pipes via #pipe-${runningPipeId}. `
+    + 'Use pipe_submit for stage output, or discuss the pipe without the #pipe- anchor.';
+}
+
 // ── Pane resolution & diagnostics ────────────────────────────────────────────
 
 interface RoutablePane {
@@ -332,6 +365,11 @@ router.post('/messages', asyncHandler(async (req: Request, res: Response) => {
     badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
     return;
   }
+  const error = getBlockedPipeReferenceError(parsed.data.message);
+  if (error) {
+    res.status(422).json({ error });
+    return;
+  }
   const msg = await registry.send('user', parsed.data.message, parsed.data.to);
   res.status(201).json(msg);
 }));
@@ -463,6 +501,11 @@ router.post('/send', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
   const { from, message, to, projectId } = parsed.data;
+  const error = getBlockedPipeReferenceError(message, projectId ?? undefined);
+  if (error) {
+    res.status(422).json({ error });
+    return;
+  }
   const msg = await registry.send(from, message, to, projectId ?? undefined);
   res.status(201).json(msg);
 }));
@@ -533,6 +576,44 @@ router.get('/pipes/:id', (req: Request, res: Response) => {
   res.json(run);
 });
 
+// POST /pipes/:id/submit — submit a stage artifact for a pipe
+const pipeSubmitSchema = z.object({
+  from: z.string().min(1),
+  content: z.string().min(1),
+  projectId: z.string().nullable().optional(),
+});
+
+router.post('/pipes/:id/submit', asyncHandler(async (req: Request, res: Response) => {
+  const parsed = pipeSubmitSchema.safeParse(req.body);
+  if (!parsed.success) {
+    badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
+    return;
+  }
+
+  const { from, content, projectId } = parsed.data;
+  const pipeId = req.params.id;
+  const pid = projectId ?? getActiveProject()?.id ?? null;
+
+  const result = await registry.submitPipeStage(pipeId, from, content, pid);
+  if (!result.ok) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.status(201).json(result);
+}));
+
+// GET /pipes/:id/status — get detailed pipe status from the store
+// Accepts optional ?projectId= to scope to a specific project (defaults to active project)
+router.get('/pipes/:id/status', (req: Request, res: Response) => {
+  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+  const status = registry.getPipeStoreStatus(req.params.id, projectId);
+  if (!status) {
+    res.status(404).json({ error: 'Pipe not found in store' });
+    return;
+  }
+  res.json(status);
+});
+
 // POST /pipes/:id/cancel — cancel a running pipe (scoped to active project)
 router.post('/pipes/:id/cancel', asyncHandler(async (req: Request, res: Response) => {
   const projectId = getActiveProject()?.id ?? null;
@@ -551,23 +632,57 @@ router.post('/pipes/:id/cancel', asyncHandler(async (req: Request, res: Response
 
 // ── LLM invite endpoints ─────────────────────────────────────────────────────
 
+type PermissionMode = 'supervised' | 'auto-accept' | 'unrestricted';
+
 interface KnownLlm {
   cli: string;
   name: string;
   icon: string;
-  /** Build the shell command to launch this CLI with a bootstrap prompt. */
-  launchCmd: (prompt: string) => string;
+  /** Permission modes this CLI supports, in display order. 'supervised' is always implicit. */
+  modes: PermissionMode[];
+  /** Build the shell command to launch this CLI with a bootstrap prompt and permission mode. */
+  launchCmd: (prompt: string, mode?: PermissionMode) => string;
 }
 
 function shellEscape(s: string): string {
   return "'" + s.replace(/'/g, "'\\''") + "'";
 }
 
+/** Maps permission mode to CLI-specific flags. */
+const CLI_MODE_FLAGS: Record<string, Partial<Record<PermissionMode, string[]>>> = {
+  claude:  { 'auto-accept': ['--dangerously-skip-permissions'] },
+  codex:   { 'auto-accept': ['-a', 'never'] },
+  gemini:  {},
+  cursor:  {},
+};
+
 const KNOWN_LLMS: KnownLlm[] = [
-  { cli: 'claude',  name: 'Claude',  icon: '🟣', launchCmd: (p) => `claude ${shellEscape(p)}` },
-  { cli: 'codex',   name: 'Codex',   icon: '🟢', launchCmd: (p) => `codex ${shellEscape(p)}` },
-  { cli: 'gemini',  name: 'Gemini',  icon: '🔵', launchCmd: (p) => `gemini -i ${shellEscape(p)}` },
-  { cli: 'cursor',  name: 'Cursor',  icon: '⚪', launchCmd: (p) => `cursor-agent chat ${shellEscape(p)}` },
+  {
+    cli: 'claude', name: 'Claude', icon: '🟣',
+    modes: ['supervised', 'auto-accept'],
+    launchCmd: (p, mode) => {
+      const flags = (mode && CLI_MODE_FLAGS.claude?.[mode]) || [];
+      return `claude ${flags.join(' ')}${flags.length ? ' ' : ''}${shellEscape(p)}`;
+    },
+  },
+  {
+    cli: 'codex', name: 'Codex', icon: '🟢',
+    modes: ['supervised', 'auto-accept'],
+    launchCmd: (p, mode) => {
+      const flags = (mode && CLI_MODE_FLAGS.codex?.[mode]) || [];
+      return `codex ${flags.join(' ')}${flags.length ? ' ' : ''}${shellEscape(p)}`;
+    },
+  },
+  {
+    cli: 'gemini', name: 'Gemini', icon: '🔵',
+    modes: ['supervised'],
+    launchCmd: (p) => `gemini -i ${shellEscape(p)}`,
+  },
+  {
+    cli: 'cursor', name: 'Cursor', icon: '⚪',
+    modes: ['supervised'],
+    launchCmd: (p) => `cursor-agent chat ${shellEscape(p)}`,
+  },
 ];
 
 /** Binary to probe for each CLI (may differ from the display cli name). */
@@ -575,19 +690,26 @@ const CLI_PROBE: Record<string, string> = {
   cursor: 'cursor-agent',
 };
 
-let llmCache: { data: Array<{ cli: string; name: string; icon: string }>; ts: number } | null = null;
+let llmCache: { data: AvailableLlm[]; ts: number } | null = null;
 const LLM_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-function detectAvailableLlms(rescan = false): Array<{ cli: string; name: string; icon: string }> {
+interface AvailableLlm {
+  cli: string;
+  name: string;
+  icon: string;
+  modes: PermissionMode[];
+}
+
+function detectAvailableLlms(rescan = false): AvailableLlm[] {
   if (!rescan && llmCache && Date.now() - llmCache.ts < LLM_CACHE_TTL_MS) {
     return llmCache.data;
   }
-  const available: Array<{ cli: string; name: string; icon: string }> = [];
+  const available: AvailableLlm[] = [];
   for (const llm of KNOWN_LLMS) {
     const bin = CLI_PROBE[llm.cli] ?? llm.cli;
     try {
       execSync(`${bin} --version`, { stdio: 'pipe', timeout: 5000 });
-      available.push({ cli: llm.cli, name: llm.name, icon: llm.icon });
+      available.push({ cli: llm.cli, name: llm.name, icon: llm.icon, modes: llm.modes });
     } catch {
       // not installed
     }
@@ -602,8 +724,11 @@ router.get('/invite/available', (req: Request, res: Response) => {
   res.json(detectAvailableLlms(rescan));
 });
 
+const PERMISSION_MODES = ['supervised', 'auto-accept', 'unrestricted'] as const;
+
 const inviteSchema = z.object({
   cli: z.string().min(1),
+  mode: z.enum(PERMISSION_MODES).optional().default('supervised'),
 });
 
 // POST /invite — create a pane and launch an LLM CLI in it
@@ -613,10 +738,15 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
     return badRequest(res, parsed.error.issues[0]?.message ?? 'cli is required');
   }
 
-  const { cli } = parsed.data;
+  const { cli, mode } = parsed.data;
   const llm = KNOWN_LLMS.find(l => l.cli === cli);
   if (!llm) {
     return badRequest(res, `Unknown LLM CLI: ${cli}`);
+  }
+
+  // Validate the requested mode is supported by this CLI
+  if (mode !== 'supervised' && !llm.modes.includes(mode)) {
+    return badRequest(res, `${llm.name} does not support "${mode}" mode. Supported: ${llm.modes.join(', ')}`);
   }
 
   // Verify CLI is available
@@ -645,11 +775,17 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
 
   const paneId = nextPaneId();
   const num = nextNumForProject(projectId);
-  const title = `${num}: ${cli}`;
+  const modeLabel = mode !== 'supervised' ? ` [${mode === 'auto-accept' ? 'AUTO' : 'UNRESTRICTED'}]` : '';
+  const title = `${num}: ${cli}${modeLabel}`;
+
+  // Join all connected dashboard sockets to the new pane room BEFORE spawning
+  // the PTY — same as the socket-based pane:create handler.  Without this,
+  // terminal output is emitted to an empty room and the pane appears black.
+  getShellNsp()?.socketsJoin(`pane:${paneId}`);
 
   spawnGlobalPty(paneId, config.command, config.args, { ...config.env, DEVGLIDE_PANE_ID: paneId }, 80, 24, true, false, startCwd);
 
-  const paneInfo: PaneInfo = { id: paneId, shellType: inviteShellType, title, num, cwd: startCwd, projectId };
+  const paneInfo: PaneInfo = { id: paneId, shellType: inviteShellType, title, num, cwd: startCwd, projectId, permissionMode: mode };
   dashboardState.panes.push(paneInfo);
   getShellNsp()?.emit('state:pane-added', paneInfo);
 
@@ -662,12 +798,12 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
       `Join the DevGlide chat room by calling chat_join with name="${cli}" and paneId="${paneId}". ` +
       `After joining, follow the rules of engagement returned by chat_join.`;
 
-    // Use per-CLI launch template with proper shell escaping
-    const cmd = llm.launchCmd(bootstrap);
+    // Use per-CLI launch template with proper shell escaping and permission mode flags
+    const cmd = llm.launchCmd(bootstrap, mode);
     entry.ptyProcess.write(`${cmd}\r`);
   }, 500);
 
-  res.status(201).json({ ok: true, paneId, cli: llm.cli, name: llm.name });
+  res.status(201).json({ ok: true, paneId, cli: llm.cli, name: llm.name, mode });
 }));
 
 // ── Socket.io initializer ────────────────────────────────────────────────────
@@ -744,6 +880,11 @@ export function initChat(nsp: Namespace): void {
     // Handle send from dashboard
     socket.on('chat:send', async ({ message, to }: { message: string; to?: string }) => {
       if (!message || typeof message !== 'string') return;
+      const error = getBlockedPipeReferenceError(message);
+      if (error) {
+        socket.emit('chat:error', { error });
+        return;
+      }
       await registry.send('user', message, to);
     });
 

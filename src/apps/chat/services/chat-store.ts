@@ -78,6 +78,7 @@ export interface PersistedParticipant {
   submitKey: string;
   joinedAt: string;
   lastSeen: string;
+  permissionMode?: 'supervised' | 'auto-accept' | 'unrestricted' | null;
 }
 
 function getParticipantsPath(projectId?: string | null): string | null {

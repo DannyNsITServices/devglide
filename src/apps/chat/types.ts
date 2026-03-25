@@ -10,7 +10,7 @@ export interface ChatMessage {
 
 // ── Pipe types ───────────────────────────────────────────────────────
 
-export type PipeMode = 'linear' | 'merge';
+export type PipeMode = 'linear' | 'merge' | 'merge-all';
 
 export type PipeRole =
   | 'start'
@@ -52,6 +52,7 @@ export interface ChatParticipant {
   lastSeen: string;
   detached: boolean;     // true when MCP session closed but pane is still alive — awaiting reclaim
   clientId?: string;     // optional stable identity for future strong-reclaim support
+  permissionMode?: 'supervised' | 'auto-accept' | 'unrestricted' | null; // permission mode the LLM was launched with
 }
 
 export interface ChatJoinResponse extends ChatParticipant {

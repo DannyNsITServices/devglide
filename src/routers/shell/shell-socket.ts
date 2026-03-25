@@ -19,6 +19,10 @@ import { SHELL_CONFIGS, safeEnv } from '../../apps/shell/src/runtime/shell-confi
 import { spawnGlobalPty, killPty } from '../../apps/shell/src/runtime/pty-manager.js';
 import { detectEntryPoint } from './shell-routes.js';
 import { onPaneClosed as onChatPaneClosed } from '../../apps/chat/services/chat-registry.js';
+import {
+  consumePendingCursorReportRequests,
+  countStandaloneCursorReportResponses,
+} from '../../apps/shell/src/runtime/cursor-report.js';
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -217,6 +221,16 @@ export function initShell(nsp: Namespace): void {
 
       const entry = globalPtys.get(id);
       if (!entry) return;
+
+      const cursorReportCount = countStandaloneCursorReportResponses(data);
+      if (cursorReportCount > 0) {
+        const activeSocketId = paneActiveSocket.get(id);
+        if (activeSocketId && activeSocketId !== socket.id) return;
+        if (!consumePendingCursorReportRequests(entry, cursorReportCount)) return;
+
+        try { entry.ptyProcess.write(data); } catch (e: unknown) { console.warn(`[write] ${id}:`, errorMessage(e)); }
+        return;
+      }
 
       // Auto-join room on first interaction
       socket.join(`pane:${id}`);

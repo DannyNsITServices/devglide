@@ -28,8 +28,9 @@ describe('chat-rules', () => {
     expect(getDefaultRules()).toBe(DEFAULT_RULES);
     expect(getEffectiveRules(TEST_PROJECT_ID)).toBe(DEFAULT_RULES);
     expect(hasProjectRules(TEST_PROJECT_ID)).toBe(false);
-    expect(DEFAULT_RULES).toContain('Discussion only');
-    expect(DEFAULT_RULES).toContain('Execution mode: explicit assignment only');
+    expect(DEFAULT_RULES).toContain('Default: discussion only.');
+    expect(DEFAULT_RULES).toContain('Execution requires explicit assignment.');
+    expect(DEFAULT_RULES).toContain('Pipes use `pipe_submit` only.');
   });
 
   it('saves and resolves a project-specific override', () => {

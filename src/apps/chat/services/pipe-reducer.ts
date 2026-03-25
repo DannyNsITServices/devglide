@@ -116,7 +116,7 @@ export function computeNextActions(state: PipeState): PipeAction[] {
   if (state.hasFinal || state.hasFailed || state.hasCancelled) return [];
 
   if (state.mode === 'linear') return computeLinearActions(state);
-  if (state.mode === 'merge') return computeMergeActions(state);
+  if (state.mode === 'merge' || state.mode === 'merge-all') return computeMergeActions(state);
   return [];
 }
 
@@ -177,7 +177,8 @@ function computeLinearActions(state: PipeState): PipeAction[] {
 
 function computeMergeActions(state: PipeState): PipeAction[] {
   const actions: PipeAction[] = [];
-  const fanOutAssignees = state.assignees.slice(0, -1);
+  const isMergeAll = state.mode === 'merge-all';
+  const fanOutAssignees = isMergeAll ? state.assignees : state.assignees.slice(0, -1);
   const synthesizer = state.assignees[state.assignees.length - 1];
 
   // Check if fan-out requests need to be emitted
@@ -190,7 +191,7 @@ function computeMergeActions(state: PipeState): PipeAction[] {
       body: formatFanOutRequest(state, assignee),
       pipe: {
         pipeId: state.pipeId,
-        mode: 'merge',
+        mode: state.mode,
         role: 'fan-out-request',
         targetAssignee: assignee,
         expectedAssignees: fanOutAssignees,
@@ -208,7 +209,7 @@ function computeMergeActions(state: PipeState): PipeAction[] {
       body: formatSynthRequest(state),
       pipe: {
         pipeId: state.pipeId,
-        mode: 'merge',
+        mode: state.mode,
         role: 'synth-request',
         targetAssignee: synthesizer,
         expectedAssignees: [synthesizer],
@@ -244,19 +245,19 @@ function formatLinearHandoff(state: PipeState, stage: number, previousOutput: st
 }
 
 function formatFanOutRequest(state: PipeState, assignee: string): string {
-  const fanOutAssignees = state.assignees.slice(0, -1);
-  const header = `#pipe-${state.pipeId} [merge | fan-out | @${assignee}]`;
+  const header = `#pipe-${state.pipeId} [${state.mode} | fan-out | @${assignee}]`;
   const instruction = 'Provide your independent analysis. Other participants answer in parallel.';
   return `${header}\n${instruction}\nPrompt: ${state.prompt}`;
 }
 
 function formatSynthRequest(state: PipeState): string {
   const synthesizer = state.assignees[state.assignees.length - 1];
-  const header = `#pipe-${state.pipeId} [merge | synthesizer | @${synthesizer}]`;
+  const header = `#pipe-${state.pipeId} [${state.mode} | synthesizer | @${synthesizer}]`;
   const instruction = 'Synthesize the outputs below into a unified response for the user.';
 
   let context = '';
   for (const [assignee, output] of state.fanOutOutputs) {
+    if (state.mode === 'merge-all' && assignee === synthesizer) continue;
     context += `\n--- @${assignee} output ---\n${output}\n`;
   }
 
@@ -273,7 +274,9 @@ export function getStartDescription(cmd: ParsedPipeCommand): string {
   if (cmd.mode === 'linear') {
     return cmd.assignees.map(a => `@${a}`).join(' \u2192 ');
   }
-  const fanOut = cmd.assignees.slice(0, -1).map(a => `@${a}`).join(', ');
+  const isMergeAll = cmd.mode === 'merge-all';
+  const fanOutList = isMergeAll ? cmd.assignees : cmd.assignees.slice(0, -1);
+  const fanOut = fanOutList.map(a => `@${a}`).join(', ');
   const synthesizer = `@${cmd.assignees[cmd.assignees.length - 1]}`;
   return `[${fanOut}] \u2192 ${synthesizer}`;
 }
@@ -327,12 +330,13 @@ function hasUnfinishedWork(state: PipeState, name: string): boolean {
     return !state.stageOutputs.has(stage) && !state.hasFinal;
   }
 
-  if (state.mode === 'merge') {
-    const fanOutAssignees = state.assignees.slice(0, -1);
+  if (state.mode === 'merge' || state.mode === 'merge-all') {
+    const isMergeAll = state.mode === 'merge-all';
+    const fanOutAssignees = isMergeAll ? state.assignees : state.assignees.slice(0, -1);
     const synthesizer = state.assignees[state.assignees.length - 1];
 
-    if (fanOutAssignees.includes(name)) {
-      return !state.fanOutOutputs.has(name);
+    if (fanOutAssignees.includes(name) && !state.fanOutOutputs.has(name)) {
+      return true;
     }
     if (name === synthesizer) {
       // Synthesizer is needed as long as pipe is running and has no final output —
@@ -375,15 +379,16 @@ export function matchResponse(
     }
   }
 
-  if (state.mode === 'merge') {
-    const fanOutAssignees = state.assignees.slice(0, -1);
+  if (state.mode === 'merge' || state.mode === 'merge-all') {
+    const isMergeAll = state.mode === 'merge-all';
+    const fanOutAssignees = isMergeAll ? state.assignees : state.assignees.slice(0, -1);
     const synthesizer = state.assignees[state.assignees.length - 1];
 
     // Fan-out response
     if (fanOutAssignees.includes(from) && !state.fanOutOutputs.has(from)) {
       return {
         pipeId: state.pipeId,
-        mode: 'merge',
+        mode: state.mode,
         role: 'fan-out',
       };
     }
@@ -392,7 +397,7 @@ export function matchResponse(
     if (from === synthesizer && state.hasSynthRequest && !state.hasFinal) {
       return {
         pipeId: state.pipeId,
-        mode: 'merge',
+        mode: state.mode,
         role: 'final',
       };
     }

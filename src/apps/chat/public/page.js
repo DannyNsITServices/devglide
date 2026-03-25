@@ -5,6 +5,7 @@
 import { escapeHtml, escapeAttr, sanitizeHtml } from '/shared-assets/ui-utils.js';
 import { dashboardSocket } from '/state.js';
 import { createHeader } from '/shared-ui/components/header.js';
+import { confirmModal } from '/shared-ui/components/modal.js';
 import { getMentionMatches, getPipeAssigneeMatches } from './mention-suggestions.js';
 
 let _container = null;
@@ -16,11 +17,13 @@ let _mentionIdx = -1;
 let _voiceHandler = null;
 let _rulesDraft = '';
 let _rulesLoaded = false;
+let _tooltipTarget = null;
 
 // Pipe slash-command state
 const PIPE_COMMANDS = [
   { name: '/linear-pipe', hint: 'min 2 assignees', description: 'Sequential processing chain' },
   { name: '/merge-pipe', hint: 'min 3 assignees', description: 'Parallel fan-out + synthesizer' },
+  { name: '/merge-all-pipe', hint: 'min 2 assignees', description: 'Parallel fan-out (all) + synthesizer' },
 ];
 let _popupMode = 'none'; // 'none' | 'command' | 'mention'
 
@@ -280,6 +283,98 @@ function findParticipant(name) {
   return _members.find((member) => member.name === name) ?? { name, paneId: null };
 }
 
+function createMemberStatusIndicator(state) {
+  const indicator = document.createElement('span');
+  indicator.className = `chat-member-status ${state}`;
+  const tooltip = state === 'working' ? 'Working' : 'Idle';
+  indicator.dataset.chatTooltip = tooltip;
+  indicator.setAttribute('aria-label', tooltip);
+  indicator.innerHTML = state === 'working'
+    ? `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4" fill="currentColor"></circle></svg>`
+    : `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5"></circle></svg>`;
+  return indicator;
+}
+
+function getModeTitle(mode) {
+  return mode === 'auto-accept'
+    ? 'Auto mode: no approval prompts'
+    : mode === 'unrestricted'
+      ? 'Unrestricted mode: all permission checks bypassed'
+      : 'Safe mode: approval prompts enabled';
+}
+
+function getModeIconSvg(mode) {
+  if (mode === 'supervised') {
+    return `
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M8 1.5 13 3.5v3.6c0 3.1-2 5.7-5 7.4-3-1.7-5-4.3-5-7.4V3.5l5-2Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path>
+        <path d="m5.8 8.2 1.4 1.4 3-3.2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>`;
+  }
+
+  return `
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M8 2.2 14 13H2L8 2.2Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"></path>
+      <path d="M8 5.8v3.6" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></path>
+      <circle cx="8" cy="11.7" r=".9" fill="currentColor"></circle>
+    </svg>`;
+}
+
+function createMemberModeIndicator(mode) {
+  const indicator = document.createElement('span');
+  indicator.className = `chat-member-badge ${mode}`;
+  const tooltip = getModeTitle(mode);
+  indicator.dataset.chatTooltip = tooltip;
+  indicator.setAttribute('aria-label', tooltip);
+  indicator.innerHTML = getModeIconSvg(mode);
+  return indicator;
+}
+
+// ── Custom tooltip ──────────────────────────────────────────────────
+
+function showTooltip(target) {
+  const el = _container?.querySelector('#chat-tooltip');
+  const text = target?.dataset?.chatTooltip;
+  if (!el || !text) return;
+
+  el.textContent = text;
+  el.classList.remove('hidden');
+
+  const rect = target.getBoundingClientRect();
+  const tipRect = el.getBoundingClientRect();
+  const gap = 6;
+  let top = rect.top - tipRect.height - gap;
+  let left = rect.left + (rect.width / 2) - (tipRect.width / 2);
+
+  if (top < gap) top = rect.bottom + gap;
+  left = Math.max(gap, Math.min(left, window.innerWidth - tipRect.width - gap));
+
+  el.style.top = `${top}px`;
+  el.style.left = `${left}px`;
+  _tooltipTarget = target;
+}
+
+function hideTooltip() {
+  const el = _container?.querySelector('#chat-tooltip');
+  if (!el) return;
+  el.classList.add('hidden');
+  el.textContent = '';
+  _tooltipTarget = null;
+}
+
+function onTooltipOver(e) {
+  const target = e.target?.closest?.('[data-chat-tooltip]');
+  if (!target || target === _tooltipTarget) return;
+  showTooltip(target);
+}
+
+function onTooltipOut(e) {
+  const target = e.target?.closest?.('[data-chat-tooltip]');
+  if (!target) return;
+  if (target.contains(e.relatedTarget)) return;
+  if (_tooltipTarget === target) hideTooltip();
+}
+
 // ── API helpers ─────────────────────────────────────────────────────
 
 async function api(path, opts) {
@@ -311,11 +406,11 @@ const BODY_HTML = `
 
   <main>
     <div class="chat-members-panel" id="chat-members-panel">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--df-space-2)">
-        <div class="chat-members-title" id="chat-members-title" style="margin-bottom:0">Members (0)</div>
-        <button class="btn btn-secondary btn-sm" id="chat-invite-btn" title="Invite LLM" style="padding:2px 8px;font-size:11px">+ Invite</button>
+      <div class="chat-members-toolbar">
+        <div class="chat-members-title" id="chat-members-title">Members (0)</div>
+        <button class="btn btn-secondary btn-sm chat-invite-btn" id="chat-invite-btn" title="Invite LLM">+ Invite</button>
       </div>
-      <div id="chat-invite-dropdown" class="hidden" style="margin-bottom:var(--df-space-2);border:1px solid var(--df-color-border-default);border-radius:var(--df-radius-md);background:var(--df-color-bg-base);padding:var(--df-space-1) 0"></div>
+      <div id="chat-invite-dropdown" class="chat-invite-dropdown hidden"></div>
       <div id="chat-members-list"></div>
     </div>
 
@@ -352,6 +447,8 @@ const BODY_HTML = `
       </div>
     </div>
   </div>
+
+  <div class="chat-tooltip hidden" id="chat-tooltip" role="tooltip"></div>
 `;
 
 // ── Socket setup ────────────────────────────────────────────────────
@@ -368,6 +465,7 @@ function connectSocket() {
   _socket.on('chat:message', onMessage);
   _socket.on('chat:cleared', onCleared);
   _socket.on('chat:pipe', onPipeEvent);
+  _socket.on('chat:error', onError);
 }
 
 function disconnectSocket() {
@@ -378,6 +476,7 @@ function disconnectSocket() {
     _socket.off('chat:message', onMessage);
     _socket.off('chat:cleared', onCleared);
     _socket.off('chat:pipe', onPipeEvent);
+    _socket.off('chat:error', onError);
     // Don't disconnect — shared socket, other pages need it
     _socket = null;
   }
@@ -410,6 +509,18 @@ function onMessage(msg) {
   if (_messages.some(m => m.id === msg.id)) return;
   _messages.push(msg);
   appendMessageEl(msg);
+}
+
+function onError(payload) {
+  if (!payload?.error) return;
+  onMessage({
+    id: `local-error-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    ts: new Date().toISOString(),
+    from: 'system',
+    to: null,
+    body: payload.error,
+    type: 'system',
+  });
 }
 
 function onCleared() {
@@ -445,38 +556,46 @@ function renderMembers() {
     const isConnected = m.isUser || (m.paneId && !m.detached);
     dot.className = 'chat-member-dot ' + (isConnected ? 'connected' : m.detached ? 'detached' : 'disconnected');
 
+    const body = document.createElement('div');
+    body.className = 'chat-member-body';
+
     const name = document.createElement('span');
     name.className = 'chat-member-name';
     name.textContent = m.name;
+
+    const meta = document.createElement('div');
+    meta.className = 'chat-member-meta';
 
     // Assign unique color to LLM participants (skip dot color for detached — let CSS handle it)
     if (!m.isUser) {
       const color = getParticipantColor(m);
       if (!m.detached) dot.style.background = color;
-      name.style.color = color;
     }
 
-    item.appendChild(dot);
-    item.appendChild(name);
+    body.appendChild(name);
 
     if (m.isUser) {
       const tag = document.createElement('span');
       tag.className = 'chat-member-tag';
-      tag.textContent = '(you)';
-      item.appendChild(tag);
+      tag.textContent = 'You';
+      meta.appendChild(tag);
     } else if (m.detached) {
       const tag = document.createElement('span');
       tag.className = 'chat-member-tag detached';
-      tag.textContent = '(detached)';
-      item.appendChild(tag);
+      tag.textContent = 'Detached';
+      meta.appendChild(tag);
     } else {
-      const status = document.createElement('span');
       const state = m.status || 'idle';
-      status.className = `chat-member-status ${state}`;
-      status.textContent = state.replace(/-/g, ' ');
-      item.appendChild(status);
+      meta.appendChild(createMemberStatusIndicator(state));
     }
 
+    if (!m.isUser) {
+      meta.appendChild(createMemberModeIndicator(m.permissionMode || 'supervised'));
+    }
+
+    body.appendChild(meta);
+    item.appendChild(dot);
+    item.appendChild(body);
     listEl.appendChild(item);
   }
 }
@@ -762,7 +881,7 @@ function onInputChange(e) {
 
   // ── Pipe assignee autocomplete ──
   // If inside a pipe command (before ':'), autocomplete @mentions for connected LLM members only
-  const pipeAssigneeMatch = before.match(/^\/(linear-pipe|merge-pipe)\s+[^:]*@(\w*)$/);
+  const pipeAssigneeMatch = before.match(/^\/(linear-pipe|merge-pipe|merge-all-pipe)\s+[^:]*@(\w*)$/);
   if (pipeAssigneeMatch) {
     const query = pipeAssigneeMatch[2].toLowerCase();
     const matches = getPipeAssigneeMatches(_members, query);
@@ -937,6 +1056,9 @@ async function loadInitialData() {
 function bindEvents() {
   if (!_container) return;
 
+  _container.addEventListener('mouseover', onTooltipOver);
+  _container.addEventListener('mouseout', onTooltipOut);
+
   _container.querySelector('#chat-send-btn')?.addEventListener('click', sendMessage);
 
   const input = _container.querySelector('#chat-input');
@@ -989,7 +1111,7 @@ async function toggleInviteDropdown(rescan) {
     return;
   }
 
-  dropdown.innerHTML = '<div style="padding:var(--df-space-2) var(--df-space-3);color:var(--df-color-text-muted);font-size:var(--df-font-size-xs)">Scanning PATH...</div>';
+  dropdown.innerHTML = '<div class="chat-invite-state">Scanning PATH...</div>';
   dropdown.classList.remove('hidden');
 
   try {
@@ -1001,36 +1123,80 @@ async function toggleInviteDropdown(rescan) {
     dropdown.innerHTML = '';
 
     if (llms.length === 0) {
-      dropdown.innerHTML = '<div style="padding:var(--df-space-2) var(--df-space-3);color:var(--df-color-text-muted);font-size:var(--df-font-size-xs)">No LLM CLIs found on PATH</div>';
+      dropdown.innerHTML = '<div class="chat-invite-state">No LLM CLIs found on PATH</div>';
     } else {
       for (const llm of llms) {
+        const modes = llm.modes || ['supervised'];
         const item = document.createElement('div');
-        item.style.cssText = 'padding:var(--df-space-1) var(--df-space-3);cursor:pointer;font-size:var(--df-font-size-sm);display:flex;align-items:center;gap:var(--df-space-2)';
-        item.innerHTML = `<span>${escapeHtml(llm.icon)}</span><span>${escapeHtml(llm.name)}</span><span style="color:var(--df-color-text-muted);font-size:var(--df-font-size-xs)">${escapeHtml(llm.cli)}</span>`;
-        item.addEventListener('mouseenter', () => { item.style.background = 'var(--df-color-bg-raised)'; });
-        item.addEventListener('mouseleave', () => { item.style.background = ''; });
-        item.addEventListener('click', () => inviteLlm(llm.cli, llm.name));
+        item.className = 'chat-invite-item';
+
+        // LLM identity (name only)
+        const identity = document.createElement('span');
+        identity.className = 'chat-invite-identity';
+        identity.innerHTML = `<span class="chat-invite-name">${escapeHtml(llm.name)}</span>`;
+
+        // Mode buttons
+        const chipsWrap = document.createElement('span');
+        chipsWrap.className = 'chat-invite-chips';
+
+        for (const mode of modes) {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = `chat-invite-mode-btn ${mode}`;
+          const tooltip = getModeTitle(mode);
+          chip.dataset.chatTooltip = tooltip;
+          chip.setAttribute('aria-label', tooltip);
+          chip.innerHTML = getModeIconSvg(mode);
+          chip.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const confirmed = await confirmInviteMode(llm, mode);
+            if (!confirmed) return;
+            inviteLlm(llm.cli, mode);
+          });
+          chipsWrap.appendChild(chip);
+        }
+
+        item.appendChild(identity);
+        item.appendChild(chipsWrap);
         dropdown.appendChild(item);
       }
     }
 
     // Rescan footer
     const footer = document.createElement('div');
-    footer.style.cssText = 'padding:var(--df-space-1) var(--df-space-3);border-top:1px solid var(--df-color-border-default);margin-top:var(--df-space-1);display:flex;align-items:center;justify-content:flex-end';
+    footer.className = 'chat-invite-footer';
     const rescanBtn = document.createElement('button');
     rescanBtn.className = 'btn btn-secondary btn-sm';
-    rescanBtn.style.cssText = 'font-size:10px;padding:1px 6px';
+    rescanBtn.type = 'button';
+    rescanBtn.classList.add('chat-invite-rescan');
     rescanBtn.textContent = 'Rescan';
     rescanBtn.title = 'Re-scan PATH for LLM CLIs';
     rescanBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleInviteDropdown(true); });
     footer.appendChild(rescanBtn);
     dropdown.appendChild(footer);
   } catch {
-    dropdown.innerHTML = '<div style="padding:var(--df-space-2) var(--df-space-3);color:var(--df-color-danger,#ef4444);font-size:var(--df-font-size-xs)">Failed to detect LLMs</div>';
+    dropdown.innerHTML = '<div class="chat-invite-state chat-invite-state-error">Failed to detect LLMs</div>';
   }
 }
 
-async function inviteLlm(cli, name) {
+async function confirmInviteMode(llm, mode) {
+  if (mode !== 'auto-accept' && mode !== 'unrestricted') return true;
+
+  const modeLabel = mode === 'auto-accept'
+    ? 'auto-accept'
+    : 'unrestricted';
+  const modeDesc = mode === 'auto-accept'
+    ? 'This launches without approval prompts.'
+    : 'This bypasses all permission checks.';
+  return confirmModal(_container, {
+    title: `Launch ${llm.name}?`,
+    message: `<strong>${escapeHtml(llm.name)}</strong> will run in <strong>${modeLabel}</strong> mode. ${modeDesc}`,
+    confirmLabel: 'Launch',
+    confirmCls: mode === 'unrestricted' ? 'btn-danger' : 'btn-primary',
+  });
+}
+
+async function inviteLlm(cli, mode = 'supervised') {
   const dropdown = _container?.querySelector('#chat-invite-dropdown');
   if (dropdown) dropdown.classList.add('hidden');
 
@@ -1038,7 +1204,7 @@ async function inviteLlm(cli, name) {
     const res = await api('/invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cli }),
+      body: JSON.stringify({ cli, mode }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

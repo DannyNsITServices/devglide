@@ -6,6 +6,7 @@ import type { PersistedParticipant } from './chat-store.js';
 import { getActiveProject, onProjectChange } from '../../../project-context.js';
 import { isPipeCommand, parsePipeCommand, isPipeParseError } from './pipe-parser.js';
 import * as pipeReducer from './pipe-reducer.js';
+import * as pipeStore from './pipe-store.js';
 
 // In-memory participant registry
 const participants = new Map<string, ChatParticipant>();
@@ -266,6 +267,7 @@ function persistParticipantsForProject(projectId: string | null): void {
       submitKey: p.submitKey,
       joinedAt: p.joinedAt,
       lastSeen: p.lastSeen,
+      permissionMode: p.permissionMode,
     });
   }
   saveParticipants(llmParticipants, projectId);
@@ -312,6 +314,7 @@ export function restoreParticipants(projectId: string | null): { restored: strin
       lastSeen: new Date().toISOString(),
       detached: true, // detached until the MCP session reclaims
       status: 'idle',
+      permissionMode: p.permissionMode ?? paneInfo?.permissionMode ?? 'supervised',
     };
     participants.set(key, participant);
     bumpParticipantSessionEpoch(p.name, p.projectId);
@@ -394,13 +397,19 @@ function deriveUniqueName(hint: string, model: string | null, paneId: string | n
 }
 
 /** Update the shell pane tab title to show the chat name. */
+function permissionModeLabel(mode?: string | null): string {
+  if (!mode || mode === 'supervised') return '';
+  return mode === 'auto-accept' ? ' [AUTO]' : ' [UNRESTRICTED]';
+}
+
 function updatePaneTitle(paneId: string, chatName: string): void {
   const pane = dashboardState.panes.find(p => p.id === paneId);
   if (!pane) return;
   pane.chatName = chatName;
-  pane.title = `${pane.num}: ${chatName}`;
+  const modeLabel = permissionModeLabel(pane.permissionMode);
+  pane.title = `${pane.num}: ${chatName}${modeLabel}`;
   // Notify shell page to update the tab (separate from terminal:cwd so CWD changes don't overwrite)
-  getShellNsp()?.emit('state:pane-chat-name', { id: paneId, chatName });
+  getShellNsp()?.emit('state:pane-chat-name', { id: paneId, chatName: `${chatName}${modeLabel}` });
 }
 
 /** Find an existing participant that can be reclaimed by projectId + paneId + identity.
@@ -438,6 +447,8 @@ export function join(
     existing.submitKey = submitKey;
     existing.lastSeen = now;
     existing.status = 'idle';
+    const reclaimPane = paneId ? dashboardState.panes.find(p => p.id === paneId) : null;
+    existing.permissionMode = reclaimPane?.permissionMode ?? existing.permissionMode ?? 'supervised';
     clearParticipantStatusTimer(existing.name, resolvedProjectId);
     bumpParticipantSessionEpoch(existing.name, resolvedProjectId);
     // Cancel any pending auto-removal timer
@@ -465,6 +476,7 @@ export function join(
 
   // No reclaim candidate — derive name from model/identity
   const uniqueName = deriveUniqueName(name, model, paneId, resolvedProjectId);
+  const paneInfo = paneId ? dashboardState.panes.find(p => p.id === paneId) : null;
   const participant: ChatParticipant = {
     name: uniqueName,
     kind,
@@ -477,6 +489,7 @@ export function join(
     lastSeen: now,
     status: kind === 'llm' ? 'idle' : undefined,
     detached: false,
+    permissionMode: paneInfo?.permissionMode ?? 'supervised',
   };
   participants.set(participantKey(uniqueName, resolvedProjectId), participant);
   bumpParticipantSessionEpoch(uniqueName, resolvedProjectId);
@@ -610,9 +623,16 @@ export async function send(from: string, body: string, to?: string, projectId?: 
   }
 
   // ─── Pipe response detection (LLM-only, log-centric) ──────────────
+  // For store-tracked pipes, chat_send is NEVER treated as a pipe response.
+  // Participants must use pipe_submit for store-tracked pipes.
   let pipeMeta: PipeMessageMeta | undefined;
   if (from !== 'system' && from !== 'user' && resolvedSenderProjectId) {
     pipeMeta = detectPipeResponse(from, body, resolvedSenderProjectId);
+    // If the detected pipe is tracked in the store, suppress auto-detection.
+    // This prevents regular chat from being classified as pipe output.
+    if (pipeMeta && pipeStore.getPipe(pipeMeta.pipeId, resolvedSenderProjectId)) {
+      pipeMeta = undefined;
+    }
     // Ensure #pipe-{id} anchor is always in the stored body for searchability
     if (pipeMeta && !body.includes(`#pipe-${pipeMeta.pipeId}`)) {
       body = `#pipe-${pipeMeta.pipeId} ${body}`;
@@ -654,6 +674,8 @@ export async function send(from: string, body: string, to?: string, projectId?: 
   }
 
   // ─── Pipe reducer: check if this message triggers next step ────────
+  // NOTE: pipeMeta is only set for legacy pipes NOT tracked in the store.
+  // Store-tracked pipes are suppressed above — they require pipe_submit.
   if (pipeMeta) {
     runPipeReducer(pipeMeta.pipeId, resolvedSenderProjectId)
       .catch(err => console.error('[pipe] reducer failed:', err));
@@ -830,6 +852,9 @@ async function handlePipeCommand(body: string, projectId: string | null): Promis
   const pipeId = pipeReducer.generatePipeId();
   const desc = pipeReducer.getStartDescription(parsed);
 
+  // Create pipe in the isolated stage store
+  pipeStore.createPipe(pipeId, parsed.mode, parsed.assignees, parsed.prompt, projectId);
+
   const startMsg = appendMessage({
     from: 'system', to: null,
     body: `#pipe-${pipeId} Pipe started (${parsed.mode}): ${desc}`,
@@ -901,14 +926,38 @@ function detectPipeResponse(from: string, body: string, projectId: string | null
   return undefined;
 }
 
-/** Run the pipe reducer: scan log, compute next actions, execute them. */
+/** Run the pipe reducer: scan log, compute next actions, execute them.
+ *  Stage outputs are read from the pipe store (source of truth), merged into
+ *  the log-derived state so the reducer's action computation uses store data. */
 async function runPipeReducer(pipeId: string, projectId: string | null): Promise<void> {
   const messages = readMessages({ limit: 10000 }, projectId);
   const state = pipeReducer.derivePipeState(messages, pipeId);
   if (!state) return;
 
+  // When the pipe is tracked in the store, the store is the SOLE source of truth
+  // for stage content — clear log-derived outputs and use only store data.
+  // This prevents regular chat messages from ever becoming stage input.
+  const storedPipe = pipeStore.getPipe(pipeId, projectId);
+  if (storedPipe) {
+    state.stageOutputs.clear();
+    state.fanOutOutputs.clear();
+    for (const [assignee, slotList] of storedPipe.slots) {
+      for (const slot of slotList) {
+        if (slot.status === 'submitted' && slot.content) {
+          if (slot.stage !== undefined) {
+            state.stageOutputs.set(slot.stage, { from: assignee, body: slot.content });
+          }
+          if (slot.role === 'fan-out') {
+            state.fanOutOutputs.set(assignee, slot.content);
+          }
+        }
+      }
+    }
+  }
+
   // Check for completion
   if (state.hasFinal) {
+    pipeStore.markPipeStatus(pipeId, 'completed', projectId);
     const completeMsg = appendMessage({
       from: 'system', to: null,
       body: `#pipe-${pipeId} Pipe completed.`,
@@ -921,6 +970,17 @@ async function runPipeReducer(pipeId: string, projectId: string | null): Promise
 
   const actions = pipeReducer.computeNextActions(state);
   for (const action of actions) {
+    // Grant lease to target assignee in the store
+    if (storedPipe) {
+      const leaseResult = pipeStore.grantLease(pipeId, action.targetAssignee, projectId);
+      if (!leaseResult.ok) {
+        // Participant has a lease for another pipe — queue this pipe for retry
+        // when the conflicting lease is released. Do NOT deliver the handoff.
+        pipeStore.addPendingPipe(action.targetAssignee, projectId, pipeId);
+        continue;
+      }
+    }
+
     // Store the delivery in log with pipe metadata
     const deliveryMsg = appendMessage({
       from: 'system',
@@ -937,6 +997,18 @@ async function runPipeReducer(pipeId: string, projectId: string | null): Promise
     const target = getParticipantExact(action.targetAssignee, projectId);
     if (target?.paneId && !target.detached) {
       await deliverToPty(action.targetAssignee, projectId, deliveryMsg);
+    }
+  }
+}
+
+/** Drain pending pipe queues for a list of assignees whose leases were just released.
+ *  Re-runs the reducer for each blocked pipe so handoffs can be retried. */
+function drainPendingPipes(assignees: string[], projectId: string | null): void {
+  for (const assignee of assignees) {
+    const pendingPipeIds = pipeStore.popPendingPipes(assignee, projectId);
+    for (const pendingPipeId of pendingPipeIds) {
+      runPipeReducer(pendingPipeId, projectId)
+        .catch(err => console.error('[pipe] pending reducer failed:', err));
     }
   }
 }
@@ -971,6 +1043,9 @@ function failPipesForParticipant(
       },
     }, projectId);
 
+    // Update store — releases leases for this pipe's assignees
+    const releasedAssignees = pipeStore.markPipeStatus(pipeId, 'failed', projectId);
+
     // Append failed
     const failMsg = appendMessage({
       from: 'system', to: null,
@@ -985,6 +1060,9 @@ function failPipesForParticipant(
     }, projectId);
     emitToProject('chat:message', failMsg, projectId);
     emitToProject('chat:pipe', { type: 'failed', pipeId }, projectId);
+
+    // Drain pending queues for released assignees — unblock any pipes waiting for their lease
+    drainPendingPipes(releasedAssignees, projectId);
   }
 }
 
@@ -994,6 +1072,9 @@ export async function cancelPipeRun(pipeId: string, projectId?: string | null): 
   const messages = readMessages({ limit: 10000 }, pid);
   const state = pipeReducer.derivePipeState(messages, pipeId);
   if (!state || state.status !== 'running') return false;
+
+  // Update store — releases leases for this pipe's assignees
+  const releasedAssignees = pipeStore.markPipeStatus(pipeId, 'cancelled', pid);
 
   const cancelMsg = appendMessage({
     from: 'system', to: null,
@@ -1008,7 +1089,72 @@ export async function cancelPipeRun(pipeId: string, projectId?: string | null): 
   }, pid);
   emitToProject('chat:message', cancelMsg, pid);
   emitToProject('chat:pipe', { type: 'cancel', pipeId }, pid);
+
+  // Drain pending queues for released assignees — unblock any pipes waiting for their lease
+  drainPendingPipes(releasedAssignees, pid);
+
   return true;
+}
+
+/** Submit a stage artifact via the dedicated pipe_submit path.
+ *  Validates lease, stores content, posts a display message, and advances the pipeline. */
+export async function submitPipeStage(
+  pipeId: string,
+  from: string,
+  content: string,
+  projectId: string | null,
+): Promise<{ ok: boolean; error?: string; message?: ChatMessage }> {
+  // Validate and store in the pipe stage store
+  const result = pipeStore.submitStage(pipeId, from, content, projectId, true);
+  if (!result.ok) return { ok: false, error: result.error };
+
+  // Determine pipe role for the chat message metadata
+  const storedPipe = pipeStore.getPipe(pipeId, projectId);
+  if (!storedPipe) return { ok: false, error: 'Pipe not found after submit' };
+
+  const slot = result.slot;
+  let role: PipeMessageMeta['role'] = 'stage-output';
+  if (slot?.role === 'final') role = 'final';
+  else if (slot?.role === 'fan-out') role = 'fan-out';
+
+  const pipeMeta: PipeMessageMeta = {
+    pipeId,
+    mode: storedPipe.mode,
+    role,
+    stage: slot?.stage,
+  };
+
+  // Post a chat message for display (pipe artifact visible in chat history)
+  const body = `#pipe-${pipeId} ${content}`;
+  const msg = appendMessage({
+    from,
+    to: null,
+    body,
+    type: 'message',
+    pipe: pipeMeta,
+  }, projectId);
+  emitToProject('chat:message', msg, projectId);
+
+  // PTY deliver to other participants so they see the output
+  for (const p of participants.values()) {
+    if (p.name !== from && p.paneId && p.projectId === projectId) {
+      await deliverToPty(p.name, projectId, msg);
+    }
+  }
+
+  // Run the reducer to advance the pipeline
+  await runPipeReducer(pipeId, projectId);
+
+  // Lease was released by submitStage — drain pending queues to unblock
+  // any pipes that were waiting for this participant's lease.
+  drainPendingPipes([from], projectId);
+
+  return { ok: true, message: msg };
+}
+
+/** Get pipe status from the store. */
+export function getPipeStoreStatus(pipeId: string, projectId?: string | null) {
+  return pipeStore.getPipeStatus(pipeId, resolveProjectId(projectId));
 }
 
 /** Get active pipes for a project (derived from log). */

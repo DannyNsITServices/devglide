@@ -12,7 +12,7 @@ export interface PipeParseError {
 
 export type PipeParseResult = ParsedPipeCommand | PipeParseError;
 
-const PIPE_CMD_RE = /^\/(linear-pipe|merge-pipe)\s+/;
+const PIPE_CMD_RE = /^\/(linear-pipe|merge-pipe|merge-all-pipe)\s+/;
 
 export function isPipeCommand(body: string): boolean {
   return PIPE_CMD_RE.test(body.trim());
@@ -20,17 +20,22 @@ export function isPipeCommand(body: string): boolean {
 
 export function parsePipeCommand(body: string): PipeParseResult {
   const trimmed = body.trim();
-  const cmdMatch = trimmed.match(/^\/(linear-pipe|merge-pipe)\s+([\s\S]+)$/);
+  const cmdMatch = trimmed.match(/^\/(linear-pipe|merge-pipe|merge-all-pipe)\s+([\s\S]+)$/);
   if (!cmdMatch) {
-    return { error: 'Invalid pipe command. Use /linear-pipe or /merge-pipe.' };
+    return { error: 'Invalid pipe command. Use /linear-pipe, /merge-pipe, or /merge-all-pipe.' };
   }
 
-  const mode: PipeMode = cmdMatch[1] === 'linear-pipe' ? 'linear' : 'merge';
+  const cmd = cmdMatch[1];
+  let mode: PipeMode;
+  if (cmd === 'linear-pipe') mode = 'linear';
+  else if (cmd === 'merge-pipe') mode = 'merge';
+  else mode = 'merge-all';
+
   const rest = cmdMatch[2];
 
   const colonIdx = rest.indexOf(':');
   if (colonIdx === -1) {
-    return { error: 'Missing ":" between assignees and prompt. Example: /linear-pipe @a @b: your prompt' };
+    return { error: `Missing ":" between assignees and prompt. Example: /${cmd} @a @b: your prompt` };
   }
 
   const assigneePart = rest.substring(0, colonIdx).trim();
@@ -52,6 +57,9 @@ export function parsePipeCommand(body: string): PipeParseResult {
   }
   if (mode === 'merge' && assignees.length < 3) {
     return { error: '/merge-pipe requires at least 3 assignees (last one synthesizes).' };
+  }
+  if (mode === 'merge-all' && assignees.length < 2) {
+    return { error: '/merge-all-pipe requires at least 2 assignees.' };
   }
 
   const unique = new Set(assignees);

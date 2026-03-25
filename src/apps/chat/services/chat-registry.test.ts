@@ -12,6 +12,7 @@ const chatStoreMock = vi.hoisted(() => {
       ...msg,
     })),
     clearMessages: vi.fn(),
+    readMessages: vi.fn(() => []),
     reset: () => {
       seq = 0;
     },
@@ -21,6 +22,7 @@ const chatStoreMock = vi.hoisted(() => {
 vi.mock('./chat-store.js', () => ({
   appendMessage: chatStoreMock.appendMessage,
   clearMessages: chatStoreMock.clearMessages,
+  readMessages: chatStoreMock.readMessages,
   saveParticipants: vi.fn(),
   loadParticipants: vi.fn(() => []),
 }));
@@ -37,6 +39,8 @@ describe('chat-registry PTY delivery', () => {
     chatStoreMock.reset();
     chatStoreMock.appendMessage.mockClear();
     chatStoreMock.clearMessages.mockClear();
+    chatStoreMock.readMessages.mockReset();
+    chatStoreMock.readMessages.mockReturnValue([]);
     globalPtys.clear();
     setActiveProject({ id: 'project-chat', name: 'Chat', path: '/tmp/chat' });
 
@@ -73,8 +77,8 @@ describe('chat-registry PTY delivery', () => {
       '[DevGlide Chat] @user: first',
     ]);
 
-    // First submit key after 500ms
-    await vi.advanceTimersByTimeAsync(500);
+    // First submit key after 1000ms (PTY_SUBMIT_DELAY_MS)
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
@@ -83,8 +87,8 @@ describe('chat-registry PTY delivery', () => {
       '[DevGlide Chat] @user: second',
     ]);
 
-    // Second message: submit key after 500ms
-    await vi.advanceTimersByTimeAsync(500);
+    // Second message: submit key after 1000ms
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
@@ -114,7 +118,7 @@ describe('chat-registry PTY delivery', () => {
     await flushDeliveryQueue();
     registry.detach(participant.name);
 
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
@@ -141,7 +145,7 @@ describe('chat-registry PTY delivery', () => {
     registry.detach(participant.name);
     const reclaimed = registry.join('codex', 'llm', 'pane-4', 'codex', '\r');
 
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
     expect(reclaimed.name).toBe(participant.name);
@@ -168,7 +172,7 @@ describe('chat-registry PTY delivery', () => {
     await flushDeliveryQueue();
     globalPtys.delete('pane-3');
 
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
@@ -205,13 +209,13 @@ describe('chat-registry PTY delivery', () => {
     expect(writesA).toEqual(['[DevGlide Chat] @user: ordered']);
     expect(writesB).toEqual([]);
 
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
     expect(writesA).toEqual(['[DevGlide Chat] @user: ordered', '\r']);
     expect(writesB).toEqual(['[DevGlide Chat] @user: ordered']);
 
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
     expect(writesB).toEqual(['[DevGlide Chat] @user: ordered', '\r']);
@@ -255,12 +259,12 @@ describe('chat-registry PTY delivery', () => {
     expect(writesB).toEqual([]);
 
     // First delivery completes (submit delay), second starts
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
     expect(writesB).toEqual([`[DevGlide Chat] @${sender.name}: @${target.name} please handle this`]);
 
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await sendPromise;
 
     registry.leave(sender.name);
@@ -303,7 +307,7 @@ describe('chat-registry PTY delivery', () => {
     expect(registry.getParticipant(reviewer.name)?.status).toBe('working');
 
     // Drain the delivery chain (submit delay)
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
     await sendPromise;
 
@@ -404,6 +408,8 @@ describe('chat-registry PTY status detection (idle/working)', () => {
     chatStoreMock.reset();
     chatStoreMock.appendMessage.mockClear();
     chatStoreMock.clearMessages.mockClear();
+    chatStoreMock.readMessages.mockReset();
+    chatStoreMock.readMessages.mockReturnValue([]);
     globalPtys.clear();
     dataListeners = [];
     setActiveProject({ id: 'project-chat', name: 'Chat', path: '/tmp/chat' });
@@ -477,7 +483,7 @@ describe('chat-registry PTY status detection (idle/working)', () => {
     expect(registry.getParticipant(participant.name)?.status).toBe('working');
 
     // Drain the delivery chain (submit delay)
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
     await sendPromise;
 

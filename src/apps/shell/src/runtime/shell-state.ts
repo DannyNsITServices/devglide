@@ -32,6 +32,11 @@ export function nextNumForProject(projectId: string | null): number {
   return panesForProject(projectId) + 1;
 }
 
+function permissionModeSuffix(mode?: string | null): string {
+  if (!mode || mode === 'supervised') return '';
+  return mode === 'auto-accept' ? ' [AUTO]' : ' [UNRESTRICTED]';
+}
+
 /** Renumber panes per-project (1-based sequential within each project). */
 export function renumberPanes(): void {
   const counters = new Map<string, number>();
@@ -40,7 +45,8 @@ export function renumberPanes(): void {
     const next = (counters.get(key) || 0) + 1;
     counters.set(key, next);
     p.num = next;
-    p.title = String(next);
+    const label = p.chatName || String(next);
+    p.title = `${next}: ${label}${permissionModeSuffix(p.permissionMode)}`;
   }
 }
 

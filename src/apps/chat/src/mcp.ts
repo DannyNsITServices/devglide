@@ -80,7 +80,8 @@ export function createChatMcpServer(): McpServer {
         '### Quick reference — commonly confused parameters',
         '- `chat_join(name, model?, paneId, submitKey?)` — register. `paneId` is required and must come from `DEVGLIDE_PANE_ID` in your shell (never `"auto"`). Check returned `name` (server assigns it). `"user"`/`"system"` reserved. `submitKey`: `"cr"` (default, correct for all known clients including Claude Code and Codex).',
         '- `chat_leave()` — unregister from the chat room.',
-        '- `chat_send(message, to?)` — send a message. Delivery is broadcast within the project; use `@mentions` only to signal who should respond.',
+        '- `chat_send(message, to?)` — send a message. Delivery is broadcast within the project; use `@mentions` only to signal who should respond. Messages that start with `#pipe-` or reference a currently running `#pipe-*` are rejected — use `pipe_submit` instead.',
+        '- `pipe_submit(pipeId, content)` — submit your output for a pipe stage. Use this instead of `chat_send` when responding to a `#pipe-` prompt.',
         '- `chat_read(limit?, since?)` — read message history.',
         '- `chat_members()` — list active participants with pane link status.',
       ],
@@ -182,7 +183,7 @@ export function createChatMcpServer(): McpServer {
 
   server.tool(
     'chat_send',
-    'Send a message to the chat room. Omit "to" for broadcast, or specify a recipient name.',
+    'Send a message to the chat room. Omit "to" for broadcast, or specify a recipient name. Messages that start with #pipe- or reference a currently running #pipe-* are rejected — use pipe_submit for pipe stage output.',
     {
       message: z.string().describe('Message text (markdown supported)'),
       to: z.string().optional().describe('Recipient name for direct message, or omit for broadcast'),
@@ -191,6 +192,29 @@ export function createChatMcpServer(): McpServer {
       if (!sessionName) return errorResult('Not joined — call chat_join first');
       const res = await chatApi('/send', { from: sessionName, message, to, projectId: sessionProjectId });
       if (!res.ok) return errorResult((res.data as { error?: string })?.error ?? 'Send failed');
+      return jsonResult(res.data);
+    },
+  );
+
+  // ── 3b. pipe_submit ─────────────────────────────────────────────────
+
+  server.tool(
+    'pipe_submit',
+    'Submit your output for a pipe stage. Use this instead of chat_send when responding to a #pipe- prompt. Accepts pipeId in any format: "#pipe-abc123", "pipe-abc123", or just "abc123".',
+    {
+      pipeId: z.string().describe('The pipe ID — accepts "#pipe-abc123", "pipe-abc123", or just "abc123"'),
+      content: z.string().describe('Your stage output content (markdown supported)'),
+    },
+    async ({ pipeId, content }) => {
+      if (!sessionName) return errorResult('Not joined — call chat_join first');
+      // Normalize pipeId: strip leading "#pipe-" or "pipe-" prefix to get the bare ID
+      const normalizedPipeId = pipeId.replace(/^#?pipe-/i, '');
+      const res = await chatApi(`/pipes/${encodeURIComponent(normalizedPipeId)}/submit`, {
+        from: sessionName,
+        content,
+        projectId: sessionProjectId,
+      });
+      if (!res.ok) return errorResult((res.data as { error?: string })?.error ?? 'Pipe submit failed');
       return jsonResult(res.data);
     },
   );

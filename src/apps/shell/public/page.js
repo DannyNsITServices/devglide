@@ -1039,7 +1039,7 @@ function createBrowserPaneLocal({ id, url, title, onClose, onFocus, onTitleChang
 
 // ── Server-driven pane lifecycle ────────────────────────────────────
 
-async function _addPaneFromServer(refs, { id, shellType, title, num, cwd, url, projectId, chatName }, scrollback, skipRelayout = false) {
+async function _addPaneFromServer(refs, { id, shellType, title, num, cwd, url, projectId, chatName, permissionMode }, scrollback, skipRelayout = false) {
   if (panes.has(id)) return;
 
   // Ensure xterm.js is loaded before creating terminal panes
@@ -1074,7 +1074,14 @@ async function _addPaneFromServer(refs, { id, shellType, title, num, cwd, url, p
   pane._num = num;
   pane._cwd = cwd || null;
   pane._projectId = projectId || null;
-  pane._chatName = chatName || null;
+  pane._permissionMode = permissionMode || null;
+
+  // Build display chatName with mode suffix for snapshot restore
+  const modeSuffix = permissionMode && permissionMode !== 'supervised'
+    ? (permissionMode === 'auto-accept' ? ' [AUTO]' : ' [UNRESTRICTED]')
+    : '';
+  const displayChatName = chatName ? `${chatName}${modeSuffix}` : null;
+  pane._chatName = displayChatName;
   panes.set(id, pane);
 
   // Terminal panes are already in DOM (parentElement), but browser panes need appending.
@@ -1089,8 +1096,8 @@ async function _addPaneFromServer(refs, { id, shellType, title, num, cwd, url, p
   }
 
   // Chat name takes priority over CWD folder name for tab label
-  if (chatName) {
-    const label = makeLabel(num, chatName);
+  if (displayChatName) {
+    const label = makeLabel(num, displayChatName);
     pane.setTitle(label);
     const tabEl = refs.tabBar.querySelector(`.shell-tab[data-tab="${id}"] .shell-tab-label`);
     if (tabEl) tabEl.textContent = label;
@@ -1433,6 +1440,9 @@ export async function mount(container, ctx) {
   // 6. Wire socket events
   wireSocketEvents(refs);
 
+  // 7. Always request a fresh snapshot so panes created while unmounted are picked up
+  socket.emit('state:request-snapshot');
+
   if (panes.size > 0) {
     // Reattach existing panes (returning from another page)
     for (const [id, pane] of panes) {
@@ -1462,8 +1472,7 @@ export async function mount(container, ctx) {
       });
     });
   } else {
-    // Fresh mount — request snapshot from server
-    socket.emit('state:request-snapshot');
+    // Fresh mount — snapshot requested above will populate panes
   }
 
   // 7. Wire Grid tab click

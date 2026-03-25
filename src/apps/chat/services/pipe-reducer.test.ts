@@ -164,6 +164,39 @@ describe('computeNextActions — merge', () => {
     expect(actions[0].targetAssignee).toBe('s');
   });
 
+  it('merge-all: emits fan-out requests to ALL assignees (including synthesizer)', () => {
+    const messages = [
+      sysMsg('start', { pipeId: 'abc', mode: 'merge-all', role: 'start', assignees: ['a', 'b'], prompt: 'X' }),
+    ];
+    const state = derivePipeState(messages, 'abc')!;
+    const actions = computeNextActions(state);
+    expect(actions).toHaveLength(2);
+    expect(actions.map(a => a.targetAssignee).sort()).toEqual(['a', 'b']);
+  });
+
+  it('merge-all: emits synth-request only after ALL fan-outs (including synthesizer) are in', () => {
+    const messages = [
+      sysMsg('start', { pipeId: 'abc', mode: 'merge-all', role: 'start', assignees: ['a', 'b'], prompt: 'X' }),
+      sysMsg('fo a', { pipeId: 'abc', mode: 'merge-all', role: 'fan-out-request', targetAssignee: 'a' }),
+      sysMsg('fo b', { pipeId: 'abc', mode: 'merge-all', role: 'fan-out-request', targetAssignee: 'b' }),
+      msg({ from: 'a', body: 'A', pipe: { pipeId: 'abc', mode: 'merge-all', role: 'fan-out' } }),
+    ];
+    const state = derivePipeState(messages, 'abc')!;
+    
+    // b (synthesizer) hasn't sent its fan-out yet
+    expect(computeNextActions(state)).toHaveLength(0);
+
+    // b sends fan-out
+    messages.push(msg({ from: 'b', body: 'B', pipe: { pipeId: 'abc', mode: 'merge-all', role: 'fan-out' } }));
+    const nextState = derivePipeState(messages, 'abc')!;
+    const actions = computeNextActions(nextState);
+    expect(actions).toHaveLength(1);
+    expect(actions[0].type).toBe('synth-request');
+    expect(actions[0].targetAssignee).toBe('b');
+    expect(actions[0].body).toContain('--- @a output ---');
+    expect(actions[0].body).not.toContain('--- @b output ---');
+  });
+
   it('does not duplicate synth-request', () => {
     const messages = [
       sysMsg('start', { pipeId: 'abc', mode: 'merge', role: 'start', assignees: ['a', 'b', 's'], prompt: 'X' }),
