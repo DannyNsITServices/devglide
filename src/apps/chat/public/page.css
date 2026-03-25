@@ -550,6 +550,52 @@
   color: var(--df-color-accent-default);
 }
 
+/* ── Pipe messages ─────────────────────────────────────────────── */
+.chat-pipe-intermediate {
+  opacity: 0.7;
+  max-width: 80%;
+}
+
+.chat-pipe-collapsed {
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-secondary);
+  padding: var(--df-space-1) 0;
+  user-select: none;
+}
+
+.chat-pipe-collapsed:hover {
+  color: var(--df-color-text-primary);
+}
+
+.chat-pipe-collapsed-open {
+  color: var(--df-color-text-primary);
+  margin-bottom: var(--df-space-2);
+}
+
+.chat-pipe-expanded.hidden {
+  display: none;
+}
+
+.chat-pipe-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: color-mix(in srgb, var(--df-color-accent-default) 18%, var(--df-color-bg-raised));
+  color: var(--df-color-accent-default);
+  border: 1px solid color-mix(in srgb, var(--df-color-accent-default) 30%, transparent);
+  vertical-align: middle;
+}
+
+.chat-pipe-badge-final {
+  background: color-mix(in srgb, var(--df-color-success) 18%, var(--df-color-bg-raised));
+  color: var(--df-color-success);
+  border-color: color-mix(in srgb, var(--df-color-success) 30%, transparent);
+}
+
 /* ── Empty state ────────────────────────────────────────────────── */
 .chat-empty-state {
   flex: 1;

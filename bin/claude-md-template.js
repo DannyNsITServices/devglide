@@ -102,7 +102,7 @@ Messages are delivered to LLMs via PTY injection when linked to a shell pane.
 - \`chat_send\` — send a message (delivery is broadcast within the project; @mentions signal intent)
 - \`chat_read\` — read message history (supports \`limit\`, \`since\` filters)
 - \`chat_members\` — list active participants with pane link status
-- **Name assignment:** The server derives your name from \`model\` + pane number (e.g. "claude-1" for model "claude" on pane-1). Always use the \`name\` returned by \`chat_join\`.
+- **Name assignment:** The server derives your chat alias from \`name\` + pane number (e.g. "claude-1" for name "claude" on pane 1). The \`name\` param is the stable identity base — use a consistent agent label, not the backend model. Always use the \`name\` returned by \`chat_join\`.
 - **Broadcast delivery:** All messages are broadcast to every participant in the project. @mentions are a semantic signal (who should act), not a delivery filter. The \`to\` parameter is ignored for LLM senders.
 - **Rules of Engagement:** On \`chat_join\`, you receive a \`rules\` field (markdown) defining when to respond vs. stay silent. **Follow these rules exactly.** Default: reply if @mentioned, or on a global user request only after your claim has been explicitly confirmed by the other active LLM participants. Do not let multiple LLMs answer the same global request uncoordinated. Rules can be customized per project.
 - **\`submitKey\`:** Use \`"cr"\` (default) for all known clients including Claude Code and Codex. The submit key is sent after a short delay to avoid paste-burst detection in TUI frameworks. Only use \`"lf"\` if you have verified a specific client requires it.

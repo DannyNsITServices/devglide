@@ -111,3 +111,11 @@ export function clearMessages(projectId?: string | null): void {
     writeFileSync(filePath, '');
   }
 }
+
+
+// ── Pipe message queries ─────────────────────────────────────────────────────
+
+/** Read all messages that carry pipe metadata for a given pipeId. */
+export function readPipeMessages(pipeId: string, projectId?: string | null): import('../types.js').ChatMessage[] {
+  return readMessages({ limit: 10000 }, projectId).filter(m => m.pipe?.pipeId === pipeId);
+}

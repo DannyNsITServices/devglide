@@ -520,11 +520,16 @@ function openProjectModal(mode, project) {
       folderPath.title = data.path;
       folderList.innerHTML = '';
 
+      // Disable "go up" when at or above user home directory
+      const normPath = data.path.replace(/\\/g, '/').replace(/\/$/, '');
+      const normHome = (data.home || '').replace(/\\/g, '/').replace(/\/$/, '');
+      folderUpBtn.disabled = !normHome || normPath.length <= normHome.length;
+
       for (const name of data.dirs) {
         const item = document.createElement('button');
         item.className = 'folder-picker-item';
         item.textContent = name;
-        item.addEventListener('click', () => loadFolder(data.path + '/' + name));
+        item.addEventListener('click', () => loadFolder(data.path.replace(/[/\\]?$/, '/') + name));
         folderList.appendChild(item);
       }
 
@@ -547,7 +552,7 @@ function openProjectModal(mode, project) {
   });
 
   folderUpBtn.addEventListener('click', () => {
-    const parent = browseCurrentPath.replace(/\/[^/]+$/, '') || '/';
+    const parent = browseCurrentPath.replace(/[/\\][^/\\]+$/, '') || browseCurrentPath;
     loadFolder(parent);
   });
 
@@ -556,7 +561,7 @@ function openProjectModal(mode, project) {
     folderPicker.classList.add('hidden');
     // Auto-fill name from folder basename if empty
     if (!nameInput.value.trim()) {
-      const basename = browseCurrentPath.split('/').filter(Boolean).pop();
+      const basename = browseCurrentPath.split(/[/\\]/).filter(Boolean).pop();
       if (basename) nameInput.value = basename;
     }
   });

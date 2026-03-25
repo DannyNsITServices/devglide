@@ -1,9 +1,11 @@
 import type { Namespace } from 'socket.io';
-import type { ChatParticipant, ChatMessage } from '../types.js';
+import type { ChatParticipant, ChatMessage, PipeMessageMeta } from '../types.js';
 import { globalPtys, dashboardState, getShellNsp } from '../../shell/src/runtime/shell-state.js';
-import { appendMessage, clearMessages, saveParticipants, loadParticipants } from './chat-store.js';
+import { appendMessage, readMessages, clearMessages, saveParticipants, loadParticipants } from './chat-store.js';
 import type { PersistedParticipant } from './chat-store.js';
 import { getActiveProject, onProjectChange } from '../../../project-context.js';
+import { isPipeCommand, parsePipeCommand, isPipeParseError } from './pipe-parser.js';
+import * as pipeReducer from './pipe-reducer.js';
 
 // In-memory participant registry
 const participants = new Map<string, ChatParticipant>();
@@ -303,6 +305,7 @@ export function restoreParticipants(projectId: string | null): { restored: strin
       kind: 'llm',
       model: p.model,
       paneId: p.paneId,
+      paneNum: getPaneDisplayNumber(p.paneId),
       projectId: p.projectId,
       submitKey: p.submitKey,
       joinedAt: p.joinedAt,
@@ -348,20 +351,30 @@ export function getChatNsp(): Namespace | null {
 }
 
 // ── Identity-based name assignment ──────────────────────────────────────────
-// Names are derived from model + pane display number (e.g. "claude-1", "codex-2").
+// Names are derived from hint (the `name` param from chat_join) + pane display
+// number (e.g. "claude-1", "codex-2"). The `hint` is preferred over `model` so
+// that agents with a stable identity label (like "codex") keep that label
+// regardless of which backend model they report.
 // The pane's per-project `num` is used — not the global pane ID counter —
 // so names are deterministic within each project context.
 
 /** Look up the pane's per-project display number from dashboardState. */
-function getPaneDisplayNumber(paneId: string | null): string | null {
+function getPaneDisplayNumber(paneId: string | null): number | null {
   if (!paneId) return null;
   const pane = dashboardState.panes.find(p => p.id === paneId);
-  return pane ? String(pane.num) : null;
+  return pane ? pane.num : null;
 }
 
-/** Derive a name from model + pane display number (e.g. "claude-1"). */
+/** Normalize the identity base from hint/model (e.g. "claude", "codex"). */
+function deriveNameBase(hint: string, model: string | null): string {
+  return (hint || model || 'agent').toLowerCase().replace(/[^a-z0-9-]/g, '');
+}
+
+/** Derive a name from hint/model + pane display number (e.g. "claude-1"). */
 function deriveUniqueName(hint: string, model: string | null, paneId: string | null, projectId: string | null): string {
-  const base = (model || hint || 'agent').toLowerCase().replace(/[^a-z0-9-]/g, '');
+  // Prefer hint (the name param from chat_join) over model — this ensures
+  // agents like "codex" keep a stable identity even if model varies.
+  const base = deriveNameBase(hint, model);
   const paneNum = getPaneDisplayNumber(paneId);
 
   // Use model-paneNumber format (e.g. "claude-1")
@@ -390,11 +403,14 @@ function updatePaneTitle(paneId: string, chatName: string): void {
   getShellNsp()?.emit('state:pane-chat-name', { id: paneId, chatName });
 }
 
-/** Find an existing participant that can be reclaimed by projectId + paneId + model. */
-function findReclaimCandidate(paneId: string | null, model: string | null, projectId: string | null): ChatParticipant | null {
+/** Find an existing participant that can be reclaimed by projectId + paneId + identity.
+ *  The pane is the stable anchor, and the name base (e.g. "claude", "codex") must match
+ *  the existing participant's name prefix so a different agent on the same pane won't
+ *  steal the wrong alias. */
+function findReclaimCandidate(paneId: string | null, nameBase: string, projectId: string | null): ChatParticipant | null {
   if (!paneId) return null;
   for (const p of participants.values()) {
-    if (p.paneId === paneId && p.model === model && p.projectId === projectId) return p;
+    if (p.paneId === paneId && p.projectId === projectId && (p.name === nameBase || p.name.startsWith(`${nameBase}-`))) return p;
   }
   return null;
 }
@@ -410,12 +426,15 @@ export function join(
   const now = new Date().toISOString();
   const resolvedProjectId = resolveProjectId(projectId);
 
-  // Claim-or-create: try to reclaim an existing participant by paneId + model
-  const existing = findReclaimCandidate(paneId, model, resolvedProjectId);
+  // Claim-or-create: try to reclaim an existing participant by paneId + identity
+  const nameBase = deriveNameBase(name, model);
+  const existing = findReclaimCandidate(paneId, nameBase, resolvedProjectId);
   if (existing) {
     // Reattach: keep the same alias, update session fields
     existing.detached = false;
     existing.paneId = paneId;
+    existing.paneNum = getPaneDisplayNumber(paneId);
+    existing.model = model; // refresh — model may vary between sessions
     existing.submitKey = submitKey;
     existing.lastSeen = now;
     existing.status = 'idle';
@@ -436,6 +455,7 @@ export function join(
     }, existing.projectId);
     emitToProject('chat:join', existing, existing.projectId);
     emitToProject('chat:message', msg, existing.projectId);
+    emitMembers(existing.projectId);
 
     if (paneId) startPanePromptWatcher(existing.name, existing.projectId, paneId);
     persistParticipantsForProject(existing.projectId);
@@ -450,6 +470,7 @@ export function join(
     kind,
     model,
     paneId,
+    paneNum: getPaneDisplayNumber(paneId),
     projectId: resolvedProjectId,
     submitKey,
     joinedAt: now,
@@ -471,6 +492,7 @@ export function join(
   }, participant.projectId);
   emitToProject('chat:join', participant, participant.projectId);
   emitToProject('chat:message', msg, participant.projectId);
+  emitMembers(participant.projectId);
 
   if (paneId) startPanePromptWatcher(uniqueName, participant.projectId, paneId);
   persistParticipantsForProject(participant.projectId);
@@ -500,7 +522,11 @@ export function leave(name: string, projectId?: string | null): boolean {
     }, pid);
     emitToProject('chat:leave', { name }, pid);
     emitToProject('chat:message', msg, pid);
+    emitMembers(pid);
     persistParticipantsForProject(pid);
+
+    // Fail-fast: cancel any running pipes this participant is in
+    failPipesForParticipant(name, pid, 'left');
   }
   return removed;
 }
@@ -517,6 +543,9 @@ export function detach(name: string, projectId?: string | null): boolean {
   stopPanePromptWatcher(participantKey(name, participant.projectId));
   bumpParticipantSessionEpoch(name, participant.projectId);
   emitMembers(participant.projectId);
+
+  // Fail-fast: cancel any running pipes this participant is in
+  failPipesForParticipant(name, participant.projectId, 'detached');
   return true;
 }
 
@@ -541,6 +570,10 @@ function disconnectParticipant(name: string, projectId: string | null, reason: s
   bumpParticipantSessionEpoch(name, projectId);
   emitMembers(projectId);
   persistParticipantsForProject(projectId);
+
+  // Fail-fast: cancel any running pipes this participant is in
+  const pipeReason = reason === 'pane closed' ? 'pane-closed' : 'detached';
+  failPipesForParticipant(name, projectId, pipeReason as 'left' | 'detached' | 'pane-closed');
 
   // Start auto-removal timer — if not reclaimed within timeout, fully remove
   const key = participantKey(name, projectId);
@@ -571,6 +604,21 @@ export async function send(from: string, body: string, to?: string, projectId?: 
   const senderProjectId = sender?.projectId ?? activeProjectId();
   const resolvedSenderProjectId = resolveProjectId(senderProjectId);
 
+  // ─── Pipe command detection (user-only) ────────────────────────────
+  if (from === 'user' && isPipeCommand(body)) {
+    return handlePipeCommand(body, resolvedSenderProjectId);
+  }
+
+  // ─── Pipe response detection (LLM-only, log-centric) ──────────────
+  let pipeMeta: PipeMessageMeta | undefined;
+  if (from !== 'system' && from !== 'user' && resolvedSenderProjectId) {
+    pipeMeta = detectPipeResponse(from, body, resolvedSenderProjectId);
+    // Ensure #pipe-{id} anchor is always in the stored body for searchability
+    if (pipeMeta && !body.includes(`#pipe-${pipeMeta.pipeId}`)) {
+      body = `#pipe-${pipeMeta.pipeId} ${body}`;
+    }
+  }
+
   // Resolve targets:
   // - User senders: explicit `to` takes priority, then body @mentions
   // - LLM senders: always extract @mentions from body (ignore `to` param)
@@ -591,6 +639,7 @@ export async function send(from: string, body: string, to?: string, projectId?: 
     to: targets.length === 1 ? targets[0] : targets.length > 1 ? targets.join(',') : null,
     body,
     type: 'message',
+    ...(pipeMeta ? { pipe: pipeMeta } : {}),
   }, resolvedSenderProjectId);
 
   // Emit to dashboard clients viewing this project only
@@ -602,6 +651,12 @@ export async function send(from: string, body: string, to?: string, projectId?: 
     if (p.name !== from && p.paneId && p.projectId === resolvedSenderProjectId) {
       await deliverToPty(p.name, resolvedSenderProjectId, msg);
     }
+  }
+
+  // ─── Pipe reducer: check if this message triggers next step ────────
+  if (pipeMeta) {
+    runPipeReducer(pipeMeta.pipeId, resolvedSenderProjectId)
+      .catch(err => console.error('[pipe] reducer failed:', err));
   }
 
   return msg;
@@ -728,4 +783,263 @@ export function onPaneClosed(paneId: string, projectId?: string | null): void {
       disconnectParticipant(p.name, p.projectId, 'pane closed');
     }
   }
+}
+
+
+// ── Pipe orchestration (log-centric reducer model) ───────────────────────────
+
+async function handlePipeCommand(body: string, projectId: string | null): Promise<ChatMessage> {
+  const parsed = parsePipeCommand(body);
+  if (isPipeParseError(parsed)) {
+    const userMsg = appendMessage({ from: 'user', to: null, body, type: 'message' }, projectId);
+    emitToProject('chat:message', userMsg, projectId);
+    const errorMsg = appendMessage({
+      from: 'system', to: null,
+      body: `Pipe error: ${parsed.error}`,
+      type: 'system',
+    }, projectId);
+    emitToProject('chat:message', errorMsg, projectId);
+    return userMsg;
+  }
+
+  // Store command (not PTY-delivered)
+  const userMsg = appendMessage({ from: 'user', to: null, body, type: 'message' }, projectId);
+  emitToProject('chat:message', userMsg, projectId);
+
+  // Validate all assignees are connected, live LLM participants
+  const invalid: string[] = [];
+  const reasons: string[] = [];
+  for (const a of parsed.assignees) {
+    const p = getParticipantExact(a, projectId);
+    if (!p) { invalid.push(a); reasons.push(`@${a} not found`); continue; }
+    if (p.kind !== 'llm') { invalid.push(a); reasons.push(`@${a} is not an LLM`); continue; }
+    if (p.detached) { invalid.push(a); reasons.push(`@${a} is detached`); continue; }
+    if (!p.paneId) { invalid.push(a); reasons.push(`@${a} has no pane`); continue; }
+  }
+  if (invalid.length > 0) {
+    const errorMsg = appendMessage({
+      from: 'system', to: null,
+      body: `Pipe error: invalid assignees (${reasons.join('; ')}). All assignees must be connected LLM participants with a live pane.`,
+      type: 'system',
+    }, projectId);
+    emitToProject('chat:message', errorMsg, projectId);
+    return userMsg;
+  }
+
+  // Write start message to log with pipe metadata
+  const pipeId = pipeReducer.generatePipeId();
+  const desc = pipeReducer.getStartDescription(parsed);
+
+  const startMsg = appendMessage({
+    from: 'system', to: null,
+    body: `#pipe-${pipeId} Pipe started (${parsed.mode}): ${desc}`,
+    type: 'system',
+    pipe: {
+      pipeId,
+      mode: parsed.mode,
+      role: 'start',
+      assignees: parsed.assignees,
+      prompt: parsed.prompt,
+    },
+  }, projectId);
+  emitToProject('chat:message', startMsg, projectId);
+  emitToProject('chat:pipe', { type: 'start', pipeId, mode: parsed.mode }, projectId);
+
+  // Run reducer to emit initial handoff/fan-out
+  await runPipeReducer(pipeId, projectId);
+
+  return userMsg;
+}
+
+/** Detect if an LLM message is a response to an active pipe.
+ *  Uses #pipe-{id} in the body as primary discriminator; falls back to
+ *  most-recently-prompted pipe if no explicit tag is present. */
+function detectPipeResponse(from: string, body: string, projectId: string | null): PipeMessageMeta | undefined {
+  const messages = readMessages({ limit: 10000 }, projectId);
+
+  // Collect all pipe IDs from log
+  const pipeIds = new Set<string>();
+  for (const msg of messages) {
+    if (msg.pipe?.pipeId) pipeIds.add(msg.pipe.pipeId);
+  }
+  if (pipeIds.size === 0) return undefined;
+
+  // Primary: check if body explicitly references #pipe-{id}
+  const explicitMatch = body.match(/#pipe-([a-f0-9]+)/);
+  if (explicitMatch && pipeIds.has(explicitMatch[1])) {
+    const state = pipeReducer.derivePipeState(messages, explicitMatch[1]);
+    if (state) {
+      const meta = pipeReducer.matchResponse(state, from);
+      if (meta) return meta;
+    }
+  }
+
+  // Fallback: find the most recently prompted pipe for this sender
+  // (scan messages in reverse to find last handoff/fan-out-request/synth-request targeting this sender)
+  let lastPromptedPipeId: string | undefined;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (!msg.pipe) continue;
+    const role = msg.pipe.role;
+    if (
+      msg.pipe.targetAssignee === from &&
+      (role === 'handoff' || role === 'fan-out-request' || role === 'synth-request')
+    ) {
+      lastPromptedPipeId = msg.pipe.pipeId;
+      break;
+    }
+  }
+
+  if (lastPromptedPipeId) {
+    const state = pipeReducer.derivePipeState(messages, lastPromptedPipeId);
+    if (state) {
+      const meta = pipeReducer.matchResponse(state, from);
+      if (meta) return meta;
+    }
+  }
+
+  return undefined;
+}
+
+/** Run the pipe reducer: scan log, compute next actions, execute them. */
+async function runPipeReducer(pipeId: string, projectId: string | null): Promise<void> {
+  const messages = readMessages({ limit: 10000 }, projectId);
+  const state = pipeReducer.derivePipeState(messages, pipeId);
+  if (!state) return;
+
+  // Check for completion
+  if (state.hasFinal) {
+    const completeMsg = appendMessage({
+      from: 'system', to: null,
+      body: `#pipe-${pipeId} Pipe completed.`,
+      type: 'system',
+    }, projectId);
+    emitToProject('chat:message', completeMsg, projectId);
+    emitToProject('chat:pipe', { type: 'complete', pipeId }, projectId);
+    return;
+  }
+
+  const actions = pipeReducer.computeNextActions(state);
+  for (const action of actions) {
+    // Store the delivery in log with pipe metadata
+    const deliveryMsg = appendMessage({
+      from: 'system',
+      to: action.targetAssignee,
+      body: action.body,
+      type: 'system',
+      pipe: action.pipe,
+    }, projectId);
+
+    // Emit status to dashboard
+    emitToProject('chat:message', deliveryMsg, projectId);
+
+    // PTY deliver only to the target assignee
+    const target = getParticipantExact(action.targetAssignee, projectId);
+    if (target?.paneId && !target.detached) {
+      await deliverToPty(action.targetAssignee, projectId, deliveryMsg);
+    }
+  }
+}
+
+/** Fail-fast: cancel running pipes when a participant becomes unavailable. */
+function failPipesForParticipant(
+  name: string,
+  projectId: string | null,
+  reason: 'left' | 'detached' | 'pane-closed',
+): void {
+  const messages = readMessages({ limit: 10000 }, projectId);
+  const activePipes = pipeReducer.findActivePipesForParticipant(messages, name);
+
+  for (const { pipeId } of activePipes) {
+    // Idempotency: re-derive state to check no failed/cancelled already exists
+    const state = pipeReducer.derivePipeState(
+      readMessages({ limit: 10000 }, projectId), pipeId,
+    );
+    if (!state || state.status !== 'running') continue;
+
+    // Append assignee-unavailable
+    appendMessage({
+      from: 'system', to: null,
+      body: `#pipe-${pipeId} @${name} became unavailable (${reason}).`,
+      type: 'system',
+      pipe: {
+        pipeId,
+        mode: state.mode,
+        role: 'assignee-unavailable',
+        targetAssignee: name,
+        reason,
+      },
+    }, projectId);
+
+    // Append failed
+    const failMsg = appendMessage({
+      from: 'system', to: null,
+      body: `#pipe-${pipeId} Pipe stopped: @${name} became unavailable.`,
+      type: 'system',
+      pipe: {
+        pipeId,
+        mode: state.mode,
+        role: 'failed',
+        reason,
+      },
+    }, projectId);
+    emitToProject('chat:message', failMsg, projectId);
+    emitToProject('chat:pipe', { type: 'failed', pipeId }, projectId);
+  }
+}
+
+/** Cancel a running pipe by user request. */
+export async function cancelPipeRun(pipeId: string, projectId?: string | null): Promise<boolean> {
+  const pid = resolveProjectId(projectId);
+  const messages = readMessages({ limit: 10000 }, pid);
+  const state = pipeReducer.derivePipeState(messages, pipeId);
+  if (!state || state.status !== 'running') return false;
+
+  const cancelMsg = appendMessage({
+    from: 'system', to: null,
+    body: `#pipe-${pipeId} Pipe cancelled.`,
+    type: 'system',
+    pipe: {
+      pipeId,
+      mode: state.mode,
+      role: 'cancelled',
+      reason: 'cancelled-by-user',
+    },
+  }, pid);
+  emitToProject('chat:message', cancelMsg, pid);
+  emitToProject('chat:pipe', { type: 'cancel', pipeId }, pid);
+  return true;
+}
+
+/** Get active pipes for a project (derived from log). */
+export function getActivePipes(projectId?: string | null): Array<{ pipeId: string; mode: string; status: string }> {
+  const pid = resolveProjectId(projectId);
+  const messages = readMessages({ limit: 10000 }, pid);
+  const pipeIds = new Set<string>();
+  for (const msg of messages) {
+    if (msg.pipe?.pipeId) pipeIds.add(msg.pipe.pipeId);
+  }
+
+  const result: Array<{ pipeId: string; mode: string; status: string }> = [];
+  for (const pipeId of pipeIds) {
+    const state = pipeReducer.derivePipeState(messages, pipeId);
+    if (state && state.status === 'running') {
+      result.push({ pipeId: state.pipeId, mode: state.mode, status: state.status });
+    }
+  }
+  return result;
+}
+
+/** Get a specific pipe's state (derived from log). */
+export function getPipeRun(pipeId: string, projectId?: string | null): { pipeId: string; mode: string; status: string; projectId: string | null } | undefined {
+  const pid = resolveProjectId(projectId);
+  const messages = readMessages({ limit: 10000 }, pid);
+  const state = pipeReducer.derivePipeState(messages, pipeId);
+  if (!state) return undefined;
+  return { pipeId: state.pipeId, mode: state.mode, status: state.status, projectId: pid };
+}
+
+/** No-op: pipes are now self-recovering from the chat log. */
+export function restorePipes(_projectId: string | null): string[] {
+  return [];
 }

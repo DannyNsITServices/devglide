@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import type { Namespace } from 'socket.io';
+import { execSync } from 'child_process';
+import { existsSync } from 'fs';
 import { z } from 'zod';
 import { asyncHandler, badRequest } from '../packages/error-middleware.js';
 import * as registry from '../apps/chat/services/chat-registry.js';
@@ -8,7 +10,10 @@ import * as store from '../apps/chat/services/chat-store.js';
 import { getEffectiveRules, getDefaultRules, saveProjectRules, deleteProjectRules, hasProjectRules } from '../apps/chat/services/chat-rules.js';
 import { getActiveProject, onProjectChange } from '../project-context.js';
 import { listProjects } from '../packages/project-store.js';
-import { globalPtys, dashboardState } from '../apps/shell/src/runtime/shell-state.js';
+import { globalPtys, dashboardState, nextPaneId, nextNumForProject, getShellNsp, MAX_PANES, panesForProject } from '../apps/shell/src/runtime/shell-state.js';
+import { spawnGlobalPty } from '../apps/shell/src/runtime/pty-manager.js';
+import { SHELL_CONFIGS } from '../apps/shell/src/runtime/shell-config.js';
+import type { PaneInfo } from '../apps/shell/src/shell-types.js';
 
 export { createChatMcpServer, chatServerSessions } from '../apps/chat/src/mcp.js';
 
@@ -509,6 +514,162 @@ router.delete('/messages', (_req: Request, res: Response) => {
   res.json({ ok: true });
 });
 
+// ── Pipe endpoints ───────────────────────────────────────────────────────────
+
+// GET /pipes — list active pipes for the current project
+router.get('/pipes', (_req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  res.json(registry.getActivePipes(projectId));
+});
+
+// GET /pipes/:id — get a specific pipe run (scoped to active project)
+router.get('/pipes/:id', (req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  const run = registry.getPipeRun(req.params.id, projectId);
+  if (!run) {
+    res.status(404).json({ error: 'Pipe not found' });
+    return;
+  }
+  res.json(run);
+});
+
+// POST /pipes/:id/cancel — cancel a running pipe (scoped to active project)
+router.post('/pipes/:id/cancel', asyncHandler(async (req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  const run = registry.getPipeRun(req.params.id, projectId);
+  if (!run) {
+    res.status(404).json({ error: 'Pipe not found or not running' });
+    return;
+  }
+  const cancelled = await registry.cancelPipeRun(req.params.id, projectId);
+  if (!cancelled) {
+    res.status(404).json({ error: 'Pipe not found or not running' });
+    return;
+  }
+  res.json({ ok: true, cancelled: req.params.id });
+}));
+
+// ── LLM invite endpoints ─────────────────────────────────────────────────────
+
+interface KnownLlm {
+  cli: string;
+  name: string;
+  icon: string;
+  /** Build the shell command to launch this CLI with a bootstrap prompt. */
+  launchCmd: (prompt: string) => string;
+}
+
+function shellEscape(s: string): string {
+  return "'" + s.replace(/'/g, "'\\''") + "'";
+}
+
+const KNOWN_LLMS: KnownLlm[] = [
+  { cli: 'claude',  name: 'Claude',  icon: '🟣', launchCmd: (p) => `claude ${shellEscape(p)}` },
+  { cli: 'codex',   name: 'Codex',   icon: '🟢', launchCmd: (p) => `codex ${shellEscape(p)}` },
+  { cli: 'gemini',  name: 'Gemini',  icon: '🔵', launchCmd: (p) => `gemini -i ${shellEscape(p)}` },
+  { cli: 'cursor',  name: 'Cursor',  icon: '⚪', launchCmd: (p) => `cursor-agent chat ${shellEscape(p)}` },
+];
+
+/** Binary to probe for each CLI (may differ from the display cli name). */
+const CLI_PROBE: Record<string, string> = {
+  cursor: 'cursor-agent',
+};
+
+let llmCache: { data: Array<{ cli: string; name: string; icon: string }>; ts: number } | null = null;
+const LLM_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function detectAvailableLlms(rescan = false): Array<{ cli: string; name: string; icon: string }> {
+  if (!rescan && llmCache && Date.now() - llmCache.ts < LLM_CACHE_TTL_MS) {
+    return llmCache.data;
+  }
+  const available: Array<{ cli: string; name: string; icon: string }> = [];
+  for (const llm of KNOWN_LLMS) {
+    const bin = CLI_PROBE[llm.cli] ?? llm.cli;
+    try {
+      execSync(`${bin} --version`, { stdio: 'pipe', timeout: 5000 });
+      available.push({ cli: llm.cli, name: llm.name, icon: llm.icon });
+    } catch {
+      // not installed
+    }
+  }
+  llmCache = { data: available, ts: Date.now() };
+  return available;
+}
+
+// GET /invite/available — list LLM CLIs detected on PATH (cached; ?rescan=true to force)
+router.get('/invite/available', (req: Request, res: Response) => {
+  const rescan = req.query.rescan === 'true' || req.query.rescan === '1';
+  res.json(detectAvailableLlms(rescan));
+});
+
+const inviteSchema = z.object({
+  cli: z.string().min(1),
+});
+
+// POST /invite — create a pane and launch an LLM CLI in it
+router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
+  const parsed = inviteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return badRequest(res, parsed.error.issues[0]?.message ?? 'cli is required');
+  }
+
+  const { cli } = parsed.data;
+  const llm = KNOWN_LLMS.find(l => l.cli === cli);
+  if (!llm) {
+    return badRequest(res, `Unknown LLM CLI: ${cli}`);
+  }
+
+  // Verify CLI is available
+  const bin = CLI_PROBE[cli] ?? cli;
+  try {
+    execSync(`${bin} --version`, { stdio: 'pipe', timeout: 5000 });
+  } catch {
+    return badRequest(res, `${bin} is not installed or not on PATH`);
+  }
+
+  const projectId = getActiveProject()?.id ?? null;
+  const project = getActiveProject();
+
+  // Enforce per-project pane limit
+  if (panesForProject(projectId) >= MAX_PANES) {
+    return badRequest(res, `Maximum pane limit (${MAX_PANES}) per project reached`);
+  }
+
+  // Invite panes need a POSIX shell for single-quote escaping.
+  // Resolve the best available bash: git-bash on Windows if present, then PATH bash.
+  const gitBashPath = SHELL_CONFIGS['git-bash']?.command;
+  const useGitBash = process.platform === 'win32' && gitBashPath && existsSync(gitBashPath);
+  const inviteShellType = useGitBash ? 'git-bash' : 'bash';
+  const config = SHELL_CONFIGS[inviteShellType];
+  const startCwd = project?.path ?? process.env.HOME ?? process.env.USERPROFILE ?? '/';
+
+  const paneId = nextPaneId();
+  const num = nextNumForProject(projectId);
+  const title = `${num}: ${cli}`;
+
+  spawnGlobalPty(paneId, config.command, config.args, { ...config.env, DEVGLIDE_PANE_ID: paneId }, 80, 24, true, false, startCwd);
+
+  const paneInfo: PaneInfo = { id: paneId, shellType: inviteShellType, title, num, cwd: startCwd, projectId };
+  dashboardState.panes.push(paneInfo);
+  getShellNsp()?.emit('state:pane-added', paneInfo);
+
+  // Wait for shell to initialize, then launch the LLM CLI with a chat_join bootstrap prompt
+  setTimeout(() => {
+    const entry = globalPtys.get(paneId);
+    if (!entry) return;
+
+    const bootstrap =
+      `Join the DevGlide chat room by calling chat_join with name="${cli}" and paneId="${paneId}". ` +
+      `After joining, follow the rules of engagement returned by chat_join.`;
+
+    // Use per-CLI launch template with proper shell escaping
+    const cmd = llm.launchCmd(bootstrap);
+    entry.ptyProcess.write(`${cmd}\r`);
+  }, 500);
+
+  res.status(201).json({ ok: true, paneId, cli: llm.cli, name: llm.name });
+}));
+
 // ── Socket.io initializer ────────────────────────────────────────────────────
 
 /** Join the Socket.io room for the given project. */
@@ -528,21 +689,26 @@ export function initChat(nsp: Namespace): void {
 
   // Restore participants from disk after server restart — per-project with scoped notifications
   const allProjects = listProjects().projects;
-  const projectResults: Array<{ projectId: string; restored: string[]; failed: string[] }> = [];
+  const projectResults: Array<{ projectId: string; restored: string[]; failed: string[]; interruptedPipes: string[] }> = [];
   for (const proj of allProjects) {
     const { restored, failed } = registry.restoreParticipants(proj.id);
-    if (restored.length > 0 || failed.length > 0) {
-      projectResults.push({ projectId: proj.id, restored, failed });
+    const interruptedPipes = registry.restorePipes(proj.id);
+    if (restored.length > 0 || failed.length > 0 || interruptedPipes.length > 0) {
+      projectResults.push({ projectId: proj.id, restored, failed, interruptedPipes });
     }
   }
   if (projectResults.length > 0) {
     // Emit per-project notifications after nsp is set so dashboard clients see them
     setTimeout(() => {
-      for (const { projectId, restored, failed } of projectResults) {
+      for (const { projectId, restored, failed, interruptedPipes } of projectResults) {
+        let body = 'Server restarted.';
+        if (restored.length > 0) body += ` Restored (awaiting reclaim): ${restored.join(', ')}.`;
+        if (failed.length > 0) body += ` Failed to restore: ${failed.join(', ')}.`;
+        if (interruptedPipes.length > 0) body += ` Interrupted pipes: ${interruptedPipes.map(id => `#${id}`).join(', ')}.`;
         const msg = store.appendMessage({
           from: 'system',
           to: null,
-          body: `Server restarted.${restored.length > 0 ? ` Restored (awaiting reclaim): ${restored.join(', ')}.` : ''}${failed.length > 0 ? ` Failed to restore: ${failed.join(', ')}.` : ''}`,
+          body,
           type: 'system',
         }, projectId);
         // Emit scoped to this project's room

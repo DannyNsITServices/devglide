@@ -5,6 +5,7 @@
 import { escapeHtml, escapeAttr, sanitizeHtml } from '/shared-assets/ui-utils.js';
 import { dashboardSocket } from '/state.js';
 import { createHeader } from '/shared-ui/components/header.js';
+import { getMentionMatches, getPipeAssigneeMatches } from './mention-suggestions.js';
 
 let _container = null;
 let _socket = null;
@@ -16,11 +17,23 @@ let _voiceHandler = null;
 let _rulesDraft = '';
 let _rulesLoaded = false;
 
-const DRAFT_KEY = 'devglide-chat-draft';
+// Pipe slash-command state
+const PIPE_COMMANDS = [
+  { name: '/linear-pipe', hint: 'min 2 assignees', description: 'Sequential processing chain' },
+  { name: '/merge-pipe', hint: 'min 3 assignees', description: 'Parallel fan-out + synthesizer' },
+];
+let _popupMode = 'none'; // 'none' | 'command' | 'mention'
+
+const DRAFT_KEY_PREFIX = 'devglide-chat-draft';
+let _projectId = null;
 let _markedReady = false;
 let _mermaidReady = false;
 let _mermaidFailed = false;
 let _mermaidIdCounter = 0;
+
+function draftKey(projectId) {
+  return projectId ? `${DRAFT_KEY_PREFIX}:${projectId}` : DRAFT_KEY_PREFIX;
+}
 
 function loadScript(src, globalName) {
   if (window[globalName]) return Promise.resolve();
@@ -256,16 +269,10 @@ const PANE_COLORS = new Map([
 ]);
 const DEFAULT_PARTICIPANT_COLOR = 'var(--df-color-text-muted)';
 
-function getPaneNumber(paneId) {
-  if (!paneId) return null;
-  const match = /^pane-(\d+)$/.exec(paneId);
-  if (!match) return null;
-  const paneNumber = Number(match[1]);
-  return Number.isInteger(paneNumber) && paneNumber >= 1 ? paneNumber : null;
-}
-
 function getParticipantColor(participant) {
-  const paneNumber = getPaneNumber(participant?.paneId);
+  // Use paneNum (per-project display number) from the server — this is the
+  // same number used to derive the participant name, keeping colors aligned.
+  const paneNumber = participant?.paneNum ?? null;
   return PANE_COLORS.get(paneNumber) ?? DEFAULT_PARTICIPANT_COLOR;
 }
 
@@ -304,7 +311,11 @@ const BODY_HTML = `
 
   <main>
     <div class="chat-members-panel" id="chat-members-panel">
-      <div class="chat-members-title" id="chat-members-title">Members (0)</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--df-space-2)">
+        <div class="chat-members-title" id="chat-members-title" style="margin-bottom:0">Members (0)</div>
+        <button class="btn btn-secondary btn-sm" id="chat-invite-btn" title="Invite LLM" style="padding:2px 8px;font-size:11px">+ Invite</button>
+      </div>
+      <div id="chat-invite-dropdown" class="hidden" style="margin-bottom:var(--df-space-2);border:1px solid var(--df-color-border-default);border-radius:var(--df-radius-md);background:var(--df-color-bg-base);padding:var(--df-space-1) 0"></div>
       <div id="chat-members-list"></div>
     </div>
 
@@ -356,6 +367,7 @@ function connectSocket() {
   _socket.on('chat:leave', onLeave);
   _socket.on('chat:message', onMessage);
   _socket.on('chat:cleared', onCleared);
+  _socket.on('chat:pipe', onPipeEvent);
 }
 
 function disconnectSocket() {
@@ -365,9 +377,15 @@ function disconnectSocket() {
     _socket.off('chat:leave', onLeave);
     _socket.off('chat:message', onMessage);
     _socket.off('chat:cleared', onCleared);
+    _socket.off('chat:pipe', onPipeEvent);
     // Don't disconnect — shared socket, other pages need it
     _socket = null;
   }
+}
+
+function onPipeEvent(event) {
+  // Pipe events are informational for now — the UI reacts to messages with pipe metadata.
+  // Future: could show a live pipe progress indicator in the header.
 }
 
 function onMembers(members) {
@@ -493,6 +511,10 @@ function appendMessageEl(msg, doScroll = true) {
   const listEl = _container?.querySelector('#chat-messages-list');
   if (!listEl) return;
 
+  // Hide pipe control delivery messages (handoff/fan-out/synth prompts) from normal chat view
+  const pipeRole = msg.pipe?.role;
+  if (pipeRole && msg.type === 'system' && ['handoff', 'fan-out-request', 'synth-request'].includes(pipeRole)) return;
+
   // Remove empty state if present
   const empty = listEl.querySelector('.chat-empty-state');
   if (empty) empty.remove();
@@ -514,14 +536,52 @@ function appendMessageEl(msg, doScroll = true) {
     time.textContent = formatTime(msg.ts);
     el.appendChild(body);
     el.appendChild(time);
+  } else if (pipeRole && pipeRole !== 'final' && ['stage-output', 'fan-out'].includes(pipeRole)) {
+    // ── Pipe intermediate: collapsed (expandable) ──
+    el.classList.add('from-llm', 'chat-pipe-intermediate');
+    const color = getParticipantColor(findParticipant(msg.from));
+    el.style.borderLeftColor = color;
+
+    const stageLabel = msg.pipe.stage ? ` stage ${msg.pipe.stage}` : '';
+    const collapsed = document.createElement('div');
+    collapsed.className = 'chat-pipe-collapsed';
+    collapsed.innerHTML = `<span class="chat-pipe-badge">#pipe-${escapeHtml(msg.pipe.pipeId)}${escapeHtml(stageLabel)}</span> <span style="color:${escapeAttr(color)}">${escapeHtml(msg.from)}</span> responded`;
+    collapsed.style.cursor = 'pointer';
+    collapsed.addEventListener('click', () => {
+      const expanded = el.querySelector('.chat-pipe-expanded');
+      if (expanded) expanded.classList.toggle('hidden');
+      collapsed.classList.toggle('chat-pipe-collapsed-open');
+    });
+
+    const expanded = document.createElement('div');
+    expanded.className = 'chat-pipe-expanded hidden';
+    const body = document.createElement('div');
+    body.className = 'chat-msg-body chat-markdown';
+    body.innerHTML = renderMarkdown(msg.body);
+    expanded.appendChild(body);
+
+    el.appendChild(collapsed);
+    el.appendChild(expanded);
   } else {
+    // ── Regular LLM message or pipe final ──
     el.classList.add('from-llm');
     const color = getParticipantColor(findParticipant(msg.from));
     el.style.borderLeftColor = color;
     const sender = document.createElement('div');
     sender.className = 'chat-msg-sender';
     sender.style.color = color;
-    sender.textContent = msg.from + (msg.to ? ` \u2192 ${msg.to}` : '');
+    let senderText = msg.from + (msg.to ? ` \u2192 ${msg.to}` : '');
+    sender.textContent = senderText;
+
+    // Add pipe result badge if final
+    if (pipeRole === 'final') {
+      const badge = document.createElement('span');
+      badge.className = 'chat-pipe-badge chat-pipe-badge-final';
+      badge.textContent = `#pipe-${msg.pipe.pipeId} result`;
+      sender.appendChild(document.createTextNode(' '));
+      sender.appendChild(badge);
+    }
+
     const body = document.createElement('div');
     body.className = 'chat-msg-body chat-markdown';
     body.innerHTML = renderMarkdown(msg.body);
@@ -671,7 +731,7 @@ function sendMessage() {
 
   input.value = '';
   autoResizeInput(input);
-  sessionStorage.removeItem(DRAFT_KEY);
+  sessionStorage.removeItem(draftKey(_projectId));
   closeMentionPopup();
   input.focus();
 
@@ -688,13 +748,36 @@ function onInputChange(e) {
   const cursorPos = input.selectionStart;
   const before = val.substring(0, cursorPos);
 
-  // Check for @mention
+  // ── Slash command autocomplete ──
+  // If input starts with '/' and no space yet, suggest pipe commands
+  const slashMatch = before.match(/^\/(\S*)$/);
+  if (slashMatch) {
+    const query = slashMatch[1].toLowerCase();
+    const matches = PIPE_COMMANDS.filter(c => c.name.substring(1).startsWith(query));
+    if (matches.length > 0) {
+      showCommandPopup(matches);
+      return;
+    }
+  }
+
+  // ── Pipe assignee autocomplete ──
+  // If inside a pipe command (before ':'), autocomplete @mentions for connected LLM members only
+  const pipeAssigneeMatch = before.match(/^\/(linear-pipe|merge-pipe)\s+[^:]*@(\w*)$/);
+  if (pipeAssigneeMatch) {
+    const query = pipeAssigneeMatch[2].toLowerCase();
+    const matches = getPipeAssigneeMatches(_members, query);
+    if (matches.length > 0) {
+      const atIdx = before.lastIndexOf('@');
+      showMentionPopup(matches, atIdx);
+      return;
+    }
+  }
+
+  // ── Regular @mention autocomplete ──
   const atMatch = before.match(/@(\w*)$/);
   if (atMatch) {
     const query = atMatch[1].toLowerCase();
-    const matches = _members
-      .filter(m => m.name !== 'user' && m.name.toLowerCase().startsWith(query))
-      .map(m => m.name);
+    const matches = getMentionMatches(_members, query);
 
     if (matches.length > 0) {
       showMentionPopup(matches, atMatch.index);
@@ -705,11 +788,42 @@ function onInputChange(e) {
   closeMentionPopup();
 }
 
+function showCommandPopup(commands) {
+  const popup = _container?.querySelector('#chat-mention-popup');
+  if (!popup) return;
+
+  _mentionIdx = 0;
+  _popupMode = 'command';
+  popup.innerHTML = '';
+  popup.classList.remove('hidden');
+
+  for (let i = 0; i < commands.length; i++) {
+    const item = document.createElement('div');
+    item.className = 'chat-mention-item' + (i === 0 ? ' selected' : '');
+    item.innerHTML = `<span style="font-weight:600">${escapeHtml(commands[i].name)}</span> <span style="opacity:0.5;font-size:11px">${escapeHtml(commands[i].hint)}</span>`;
+    item.dataset.command = commands[i].name;
+    item.addEventListener('click', () => insertCommand(commands[i].name));
+    popup.appendChild(item);
+  }
+}
+
+function insertCommand(command) {
+  const input = _container?.querySelector('#chat-input');
+  if (!input) return;
+  const afterCursor = input.value.substring(input.selectionStart);
+  input.value = command + ' ' + afterCursor;
+  const newPos = command.length + 1;
+  input.setSelectionRange(newPos, newPos);
+  closeMentionPopup();
+  input.focus();
+}
+
 function showMentionPopup(names, atIndex) {
   const popup = _container?.querySelector('#chat-mention-popup');
   if (!popup) return;
 
   _mentionIdx = 0;
+  _popupMode = 'mention';
   popup.innerHTML = '';
   popup.classList.remove('hidden');
 
@@ -730,6 +844,7 @@ function closeMentionPopup() {
     popup.innerHTML = '';
   }
   _mentionIdx = -1;
+  _popupMode = 'none';
 }
 
 function insertMention(name, atIndex) {
@@ -769,11 +884,16 @@ function onInputKeyDown(e) {
       e.preventDefault();
       const selected = items[_mentionIdx];
       if (selected) {
-        const input = _container?.querySelector('#chat-input');
-        const before = input.value.substring(0, input.selectionStart);
-        const atMatch = before.match(/@(\w*)$/);
-        if (atMatch) {
-          insertMention(selected.dataset.name, atMatch.index);
+        // Handle command popup vs mention popup
+        if (_popupMode === 'command' && selected.dataset.command) {
+          insertCommand(selected.dataset.command);
+        } else {
+          const input = _container?.querySelector('#chat-input');
+          const before = input.value.substring(0, input.selectionStart);
+          const atMatch = before.match(/@(\w*)$/);
+          if (atMatch) {
+            insertMention(selected.dataset.name, atMatch.index);
+          }
         }
       }
       return;
@@ -852,12 +972,88 @@ function bindEvents() {
 
   // New messages indicator click
   _container.querySelector('#chat-new-indicator')?.addEventListener('click', scrollToBottom);
+
+  // Invite LLM button
+  _container.querySelector('#chat-invite-btn')?.addEventListener('click', toggleInviteDropdown);
+}
+
+// ── Invite LLM ─────────────────────────────────────────────────────
+
+async function toggleInviteDropdown(rescan) {
+  rescan = rescan === true; // ignore MouseEvent passed by addEventListener
+  const dropdown = _container?.querySelector('#chat-invite-dropdown');
+  if (!dropdown) return;
+
+  if (!rescan && !dropdown.classList.contains('hidden')) {
+    dropdown.classList.add('hidden');
+    return;
+  }
+
+  dropdown.innerHTML = '<div style="padding:var(--df-space-2) var(--df-space-3);color:var(--df-color-text-muted);font-size:var(--df-font-size-xs)">Scanning PATH...</div>';
+  dropdown.classList.remove('hidden');
+
+  try {
+    const url = rescan ? '/invite/available?rescan=true' : '/invite/available';
+    const res = await api(url);
+    if (!res.ok) throw new Error('Failed to fetch');
+    const llms = await res.json();
+
+    dropdown.innerHTML = '';
+
+    if (llms.length === 0) {
+      dropdown.innerHTML = '<div style="padding:var(--df-space-2) var(--df-space-3);color:var(--df-color-text-muted);font-size:var(--df-font-size-xs)">No LLM CLIs found on PATH</div>';
+    } else {
+      for (const llm of llms) {
+        const item = document.createElement('div');
+        item.style.cssText = 'padding:var(--df-space-1) var(--df-space-3);cursor:pointer;font-size:var(--df-font-size-sm);display:flex;align-items:center;gap:var(--df-space-2)';
+        item.innerHTML = `<span>${escapeHtml(llm.icon)}</span><span>${escapeHtml(llm.name)}</span><span style="color:var(--df-color-text-muted);font-size:var(--df-font-size-xs)">${escapeHtml(llm.cli)}</span>`;
+        item.addEventListener('mouseenter', () => { item.style.background = 'var(--df-color-bg-raised)'; });
+        item.addEventListener('mouseleave', () => { item.style.background = ''; });
+        item.addEventListener('click', () => inviteLlm(llm.cli, llm.name));
+        dropdown.appendChild(item);
+      }
+    }
+
+    // Rescan footer
+    const footer = document.createElement('div');
+    footer.style.cssText = 'padding:var(--df-space-1) var(--df-space-3);border-top:1px solid var(--df-color-border-default);margin-top:var(--df-space-1);display:flex;align-items:center;justify-content:flex-end';
+    const rescanBtn = document.createElement('button');
+    rescanBtn.className = 'btn btn-secondary btn-sm';
+    rescanBtn.style.cssText = 'font-size:10px;padding:1px 6px';
+    rescanBtn.textContent = 'Rescan';
+    rescanBtn.title = 'Re-scan PATH for LLM CLIs';
+    rescanBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleInviteDropdown(true); });
+    footer.appendChild(rescanBtn);
+    dropdown.appendChild(footer);
+  } catch {
+    dropdown.innerHTML = '<div style="padding:var(--df-space-2) var(--df-space-3);color:var(--df-color-danger,#ef4444);font-size:var(--df-font-size-xs)">Failed to detect LLMs</div>';
+  }
+}
+
+async function inviteLlm(cli, name) {
+  const dropdown = _container?.querySelector('#chat-invite-dropdown');
+  if (dropdown) dropdown.classList.add('hidden');
+
+  try {
+    const res = await api('/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cli }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error('[chat] invite failed:', err.error || res.statusText);
+    }
+  } catch (err) {
+    console.error('[chat] invite error:', err);
+  }
 }
 
 // ── Exports ─────────────────────────────────────────────────────────
 
 export function mount(container, ctx) {
   _container = container;
+  _projectId = ctx?.project?.id || null;
   _messages = [];
   _members = [];
   _autoScroll = true;
@@ -897,8 +1093,8 @@ export function mount(container, ctx) {
   };
   document.addEventListener('voice:result', _voiceHandler);
 
-  // Restore draft text
-  const draft = sessionStorage.getItem(DRAFT_KEY);
+  // Restore draft text (scoped to current project)
+  const draft = sessionStorage.getItem(draftKey(_projectId));
   if (draft) {
     const input = container.querySelector('#chat-input');
     if (input) {
@@ -912,12 +1108,13 @@ export function mount(container, ctx) {
 }
 
 export function unmount(container) {
-  // Save draft text before teardown
+  // Save draft text before teardown (scoped to current project)
   const input = container.querySelector('#chat-input');
+  const key = draftKey(_projectId);
   if (input?.value) {
-    sessionStorage.setItem(DRAFT_KEY, input.value);
+    sessionStorage.setItem(key, input.value);
   } else {
-    sessionStorage.removeItem(DRAFT_KEY);
+    sessionStorage.removeItem(key);
   }
 
   if (_voiceHandler) {
@@ -929,6 +1126,7 @@ export function unmount(container) {
   container.classList.remove('page-chat', 'app-page');
   container.innerHTML = '';
   _container = null;
+  _projectId = null;
   _messages = [];
   _members = [];
   _rulesDraft = '';
@@ -939,12 +1137,28 @@ export function unmount(container) {
 }
 
 export function onProjectChange(project) {
+  // Save current project's draft before switching
+  const input = _container?.querySelector('#chat-input');
+  const oldKey = draftKey(_projectId);
+  if (input?.value) {
+    sessionStorage.setItem(oldKey, input.value);
+  } else {
+    sessionStorage.removeItem(oldKey);
+  }
+
+  _projectId = project?.id || null;
   _messages = [];
   _members = [];
   _rulesDraft = '';
   _rulesLoaded = false;
 
   if (_container) {
+    // Restore the new project's draft (or clear)
+    const newDraft = sessionStorage.getItem(draftKey(_projectId));
+    if (input) {
+      input.value = newDraft || '';
+      autoResizeInput(input);
+    }
     loadInitialData();
   }
 }

@@ -135,7 +135,7 @@ router.get('/browse', (req, res) => {
       .map(e => e.name)
       .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 
-    res.json({ path: target, dirs });
+    res.json({ path: target, dirs, home: homedir() });
   } catch {
     res.status(403).json({ error: 'Cannot read directory' });
   }
