@@ -1,10 +1,19 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { getActiveProject, setActiveProject, onProjectChange } from './project-context.js';
 import type { ActiveProject } from './project-context.js';
 
 describe('project-context', () => {
+  const unsubscribers: Array<() => void> = [];
+
   beforeEach(() => {
     setActiveProject(null);
+  });
+
+  afterEach(() => {
+    while (unsubscribers.length > 0) {
+      unsubscribers.pop()?.();
+    }
+    vi.restoreAllMocks();
   });
 
   describe('getActiveProject / setActiveProject', () => {
@@ -28,7 +37,7 @@ describe('project-context', () => {
   describe('onProjectChange', () => {
     it('notifies listeners on change', () => {
       const calls: (ActiveProject | null)[] = [];
-      onProjectChange((p) => calls.push(p));
+      unsubscribers.push(onProjectChange((p) => calls.push(p)));
 
       const project: ActiveProject = { id: 'p1', name: 'Test', path: '/tmp/test' };
       setActiveProject(project);
@@ -42,6 +51,7 @@ describe('project-context', () => {
     it('returns an unsubscribe function', () => {
       const calls: (ActiveProject | null)[] = [];
       const unsub = onProjectChange((p) => calls.push(p));
+      unsubscribers.push(unsub);
 
       setActiveProject({ id: 'p1', name: 'A', path: '/a' });
       unsub();
@@ -51,7 +61,8 @@ describe('project-context', () => {
     });
 
     it('does not throw if a listener throws', () => {
-      onProjectChange(() => { throw new Error('boom'); });
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      unsubscribers.push(onProjectChange(() => { throw new Error('boom'); }));
       expect(() => setActiveProject({ id: 'x', name: 'X', path: '/x' })).not.toThrow();
     });
   });

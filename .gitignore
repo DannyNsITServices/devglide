@@ -36,8 +36,8 @@ src/apps/voice/data/stats.json
 src/apps/voice/data/config.json
 src/apps/test/data/scenarios.json
 
-# Environment-specific project settings
-.claude/settings.json
+# Claude Code project state
+.claude/
 
 # Articles (drafts, images, exports)
 articles/
