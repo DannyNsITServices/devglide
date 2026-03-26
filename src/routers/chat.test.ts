@@ -141,6 +141,18 @@ describe('chat router rules of engagement', () => {
     registryMock.getParticipantByPaneId.mockReturnValue(null);
     registryMock.getPipeStoreStatus.mockReturnValue(null);
     registryMock.getPipeRun.mockReturnValue(null);
+    registryMock.join.mockImplementation((name: string, kind: string, paneId: string, model: string, submitKey: string, projectId: string | null, joinedVia: string) => ({
+      name: `${name}-1`,
+      kind,
+      model,
+      paneId,
+      projectId,
+      submitKey,
+      joinedAt: '2026-03-22T00:00:00.000Z',
+      lastSeen: '2026-03-22T00:00:00.000Z',
+      detached: false,
+      joinedVia,
+    }));
   });
 
   afterEach(() => {
@@ -335,6 +347,46 @@ describe('chat router rules of engagement', () => {
 
       // No system message — the existing session is undisturbed
       expect(storeMock.appendMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  it('allows the same identity to reclaim a REST-backed pane on join', async () => {
+    registryMock.listParticipants.mockReturnValue([
+      {
+        name: 'claude-1',
+        kind: 'llm',
+        model: 'claude',
+        paneId: 'pane-1',
+        projectId: 'project-1',
+        submitKey: '\r',
+        joinedAt: '2026-03-23T00:00:00.000Z',
+        lastSeen: '2026-03-23T00:00:00.000Z',
+        detached: false,
+        joinedVia: 'rest',
+      },
+    ]);
+    registryMock.join.mockReturnValue({
+      name: 'claude-1',
+      kind: 'llm',
+      model: 'claude',
+      paneId: 'pane-1',
+      projectId: 'project-1',
+      submitKey: '\r',
+      joinedAt: '2026-03-23T00:00:00.000Z',
+      lastSeen: '2026-03-23T00:00:00.000Z',
+      detached: false,
+      joinedVia: 'mcp',
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/join`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'claude', model: 'claude', paneId: 'pane-1' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect(registryMock.join).toHaveBeenCalledWith('claude', 'llm', 'pane-1', 'claude', '\r', 'project-1', 'rest');
     });
   });
 
@@ -570,6 +622,18 @@ describe('chat router invite permission modes', () => {
       throw new Error('not found');
     });
     existsSyncMock.mockReturnValue(false);
+    registryMock.join.mockImplementation((name: string, kind: string, paneId: string, model: string, submitKey: string, projectId: string | null, joinedVia: string) => ({
+      name: `${name}-1`,
+      kind,
+      model,
+      paneId,
+      projectId,
+      submitKey,
+      joinedAt: '2026-03-22T00:00:00.000Z',
+      lastSeen: '2026-03-22T00:00:00.000Z',
+      detached: false,
+      joinedVia,
+    }));
   });
 
   it('GET /invite/available returns modes per CLI', async () => {
@@ -689,8 +753,10 @@ describe('chat router invite permission modes', () => {
       );
       expect(pane).toBeDefined();
       expect(pane.llmCli).toBe('claude');
+      expect(data.chatParticipant).toBe('claude-1');
+      expect(registryMock.join).toHaveBeenCalledWith('claude', 'llm', data.paneId, 'claude', '\r', 'project-1', 'rest');
       expect(mockPtyWrite).toHaveBeenCalledTimes(1);
-      expect(mockPtyWrite.mock.calls[0][0]).toContain('chat_join');
+      expect(mockPtyWrite.mock.calls[0][0]).toContain('mcp__devglide-chat__chat_join');
     });
   });
 
@@ -746,7 +812,7 @@ describe('chat router invite permission modes', () => {
 
       expect(mockPtyWrite).toHaveBeenCalledTimes(1);
       expect(mockPtyWrite.mock.calls[0][0]).toContain('claude');
-      expect(mockPtyWrite.mock.calls[0][0]).toContain('chat_join');
+      expect(mockPtyWrite.mock.calls[0][0]).toContain('mcp__devglide-chat__chat_join');
       expect(mockPtyWrite.mock.calls[0][0]).toMatch(/\r$/);
     });
   });
@@ -779,7 +845,7 @@ describe('chat router invite permission modes', () => {
       // Buffer-hit: prompt was already in scrollback → immediate injection
       expect(mockPtyWrite).toHaveBeenCalledTimes(1);
       expect(mockPtyWrite.mock.calls[0][0]).toContain('claude');
-      expect(mockPtyWrite.mock.calls[0][0]).toContain('chat_join');
+      expect(mockPtyWrite.mock.calls[0][0]).toContain('mcp__devglide-chat__chat_join');
     });
   });
 
@@ -827,7 +893,7 @@ describe('chat router invite permission modes', () => {
 
       // Probe detected → launch command injected (second write call)
       const launchCall = mockPtyWrite.mock.calls.find(
-        (c: string[]) => c[0]?.includes('chat_join'),
+        (c: string[]) => c[0]?.includes('mcp__devglide-chat__chat_join'),
       );
       expect(launchCall).toBeDefined();
       expect(launchCall![0]).toContain('claude');
@@ -898,7 +964,7 @@ describe('chat router invite permission modes', () => {
       // Launch command should be injected exactly once (prompt wins the race,
       // exit is a no-op because settled is already true)
       expect(mockPtyWrite).toHaveBeenCalledTimes(1);
-      expect(mockPtyWrite.mock.calls[0][0]).toContain('chat_join');
+      expect(mockPtyWrite.mock.calls[0][0]).toContain('mcp__devglide-chat__chat_join');
     });
   });
 });

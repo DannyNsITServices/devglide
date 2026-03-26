@@ -20,7 +20,7 @@ const panePromptWatchers = new Map<string, { dispose: () => void }>();
 const PTY_SUBMIT_DELAY_MS = 1000;
 const PARTICIPANT_IDLE_TIMEOUT_MS = 30_000;
 const PROMPT_QUIESCENCE_MS = 2000;
-const PANE_DISCONNECT_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes before auto-removal
+const PANE_DISCONNECT_TIMEOUT_MS = 10_000; // 10 seconds before auto-removal
 
 const paneDisconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -558,6 +558,19 @@ export function detach(name: string, projectId?: string | null): boolean {
 
   // Fail-fast: cancel any running pipes this participant is in
   failPipesForParticipant(name, participant.projectId, 'detached');
+
+  // Start auto-removal timer — if not reclaimed within timeout, fully remove
+  const key = participantKey(name, participant.projectId);
+  const existing = paneDisconnectTimers.get(key);
+  if (existing) clearTimeout(existing);
+  paneDisconnectTimers.set(key, setTimeout(() => {
+    paneDisconnectTimers.delete(key);
+    const p = getParticipantExact(name, participant.projectId);
+    if (p && p.detached) {
+      leave(name, participant.projectId);
+    }
+  }, PANE_DISCONNECT_TIMEOUT_MS));
+
   return true;
 }
 

@@ -257,6 +257,8 @@ function fallbackAllMermaidBlocks() {
 // ── Participant colors ──────────────────────────────────────────────
 // Distinct hues keyed by visible pane number so participant colors stay
 // stable across refreshes and independent of join order.
+// Panes 1–9 use hand-picked colors; higher pane numbers get a generated
+// HSL color via golden-angle spacing (~137.5°) for maximum hue separation.
 
 const PANE_COLORS = new Map([
   [1, '#60a5fa'], // blue
@@ -271,11 +273,15 @@ const PANE_COLORS = new Map([
 ]);
 const DEFAULT_PARTICIPANT_COLOR = 'var(--df-color-text-muted)';
 
+function getGeneratedParticipantColor(paneNumber) {
+  const hue = (paneNumber * 137.508) % 360;
+  return `hsl(${hue}, 70%, 65%)`;
+}
+
 function getParticipantColor(participant) {
-  // Use paneNum (per-project display number) from the server — this is the
-  // same number used to derive the participant name, keeping colors aligned.
   const paneNumber = participant?.paneNum ?? null;
-  return PANE_COLORS.get(paneNumber) ?? DEFAULT_PARTICIPANT_COLOR;
+  if (!paneNumber) return DEFAULT_PARTICIPANT_COLOR;
+  return PANE_COLORS.get(paneNumber) ?? getGeneratedParticipantColor(paneNumber);
 }
 
 function findParticipant(name) {
@@ -408,8 +414,8 @@ const BODY_HTML = `
     brand: 'Chat',
     meta: '<span id="chat-member-count"></span>',
     actions: `
-      <button class="btn btn-secondary btn-sm" id="chat-btn-rules">Rules</button>
-      <button class="btn btn-secondary btn-sm" id="chat-btn-clear">Clear</button>
+      <button class="btn btn-primary" id="chat-btn-rules">Rules</button>
+      <button class="btn btn-primary" id="chat-btn-clear">Clear</button>
     `,
   })}
 
@@ -1046,7 +1052,7 @@ async function loadInitialData() {
       _messages = await messagesRes.json();
     }
     if (membersRes.ok) {
-      _members = await membersRes.json();
+      _members = (await membersRes.json()).map(m => m.kind === 'llm' ? { ...m, status: 'idle' } : m);
     }
     renderMembers();
     renderAllMessages();

@@ -41,3 +41,7 @@ src/apps/test/data/scenarios.json
 
 # Articles (drafts, images, exports)
 articles/
+
+# Local dev scripts
+reinstall.sh
+reinstall.cmd

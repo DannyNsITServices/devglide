@@ -45,6 +45,7 @@ const TERMINAL_THEME = {
 const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 const isMobile = () => window.innerWidth <= 640;
 const isMobileDevice = 'ontouchstart' in window;
+const MAX_PROJECT_PANES = 9;
 
 function makeLabel(num, folder) {
   return folder ? `${num}: ${folder}` : `${num}`;
@@ -116,7 +117,7 @@ const BODY_HTML = `
     meta: '<span class="pane-count" data-ref="paneCount">0 panes</span><div class="mobile-actions" data-ref="mobileActions"><button class="mobile-action-btn" data-action="new-terminal" title="New Terminal">&gt;_</button><button class="mobile-action-btn" data-action="new-browser" title="New Browser">&#x25A1;</button></div>',
     actions: `
       <div class="shell-agent-toolbar">
-        <button class="btn btn-secondary btn-sm shell-agent-btn" type="button" data-ref="launchAgentBtn">Launch Agent</button>
+        <button class="btn btn-primary shell-agent-btn" type="button" data-ref="launchAgentBtn">Launch Agent</button>
         <div class="shell-agent-dropdown hidden" data-ref="agentDropdown"></div>
       </div>
     `,
@@ -150,9 +151,18 @@ function getRefs(container) {
 }
 
 function updatePaneCount(refs) {
-  if (!refs.paneCount) return;
   const visible = [...panes.values()].filter(p => !p.element.classList.contains('project-hidden')).length;
-  refs.paneCount.textContent = `${visible} pane${visible !== 1 ? 's' : ''}`;
+  if (refs.paneCount) {
+    refs.paneCount.textContent = `${visible} pane${visible !== 1 ? 's' : ''}`;
+  }
+  if (refs.launchAgentBtn) {
+    const atLimit = visible >= MAX_PROJECT_PANES;
+    refs.launchAgentBtn.disabled = atLimit;
+    refs.launchAgentBtn.dataset.shellTooltip = atLimit
+      ? `Maximum pane limit (${MAX_PROJECT_PANES}) per project reached`
+      : '';
+    if (atLimit) refs.agentDropdown?.classList.add('hidden');
+  }
 }
 
 // ── Custom tooltip (matches DevGlide style guide) ───────────────────

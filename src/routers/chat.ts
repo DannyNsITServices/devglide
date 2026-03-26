@@ -180,7 +180,11 @@ interface PaneResolutionResult {
   };
 }
 
-function resolvePane(suppliedPaneId: string | null | undefined, projectId: string | null): PaneResolutionResult {
+function resolvePane(
+  suppliedPaneId: string | null | undefined,
+  projectId: string | null,
+  claimantNameBase?: string,
+): PaneResolutionResult {
   const routablePanes = getRoutablePanes(projectId);
   const unclaimedPanes = routablePanes.filter(p => !p.claimed);
 
@@ -257,7 +261,9 @@ function resolvePane(suppliedPaneId: string | null | undefined, projectId: strin
       const claimerParticipants = registry.listParticipants(claimerProject);
       const claimer = claimerParticipants.find(p => p.name === claimedBy.claimedBy);
       const isReclaim = claimer?.detached;
-      if (!isReclaim) {
+      const sameIdentity = !!claimantNameBase
+        && (claimedBy.claimedBy === claimantNameBase || claimedBy.claimedBy.startsWith(`${claimantNameBase}-`));
+      if (!isReclaim && !sameIdentity) {
         return {
           resolved: false,
           diagnostics: {
@@ -444,7 +450,7 @@ router.post('/join', (req: Request, res: Response) => {
   }
 
   const projectId = getActiveProject()?.id ?? null;
-  const resolution = resolvePane(paneId, projectId);
+  const resolution = resolvePane(paneId, projectId, normalizeLlmIdentityBase(name, model ?? null));
 
   // Handle pane collision — if the pane is claimed by another LLM, preserve
   // the existing session and reject the newcomer with 409.
@@ -729,9 +735,18 @@ interface AvailableLlm {
   modes: PermissionMode[];
 }
 
-function buildChatJoinPrompt(cli: string, paneId: string): string {
-  return `Join the DevGlide chat room by calling chat_join with name="${cli}" and paneId="${paneId}". `
-    + 'After joining, follow the rules of engagement returned by chat_join.';
+function normalizeLlmIdentityBase(hint: string, model: string | null = null): string {
+  return (hint || model || 'agent').toLowerCase().replace(/[^a-z0-9-]/g, '');
+}
+
+function buildChatJoinPrompt(cli: string, paneId: string, joinedName: string): string {
+  return `You are already registered in the DevGlide chat room via a REST fallback as "${joinedName}" on pane "${paneId}". `
+    + 'Use the exact MCP server/tool name `devglide-chat` / `mcp__devglide-chat__chat_join` if it is available, '
+    + `and call it with name="${cli}" and paneId="${paneId}" to unify this MCP session and read the rules of engagement. `
+    + 'If `mcp__devglide-chat__chat_join` is not available yet, stay on the existing REST-backed chat session for this pane. '
+    + `When the chat MCP tools appear, use \`chat_send(..., paneId="${paneId}")\`, \`chat_leave(paneId="${paneId}")\`, `
+    + `or \`pipe_submit(..., paneId="${paneId}")\` to adopt that session. `
+    + 'After you have the rules of engagement, follow them exactly.';
 }
 
 function detectAvailableLlms(rescan = false): AvailableLlm[] {
@@ -893,8 +908,6 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
   const config = SHELL_CONFIGS[inviteShellType];
   const startCwd = project?.path ?? process.env.HOME ?? process.env.USERPROFILE ?? '/';
   const paneId = nextPaneId();
-  const bootstrap = buildChatJoinPrompt(cli, paneId);
-  const inviteCmd = llm.launchCmd(bootstrap, mode);
   // Spawn an interactive login shell — command injection happens AFTER readiness detection
   const shellArgs = [...config.args, '-li'];
 
@@ -932,6 +945,12 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
   dashboardState.panes.push(paneInfo);
   getShellNsp()?.emit('state:pane-added', paneInfo);
 
+  // Pre-register the invited pane in chat so the room can address it even if
+  // the client starts with `chat_join` missing from the deferred tool list.
+  const fallbackParticipant = registry.join(cli, 'llm', paneId, cli, '\r', projectId, 'rest');
+  const bootstrap = buildChatJoinPrompt(cli, paneId, fallbackParticipant.name);
+  const inviteCmd = llm.launchCmd(bootstrap, mode);
+
   // Wait for the shell to be ready, then inject the LLM launch command.
   // This replaces the old `sleep 0.5` with proper readiness detection.
   // Invite panes are always fresh, so scanning full scrollback is safe.
@@ -942,7 +961,14 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
     entry.ptyProcess.write(`${inviteCmd}\r`);
   });
 
-  res.status(201).json({ ok: true, paneId, cli: llm.cli, name: llm.name, mode });
+  res.status(201).json({
+    ok: true,
+    paneId,
+    cli: llm.cli,
+    name: llm.name,
+    mode,
+    chatParticipant: fallbackParticipant.name,
+  });
 }));
 
 // ── Socket.io initializer ────────────────────────────────────────────────────
