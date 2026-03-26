@@ -249,7 +249,7 @@ function stopPanePromptWatcher(key: string): void {
 // ── Participant persistence ──────────────────────────────────────────────────
 
 /** Persist current LLM participants to disk for a given project. */
-function persistParticipantsForProject(projectId: string | null): void {
+export function persistParticipantsForProject(projectId: string | null): void {
   if (!projectId) return;
   const llmParticipants: PersistedParticipant[] = [];
   for (const p of participants.values()) {
@@ -262,6 +262,7 @@ function persistParticipantsForProject(projectId: string | null): void {
       submitKey: p.submitKey,
       joinedAt: p.joinedAt,
       lastSeen: p.lastSeen,
+      joinedVia: p.joinedVia,
       permissionMode: p.permissionMode,
     });
   }
@@ -309,6 +310,7 @@ export function restoreParticipants(projectId: string | null): { restored: strin
       lastSeen: new Date().toISOString(),
       detached: true, // detached until the MCP session reclaims
       status: 'idle',
+      joinedVia: p.joinedVia ?? null,
       permissionMode: p.permissionMode ?? paneInfo?.permissionMode ?? 'supervised',
     };
     participants.set(key, participant);
@@ -425,6 +427,7 @@ export function join(
   model: string | null = null,
   submitKey: string = '\r',
   projectId?: string | null,
+  joinedVia?: 'rest' | 'mcp' | null,
 ): ChatParticipant {
   const now = new Date().toISOString();
   const resolvedProjectId = resolveProjectId(projectId);
@@ -441,6 +444,7 @@ export function join(
     existing.submitKey = submitKey;
     existing.lastSeen = now;
     existing.status = 'idle';
+    existing.joinedVia = joinedVia ?? existing.joinedVia ?? null;
     const reclaimPane = paneId ? dashboardState.panes.find(p => p.id === paneId) : null;
     existing.permissionMode = reclaimPane?.permissionMode ?? existing.permissionMode ?? 'supervised';
     clearParticipantStatusTimer(existing.name, resolvedProjectId);
@@ -483,6 +487,7 @@ export function join(
     lastSeen: now,
     status: kind === 'llm' ? 'idle' : undefined,
     detached: false,
+    joinedVia: joinedVia ?? null,
     permissionMode: paneInfo?.permissionMode ?? 'supervised',
   };
   participants.set(participantKey(uniqueName, resolvedProjectId), participant);

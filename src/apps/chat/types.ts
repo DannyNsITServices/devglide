@@ -51,6 +51,7 @@ export interface ChatParticipant {
   joinedAt: string;
   lastSeen: string;
   detached: boolean;     // true when MCP session closed but pane is still alive — awaiting reclaim
+  joinedVia?: 'rest' | 'mcp' | null; // how the participant joined — 'rest' for direct REST call, 'mcp' for MCP tool
   clientId?: string;     // optional stable identity for future strong-reclaim support
   permissionMode?: 'supervised' | 'auto-accept' | 'unrestricted' | null; // permission mode the LLM was launched with
 }

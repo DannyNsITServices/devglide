@@ -182,7 +182,7 @@ describe('chat router rules of engagement', () => {
         paneId: 'pane-1',
         rules: '## Rules\n\nOnly reply when asked.',
       });
-      expect(registryMock.join).toHaveBeenCalledWith('codex', 'llm', 'pane-1', 'codex', '\r', 'project-1');
+      expect(registryMock.join).toHaveBeenCalledWith('codex', 'llm', 'pane-1', 'codex', '\r', 'project-1', 'rest');
     });
   });
 
@@ -240,7 +240,7 @@ describe('chat router rules of engagement', () => {
       });
 
       expect(response.status).toBe(201);
-      expect(registryMock.join).toHaveBeenCalledWith('codex', 'llm', 'pane-1', 'codex', '\r', 'project-1');
+      expect(registryMock.join).toHaveBeenCalledWith('codex', 'llm', 'pane-1', 'codex', '\r', 'project-1', 'rest');
     });
   });
 

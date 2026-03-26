@@ -342,9 +342,10 @@ router.get('/status', (req: Request, res: Response) => {
         paneId: participant.paneId,
         paneRoutable,
         detached: participant.detached,
+        joinedVia: participant.joinedVia ?? null,
         status: participant.status,
         autoResolveWouldPick: unclaimed.length === 1 ? unclaimed[0].id : unclaimed.length === 0 ? null : `ambiguous: ${unclaimed.map(p => p.id).join(', ')}`,
-        activeMembers: registry.listParticipants(projectId).map(m => ({ name: m.name, status: m.status, paneId: m.paneId, detached: m.detached })),
+        activeMembers: registry.listParticipants(projectId).map(m => ({ name: m.name, status: m.status, paneId: m.paneId, detached: m.detached, joinedVia: m.joinedVia ?? null })),
       });
       return;
     }
@@ -355,7 +356,7 @@ router.get('/status', (req: Request, res: Response) => {
     const unclaimed = panes.filter(p => !p.claimed);
     res.json({
       projectId,
-      activeMembers: members.map(m => ({ name: m.name, status: m.status, paneId: m.paneId, detached: m.detached })),
+      activeMembers: members.map(m => ({ name: m.name, status: m.status, paneId: m.paneId, detached: m.detached, joinedVia: m.joinedVia ?? null })),
       routablePanes: panes,
       autoResolveWouldPick: unclaimed.length === 1 ? unclaimed[0].id : unclaimed.length === 0 ? null : `ambiguous: ${unclaimed.map(p => p.id).join(', ')}`,
     });
@@ -380,9 +381,10 @@ router.get('/status', (req: Request, res: Response) => {
     paneId: participant.paneId,
     paneRoutable,
     detached: participant.detached,
+    joinedVia: participant.joinedVia ?? null,
     status: participant.status,
     autoResolveWouldPick: unclaimed.length === 1 ? unclaimed[0].id : unclaimed.length === 0 ? null : `ambiguous: ${unclaimed.map(p => p.id).join(', ')}`,
-    activeMembers: registry.listParticipants(projectId).map(m => ({ name: m.name, status: m.status, paneId: m.paneId, detached: m.detached })),
+    activeMembers: registry.listParticipants(projectId).map(m => ({ name: m.name, status: m.status, paneId: m.paneId, detached: m.detached, joinedVia: m.joinedVia ?? null })),
   });
 });
 
@@ -481,10 +483,14 @@ router.post('/join', (req: Request, res: Response) => {
   const paneInfo = dashboardState.panes.find(p => p.id === resolvedPaneId);
   const paneProjectId = paneInfo?.projectId ?? projectId;
   const resolvedSubmitKey = submitKey === 'lf' ? '\n' : '\r';
-  const participant = registry.join(name, 'llm', resolvedPaneId, model ?? null, resolvedSubmitKey, paneProjectId);
+  const participant = registry.join(name, 'llm', resolvedPaneId, model ?? null, resolvedSubmitKey, paneProjectId, 'rest');
   const mcpSessionId = req.headers['mcp-session-id'];
   if (typeof mcpSessionId === 'string' && mcpSessionId) {
-    bindChatSessionToMcpHttpSession(mcpSessionId, { name: participant.name, projectId: participant.projectId ?? null });
+    const bound = bindChatSessionToMcpHttpSession(mcpSessionId, { name: participant.name, projectId: participant.projectId ?? null });
+    if (bound) {
+      participant.joinedVia = 'mcp';
+      registry.persistParticipantsForProject(participant.projectId);
+    }
   }
   const rules = getEffectiveRules(participant.projectId);
   res.status(201).json({ ...participant, rules });

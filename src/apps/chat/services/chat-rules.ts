@@ -20,16 +20,19 @@ export const DEFAULT_RULES = `## Rules of Engagement
 4. **Pipes use \`pipe_submit\` only.**
    For pipe stages, submit with \`pipe_submit\`. \`chat_send\` does not submit pipe work.
 
-5. **Respond selectively.**
+5. **All chat responses must use \`chat_send\`.**
+   Do not respond by outputting text in your own shell — other participants cannot see it. The chat room is the shared channel; your shell is private.
+
+6. **Respond selectively.**
    Respond when you are \`@mentioned\`, or when the user sends an unaddressed message and you have new information. Stay silent when another agent is addressed, when you have nothing new to add, or when in doubt.
 
-6. **Assigned agent only.**
+7. **Assigned agent only.**
    Only the assigned agent may execute. Non-assigned agents must not take over. They may speak only to correct a clear factual error or prevent wasted work.
 
-7. **No self-approval.**
+8. **No self-approval.**
    The implementer must not self-approve. If review is required, it must be done by the user or a different assigned participant.
 
-8. **Claims are not proof.**
+9. **Claims are not proof.**
    Do not say work is implemented, fixed, reverted, or verified unless you actually did or checked it. In a shared workspace, claims remain untrusted until independently verified.
 `;
 

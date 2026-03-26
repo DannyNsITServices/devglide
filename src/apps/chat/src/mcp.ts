@@ -27,9 +27,9 @@ interface ChatStatusPayload {
 }
 
 /** POST/GET helper for the unified server's chat REST API. */
-async function chatApi(path: string, body?: unknown): Promise<{ ok: boolean; status: number; data: unknown }> {
+async function chatApi(path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<{ ok: boolean; status: number; data: unknown }> {
   const opts: RequestInit = {
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...extraHeaders },
   };
   if (body !== undefined) {
     opts.method = 'POST';
@@ -38,6 +38,14 @@ async function chatApi(path: string, body?: unknown): Promise<{ ok: boolean; sta
   const res = await fetch(`${UNIFIED_BASE}/api/chat${path}`, opts);
   const data = await res.json();
   return { ok: res.ok, status: res.status, data };
+}
+
+/** Reverse-lookup: find the MCP session ID for a given server instance. */
+function getMcpSessionId(server: McpServer): string | undefined {
+  for (const [id, s] of chatMcpServersBySessionId) {
+    if (s === server) return id;
+  }
+  return undefined;
 }
 
 function getServerState(server: McpServer): ChatMcpServerState {
@@ -263,7 +271,9 @@ export function createChatMcpServer(): McpServer {
       try {
         const sessionCheck = await ensureSessionCanJoin();
         if (sessionCheck.ok === false) return sessionCheck.result;
-        const res = await chatApi('/join', { name, model: model ?? null, paneId, submitKey: submitKey ?? undefined });
+        const mcpSid = getMcpSessionId(server);
+        const joinHeaders = mcpSid ? { 'mcp-session-id': mcpSid } : undefined;
+        const res = await chatApi('/join', { name, model: model ?? null, paneId, submitKey: submitKey ?? undefined }, joinHeaders);
         if (!res.ok) {
           const data = res.data as { error?: string; diagnostics?: unknown };
           const errMsg = data?.error ?? 'Join failed';

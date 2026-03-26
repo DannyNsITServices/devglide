@@ -115,6 +115,7 @@ export interface PersistedParticipant {
   submitKey: string;
   joinedAt: string;
   lastSeen: string;
+  joinedVia?: 'rest' | 'mcp' | null;
   permissionMode?: 'supervised' | 'auto-accept' | 'unrestricted' | null;
 }
 
