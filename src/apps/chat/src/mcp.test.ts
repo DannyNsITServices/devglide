@@ -188,4 +188,64 @@ describe('chat MCP session ownership', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(chatServerSessions.get(server as never)).toEqual([{ name: 'beta-2', projectId: 'project-1' }]);
   });
+
+  it('adopts an existing REST-joined participant by paneId before sending', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(mockJsonResponse(true, 200, {
+        joined: true,
+        name: 'alpha-1',
+        paneId: 'pane-1',
+        detached: false,
+        projectId: 'project-1',
+      }))
+      .mockResolvedValueOnce(mockJsonResponse(true, 201, { id: 'msg-1' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { createChatMcpServer, chatServerSessions } = await import('./mcp.js');
+    const server = createChatMcpServer();
+    const chatSend = registeredTools.get('chat_send');
+    expect(chatSend).toBeTypeOf('function');
+
+    const result = await chatSend!({ message: 'hello', paneId: 'pane-1' });
+
+    expect(result.isError).not.toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0]![0])).toContain('/api/chat/status?paneId=pane-1');
+    expect(String(fetchMock.mock.calls[1]![0])).toContain('/api/chat/send');
+    expect(JSON.parse(String(fetchMock.mock.calls[1]![1]?.body))).toMatchObject({
+      from: 'alpha-1',
+      projectId: 'project-1',
+      message: 'hello',
+    });
+    expect(chatServerSessions.get(server as never)).toEqual([{ name: 'alpha-1', projectId: 'project-1' }]);
+  });
+
+  it('adopts an existing REST-joined participant by paneId before pipe submit', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(mockJsonResponse(true, 200, {
+        joined: true,
+        name: 'alpha-1',
+        paneId: 'pane-1',
+        detached: false,
+        projectId: 'project-1',
+      }))
+      .mockResolvedValueOnce(mockJsonResponse(true, 201, { ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { createChatMcpServer } = await import('./mcp.js');
+    createChatMcpServer();
+    const pipeSubmit = registeredTools.get('pipe_submit');
+    expect(pipeSubmit).toBeTypeOf('function');
+
+    const result = await pipeSubmit!({ pipeId: '#pipe-abc123', content: 'artifact', paneId: 'pane-1' });
+
+    expect(result.isError).not.toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1]![0])).toContain('/api/chat/pipes/abc123/submit');
+    expect(JSON.parse(String(fetchMock.mock.calls[1]![1]?.body))).toMatchObject({
+      from: 'alpha-1',
+      projectId: 'project-1',
+      content: 'artifact',
+    });
+  });
 });

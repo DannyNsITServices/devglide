@@ -8,6 +8,130 @@
   color: var(--df-color-text-muted);
 }
 
+.page-shell .shell-agent-toolbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+}
+
+.page-shell .shell-agent-btn[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.page-shell .shell-agent-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  border: 1px solid var(--df-color-border-default);
+  border-radius: var(--df-radius-md);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--df-color-bg-surface) 94%, transparent), color-mix(in srgb, var(--df-color-bg-base) 98%, transparent));
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  z-index: 20;
+}
+
+.page-shell .shell-agent-dropdown.hidden {
+  display: none;
+}
+
+.page-shell .shell-agent-state {
+  padding: var(--df-space-2) var(--df-space-3);
+  color: var(--df-color-text-muted);
+  font-size: var(--df-font-size-xs);
+}
+
+.page-shell .shell-agent-state-error {
+  color: var(--df-color-state-error);
+}
+
+.page-shell .shell-agent-item {
+  display: flex;
+  align-items: center;
+  gap: var(--df-space-2);
+  padding: var(--df-space-2) var(--df-space-3);
+}
+
+.page-shell .shell-agent-item + .shell-agent-item {
+  border-top: 1px solid color-mix(in srgb, var(--df-color-border-default) 72%, transparent);
+}
+
+.page-shell .shell-agent-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--df-color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.page-shell .shell-agent-modes {
+  display: flex;
+  gap: var(--df-space-1);
+}
+
+.page-shell .shell-agent-mode {
+  border: 1px solid var(--df-color-border-default);
+  background: transparent;
+  color: var(--df-color-text-secondary);
+  font: inherit;
+  font-size: var(--df-font-size-xs);
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: background var(--df-duration-fast), border-color var(--df-duration-fast), color var(--df-duration-fast);
+}
+
+.page-shell .shell-agent-mode:hover {
+  background: var(--df-color-bg-raised);
+  border-color: var(--df-color-accent-default);
+  color: var(--df-color-text-primary);
+}
+
+.page-shell .shell-agent-mode.supervised {
+  color: var(--df-color-state-success);
+}
+
+.page-shell .shell-agent-mode.auto-accept {
+  color: var(--df-color-state-warning);
+}
+
+.page-shell .shell-agent-mode.unrestricted {
+  color: var(--df-color-state-error);
+}
+
+.page-shell .shell-agent-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--df-space-2) var(--df-space-3);
+  border-top: 1px solid var(--df-color-border-default);
+  background: color-mix(in srgb, var(--df-color-bg-base) 72%, transparent);
+}
+
+/* ── Tooltip (matches DevGlide style guide) ──────────────────────── */
+.shell-tooltip {
+  position: fixed;
+  z-index: var(--df-z-index-toast);
+  max-width: 320px;
+  padding: var(--df-space-1) var(--df-space-2);
+  font-size: var(--df-font-size-xs);
+  line-height: 1.4;
+  color: var(--df-color-text-primary);
+  background: var(--df-color-bg-raised);
+  border: 1px solid var(--df-color-border-default);
+  border-radius: var(--df-radius-sm);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.shell-tooltip.hidden {
+  display: none;
+}
+
 /* ── Tab bar ──────────────────────────────────────────────────────── */
 .page-shell .shell-tab-bar {
   display: flex;

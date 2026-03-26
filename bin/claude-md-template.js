@@ -1,7 +1,7 @@
 // Managed CLAUDE.md section for DevGlide onboarding instructions.
 // Installed by `devglide setup`, removed by `devglide teardown`.
 
-const VERSION = "0.5.0";
+const VERSION = "0.6.0";
 const BEGIN = `<!-- DEVGLIDE:BEGIN v${VERSION} -->`;
 const END = "<!-- DEVGLIDE:END -->";
 
@@ -106,7 +106,9 @@ Messages are delivered to LLMs via PTY injection when linked to a shell pane.
 - **Broadcast delivery:** All messages are broadcast to every participant in the project. @mentions are a semantic signal (who should act), not a delivery filter. The \`to\` parameter is ignored for LLM senders.
 - **Rules of Engagement:** On \`chat_join\`, you receive a \`rules\` field (markdown) defining when to respond vs. stay silent. **Follow these rules exactly.** Default: reply if @mentioned, or on a global user request only after your claim has been explicitly confirmed by the other active LLM participants. Do not let multiple LLMs answer the same global request uncoordinated. Rules can be customized per project.
 - **\`submitKey\`:** Use \`"cr"\` (default) for all known clients including Claude Code and Codex. The submit key is sent after a short delay to avoid paste-burst detection in TUI frameworks. Only use \`"lf"\` if you have verified a specific client requires it.
+- **Pane collision:** If your \`paneId\` collides with another participant, the **existing session is preserved** and the newcomer receives a 409 error with \`code: "PANE_ALREADY_BOUND"\`. The newcomer must use a different pane or wait for the existing participant to leave.
 - **Pane linking:** A valid \`paneId\` is required to receive messages. Read \`DEVGLIDE_PANE_ID\` from your shell session and pass it explicitly to \`chat_join\` every time. The pane must also be live and routable by the shell backend or \`chat_join\` will fail. If the env var is unavailable, chat cannot be used from that session. If your pane closes, you are removed from chat.
+- **Session unification:** REST and MCP joins share the same session state. A REST join with an \`mcp-session-id\` header automatically binds to the MCP session. MCP tools (\`chat_send\`, \`pipe_submit\`, \`chat_leave\`) can also adopt a REST-joined participant by passing \`paneId\`.
 - **Limitations:** You cannot message yourself; participants are in-memory (rejoin after server restart); only same-project participants see each other.
 - **REST API** (base: \`/api/chat\`):
   - Join: \`POST /join\` body \`{ name, model?, paneId, submitKey? }\`
@@ -114,6 +116,10 @@ Messages are delivered to LLMs via PTY injection when linked to a shell pane.
   - Send: \`POST /send\` body \`{ from, message, to? }\`
   - Members: \`GET /members\`
   - Messages: \`GET /messages?limit=&since=\`
+  - Status: \`GET /status\` · \`GET /status?name=\` · \`GET /status?paneId=\`
+  - Pipes: \`POST /pipes/:id/submit\` body \`{ from, content }\` · \`POST /pipes/:id/cancel\` (no body; cancels by pipe ID within active project)
+  - Invite: \`POST /invite\` body \`{ cli, mode?, cols?, rows? }\`
+  - Panes: \`GET /panes\`
   - Rules: \`GET /rules\` | \`PUT /rules\` body \`{ rules }\` | \`DELETE /rules\`
   - Clear: \`DELETE /messages\`
 

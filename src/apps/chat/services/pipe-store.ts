@@ -29,9 +29,18 @@ export interface LeaseInfo {
   grantedAt: string;
 }
 
+export type PipeErrorCode =
+  | 'PIPE_NOT_FOUND'
+  | 'PIPE_CLOSED'
+  | 'PIPE_NOT_ASSIGNED'
+  | 'PIPE_LEASE_NOT_HELD'
+  | 'PIPE_ALREADY_SUBMITTED'
+  | 'PIPE_LEASE_CONFLICT';
+
 export interface SubmitResult {
   ok: boolean;
   error?: string;
+  code?: PipeErrorCode;
   slot?: PipeSlot;
   pipe?: { pipeId: string; mode: PipeMode; status: PipeStatus };
 }
@@ -46,6 +55,32 @@ const activeLeases = new Map<string, LeaseInfo>();
 
 // "projectId:assigneeName" -> Set<pipeId>  (pipes waiting for this participant's lease to release)
 const pendingPipes = new Map<string, Set<string>>();
+
+// "projectId:assigneeName" -> Set<pipeId>  (index of active/running pipes per participant)
+const activePipeIndex = new Map<string, Set<string>>();
+
+function addToActivePipeIndex(assignee: string, projectId: string | null, pipeId: string): void {
+  const key = leaseKey(assignee, projectId);
+  let pipeIds = activePipeIndex.get(key);
+  if (!pipeIds) { pipeIds = new Set(); activePipeIndex.set(key, pipeIds); }
+  pipeIds.add(pipeId);
+}
+
+function removeFromActivePipeIndex(assignee: string, projectId: string | null, pipeId: string): void {
+  const key = leaseKey(assignee, projectId);
+  const pipeIds = activePipeIndex.get(key);
+  if (pipeIds) {
+    pipeIds.delete(pipeId);
+    if (pipeIds.size === 0) activePipeIndex.delete(key);
+  }
+}
+
+/** Get all running pipe IDs for a participant (O(1) lookup). */
+export function getActivePipesForParticipant(assignee: string, projectId: string | null): string[] {
+  const key = leaseKey(assignee, projectId);
+  const pipeIds = activePipeIndex.get(key);
+  return pipeIds ? [...pipeIds] : [];
+}
 
 function leaseKey(assignee: string, projectId: string | null): string {
   return `${projectId ?? '__none__'}:${assignee}`;
@@ -140,6 +175,12 @@ export function createPipe(
     createdAt: new Date().toISOString(),
   };
   store.set(pipeId, pipe);
+
+  // Populate active pipe index for all assignees
+  for (const a of assignees) {
+    addToActivePipeIndex(a, projectId, pipeId);
+  }
+
   return pipe;
 }
 
@@ -155,6 +196,10 @@ export function markPipeStatus(pipeId: string, status: PipeStatus, projectId: st
   if (!pipe) return [];
   pipe.status = status;
   if (status !== 'running') {
+    // Remove from active pipe index for all assignees
+    for (const a of pipe.assignees) {
+      removeFromActivePipeIndex(a, projectId, pipeId);
+    }
     return releaseAllLeases(pipe, projectId);
   }
   return [];
@@ -169,7 +214,7 @@ export function grantLease(
   pipeId: string,
   assignee: string,
   projectId: string | null,
-): { ok: boolean; error?: string; lease?: LeaseInfo } {
+): { ok: boolean; error?: string; code?: PipeErrorCode; lease?: LeaseInfo } {
   const key = leaseKey(assignee, projectId);
   const existing = activeLeases.get(key);
 
@@ -177,14 +222,15 @@ export function grantLease(
   if (existing && existing.pipeId !== pipeId) {
     return {
       ok: false,
+      code: 'PIPE_LEASE_CONFLICT',
       error: `${assignee} already holds a lease for pipe #${existing.pipeId}. ` +
         `Complete or release that pipe before starting pipe #${pipeId}.`,
     };
   }
 
   const pipe = getPipe(pipeId, projectId);
-  if (!pipe) return { ok: false, error: `Pipe #${pipeId} not found` };
-  if (pipe.status !== 'running') return { ok: false, error: `Pipe #${pipeId} is ${pipe.status}` };
+  if (!pipe) return { ok: false, code: 'PIPE_NOT_FOUND', error: `Pipe #${pipeId} not found` };
+  if (pipe.status !== 'running') return { ok: false, code: 'PIPE_CLOSED', error: `Pipe #${pipeId} is ${pipe.status}` };
 
   const assigneeSlots = pipe.slots.get(assignee);
   if (!assigneeSlots || assigneeSlots.length === 0) {
@@ -233,7 +279,8 @@ function releaseAllLeases(pipe: StoredPipe, projectId: string | null): string[] 
 
 // ── Pending pipe queue (for lease conflicts) ──────────────────────────────────
 
-/** Record that a pipe is waiting for a participant's lease to be released. */
+/** Record that a pipe is waiting for a participant's lease to be released.
+ *  Pipes are drained in creation-time order (oldest first). */
 export function addPendingPipe(assignee: string, projectId: string | null, pipeId: string): void {
   const key = leaseKey(assignee, projectId);
   let pending = pendingPipes.get(key);
@@ -241,13 +288,24 @@ export function addPendingPipe(assignee: string, projectId: string | null, pipeI
   pending.add(pipeId);
 }
 
-/** Pop all pending pipe IDs for a participant (called after lease release). */
+/** Pop all pending pipe IDs for a participant (called after lease release).
+ *  Returns pipe IDs sorted by pipe creation time (oldest first). */
 export function popPendingPipes(assignee: string, projectId: string | null): string[] {
   const key = leaseKey(assignee, projectId);
   const pending = pendingPipes.get(key);
   if (!pending || pending.size === 0) return [];
   const result = [...pending];
   pendingPipes.delete(key);
+
+  // Sort by pipe creation time so older pipes are drained first
+  const store = getProjectStore(projectId);
+  result.sort((a, b) => {
+    const pipeA = store.get(a);
+    const pipeB = store.get(b);
+    if (!pipeA || !pipeB) return 0;
+    return pipeA.createdAt.localeCompare(pipeB.createdAt);
+  });
+
   return result;
 }
 
@@ -263,12 +321,12 @@ export function submitStage(
   requireLease = true,
 ): SubmitResult {
   const pipe = getPipe(pipeId, projectId);
-  if (!pipe) return { ok: false, error: `Pipe #${pipeId} not found` };
-  if (pipe.status !== 'running') return { ok: false, error: `Pipe #${pipeId} is ${pipe.status}` };
+  if (!pipe) return { ok: false, code: 'PIPE_NOT_FOUND', error: `Pipe #${pipeId} not found` };
+  if (pipe.status !== 'running') return { ok: false, code: 'PIPE_CLOSED', error: `Pipe #${pipeId} is ${pipe.status}` };
 
   const assigneeSlots = pipe.slots.get(assignee);
   if (!assigneeSlots || assigneeSlots.length === 0) {
-    return { ok: false, error: `${assignee} is not an assignee of pipe #${pipeId}` };
+    return { ok: false, code: 'PIPE_NOT_ASSIGNED', error: `${assignee} is not an assignee of pipe #${pipeId}` };
   }
 
   let slot: PipeSlot | undefined;
@@ -277,6 +335,7 @@ export function submitStage(
     if (!lease || lease.pipeId !== pipeId) {
       return {
         ok: false,
+        code: 'PIPE_LEASE_NOT_HELD',
         error: `${assignee} does not hold a lease for pipe #${pipeId}. ` +
           `Stage submission requires an active lease granted by the system.`,
       };
@@ -287,7 +346,7 @@ export function submitStage(
     slot = assigneeSlots.find(s => s.status !== 'submitted');
   }
 
-  if (!slot) return { ok: false, error: `${assignee} already submitted all tasks for pipe #${pipeId}` };
+  if (!slot) return { ok: false, code: 'PIPE_ALREADY_SUBMITTED', error: `${assignee} already submitted all tasks for pipe #${pipeId}` };
 
   slot.content = content;
   slot.status = 'submitted';
@@ -419,4 +478,5 @@ export function _resetForTest(): void {
   stores.clear();
   activeLeases.clear();
   pendingPipes.clear();
+  activePipeIndex.clear();
 }

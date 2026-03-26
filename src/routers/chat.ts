@@ -14,8 +14,21 @@ import { globalPtys, dashboardState, nextPaneId, nextNumForProject, getShellNsp,
 import { spawnGlobalPty } from '../apps/shell/src/runtime/pty-manager.js';
 import { SHELL_CONFIGS } from '../apps/shell/src/runtime/shell-config.js';
 import type { PaneInfo } from '../apps/shell/src/shell-types.js';
+import {
+  createChatMcpServer,
+  chatServerSessions,
+  bindChatSessionToMcpHttpSession,
+  registerChatMcpHttpSession,
+  unregisterChatMcpHttpSession,
+} from '../apps/chat/src/mcp.js';
 
-export { createChatMcpServer, chatServerSessions } from '../apps/chat/src/mcp.js';
+export {
+  createChatMcpServer,
+  chatServerSessions,
+  bindChatSessionToMcpHttpSession,
+  registerChatMcpHttpSession,
+  unregisterChatMcpHttpSession,
+};
 
 export const router: Router = Router();
 
@@ -307,9 +320,35 @@ router.get('/panes', (req: Request, res: Response) => {
 // Accepts optional ?name= to get diagnostics for a specific participant
 router.get('/status', (req: Request, res: Response) => {
   const name = req.query.name as string | undefined;
+  const paneId = req.query.paneId as string | undefined;
   const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
 
   if (!name) {
+    if (paneId) {
+      const participant = registry.getParticipantByPaneId(paneId, projectId);
+      if (!participant) {
+        res.status(404).json({ error: `Participant for pane "${paneId}" not found`, joined: false });
+        return;
+      }
+
+      const paneRoutable = participant.paneId ? globalPtys.has(participant.paneId) : false;
+      const panes = getRoutablePanes(projectId);
+      const unclaimed = panes.filter(p => !p.claimed);
+
+      res.json({
+        joined: true,
+        name: participant.name,
+        projectId: participant.projectId,
+        paneId: participant.paneId,
+        paneRoutable,
+        detached: participant.detached,
+        status: participant.status,
+        autoResolveWouldPick: unclaimed.length === 1 ? unclaimed[0].id : unclaimed.length === 0 ? null : `ambiguous: ${unclaimed.map(p => p.id).join(', ')}`,
+        activeMembers: registry.listParticipants(projectId).map(m => ({ name: m.name, status: m.status, paneId: m.paneId, detached: m.detached })),
+      });
+      return;
+    }
+
     // Return general status: all members + pane info
     const members = registry.listParticipants(projectId);
     const panes = getRoutablePanes(projectId);
@@ -405,7 +444,8 @@ router.post('/join', (req: Request, res: Response) => {
   const projectId = getActiveProject()?.id ?? null;
   const resolution = resolvePane(paneId, projectId);
 
-  // Handle pane collision — if the pane is claimed by another LLM, disconnect both
+  // Handle pane collision — if the pane is claimed by another LLM, preserve
+  // the existing session and reject the newcomer with 409.
   if (!resolution.resolved && resolution.diagnostics.suppliedPaneId) {
     const claimedPane = getRoutablePanesGlobal().find(
       p => p.id === resolution.diagnostics.suppliedPaneId && p.claimed,
@@ -413,47 +453,16 @@ router.post('/join', (req: Request, res: Response) => {
     if (claimedPane?.claimedBy) {
       const existingName = claimedPane.claimedBy;
       const collisionPaneId = claimedPane.id;
-
-      // Use the claimed pane's project — NOT the active dashboard project —
-      // so the system message and member update reach the correct project room.
       const collisionProjectId = claimedPane.projectId ?? projectId;
 
-      // Disconnect the existing claimer
-      registry.leave(existingName, collisionProjectId);
-
-      // Broadcast collision error via PTY to the contested pane
-      const ptyEntry = globalPtys.get(collisionPaneId);
-      if (ptyEntry) {
-        const collisionMsg = `[DevGlide Chat] System: paneId collision on ${collisionPaneId}. ` +
-          `"${existingName}" has been disconnected. ` +
-          `Both participants must re-read $DEVGLIDE_PANE_ID and rejoin with chat_join.`;
-        ptyEntry.ptyProcess.write(collisionMsg);
-        // Send submit key to ensure the message is processed
-        setTimeout(() => {
-          const refreshed = globalPtys.get(collisionPaneId);
-          if (refreshed) refreshed.ptyProcess.write('\r');
-        }, 500);
-      }
-
-      // Record the collision as a system message in the collided pane's project
-      const sysMsg = store.appendMessage({
-        from: 'system',
-        to: null,
-        body: `paneId collision on ${collisionPaneId}: "${existingName}" disconnected. Both participants must rejoin with correct paneId.`,
-        type: 'system',
-      }, collisionProjectId);
-      const chatNsp = registry.getChatNsp();
-      if (chatNsp && collisionProjectId) {
-        chatNsp.to(`project:${collisionProjectId}`).emit('chat:message', sysMsg);
-        chatNsp.to(`project:${collisionProjectId}`).emit('chat:members', registry.listParticipants(collisionProjectId));
-      }
-
       res.status(409).json({
-        error: `paneId collision on ${collisionPaneId}. "${existingName}" was disconnected. Both participants must re-read $DEVGLIDE_PANE_ID and rejoin.`,
+        error: `Pane ${collisionPaneId} is already bound to "${existingName}". The existing session has been preserved.`,
+        code: 'PANE_ALREADY_BOUND',
         collision: {
           paneId: collisionPaneId,
-          disconnected: existingName,
+          currentParticipant: existingName,
         },
+        recoverable: true,
         diagnostics: resolution.diagnostics,
       });
       return;
@@ -473,6 +482,10 @@ router.post('/join', (req: Request, res: Response) => {
   const paneProjectId = paneInfo?.projectId ?? projectId;
   const resolvedSubmitKey = submitKey === 'lf' ? '\n' : '\r';
   const participant = registry.join(name, 'llm', resolvedPaneId, model ?? null, resolvedSubmitKey, paneProjectId);
+  const mcpSessionId = req.headers['mcp-session-id'];
+  if (typeof mcpSessionId === 'string' && mcpSessionId) {
+    bindChatSessionToMcpHttpSession(mcpSessionId, { name: participant.name, projectId: participant.projectId ?? null });
+  }
   const rules = getEffectiveRules(participant.projectId);
   res.status(201).json({ ...participant, rules });
 });
@@ -489,6 +502,10 @@ router.post('/leave', (req: Request, res: Response) => {
   if (!removed) {
     res.status(404).json({ error: 'Not found in participant list' });
     return;
+  }
+  const mcpSessionId = req.headers['mcp-session-id'];
+  if (typeof mcpSessionId === 'string' && mcpSessionId) {
+    bindChatSessionToMcpHttpSession(mcpSessionId, null);
   }
   res.json({ ok: true, left: name });
 });
@@ -596,7 +613,13 @@ router.post('/pipes/:id/submit', asyncHandler(async (req: Request, res: Response
 
   const result = await registry.submitPipeStage(pipeId, from, content, pid);
   if (!result.ok) {
-    res.status(400).json({ error: result.error });
+    const status = result.code === 'PIPE_NOT_FOUND' ? 404
+      : result.code === 'PIPE_CLOSED' ? 410
+      : result.code === 'PIPE_NOT_ASSIGNED' ? 403
+      : result.code === 'PIPE_LEASE_NOT_HELD' ? 403
+      : result.code === 'PIPE_ALREADY_SUBMITTED' ? 409
+      : 400;
+    res.status(status).json({ error: result.error, code: result.code });
     return;
   }
   res.status(201).json(result);
@@ -698,6 +721,11 @@ interface AvailableLlm {
   name: string;
   icon: string;
   modes: PermissionMode[];
+}
+
+function buildChatJoinPrompt(cli: string, paneId: string): string {
+  return `Join the DevGlide chat room by calling chat_join with name="${cli}" and paneId="${paneId}". `
+    + 'After joining, follow the rules of engagement returned by chat_join.';
 }
 
 function detectAvailableLlms(rescan = false): AvailableLlm[] {
@@ -813,6 +841,8 @@ function waitForShellReady(paneId: string): Promise<ReadyOutcome> {
 const inviteSchema = z.object({
   cli: z.string().min(1),
   mode: z.enum(PERMISSION_MODES).optional().default('supervised'),
+  cols: z.coerce.number().int().min(1).max(500).optional(),
+  rows: z.coerce.number().int().min(1).max(500).optional(),
 });
 
 // POST /invite — create a pane and launch an LLM CLI in it
@@ -822,7 +852,7 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
     return badRequest(res, parsed.error.issues[0]?.message ?? 'cli is required');
   }
 
-  const { cli, mode } = parsed.data;
+  const { cli, mode, cols, rows } = parsed.data;
   const llm = KNOWN_LLMS.find(l => l.cli === cli);
   if (!llm) {
     return badRequest(res, `Unknown LLM CLI: ${cli}`);
@@ -857,9 +887,7 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
   const config = SHELL_CONFIGS[inviteShellType];
   const startCwd = project?.path ?? process.env.HOME ?? process.env.USERPROFILE ?? '/';
   const paneId = nextPaneId();
-  const bootstrap =
-    `Join the DevGlide chat room by calling chat_join with name="${cli}" and paneId="${paneId}". ` +
-    `After joining, follow the rules of engagement returned by chat_join.`;
+  const bootstrap = buildChatJoinPrompt(cli, paneId);
   const inviteCmd = llm.launchCmd(bootstrap, mode);
   // Spawn an interactive login shell — command injection happens AFTER readiness detection
   const shellArgs = [...config.args, '-li'];
@@ -873,9 +901,28 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
   // terminal output is emitted to an empty room and the pane appears black.
   getShellNsp()?.socketsJoin(`pane:${paneId}`);
 
-  spawnGlobalPty(paneId, config.command, shellArgs, { ...config.env, DEVGLIDE_PANE_ID: paneId }, 80, 24, true, false, startCwd);
+  spawnGlobalPty(
+    paneId,
+    config.command,
+    shellArgs,
+    { ...config.env, DEVGLIDE_PANE_ID: paneId },
+    cols ?? 80,
+    rows ?? 24,
+    true,
+    false,
+    startCwd,
+  );
 
-  const paneInfo: PaneInfo = { id: paneId, shellType: inviteShellType, title, num, cwd: startCwd, projectId, permissionMode: mode };
+  const paneInfo: PaneInfo = {
+    id: paneId,
+    shellType: inviteShellType,
+    title,
+    num,
+    cwd: startCwd,
+    projectId,
+    llmCli: cli,
+    permissionMode: mode,
+  };
   dashboardState.panes.push(paneInfo);
   getShellNsp()?.emit('state:pane-added', paneInfo);
 

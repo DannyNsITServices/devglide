@@ -783,6 +783,22 @@ export function getParticipant(name: string, projectId?: string | null): ChatPar
   return matches.find((p) => p.projectId === pid) ?? matches[0];
 }
 
+export function getParticipantByPaneId(paneId: string, projectId?: string | null): ChatParticipant | undefined {
+  pruneStaleParticipants();
+
+  if (projectId !== undefined) {
+    for (const participant of participants.values()) {
+      if (participant.paneId === paneId && participant.projectId === projectId) return participant;
+    }
+    return undefined;
+  }
+
+  const matches = [...participants.values()].filter((participant) => participant.paneId === paneId);
+  if (matches.length <= 1) return matches[0];
+  const pid = activeProjectId();
+  return matches.find((participant) => participant.projectId === pid) ?? matches[0];
+}
+
 /** Clear chat history for the active project and notify dashboard clients. */
 export function clearHistory(projectId?: string | null): void {
   const pid = resolveProjectId(projectId);
@@ -924,7 +940,8 @@ function detectPipeResponse(from: string, body: string, projectId: string | null
  *  Stage outputs are read from the pipe store (source of truth), merged into
  *  the log-derived state so the reducer's action computation uses store data. */
 async function runPipeReducer(pipeId: string, projectId: string | null): Promise<void> {
-  const messages = readMessages({ limit: 10000 }, projectId);
+  // Read only messages for this pipe instead of scanning full history
+  const messages = readMessages({ limit: 10000, pipeId }, projectId);
   const state = pipeReducer.derivePipeState(messages, pipeId);
   if (!state) return;
 
@@ -971,6 +988,20 @@ async function runPipeReducer(pipeId: string, projectId: string | null): Promise
         // Participant has a lease for another pipe — queue this pipe for retry
         // when the conflicting lease is released. Do NOT deliver the handoff.
         pipeStore.addPendingPipe(action.targetAssignee, projectId, pipeId);
+
+        // Emit a visible diagnostic so users/agents know the pipe is queued
+        const diagMsg = appendMessage({
+          from: 'system', to: null,
+          body: `#pipe-${pipeId} Stage for @${action.targetAssignee} is queued: ${leaseResult.error}`,
+          type: 'system',
+          pipe: {
+            pipeId,
+            mode: storedPipe.mode,
+            role: 'lease-queued' as any,
+            targetAssignee: action.targetAssignee,
+          },
+        }, projectId);
+        emitToProject('chat:message', diagMsg, projectId);
         continue;
       }
     }
@@ -1013,13 +1044,17 @@ function failPipesForParticipant(
   projectId: string | null,
   reason: 'left' | 'detached' | 'pane-closed',
 ): void {
-  const messages = readMessages({ limit: 10000 }, projectId);
-  const activePipes = pipeReducer.findActivePipesForParticipant(messages, name);
+  // Use the active pipe index for O(1) lookup instead of scanning full history
+  const activePipeIds = pipeStore.getActivePipesForParticipant(name, projectId);
 
-  for (const { pipeId } of activePipes) {
-    // Idempotency: re-derive state to check no failed/cancelled already exists
+  for (const pipeId of activePipeIds) {
+    // Idempotency: check pipe is still running in the store
+    const storedPipe = pipeStore.getPipe(pipeId, projectId);
+    if (!storedPipe || storedPipe.status !== 'running') continue;
+
+    // Derive state from log for the mode info needed by system messages
     const state = pipeReducer.derivePipeState(
-      readMessages({ limit: 10000 }, projectId), pipeId,
+      readMessages({ limit: 10000, pipeId }, projectId), pipeId,
     );
     if (!state || state.status !== 'running') continue;
 
@@ -1097,10 +1132,10 @@ export async function submitPipeStage(
   from: string,
   content: string,
   projectId: string | null,
-): Promise<{ ok: boolean; error?: string; message?: ChatMessage }> {
+): Promise<{ ok: boolean; error?: string; code?: string; message?: ChatMessage }> {
   // Validate and store in the pipe stage store
   const result = pipeStore.submitStage(pipeId, from, content, projectId, true);
-  if (!result.ok) return { ok: false, error: result.error };
+  if (!result.ok) return { ok: false, error: result.error, code: result.code };
 
   // Determine pipe role for the chat message metadata
   const storedPipe = pipeStore.getPipe(pipeId, projectId);

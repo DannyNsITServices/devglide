@@ -5,7 +5,6 @@
 import { escapeHtml, escapeAttr, sanitizeHtml } from '/shared-assets/ui-utils.js';
 import { dashboardSocket } from '/state.js';
 import { createHeader } from '/shared-ui/components/header.js';
-import { confirmModal } from '/shared-ui/components/modal.js';
 import { getMentionMatches, getPipeAssigneeMatches } from './mention-suggestions.js';
 
 let _container = null;
@@ -418,9 +417,7 @@ const BODY_HTML = `
     <div class="chat-members-panel" id="chat-members-panel">
       <div class="chat-members-toolbar">
         <div class="chat-members-title" id="chat-members-title">Members (0)</div>
-        <button class="btn btn-secondary btn-sm chat-invite-btn" id="chat-invite-btn" title="Invite LLM">+ Invite</button>
       </div>
-      <div id="chat-invite-dropdown" class="chat-invite-dropdown hidden"></div>
       <div id="chat-members-list"></div>
     </div>
 
@@ -1101,126 +1098,10 @@ function bindEvents() {
 
   // New messages indicator click
   _container.querySelector('#chat-new-indicator')?.addEventListener('click', scrollToBottom);
-
-  // Invite LLM button
-  _container.querySelector('#chat-invite-btn')?.addEventListener('click', toggleInviteDropdown);
 }
 
 // ── Invite LLM ─────────────────────────────────────────────────────
 
-async function toggleInviteDropdown(rescan) {
-  rescan = rescan === true; // ignore MouseEvent passed by addEventListener
-  const dropdown = _container?.querySelector('#chat-invite-dropdown');
-  if (!dropdown) return;
-
-  if (!rescan && !dropdown.classList.contains('hidden')) {
-    dropdown.classList.add('hidden');
-    return;
-  }
-
-  dropdown.innerHTML = '<div class="chat-invite-state">Scanning PATH...</div>';
-  dropdown.classList.remove('hidden');
-
-  try {
-    const url = rescan ? '/invite/available?rescan=true' : '/invite/available';
-    const res = await api(url);
-    if (!res.ok) throw new Error('Failed to fetch');
-    const llms = await res.json();
-
-    dropdown.innerHTML = '';
-
-    if (llms.length === 0) {
-      dropdown.innerHTML = '<div class="chat-invite-state">No LLM CLIs found on PATH</div>';
-    } else {
-      for (const llm of llms) {
-        const modes = llm.modes || ['supervised'];
-        const item = document.createElement('div');
-        item.className = 'chat-invite-item';
-
-        // LLM identity (name only)
-        const identity = document.createElement('span');
-        identity.className = 'chat-invite-identity';
-        identity.innerHTML = `<span class="chat-invite-name">${escapeHtml(llm.name)}</span>`;
-
-        // Mode buttons
-        const chipsWrap = document.createElement('span');
-        chipsWrap.className = 'chat-invite-chips';
-
-        for (const mode of modes) {
-          const chip = document.createElement('button');
-          chip.type = 'button';
-          chip.className = `chat-invite-mode-btn ${mode}`;
-          const tooltip = getModeTitle(mode);
-          chip.dataset.chatTooltip = tooltip;
-          chip.setAttribute('aria-label', tooltip);
-          chip.innerHTML = getModeIconSvg(mode);
-          chip.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            const confirmed = await confirmInviteMode(llm, mode);
-            if (!confirmed) return;
-            inviteLlm(llm.cli, mode);
-          });
-          chipsWrap.appendChild(chip);
-        }
-
-        item.appendChild(identity);
-        item.appendChild(chipsWrap);
-        dropdown.appendChild(item);
-      }
-    }
-
-    // Rescan footer
-    const footer = document.createElement('div');
-    footer.className = 'chat-invite-footer';
-    const rescanBtn = document.createElement('button');
-    rescanBtn.className = 'btn btn-secondary btn-sm';
-    rescanBtn.type = 'button';
-    rescanBtn.classList.add('chat-invite-rescan');
-    rescanBtn.textContent = 'Rescan';
-    rescanBtn.title = 'Re-scan PATH for LLM CLIs';
-    rescanBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleInviteDropdown(true); });
-    footer.appendChild(rescanBtn);
-    dropdown.appendChild(footer);
-  } catch {
-    dropdown.innerHTML = '<div class="chat-invite-state chat-invite-state-error">Failed to detect LLMs</div>';
-  }
-}
-
-async function confirmInviteMode(llm, mode) {
-  if (mode !== 'auto-accept' && mode !== 'unrestricted') return true;
-
-  const modeLabel = mode === 'auto-accept'
-    ? 'auto-accept'
-    : 'unrestricted';
-  const modeDesc = mode === 'auto-accept'
-    ? 'This launches without approval prompts.'
-    : 'This bypasses all permission checks.';
-  return confirmModal(_container, {
-    title: `Launch ${llm.name}?`,
-    message: `<strong>${escapeHtml(llm.name)}</strong> will run in <strong>${modeLabel}</strong> mode. ${modeDesc}`,
-    confirmLabel: 'Launch',
-    confirmCls: mode === 'unrestricted' ? 'btn-danger' : 'btn-primary',
-  });
-}
-
-async function inviteLlm(cli, mode = 'supervised') {
-  const dropdown = _container?.querySelector('#chat-invite-dropdown');
-  if (dropdown) dropdown.classList.add('hidden');
-
-  try {
-    const res = await api('/invite', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cli, mode }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      console.error('[chat] invite failed:', err.error || res.statusText);
-    }
-  } catch (err) {
-    console.error('[chat] invite error:', err);
-  }
-}
 
 // ── Exports ─────────────────────────────────────────────────────────
 

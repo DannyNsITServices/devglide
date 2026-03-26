@@ -18,6 +18,8 @@ export interface PaneInfo {
   url?: string;
   projectId: string | null;
   chatName?: string | null;
+  /** Base CLI name for a launched LLM that has not necessarily joined chat yet. */
+  llmCli?: string | null;
   /** Permission mode the LLM was launched with (set by invite). */
   permissionMode?: 'supervised' | 'auto-accept' | 'unrestricted' | null;
 }

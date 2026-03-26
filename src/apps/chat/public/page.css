@@ -59,120 +59,6 @@
   margin-bottom: 0;
 }
 
-.chat-invite-btn {
-  padding: 2px 8px;
-  font-size: 11px;
-}
-
-.chat-invite-dropdown {
-  margin-bottom: var(--df-space-2);
-  border: 1px solid var(--df-color-border-default);
-  border-radius: var(--df-radius-md);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--df-color-bg-surface) 94%, transparent), color-mix(in srgb, var(--df-color-bg-base) 98%, transparent));
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
-  overflow: hidden;
-}
-
-.chat-invite-dropdown.hidden {
-  display: none;
-}
-
-.chat-invite-state {
-  padding: var(--df-space-2) var(--df-space-3);
-  color: var(--df-color-text-muted);
-  font-size: var(--df-font-size-xs);
-}
-
-.chat-invite-state-error {
-  color: var(--df-color-danger, #ef4444);
-}
-
-.chat-invite-item {
-  display: flex;
-  align-items: center;
-  gap: var(--df-space-2);
-  padding: var(--df-space-2) var(--df-space-3);
-  font-size: var(--df-font-size-sm);
-}
-
-.chat-invite-item + .chat-invite-item {
-  border-top: 1px solid color-mix(in srgb, var(--df-color-border-default) 72%, transparent);
-}
-
-.chat-invite-identity {
-  display: flex;
-  align-items: center;
-  flex: 1;
-  min-width: 0;
-}
-
-.chat-invite-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--df-color-text-primary);
-}
-
-.chat-invite-chips {
-  display: flex;
-  gap: var(--df-space-1);
-  flex-shrink: 0;
-}
-
-.chat-invite-mode-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: var(--df-space-4);
-  block-size: var(--df-space-4);
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--df-radius-sm);
-  background: transparent;
-  color: var(--df-color-text-muted);
-  cursor: pointer;
-  transition: background var(--df-duration-fast), border-color var(--df-duration-fast), color var(--df-duration-fast);
-}
-
-.chat-invite-mode-btn svg {
-  inline-size: 100%;
-  block-size: 100%;
-}
-
-.chat-invite-mode-btn:hover {
-  background: var(--df-color-bg-raised);
-  border-color: var(--df-color-border-subtle, var(--df-color-border-default));
-}
-
-.chat-invite-mode-btn.supervised {
-  color: var(--df-color-state-success, #22c55e);
-}
-
-.chat-invite-mode-btn.auto-accept {
-  color: var(--df-color-state-warning, #f59e0b);
-}
-
-.chat-invite-mode-btn.unrestricted {
-  color: var(--df-color-state-error, #ef4444);
-}
-
-.chat-invite-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--df-space-2);
-  padding: var(--df-space-2) var(--df-space-3);
-  border-top: 1px solid var(--df-color-border-default);
-  background: color-mix(in srgb, var(--df-color-bg-base) 72%, transparent);
-}
-
-.chat-invite-rescan {
-  font-size: 10px;
-  padding: 1px 6px;
-}
-
 #chat-members-list {
   display: flex;
   flex-direction: column;
@@ -640,11 +526,9 @@
   max-height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
-  border: 1px solid color-mix(in srgb, var(--df-color-accent-default) 24%, var(--df-color-border-default));
-  border-radius: var(--df-radius-lg);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--df-color-accent-default) 6%, var(--df-color-bg-raised)) 0%, var(--df-color-bg-raised) 42%),
-    var(--df-color-bg-raised);
+  border: 1px solid var(--df-color-border-default);
+  clip-path: var(--df-clip-lg);
+  background: var(--df-color-bg-surface);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
 }
 
@@ -658,7 +542,7 @@
 }
 
 .chat-rules-header {
-  border-bottom: 1px solid var(--df-color-border-default);
+  border-bottom: 1px solid var(--df-color-border-subtle, var(--df-color-border-default));
 }
 
 .chat-rules-header h2 {
@@ -731,7 +615,7 @@
 }
 
 .chat-rules-actions {
-  border-top: 1px solid var(--df-color-border-default);
+  border-top: 1px solid var(--df-color-border-subtle, var(--df-color-border-default));
 }
 
 /* ── @mention autocomplete ──────────────────────────────────────── */

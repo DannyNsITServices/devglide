@@ -7,11 +7,17 @@ import { getEffectiveRules } from '../services/chat-rules.js';
 const UNIFIED_BASE = `http://localhost:${process.env.PORT ?? 7000}`;
 
 export interface ChatSessionEntry { name: string; projectId: string | null }
+interface ChatMcpServerState {
+  sessionEntry: ChatSessionEntry | null;
+  joinInFlight: boolean;
+}
 
 /** Maps each per-session McpServer instance to its tracked chat participant(s).
  *  New code keeps this to a single entry per MCP session, but the array shape is retained
  *  so onSessionClose can safely clean up stale sessions from older builds. */
 export const chatServerSessions = new WeakMap<McpServer, ChatSessionEntry[]>();
+const chatMcpServerStates = new WeakMap<McpServer, ChatMcpServerState>();
+const chatMcpServersBySessionId = new Map<string, McpServer>();
 
 interface ChatStatusPayload {
   joined?: boolean;
@@ -34,6 +40,47 @@ async function chatApi(path: string, body?: unknown): Promise<{ ok: boolean; sta
   return { ok: res.ok, status: res.status, data };
 }
 
+function getServerState(server: McpServer): ChatMcpServerState {
+  let state = chatMcpServerStates.get(server);
+  if (!state) {
+    state = { sessionEntry: null, joinInFlight: false };
+    chatMcpServerStates.set(server, state);
+  }
+  return state;
+}
+
+function setTrackedSessionEntry(server: McpServer, entry: ChatSessionEntry | null): void {
+  const state = getServerState(server);
+  state.sessionEntry = entry;
+  if (entry) {
+    chatServerSessions.set(server, [{ ...entry }]);
+    return;
+  }
+  chatServerSessions.delete(server);
+}
+
+export function registerChatMcpHttpSession(sessionId: string, server: McpServer): void {
+  chatMcpServersBySessionId.set(sessionId, server);
+  getServerState(server);
+}
+
+export function unregisterChatMcpHttpSession(server: McpServer, sessionId?: string): void {
+  if (sessionId) {
+    if (chatMcpServersBySessionId.get(sessionId) === server) chatMcpServersBySessionId.delete(sessionId);
+    return;
+  }
+  for (const [id, trackedServer] of chatMcpServersBySessionId) {
+    if (trackedServer === server) chatMcpServersBySessionId.delete(id);
+  }
+}
+
+export function bindChatSessionToMcpHttpSession(sessionId: string, entry: ChatSessionEntry | null): boolean {
+  const server = chatMcpServersBySessionId.get(sessionId);
+  if (!server) return false;
+  setTrackedSessionEntry(server, entry);
+  return true;
+}
+
 export function createChatMcpServer(): McpServer {
   const server = createDevglideMcpServer(
     'devglide-chat',
@@ -53,7 +100,7 @@ export function createChatMcpServer(): McpServer {
         '- **Name assignment:** The server derives your chat alias from `name` + pane number (e.g. "claude-1" for name "claude" on pane 1). The `name` param is the identity base — use a stable agent label, not the backend model. **Always use the `name` returned by `chat_join`** — that is your identity for the session.',
         '- `"user"` and `"system"` are **reserved names** — do not use them.',
         '- `chat_join` requires an explicit `paneId`. Read `DEVGLIDE_PANE_ID` from your shell session and pass it as `paneId` every time. Do not use `"auto"` and do not rely on MCP process env inheritance.',
-        '- If your paneId collides with another participant, **both participants are disconnected** and a collision error is broadcast. Both must re-read `$DEVGLIDE_PANE_ID` and rejoin.',
+        '- If your paneId collides with another participant, the **existing session is preserved** and the newcomer receives a 409 error with `code: "PANE_ALREADY_BOUND"`. The newcomer must use a different pane or wait for the existing participant to leave.',
         '- **`submitKey` parameter:** Controls the character sent after PTY-injected messages to trigger input submission. Use `"cr"` (carriage return, default) for all known clients including Claude Code and Codex. The submit key is sent after a short delay to avoid paste-burst detection in TUI frameworks like crossterm.',
         '- Each MCP session may own only one chat participant. Use `chat_leave()` first, or create a separate MCP session for another agent.',
         '',
@@ -86,34 +133,37 @@ export function createChatMcpServer(): McpServer {
         '',
         '### Quick reference — commonly confused parameters',
         '- `chat_join(name, model?, paneId, submitKey?)` — register. `paneId` is required and must come from `DEVGLIDE_PANE_ID` in your shell (never `"auto"`). Check returned `name` (server assigns it). `"user"`/`"system"` reserved. `submitKey`: `"cr"` (default, correct for all known clients including Claude Code and Codex).',
-        '- `chat_leave()` — unregister from the chat room.',
-        '- `chat_send(message, to?)` — send a message. Delivery is broadcast within the project; use `@mentions` only to signal who should respond. Messages that start with `#pipe-` or reference a currently running `#pipe-*` are rejected — use `pipe_submit` instead.',
-        '- `pipe_submit(pipeId, content)` — submit your output for a pipe stage. Use this instead of `chat_send` when responding to a `#pipe-` prompt.',
+        '- `chat_leave(paneId?)` — unregister from the chat room. Pass `paneId` if this MCP session has no tracked state (e.g. after a REST-only join).',
+        '- `chat_send(message, to?, paneId?)` — send a message. Delivery is broadcast within the project; use `@mentions` only to signal who should respond. Messages that start with `#pipe-` or reference a currently running `#pipe-*` are rejected — use `pipe_submit` instead. Pass `paneId` to adopt a REST-joined session.',
+        '- `pipe_submit(pipeId, content, paneId?)` — submit your output for a pipe stage. Use this instead of `chat_send` when responding to a `#pipe-` prompt. Pass `paneId` to adopt a REST-joined session.',
         '- `chat_read(limit?, since?)` — read message history.',
         '- `chat_members()` — list active participants with pane link status.',
       ],
     },
   );
 
-  // Track the participant currently owned by this MCP session.
-  let sessionEntry: ChatSessionEntry | null = null;
-  let joinInFlight = false;
-
   function setSessionEntry(entry: ChatSessionEntry | null): void {
-    sessionEntry = entry;
-    if (entry) {
-      chatServerSessions.set(server, [{ ...entry }]);
-      return;
-    }
-    chatServerSessions.delete(server);
+    setTrackedSessionEntry(server, entry);
+  }
+
+  function getSessionEntry(): ChatSessionEntry | null {
+    return getServerState(server).sessionEntry;
+  }
+
+  function setJoinInFlight(value: boolean): void {
+    getServerState(server).joinInFlight = value;
+  }
+
+  function getJoinInFlight(): boolean {
+    return getServerState(server).joinInFlight;
   }
 
   function getSessionProjectId(): string | null {
-    return sessionEntry?.projectId ?? null;
+    return getSessionEntry()?.projectId ?? null;
   }
 
   function getSessionName(): string | null {
-    return sessionEntry?.name ?? null;
+    return getSessionEntry()?.name ?? null;
   }
 
   async function readTrackedParticipantStatus(entry: ChatSessionEntry): Promise<{ ok: boolean; status: number; data: ChatStatusPayload } | null> {
@@ -127,6 +177,7 @@ export function createChatMcpServer(): McpServer {
   }
 
   async function ensureSessionCanJoin(): Promise<{ ok: true } | { ok: false; result: ReturnType<typeof errorResult> }> {
+    const sessionEntry = getSessionEntry();
     if (!sessionEntry) return { ok: true };
 
     const status = await readTrackedParticipantStatus(sessionEntry);
@@ -164,6 +215,21 @@ export function createChatMcpServer(): McpServer {
     };
   }
 
+  async function tryAdoptSessionByPaneId(paneId?: string): Promise<ChatSessionEntry | null> {
+    const existing = getSessionEntry();
+    if (existing || !paneId) return existing;
+
+    const res = await chatApi(`/status?paneId=${encodeURIComponent(paneId)}`).catch(() => null);
+    if (!res?.ok) return null;
+
+    const data = (res.data as ChatStatusPayload & { name?: string; projectId?: string | null }) ?? {};
+    if (!data.joined || !data.name || data.detached || !data.paneId) return null;
+
+    const adopted = { name: data.name, projectId: data.projectId ?? null };
+    setSessionEntry(adopted);
+    return adopted;
+  }
+
   // ── 1. chat_join ──────────────────────────────────────────────────────
 
   server.tool(
@@ -188,12 +254,12 @@ export function createChatMcpServer(): McpServer {
         );
       }
 
-      if (joinInFlight) {
+      if (getJoinInFlight()) {
         return errorResult(
           'chat_join is already in progress for this MCP session. Wait for it to finish, or use a separate MCP session for another agent.',
         );
       }
-      joinInFlight = true;
+      setJoinInFlight(true);
       try {
         const sessionCheck = await ensureSessionCanJoin();
         if (sessionCheck.ok === false) return sessionCheck.result;
@@ -214,7 +280,7 @@ export function createChatMcpServer(): McpServer {
         const rules = getEffectiveRules(participant.projectId);
         return jsonResult({ ...participant, rules });
       } finally {
-        joinInFlight = false;
+        setJoinInFlight(false);
       }
     },
   );
@@ -224,11 +290,15 @@ export function createChatMcpServer(): McpServer {
   server.tool(
     'chat_leave',
     'Leave the chat room. Uses the name from the current session.',
-    {},
-    async () => {
-      if (joinInFlight) {
+    {
+      paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session before leaving. Only needed when this MCP session has no tracked chat state.'),
+    },
+    async ({ paneId }) => {
+      if (getJoinInFlight()) {
         return errorResult('chat_join is still in progress for this MCP session. Wait for it to finish before leaving.');
       }
+      await tryAdoptSessionByPaneId(paneId);
+      const sessionEntry = getSessionEntry();
       if (!sessionEntry) return errorResult('Not joined — call chat_join first');
       const current = sessionEntry;
       const res = await chatApi('/leave', { name: current.name, projectId: current.projectId });
@@ -252,10 +322,12 @@ export function createChatMcpServer(): McpServer {
     {
       message: z.string().describe('Message text (markdown supported)'),
       to: z.string().optional().describe('Recipient name for direct message, or omit for broadcast'),
+      paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session before sending. Only needed when this MCP session has no tracked chat state.'),
     },
-    async ({ message, to }) => {
-      const sessionName = getSessionName();
-      const sessionProjectId = getSessionProjectId();
+    async ({ message, to, paneId }) => {
+      const adopted = await tryAdoptSessionByPaneId(paneId);
+      const sessionName = adopted?.name ?? getSessionName();
+      const sessionProjectId = adopted?.projectId ?? getSessionProjectId();
       if (!sessionName) return errorResult('Not joined — call chat_join first');
       const res = await chatApi('/send', { from: sessionName, message, to, projectId: sessionProjectId });
       if (!res.ok) return errorResult((res.data as { error?: string })?.error ?? 'Send failed');
@@ -271,10 +343,12 @@ export function createChatMcpServer(): McpServer {
     {
       pipeId: z.string().describe('The pipe ID — accepts "#pipe-abc123", "pipe-abc123", or just "abc123"'),
       content: z.string().describe('Your stage output content (markdown supported)'),
+      paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session before submitting. Only needed when this MCP session has no tracked chat state.'),
     },
-    async ({ pipeId, content }) => {
-      const sessionName = getSessionName();
-      const sessionProjectId = getSessionProjectId();
+    async ({ pipeId, content, paneId }) => {
+      const adopted = await tryAdoptSessionByPaneId(paneId);
+      const sessionName = adopted?.name ?? getSessionName();
+      const sessionProjectId = adopted?.projectId ?? getSessionProjectId();
       if (!sessionName) return errorResult('Not joined — call chat_join first');
       // Normalize pipeId: strip leading "#pipe-" or "pipe-" prefix to get the bare ID
       const normalizedPipeId = pipeId.replace(/^#?pipe-/i, '');
@@ -283,7 +357,13 @@ export function createChatMcpServer(): McpServer {
         content,
         projectId: sessionProjectId,
       });
-      if (!res.ok) return errorResult((res.data as { error?: string })?.error ?? 'Pipe submit failed');
+      if (!res.ok) {
+        const data = res.data as { error?: string; code?: string };
+        const msg = data.code
+          ? `[${data.code}] ${data.error ?? 'Pipe submit failed'}`
+          : (data.error ?? 'Pipe submit failed');
+        return errorResult(msg);
+      }
       return jsonResult(res.data);
     },
   );
@@ -325,8 +405,9 @@ export function createChatMcpServer(): McpServer {
     'Check your current chat connection status and diagnostics. Use this to debug delivery issues or verify your session is healthy.',
     {},
     async () => {
-      const pid = getSessionProjectId();
-      const sessionName = getSessionName();
+      const sessionEntry = getSessionEntry();
+      const pid = sessionEntry?.projectId ?? null;
+      const sessionName = sessionEntry?.name ?? null;
       const joined = !!sessionName;
 
       // Use REST API for consistent behavior — avoids project-scoping issues

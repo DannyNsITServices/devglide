@@ -76,7 +76,7 @@ export function mountMcpHttp(
   },
   serverFactory: () => McpServer,
   path: string = "/mcp",
-  options?: { onSessionClose?: (server: McpServer) => void }
+  options?: { onSessionOpen?: (sessionId: string, server: McpServer) => void; onSessionClose?: (server: McpServer, sessionId?: string) => void }
 ): void {
   const sessions = new Map<string, McpSession>();
 
@@ -86,7 +86,7 @@ export function mountMcpHttp(
     const cutoff = Date.now() - SESSION_TTL_MS;
     for (const [id, session] of sessions) {
       if (session.lastAccessed < cutoff) {
-        options?.onSessionClose?.(session.server);
+        options?.onSessionClose?.(session.server, id);
         session.transport.close?.();
         sessions.delete(id);
       }
@@ -109,12 +109,13 @@ export function mountMcpHttp(
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (id: string) => {
           sessions.set(id, { transport, server, lastAccessed: Date.now() });
+          options?.onSessionOpen?.(id, server);
         },
       });
       transport.onclose = () => {
         if (transport.sessionId) {
           const closingSession = sessions.get(transport.sessionId);
-          if (closingSession) options?.onSessionClose?.(closingSession.server);
+          if (closingSession) options?.onSessionClose?.(closingSession.server, transport.sessionId);
           sessions.delete(transport.sessionId);
         }
       };

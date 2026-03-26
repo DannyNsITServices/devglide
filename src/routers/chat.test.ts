@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const registryMock = vi.hoisted(() => ({
   send: vi.fn(),
   listParticipants: vi.fn(() => []),
+  getParticipantByPaneId: vi.fn(() => null),
   join: vi.fn(),
   leave: vi.fn(() => true),
   clearHistory: vi.fn(),
@@ -97,9 +98,12 @@ vi.mock('fs', async (importOriginal) => {
   return { ...actual, existsSync: existsSyncMock };
 });
 
-vi.mock('../apps/chat/mcp.js', () => ({
+vi.mock('../apps/chat/src/mcp.js', () => ({
   createChatMcpServer: vi.fn(),
   chatServerSessions: new WeakMap(),
+  bindChatSessionToMcpHttpSession: vi.fn(),
+  registerChatMcpHttpSession: vi.fn(),
+  unregisterChatMcpHttpSession: vi.fn(),
 }));
 
 const { router } = await import('./chat.js');
@@ -134,6 +138,7 @@ describe('chat router rules of engagement', () => {
     vi.clearAllMocks();
     storeMock.readMessages.mockReturnValue([]);
     registryMock.listParticipants.mockReturnValue([]);
+    registryMock.getParticipantByPaneId.mockReturnValue(null);
     registryMock.getPipeStoreStatus.mockReturnValue(null);
     registryMock.getPipeRun.mockReturnValue(null);
   });
@@ -178,6 +183,38 @@ describe('chat router rules of engagement', () => {
         rules: '## Rules\n\nOnly reply when asked.',
       });
       expect(registryMock.join).toHaveBeenCalledWith('codex', 'llm', 'pane-1', 'codex', '\r', 'project-1');
+    });
+  });
+
+  it('binds a REST join to the matching MCP session when mcp-session-id is provided', async () => {
+    const mcpMock = await import('../apps/chat/src/mcp.js');
+    registryMock.join.mockReturnValue({
+      name: 'vera',
+      kind: 'llm',
+      model: 'codex',
+      paneId: 'pane-1',
+      projectId: 'project-1',
+      submitKey: '\r',
+      joinedAt: '2026-03-22T00:00:00.000Z',
+      lastSeen: '2026-03-22T00:00:00.000Z',
+      detached: false,
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/join`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'mcp-session-id': 'session-123',
+        },
+        body: JSON.stringify({ name: 'codex', model: 'codex', paneId: 'pane-1' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect(mcpMock.bindChatSessionToMcpHttpSession).toHaveBeenCalledWith('session-123', {
+        name: 'vera',
+        projectId: 'project-1',
+      });
     });
   });
 
@@ -247,29 +284,18 @@ describe('chat router rules of engagement', () => {
 
       expect(response.status).toBe(409);
       const data = await response.json();
-      expect(data.error).toMatch(/collision/i);
+      expect(data.code).toBe('PANE_ALREADY_BOUND');
       expect(data.collision).toEqual({
         paneId: 'pane-1',
-        disconnected: 'codex-1',
+        currentParticipant: 'codex-1',
       });
 
-      // Existing claimer should be disconnected
-      expect(registryMock.leave).toHaveBeenCalledWith('codex-1', 'project-1');
+      // Existing claimer should NOT be disconnected — preserve the session
+      expect(registryMock.leave).not.toHaveBeenCalled();
 
-      // System message should be recorded in the collided pane's project
-      expect(storeMock.appendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          from: 'system',
-          type: 'system',
-          body: expect.stringContaining('collision'),
-        }),
-        'project-1',
-      );
-
-      // Collision error should be written to the pane's PTY
-      expect(pane1PtyWrite).toHaveBeenCalledWith(
-        expect.stringContaining('paneId collision on pane-1'),
-      );
+      // No system message or PTY write — the existing session is undisturbed
+      expect(storeMock.appendMessage).not.toHaveBeenCalled();
+      expect(pane1PtyWrite).not.toHaveBeenCalled();
 
       // join should NOT be called — collision prevents it
       expect(registryMock.join).not.toHaveBeenCalled();
@@ -301,13 +327,14 @@ describe('chat router rules of engagement', () => {
       });
 
       expect(response.status).toBe(409);
+      const data = await response.json();
+      expect(data.code).toBe('PANE_ALREADY_BOUND');
 
-      // leave and appendMessage should use the pane's project (project-1), not active (project-2)
-      expect(registryMock.leave).toHaveBeenCalledWith('codex-1', 'project-1');
-      expect(storeMock.appendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ from: 'system', type: 'system' }),
-        'project-1',
-      );
+      // Existing claimer should NOT be disconnected — preserve the session
+      expect(registryMock.leave).not.toHaveBeenCalled();
+
+      // No system message — the existing session is undisturbed
+      expect(storeMock.appendMessage).not.toHaveBeenCalled();
     });
   });
 
@@ -380,6 +407,33 @@ describe('chat router rules of engagement', () => {
 
       expect(response.status).toBe(201);
       expect(registryMock.send).toHaveBeenCalled();
+    });
+  });
+
+  it('returns participant status when resolving by paneId', async () => {
+    registryMock.getParticipantByPaneId.mockReturnValue({
+      name: 'codex-1',
+      kind: 'llm',
+      model: 'codex',
+      paneId: 'pane-1',
+      projectId: 'project-1',
+      submitKey: '\r',
+      joinedAt: '2026-03-25T00:00:00.000Z',
+      lastSeen: '2026-03-25T00:00:00.000Z',
+      detached: false,
+      status: 'idle',
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/status?paneId=pane-1`);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        joined: true,
+        name: 'codex-1',
+        paneId: 'pane-1',
+        projectId: 'project-1',
+      });
     });
   });
 
@@ -601,6 +655,44 @@ describe('chat router invite permission modes', () => {
   });
 
   // ── Helper: create a mock PTY with controllable callbacks ────────────────
+
+  it('POST /invite accepts cols/rows and sets llmCli on the pane', async () => {
+    const { pty, write: mockPtyWrite } = createMockPty();
+    spawnGlobalPtyMock.mockImplementation((id: string) => {
+      const promptOutput = 'bash-5.2$ ';
+      shellStateMock.globalPtys.set(id, {
+        ptyProcess: pty,
+        chunks: [promptOutput],
+        totalLen: promptOutput.length,
+      });
+      return pty;
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/invite`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cli: 'claude', mode: 'auto-accept', cols: 120, rows: 40 }),
+      });
+
+      expect(response.status).toBe(201);
+      const data = await response.json();
+
+      const spawnArgs = spawnGlobalPtyMock.mock.calls[0];
+      expect(spawnArgs[4]).toBe(120);
+      expect(spawnArgs[5]).toBe(40);
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      const pane = shellStateMock.dashboardState.panes.find(
+        (p: { id: string }) => p.id === data.paneId,
+      );
+      expect(pane).toBeDefined();
+      expect(pane.llmCli).toBe('claude');
+      expect(mockPtyWrite).toHaveBeenCalledTimes(1);
+      expect(mockPtyWrite.mock.calls[0][0]).toContain('chat_join');
+    });
+  });
 
   function createMockPty() {
     const onDataCallbacks: Array<(data: string) => void> = [];
