@@ -726,6 +726,90 @@ router.get('/invite/available', (req: Request, res: Response) => {
 
 const PERMISSION_MODES = ['supervised', 'auto-accept', 'unrestricted'] as const;
 
+// ── Shell readiness detection for invite ──────────────────────────────────────
+// Instead of a hardcoded `sleep 0.5`, we detect when the shell is actually
+// ready to accept input by watching PTY output for a prompt or using a probe.
+// Prompt/ANSI helpers are shared with chat-registry via terminal-utils.
+
+import { hasShellPrompt } from '../apps/chat/services/terminal-utils.js';
+
+const SHELL_READY_TIMEOUT_MS = 5000;
+
+type ReadyOutcome = 'prompt' | 'probe' | 'closed';
+
+/**
+ * Wait until a freshly-spawned PTY is ready to accept input.
+ *
+ * 1. Check full scrollback for a shell prompt (may already be there from spawn).
+ * 2. Watch live PTY output for a prompt pattern.
+ * 3. On timeout, inject an `echo <marker>` probe and scan scrollback for it.
+ * 4. If the pane exits, abort.
+ *
+ * All branches funnel through a one-shot resolver with centralized cleanup.
+ * For invite panes are always fresh, so scanning full scrollback is safe.
+ * The probe path uses a separate offset to avoid matching stale output.
+ */
+function waitForShellReady(paneId: string): Promise<ReadyOutcome> {
+  return new Promise<ReadyOutcome>((resolve) => {
+    let settled = false;
+    const cleanups: Array<() => void> = [];
+
+    function settle(outcome: ReadyOutcome): void {
+      if (settled) return;
+      settled = true;
+      cleanups.forEach(fn => fn());
+      resolve(outcome);
+    }
+
+    const entry = globalPtys.get(paneId);
+    if (!entry) { resolve('closed'); return; }
+
+    // Helper: get full scrollback or from a specific offset
+    function scrollback(fromOffset?: number): string {
+      const full = entry!.chunks.join('');
+      return fromOffset != null ? full.slice(fromOffset) : full;
+    }
+
+    // 1. Check full buffered output (prompt may already be there from spawn)
+    if (hasShellPrompt(scrollback())) {
+      resolve('prompt');
+      return;
+    }
+
+    // 2. Watch live output for a prompt (scan full scrollback to handle chunk splits)
+    const promptDisposable = entry.ptyProcess.onData(() => {
+      if (hasShellPrompt(scrollback())) {
+        settle('prompt');
+      }
+    });
+    cleanups.push(() => promptDisposable.dispose());
+
+    // 3. Timeout → inject echo probe, watch for marker in scrollback from probe offset
+    const timer = setTimeout(() => {
+      if (settled) return;
+      const marker = `__DEVGLIDE_READY_${Date.now()}__`;
+      const probeOffset = entry.totalLen;
+
+      // Attach probe watcher BEFORE injecting echo to avoid race
+      const probeDisposable = entry.ptyProcess.onData(() => {
+        if (scrollback(probeOffset).includes(marker)) {
+          settle('probe');
+        }
+      });
+      cleanups.push(() => probeDisposable.dispose());
+
+      entry.ptyProcess.write(`echo ${marker}\r`);
+    }, SHELL_READY_TIMEOUT_MS);
+    cleanups.push(() => clearTimeout(timer));
+
+    // 4. Pane exit → abort
+    const exitDisposable = entry.ptyProcess.onExit(() => {
+      settle('closed');
+    });
+    cleanups.push(() => exitDisposable.dispose());
+  });
+}
+
 const inviteSchema = z.object({
   cli: z.string().min(1),
   mode: z.enum(PERMISSION_MODES).optional().default('supervised'),
@@ -772,8 +856,14 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
   const inviteShellType = useGitBash ? 'git-bash' : 'bash';
   const config = SHELL_CONFIGS[inviteShellType];
   const startCwd = project?.path ?? process.env.HOME ?? process.env.USERPROFILE ?? '/';
-
   const paneId = nextPaneId();
+  const bootstrap =
+    `Join the DevGlide chat room by calling chat_join with name="${cli}" and paneId="${paneId}". ` +
+    `After joining, follow the rules of engagement returned by chat_join.`;
+  const inviteCmd = llm.launchCmd(bootstrap, mode);
+  // Spawn an interactive login shell — command injection happens AFTER readiness detection
+  const shellArgs = [...config.args, '-li'];
+
   const num = nextNumForProject(projectId);
   const modeLabel = mode !== 'supervised' ? ` [${mode === 'auto-accept' ? 'AUTO' : 'UNRESTRICTED'}]` : '';
   const title = `${num}: ${cli}${modeLabel}`;
@@ -783,25 +873,21 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
   // terminal output is emitted to an empty room and the pane appears black.
   getShellNsp()?.socketsJoin(`pane:${paneId}`);
 
-  spawnGlobalPty(paneId, config.command, config.args, { ...config.env, DEVGLIDE_PANE_ID: paneId }, 80, 24, true, false, startCwd);
+  spawnGlobalPty(paneId, config.command, shellArgs, { ...config.env, DEVGLIDE_PANE_ID: paneId }, 80, 24, true, false, startCwd);
 
   const paneInfo: PaneInfo = { id: paneId, shellType: inviteShellType, title, num, cwd: startCwd, projectId, permissionMode: mode };
   dashboardState.panes.push(paneInfo);
   getShellNsp()?.emit('state:pane-added', paneInfo);
 
-  // Wait for shell to initialize, then launch the LLM CLI with a chat_join bootstrap prompt
-  setTimeout(() => {
+  // Wait for the shell to be ready, then inject the LLM launch command.
+  // This replaces the old `sleep 0.5` with proper readiness detection.
+  // Invite panes are always fresh, so scanning full scrollback is safe.
+  waitForShellReady(paneId).then((outcome) => {
+    if (outcome === 'closed') return; // pane died before shell was ready
     const entry = globalPtys.get(paneId);
     if (!entry) return;
-
-    const bootstrap =
-      `Join the DevGlide chat room by calling chat_join with name="${cli}" and paneId="${paneId}". ` +
-      `After joining, follow the rules of engagement returned by chat_join.`;
-
-    // Use per-CLI launch template with proper shell escaping and permission mode flags
-    const cmd = llm.launchCmd(bootstrap, mode);
-    entry.ptyProcess.write(`${cmd}\r`);
-  }, 500);
+    entry.ptyProcess.write(`${inviteCmd}\r`);
+  });
 
   res.status(201).json({ ok: true, paneId, cli: llm.cli, name: llm.name, mode });
 }));

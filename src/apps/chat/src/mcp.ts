@@ -8,10 +8,17 @@ const UNIFIED_BASE = `http://localhost:${process.env.PORT ?? 7000}`;
 
 export interface ChatSessionEntry { name: string; projectId: string | null }
 
-/** Maps each per-session McpServer instance to all participants it owns.
- *  Tracks every (name, projectId) joined during the session so onSessionClose can clean up
- *  all of them — even if a prior /leave failed and the name was not removed. */
+/** Maps each per-session McpServer instance to its tracked chat participant(s).
+ *  New code keeps this to a single entry per MCP session, but the array shape is retained
+ *  so onSessionClose can safely clean up stale sessions from older builds. */
 export const chatServerSessions = new WeakMap<McpServer, ChatSessionEntry[]>();
+
+interface ChatStatusPayload {
+  joined?: boolean;
+  detached?: boolean;
+  paneId?: string | null;
+  error?: string;
+}
 
 /** POST/GET helper for the unified server's chat REST API. */
 async function chatApi(path: string, body?: unknown): Promise<{ ok: boolean; status: number; data: unknown }> {
@@ -48,7 +55,7 @@ export function createChatMcpServer(): McpServer {
         '- `chat_join` requires an explicit `paneId`. Read `DEVGLIDE_PANE_ID` from your shell session and pass it as `paneId` every time. Do not use `"auto"` and do not rely on MCP process env inheritance.',
         '- If your paneId collides with another participant, **both participants are disconnected** and a collision error is broadcast. Both must re-read `$DEVGLIDE_PANE_ID` and rejoin.',
         '- **`submitKey` parameter:** Controls the character sent after PTY-injected messages to trigger input submission. Use `"cr"` (carriage return, default) for all known clients including Claude Code and Codex. The submit key is sent after a short delay to avoid paste-burst detection in TUI frameworks like crossterm.',
-        '- If you call `chat_join` while already joined, the previous session is automatically cleaned up (re-join is safe).',
+        '- Each MCP session may own only one chat participant. Use `chat_leave()` first, or create a separate MCP session for another agent.',
         '',
         '### Rules of Engagement',
         '- On `chat_join`, you receive a `rules` field containing the project\'s **Rules of Engagement** (markdown).',
@@ -88,12 +95,73 @@ export function createChatMcpServer(): McpServer {
     },
   );
 
-  // Track the name and project this MCP session joined as
-  let sessionName: string | null = null;
-  let sessionProjectId: string | null = null;
+  // Track the participant currently owned by this MCP session.
+  let sessionEntry: ChatSessionEntry | null = null;
+  let joinInFlight = false;
+
+  function setSessionEntry(entry: ChatSessionEntry | null): void {
+    sessionEntry = entry;
+    if (entry) {
+      chatServerSessions.set(server, [{ ...entry }]);
+      return;
+    }
+    chatServerSessions.delete(server);
+  }
 
   function getSessionProjectId(): string | null {
-    return sessionProjectId;
+    return sessionEntry?.projectId ?? null;
+  }
+
+  function getSessionName(): string | null {
+    return sessionEntry?.name ?? null;
+  }
+
+  async function readTrackedParticipantStatus(entry: ChatSessionEntry): Promise<{ ok: boolean; status: number; data: ChatStatusPayload } | null> {
+    const query = `?name=${encodeURIComponent(entry.name)}${entry.projectId ? `&projectId=${encodeURIComponent(entry.projectId)}` : ''}`;
+    try {
+      const res = await chatApi(`/status${query}`);
+      return { ok: res.ok, status: res.status, data: (res.data as ChatStatusPayload) ?? {} };
+    } catch {
+      return null;
+    }
+  }
+
+  async function ensureSessionCanJoin(): Promise<{ ok: true } | { ok: false; result: ReturnType<typeof errorResult> }> {
+    if (!sessionEntry) return { ok: true };
+
+    const status = await readTrackedParticipantStatus(sessionEntry);
+    if (!status) {
+      return {
+        ok: false,
+        result: errorResult(
+          `This MCP session is already joined as "${sessionEntry.name}", and its current state could not be verified. Use chat_leave first or create a separate MCP session for another participant.`,
+        ),
+      };
+    }
+    if (!status.ok) {
+      if (status.status === 404) {
+        setSessionEntry(null);
+        return { ok: true };
+      }
+      return {
+        ok: false,
+        result: errorResult(
+          `This MCP session is already joined as "${sessionEntry.name}". Status check failed: ${status.data.error ?? 'unknown error'}. Use chat_leave first or create a separate MCP session for another participant.`,
+        ),
+      };
+    }
+
+    if (status.data.joined === false || status.data.detached || !status.data.paneId) {
+      setSessionEntry(null);
+      return { ok: true };
+    }
+
+    return {
+      ok: false,
+      result: errorResult(
+        `This MCP session is already joined as "${sessionEntry.name}". Use chat_leave first or create a separate MCP session for another participant.`,
+      ),
+    };
   }
 
   // ── 1. chat_join ──────────────────────────────────────────────────────
@@ -120,41 +188,34 @@ export function createChatMcpServer(): McpServer {
         );
       }
 
-      // Leave previous session if re-joining (prevents orphaned participants).
-      // Use full leave here (not detach) since the same MCP session is explicitly
-      // re-joining — the old alias is no longer needed for reclaim.
-      if (sessionName) {
-        const leaveRes = await chatApi('/leave', { name: sessionName, projectId: sessionProjectId }).catch(() => null);
-        if (leaveRes?.ok) {
-          const entries = chatServerSessions.get(server);
-          if (entries) {
-            const idx = entries.findIndex(e => e.name === sessionName && e.projectId === sessionProjectId);
-            if (idx >= 0) entries.splice(idx, 1);
+      if (joinInFlight) {
+        return errorResult(
+          'chat_join is already in progress for this MCP session. Wait for it to finish, or use a separate MCP session for another agent.',
+        );
+      }
+      joinInFlight = true;
+      try {
+        const sessionCheck = await ensureSessionCanJoin();
+        if (sessionCheck.ok === false) return sessionCheck.result;
+        const res = await chatApi('/join', { name, model: model ?? null, paneId, submitKey: submitKey ?? undefined });
+        if (!res.ok) {
+          const data = res.data as { error?: string; diagnostics?: unknown };
+          const errMsg = data?.error ?? 'Join failed';
+          const diag = data?.diagnostics;
+          if (diag) {
+            return errorResult(`${errMsg}\n\nDiagnostics: ${JSON.stringify(diag, null, 2)}`);
           }
+          return errorResult(errMsg);
         }
-        sessionName = null;
-        sessionProjectId = null;
+        // Use the resolved name from the server (may be a generated unique name)
+        const participant = res.data as { name: string; projectId?: string | null };
+        setSessionEntry({ name: participant.name, projectId: participant.projectId ?? null });
+        // Attach rules of engagement so the joining LLM knows how to behave
+        const rules = getEffectiveRules(participant.projectId);
+        return jsonResult({ ...participant, rules });
+      } finally {
+        joinInFlight = false;
       }
-
-      const res = await chatApi('/join', { name, model: model ?? null, paneId, submitKey: submitKey ?? undefined });
-      if (!res.ok) {
-        const data = res.data as { error?: string; diagnostics?: unknown };
-        const errMsg = data?.error ?? 'Join failed';
-        const diag = data?.diagnostics;
-        if (diag) {
-          return errorResult(`${errMsg}\n\nDiagnostics: ${JSON.stringify(diag, null, 2)}`);
-        }
-        return errorResult(errMsg);
-      }
-      // Use the resolved name from the server (may be a generated unique name)
-      const participant = res.data as { name: string; projectId?: string | null };
-      sessionName = participant.name;
-      sessionProjectId = participant.projectId ?? null;
-      if (!chatServerSessions.has(server)) chatServerSessions.set(server, []);
-      chatServerSessions.get(server)!.push({ name: sessionName, projectId: sessionProjectId });
-      // Attach rules of engagement so the joining LLM knows how to behave
-      const rules = getEffectiveRules(participant.projectId);
-      return jsonResult({ ...participant, rules });
     },
   );
 
@@ -165,16 +226,20 @@ export function createChatMcpServer(): McpServer {
     'Leave the chat room. Uses the name from the current session.',
     {},
     async () => {
-      if (!sessionName) return errorResult('Not joined — call chat_join first');
-      const res = await chatApi('/leave', { name: sessionName, projectId: sessionProjectId });
-      if (!res.ok) return errorResult((res.data as { error?: string })?.error ?? 'Leave failed');
-      const entries = chatServerSessions.get(server);
-      if (entries) {
-        const idx = entries.findIndex(e => e.name === sessionName && e.projectId === sessionProjectId);
-        if (idx >= 0) entries.splice(idx, 1);
+      if (joinInFlight) {
+        return errorResult('chat_join is still in progress for this MCP session. Wait for it to finish before leaving.');
       }
-      sessionName = null;
-      sessionProjectId = null;
+      if (!sessionEntry) return errorResult('Not joined — call chat_join first');
+      const current = sessionEntry;
+      const res = await chatApi('/leave', { name: current.name, projectId: current.projectId });
+      if (!res.ok) {
+        if (res.status === 404) {
+          setSessionEntry(null);
+          return jsonResult({ ok: true, left: current.name, stale: true });
+        }
+        return errorResult((res.data as { error?: string })?.error ?? 'Leave failed');
+      }
+      setSessionEntry(null);
       return jsonResult(res.data);
     },
   );
@@ -189,6 +254,8 @@ export function createChatMcpServer(): McpServer {
       to: z.string().optional().describe('Recipient name for direct message, or omit for broadcast'),
     },
     async ({ message, to }) => {
+      const sessionName = getSessionName();
+      const sessionProjectId = getSessionProjectId();
       if (!sessionName) return errorResult('Not joined — call chat_join first');
       const res = await chatApi('/send', { from: sessionName, message, to, projectId: sessionProjectId });
       if (!res.ok) return errorResult((res.data as { error?: string })?.error ?? 'Send failed');
@@ -206,6 +273,8 @@ export function createChatMcpServer(): McpServer {
       content: z.string().describe('Your stage output content (markdown supported)'),
     },
     async ({ pipeId, content }) => {
+      const sessionName = getSessionName();
+      const sessionProjectId = getSessionProjectId();
       if (!sessionName) return errorResult('Not joined — call chat_join first');
       // Normalize pipeId: strip leading "#pipe-" or "pipe-" prefix to get the bare ID
       const normalizedPipeId = pipeId.replace(/^#?pipe-/i, '');
@@ -257,15 +326,25 @@ export function createChatMcpServer(): McpServer {
     {},
     async () => {
       const pid = getSessionProjectId();
+      const sessionName = getSessionName();
       const joined = !!sessionName;
 
       // Use REST API for consistent behavior — avoids project-scoping issues
       // when sessionProjectId is null (before join or after restart).
       const statusQuery = sessionName ? `?name=${encodeURIComponent(sessionName)}${pid ? `&projectId=${encodeURIComponent(pid)}` : ''}` : '';
-      const statusRes = await chatApi(`/status${statusQuery}`);
-      if (statusRes.ok) {
+      const statusRes = await chatApi(`/status${statusQuery}`).catch(() => null);
+      if (statusRes?.ok) {
         const data = statusRes.data as Record<string, unknown>;
         return jsonResult({ joined, name: sessionName, ...data });
+      }
+      if (statusRes?.status === 404 && sessionEntry) {
+        setSessionEntry(null);
+        return jsonResult({
+          joined: false,
+          name: null,
+          projectId: pid,
+          error: `Tracked participant "${sessionName}" is no longer registered.`,
+        });
       }
 
       // Fallback to basic info if REST fails

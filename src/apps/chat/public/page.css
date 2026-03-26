@@ -292,6 +292,10 @@
   animation: chat-member-pulse 1.3s ease-in-out infinite;
 }
 
+.chat-member-status.detached {
+  color: var(--df-color-warning, #f59e0b);
+}
+
 .chat-member-badge {
   display: inline-flex;
   align-items: center;

@@ -1,19 +1,10 @@
 import { createShellMcpServer } from './mcp.js';
 import { runStdio } from '../../../packages/mcp-utils/src/index.js';
-import { createShellMcpState, shutdownAllPtys } from './create-mcp-state.js';
 
 export type { PtyEntry, PaneInfo, DashboardState, ShellConfig, McpState } from './shell-types.js';
 
-// ── Graceful shutdown ────────────────────────────────────────────────────────
-function shutdown(): void {
-  console.log('\nShutting down — killing PTY processes...');
-  shutdownAllPtys();
-  process.exit(0);
-}
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
-
 // ── Stdio MCP mode ──────────────────────────────────────────────────────────
-const mcpServer = createShellMcpServer(createShellMcpState());
+// All tools proxy to the unified HTTP server's REST API — no local PTY state needed.
+const mcpServer = createShellMcpServer();
 await runStdio(mcpServer);
 console.error('Devglide Shell MCP server running on stdio');

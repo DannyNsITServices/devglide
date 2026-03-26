@@ -48,6 +48,7 @@ vi.mock('../apps/chat/services/chat-store.js', () => storeMock);
 vi.mock('../apps/chat/services/chat-rules.js', () => rulesMock);
 vi.mock('../project-context.js', () => projectContextMock);
 const pane1PtyWrite = vi.fn();
+const spawnGlobalPtyMock = vi.hoisted(() => vi.fn());
 const shellStateMock = vi.hoisted(() => ({
   globalPtys: null as unknown as Map<string, unknown>,
   dashboardState: null as unknown as { panes: Array<Record<string, unknown>>; activeTab: string; activePaneId: string },
@@ -76,7 +77,7 @@ vi.mock('../apps/shell/src/runtime/shell-state.js', () => {
   };
 });
 vi.mock('../apps/shell/src/runtime/pty-manager.js', () => ({
-  spawnGlobalPty: vi.fn(),
+  spawnGlobalPty: spawnGlobalPtyMock,
 }));
 vi.mock('../apps/shell/src/runtime/shell-config.js', () => ({
   SHELL_CONFIGS: {
@@ -596,6 +597,216 @@ describe('chat router invite permission modes', () => {
       );
       expect(pane).toBeDefined();
       expect(pane.permissionMode).toBe('auto-accept');
+    });
+  });
+
+  // ── Helper: create a mock PTY with controllable callbacks ────────────────
+
+  function createMockPty() {
+    const onDataCallbacks: Array<(data: string) => void> = [];
+    const onExitCallbacks: Array<(e: { exitCode: number }) => void> = [];
+    const write = vi.fn();
+    const pty = {
+      write,
+      onData: (cb: (data: string) => void) => { onDataCallbacks.push(cb); return { dispose: vi.fn() }; },
+      onExit: (cb: (e: { exitCode: number }) => void) => { onExitCallbacks.push(cb); return { dispose: vi.fn() }; },
+      pid: 12345,
+    };
+    return { pty, write, onDataCallbacks, onExitCallbacks };
+  }
+
+  // ── Test: live prompt detection ────────────────────────────────────────────
+
+  it('POST /invite spawns an interactive shell and injects the command after readiness (live prompt)', async () => {
+    const { pty, write: mockPtyWrite, onDataCallbacks } = createMockPty();
+    spawnGlobalPtyMock.mockImplementation((id: string) => {
+      shellStateMock.globalPtys.set(id, { ptyProcess: pty, chunks: [], totalLen: 0 });
+      return pty;
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/invite`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cli: 'claude', mode: 'auto-accept' }),
+      });
+
+      expect(response.status).toBe(201);
+      const data = await response.json();
+
+      // Shell is spawned as interactive login (no baked-in command)
+      const spawnArgs = spawnGlobalPtyMock.mock.calls[0];
+      expect(spawnArgs[0]).toBe(data.paneId);
+      expect(spawnArgs[1]).toBe('/bin/bash');
+      expect(spawnArgs[2]).toEqual(['-li']);
+
+      // Command has NOT been injected yet (shell not ready)
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+
+      // Simulate shell emitting a prompt via live output — triggers readiness
+      const entry = shellStateMock.globalPtys.get(data.paneId) as { chunks: string[]; totalLen: number };
+      const promptOutput = 'user@host:~$ ';
+      entry.chunks.push(promptOutput);
+      entry.totalLen += promptOutput.length;
+      for (const cb of onDataCallbacks) cb(promptOutput);
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockPtyWrite).toHaveBeenCalledTimes(1);
+      expect(mockPtyWrite.mock.calls[0][0]).toContain('claude');
+      expect(mockPtyWrite.mock.calls[0][0]).toContain('chat_join');
+      expect(mockPtyWrite.mock.calls[0][0]).toMatch(/\r$/);
+    });
+  });
+
+  // ── Test: buffer-hit (prompt emitted during spawn) ─────────────────────
+
+  it('POST /invite detects prompt emitted during spawn (buffer-hit path)', async () => {
+    const { pty, write: mockPtyWrite } = createMockPty();
+    spawnGlobalPtyMock.mockImplementation((id: string) => {
+      // Prompt already in scrollback when waitForShellReady runs
+      const promptOutput = 'bash-5.2$ ';
+      shellStateMock.globalPtys.set(id, {
+        ptyProcess: pty,
+        chunks: [promptOutput],
+        totalLen: promptOutput.length,
+      });
+      return pty;
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/invite`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cli: 'claude', mode: 'auto-accept' }),
+      });
+
+      expect(response.status).toBe(201);
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Buffer-hit: prompt was already in scrollback → immediate injection
+      expect(mockPtyWrite).toHaveBeenCalledTimes(1);
+      expect(mockPtyWrite.mock.calls[0][0]).toContain('claude');
+      expect(mockPtyWrite.mock.calls[0][0]).toContain('chat_join');
+    });
+  });
+
+  // ── Test: timeout probe path ───────────────────────────────────────────
+
+  it('POST /invite falls back to probe when no prompt appears within timeout', async () => {
+    vi.useFakeTimers();
+    const { pty, write: mockPtyWrite, onDataCallbacks } = createMockPty();
+    spawnGlobalPtyMock.mockImplementation((id: string) => {
+      shellStateMock.globalPtys.set(id, { ptyProcess: pty, chunks: [], totalLen: 0 });
+      return pty;
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/invite`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cli: 'claude', mode: 'auto-accept' }),
+      });
+
+      expect(response.status).toBe(201);
+      const data = await response.json();
+
+      // No prompt emitted — command should not be injected yet
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+
+      // Advance past the 5s timeout to trigger probe
+      await vi.advanceTimersByTimeAsync(5000);
+
+      // Probe echo should have been written
+      const probeCall = mockPtyWrite.mock.calls.find(
+        (c: string[]) => c[0]?.includes('__DEVGLIDE_READY_'),
+      );
+      expect(probeCall).toBeDefined();
+
+      // Simulate probe marker appearing in scrollback
+      const entry = shellStateMock.globalPtys.get(data.paneId) as { chunks: string[]; totalLen: number };
+      const markerMatch = probeCall![0].match(/__DEVGLIDE_READY_\d+__/)!;
+      const markerOutput = `${markerMatch[0]}\n`;
+      entry.chunks.push(markerOutput);
+      entry.totalLen += markerOutput.length;
+      for (const cb of onDataCallbacks) cb(markerOutput);
+
+      await vi.advanceTimersByTimeAsync(10);
+
+      // Probe detected → launch command injected (second write call)
+      const launchCall = mockPtyWrite.mock.calls.find(
+        (c: string[]) => c[0]?.includes('chat_join'),
+      );
+      expect(launchCall).toBeDefined();
+      expect(launchCall![0]).toContain('claude');
+    });
+
+    vi.useRealTimers();
+  });
+
+  // ── Test: pane exit before readiness ───────────────────────────────────
+
+  it('POST /invite does not inject command if pane exits before readiness', async () => {
+    const { pty, write: mockPtyWrite, onExitCallbacks } = createMockPty();
+    spawnGlobalPtyMock.mockImplementation((id: string) => {
+      shellStateMock.globalPtys.set(id, { ptyProcess: pty, chunks: [], totalLen: 0 });
+      return pty;
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/invite`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cli: 'claude', mode: 'auto-accept' }),
+      });
+
+      expect(response.status).toBe(201);
+      const data = await response.json();
+
+      // Simulate pane exit before any prompt
+      shellStateMock.globalPtys.delete(data.paneId);
+      for (const cb of onExitCallbacks) cb({ exitCode: 1 });
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      // No launch command should have been injected
+      expect(mockPtyWrite).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── Test: one-shot guarantee (prompt + exit race) ──────────────────────
+
+  it('POST /invite injects launch command at most once even if prompt and exit race', async () => {
+    const { pty, write: mockPtyWrite, onDataCallbacks, onExitCallbacks } = createMockPty();
+    spawnGlobalPtyMock.mockImplementation((id: string) => {
+      shellStateMock.globalPtys.set(id, { ptyProcess: pty, chunks: [], totalLen: 0 });
+      return pty;
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/invite`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cli: 'claude', mode: 'auto-accept' }),
+      });
+
+      expect(response.status).toBe(201);
+      const data = await response.json();
+
+      // Emit prompt and exit simultaneously
+      const entry = shellStateMock.globalPtys.get(data.paneId) as { chunks: string[]; totalLen: number };
+      const promptOutput = 'user@host:~$ ';
+      entry.chunks.push(promptOutput);
+      entry.totalLen += promptOutput.length;
+      for (const cb of onDataCallbacks) cb(promptOutput);
+      for (const cb of onExitCallbacks) cb({ exitCode: 0 });
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Launch command should be injected exactly once (prompt wins the race,
+      // exit is a no-op because settled is already true)
+      expect(mockPtyWrite).toHaveBeenCalledTimes(1);
+      expect(mockPtyWrite.mock.calls[0][0]).toContain('chat_join');
     });
   });
 });

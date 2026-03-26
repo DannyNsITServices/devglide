@@ -330,6 +330,16 @@ function createMemberModeIndicator(mode) {
   return indicator;
 }
 
+function createMemberDetachedIndicator() {
+  const indicator = document.createElement('span');
+  indicator.className = 'chat-member-status detached';
+  const tooltip = 'Detached: MCP session closed, waiting for reclaim';
+  indicator.dataset.chatTooltip = tooltip;
+  indicator.setAttribute('aria-label', tooltip);
+  indicator.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4" fill="currentColor"></circle></svg>`;
+  return indicator;
+}
+
 // ── Custom tooltip ──────────────────────────────────────────────────
 
 function showTooltip(target) {
@@ -580,10 +590,7 @@ function renderMembers() {
       tag.textContent = 'You';
       meta.appendChild(tag);
     } else if (m.detached) {
-      const tag = document.createElement('span');
-      tag.className = 'chat-member-tag detached';
-      tag.textContent = 'Detached';
-      meta.appendChild(tag);
+      meta.appendChild(createMemberDetachedIndicator());
     } else {
       const state = m.status || 'idle';
       meta.appendChild(createMemberStatusIndicator(state));

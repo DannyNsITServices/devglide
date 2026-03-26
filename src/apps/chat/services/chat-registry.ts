@@ -7,6 +7,7 @@ import { getActiveProject, onProjectChange } from '../../../project-context.js';
 import { isPipeCommand, parsePipeCommand, isPipeParseError } from './pipe-parser.js';
 import * as pipeReducer from './pipe-reducer.js';
 import * as pipeStore from './pipe-store.js';
+import { stripAnsi } from './terminal-utils.js';
 
 // In-memory participant registry
 const participants = new Map<string, ChatParticipant>();
@@ -115,12 +116,6 @@ function markAssignedParticipantStatus(body: string, targetName: string): ChatPa
 // Prompt detection uses a delta buffer (output since last quiescence check)
 // rather than the full scrollback tail, preventing stale prompts from
 // re-triggering after the user has already responded.
-
-const STRIP_ANSI_RE = /[\x1b\x9b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\r/g;
-
-function stripAnsi(str: string): string {
-  return str.replace(STRIP_ANSI_RE, '');
-}
 
 /** Returns true if text contains printable (non-whitespace) characters after ANSI stripping. */
 function hasNontrivialContent(rawData: string): boolean {
@@ -354,18 +349,17 @@ export function getChatNsp(): Namespace | null {
 }
 
 // ── Identity-based name assignment ──────────────────────────────────────────
-// Names are derived from hint (the `name` param from chat_join) + pane display
-// number (e.g. "claude-1", "codex-2"). The `hint` is preferred over `model` so
-// that agents with a stable identity label (like "codex") keep that label
-// regardless of which backend model they report.
-// The pane's per-project `num` is used — not the global pane ID counter —
-// so names are deterministic within each project context.
+// Names are derived from hint (the `name` param from chat_join) + the numeric
+// suffix from the pane ID (e.g. "claude-5" for pane-5, "codex-4" for pane-4).
+// The `hint` is preferred over `model` so that agents with a stable identity
+// label (like "codex") keep that label regardless of which backend model they
+// report.
 
-/** Look up the pane's per-project display number from dashboardState. */
+/** Extract the numeric suffix from the pane ID (e.g. "pane-5" → 5). */
 function getPaneDisplayNumber(paneId: string | null): number | null {
   if (!paneId) return null;
-  const pane = dashboardState.panes.find(p => p.id === paneId);
-  return pane ? pane.num : null;
+  const match = paneId.match(/-(\d+)$/);
+  return match ? Number(match[1]) : null;
 }
 
 /** Normalize the identity base from hint/model (e.g. "claude", "codex"). */
