@@ -18,6 +18,7 @@ import {
   createChatMcpServer,
   chatServerSessions,
   bindChatSessionToMcpHttpSession,
+  hasChatMcpHttpSession,
   registerChatMcpHttpSession,
   unregisterChatMcpHttpSession,
 } from '../apps/chat/src/mcp.js';
@@ -26,6 +27,7 @@ export {
   createChatMcpServer,
   chatServerSessions,
   bindChatSessionToMcpHttpSession,
+  hasChatMcpHttpSession,
   registerChatMcpHttpSession,
   unregisterChatMcpHttpSession,
 };
@@ -498,9 +500,13 @@ router.post('/join', (req: Request, res: Response) => {
   const paneInfo = dashboardState.panes.find(p => p.id === resolvedPaneId);
   const paneProjectId = paneInfo?.projectId ?? projectId;
   const resolvedSubmitKey = submitKey === 'lf' ? '\n' : '\r';
-  const participant = registry.join(name, 'llm', resolvedPaneId, model ?? null, resolvedSubmitKey, paneProjectId, 'rest');
   const mcpSessionId = req.headers['mcp-session-id'];
-  if (typeof mcpSessionId === 'string' && mcpSessionId) {
+  const effectiveJoinVia =
+    typeof mcpSessionId === 'string' && mcpSessionId && hasChatMcpHttpSession(mcpSessionId)
+      ? 'mcp'
+      : 'rest';
+  const participant = registry.join(name, 'llm', resolvedPaneId, model ?? null, resolvedSubmitKey, paneProjectId, effectiveJoinVia);
+  if (effectiveJoinVia === 'mcp' && typeof mcpSessionId === 'string' && mcpSessionId) {
     const bound = bindChatSessionToMcpHttpSession(mcpSessionId, { name: participant.name, projectId: participant.projectId ?? null });
     if (bound) {
       participant.joinedVia = 'mcp';

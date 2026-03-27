@@ -89,6 +89,10 @@ export function bindChatSessionToMcpHttpSession(sessionId: string, entry: ChatSe
   return true;
 }
 
+export function hasChatMcpHttpSession(sessionId: string): boolean {
+  return chatMcpServersBySessionId.has(sessionId);
+}
+
 export function createChatMcpServer(): McpServer {
   const server = createDevglideMcpServer(
     'devglide-chat',

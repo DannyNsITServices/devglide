@@ -455,6 +455,8 @@ export function join(
   const nameBase = deriveNameBase(name, model);
   const existing = findReclaimCandidate(paneId, nameBase, resolvedProjectId);
   if (existing) {
+    const wasDetached = existing.detached;
+    const previousJoinVia = existing.joinedVia ?? null;
     // Reattach: keep the same alias, update session fields
     existing.detached = false;
     existing.paneId = paneId;
@@ -475,10 +477,14 @@ export function join(
 
     if (paneId) updatePaneTitle(paneId, existing.name);
 
+    const joinAnnouncement =
+      !wasDetached && previousJoinVia === 'rest' && joinedVia === 'mcp'
+        ? 'session upgraded'
+        : 'reconnected';
     const msg = appendMessage({
       from: existing.name,
       to: null,
-      body: `${existing.name} reconnected${paneId ? ` (${paneId})` : ''}`,
+      body: `${existing.name} ${joinAnnouncement}${paneId ? ` (${paneId})` : ''}`,
       type: 'join',
     }, existing.projectId);
     emitToProject('chat:join', existing, existing.projectId);

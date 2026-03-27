@@ -24,6 +24,7 @@ const registryMock = vi.hoisted(() => ({
   brainstormAdjustDetails: vi.fn(async () => false),
   brainstormFinalize: vi.fn(async () => false),
   brainstormBackToIdeas: vi.fn(async () => false),
+  persistParticipantsForProject: vi.fn(),
   deriveNameBase: vi.fn((hint: string, model: string | null) => (hint || model || 'agent').toLowerCase().replace(/[^a-z0-9-]/g, '')),
 }));
 
@@ -110,6 +111,7 @@ vi.mock('../apps/chat/src/mcp.js', () => ({
   createChatMcpServer: vi.fn(),
   chatServerSessions: new WeakMap(),
   bindChatSessionToMcpHttpSession: vi.fn(),
+  hasChatMcpHttpSession: vi.fn(() => false),
   registerChatMcpHttpSession: vi.fn(),
   unregisterChatMcpHttpSession: vi.fn(),
 }));
@@ -208,6 +210,8 @@ describe('chat router rules of engagement', () => {
 
   it('binds a REST join to the matching MCP session when mcp-session-id is provided', async () => {
     const mcpMock = await import('../apps/chat/src/mcp.js');
+    vi.mocked(mcpMock.hasChatMcpHttpSession).mockReturnValue(true);
+    vi.mocked(mcpMock.bindChatSessionToMcpHttpSession).mockReturnValue(true);
     registryMock.join.mockReturnValue({
       name: 'vera',
       kind: 'llm',
@@ -235,6 +239,43 @@ describe('chat router rules of engagement', () => {
         name: 'vera',
         projectId: 'project-1',
       });
+      expect(registryMock.join).toHaveBeenCalledWith('codex', 'llm', 'pane-1', 'codex', '\r', 'project-1', 'mcp');
+      const data = await response.json();
+      expect(data.joinedVia).toBe('mcp');
+    });
+  });
+
+  it('keeps REST join wording when the mcp-session-id does not map to a live MCP session', async () => {
+    const mcpMock = await import('../apps/chat/src/mcp.js');
+    vi.mocked(mcpMock.hasChatMcpHttpSession).mockReturnValue(false);
+    registryMock.join.mockReturnValue({
+      name: 'vera',
+      kind: 'llm',
+      model: 'codex',
+      paneId: 'pane-1',
+      projectId: 'project-1',
+      submitKey: '\r',
+      joinedAt: '2026-03-22T00:00:00.000Z',
+      lastSeen: '2026-03-22T00:00:00.000Z',
+      detached: false,
+      joinedVia: 'rest',
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/join`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'mcp-session-id': 'missing-session',
+        },
+        body: JSON.stringify({ name: 'codex', model: 'codex', paneId: 'pane-1' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect(registryMock.join).toHaveBeenCalledWith('codex', 'llm', 'pane-1', 'codex', '\r', 'project-1', 'rest');
+      expect(mcpMock.bindChatSessionToMcpHttpSession).not.toHaveBeenCalled();
+      const data = await response.json();
+      expect(data.joinedVia).toBe('rest');
     });
   });
 

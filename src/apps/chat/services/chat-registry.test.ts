@@ -171,6 +171,50 @@ describe('chat-registry PTY delivery', () => {
     registry.leave(participant.name);
   });
 
+  it('announces REST-backed MCP adoption as a session upgrade', () => {
+    globalPtys.set('pane-upgrade', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    const participant = registry.join('codex', 'llm', 'pane-upgrade', 'codex', '\r', 'project-chat', 'rest');
+    chatStoreMock.appendMessage.mockClear();
+
+    const reclaimed = registry.join('codex', 'llm', 'pane-upgrade', 'codex', '\r', 'project-chat', 'mcp');
+
+    expect(reclaimed.name).toBe(participant.name);
+    expect(reclaimed.joinedVia).toBe('mcp');
+    expect(chatStoreMock.appendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      from: participant.name,
+      body: `${participant.name} session upgraded (pane-upgrade)`,
+      type: 'join',
+    }), 'project-chat');
+
+    registry.leave(participant.name);
+  });
+
+  it('keeps reconnected wording for detached reclaim', () => {
+    globalPtys.set('pane-reconnect', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    const participant = registry.join('codex', 'llm', 'pane-reconnect', 'codex', '\r', 'project-chat', 'mcp');
+    registry.detach(participant.name);
+    chatStoreMock.appendMessage.mockClear();
+
+    const reclaimed = registry.join('codex', 'llm', 'pane-reconnect', 'codex', '\r', 'project-chat', 'mcp');
+
+    expect(reclaimed.name).toBe(participant.name);
+    expect(chatStoreMock.appendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      from: participant.name,
+      body: `${participant.name} reconnected (pane-reconnect)`,
+      type: 'join',
+    }), 'project-chat');
+
+    registry.leave(participant.name);
+  });
+
   it('skips the delayed submit when the pane closes before it fires', async () => {
     const writes: string[] = [];
     globalPtys.set('pane-3', {
