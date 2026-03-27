@@ -44,6 +44,12 @@ const messagesQuerySchema = z.object({
   since: z.string().optional(),
 });
 
+const pipeEventsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().optional(),
+  since: z.string().optional(),
+  pipeId: z.string().optional(),
+});
+
 // ── Zod schemas (join/leave/send) ────────────────────────────────────────────
 
 const joinSchema = z.object({
@@ -111,59 +117,51 @@ interface RoutablePane {
   claimedBy?: string;   // participant name if claimed
 }
 
+/** Build a map of paneId → participant name for all non-detached participants. */
+function buildClaimedPanesMap(participants: { paneId: string | null; name: string; detached: boolean }[]): Map<string, string> {
+  const claimed = new Map<string, string>();
+  for (const p of participants) {
+    if (p.paneId && !p.detached) claimed.set(p.paneId, p.name);
+  }
+  return claimed;
+}
+
+/** Convert a dashboard pane to a RoutablePane with claim status. */
+function toRoutablePane(pane: typeof dashboardState.panes[number], claimedPanes: Map<string, string>): RoutablePane {
+  return {
+    id: pane.id,
+    num: pane.num,
+    title: pane.title ?? `pane-${pane.num}`,
+    projectId: pane.projectId ?? null,
+    cwd: pane.cwd ?? '',
+    chatName: pane.chatName,
+    claimed: claimedPanes.has(pane.id),
+    claimedBy: claimedPanes.get(pane.id),
+  };
+}
+
 /** Get all routable panes globally (not filtered by project). Used for claim checks. */
 function getRoutablePanesGlobal(): RoutablePane[] {
   // Collect claimed panes from ALL participants across all projects
-  const claimedPanes = new Map<string, string>();
+  const allParticipants: { paneId: string | null; name: string; detached: boolean }[] = [];
   for (const pane of dashboardState.panes) {
     const pid = pane.projectId ?? null;
-    const participants = registry.listParticipants(pid);
-    for (const p of participants) {
-      if (p.paneId && !p.detached) claimedPanes.set(p.paneId, p.name);
-    }
+    allParticipants.push(...registry.listParticipants(pid));
   }
+  const claimedPanes = buildClaimedPanesMap(allParticipants);
 
-  const result: RoutablePane[] = [];
-  for (const pane of dashboardState.panes) {
-    if (!globalPtys.has(pane.id)) continue;
-    result.push({
-      id: pane.id,
-      num: pane.num,
-      title: pane.title ?? `pane-${pane.num}`,
-      projectId: pane.projectId ?? null,
-      cwd: pane.cwd ?? '',
-      chatName: pane.chatName,
-      claimed: claimedPanes.has(pane.id),
-      claimedBy: claimedPanes.get(pane.id),
-    });
-  }
-  return result;
+  return dashboardState.panes
+    .filter(pane => globalPtys.has(pane.id))
+    .map(pane => toRoutablePane(pane, claimedPanes));
 }
 
 function getRoutablePanes(projectId?: string | null): RoutablePane[] {
   const pid = projectId ?? getActiveProject()?.id ?? null;
-  const participants = registry.listParticipants(pid);
-  const claimedPanes = new Map<string, string>();
-  for (const p of participants) {
-    if (p.paneId && !p.detached) claimedPanes.set(p.paneId, p.name);
-  }
+  const claimedPanes = buildClaimedPanesMap(registry.listParticipants(pid));
 
-  const result: RoutablePane[] = [];
-  for (const pane of dashboardState.panes) {
-    if (!globalPtys.has(pane.id)) continue;
-    if (pid && pane.projectId && pane.projectId !== pid) continue;
-    result.push({
-      id: pane.id,
-      num: pane.num,
-      title: pane.title ?? `pane-${pane.num}`,
-      projectId: pane.projectId ?? null,
-      cwd: pane.cwd ?? '',
-      chatName: pane.chatName,
-      claimed: claimedPanes.has(pane.id),
-      claimedBy: claimedPanes.get(pane.id),
-    });
-  }
-  return result;
+  return dashboardState.panes
+    .filter(pane => globalPtys.has(pane.id) && !(pid && pane.projectId && pane.projectId !== pid))
+    .map(pane => toRoutablePane(pane, claimedPanes));
 }
 
 interface PaneResolutionResult {
@@ -405,6 +403,17 @@ router.get('/messages', (req: Request, res: Response) => {
   res.json(messages);
 });
 
+// GET /pipe-events — read persisted UI-only pipe events (kept out of chat history)
+router.get('/pipe-events', (req: Request, res: Response) => {
+  const query = pipeEventsQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    badRequest(res, query.error.issues[0]?.message ?? 'Invalid input');
+    return;
+  }
+  const events = store.readPipeEvents(query.data);
+  res.json(events);
+});
+
 // POST /messages — send as "user" (dashboard shorthand)
 router.post('/messages', asyncHandler(async (req: Request, res: Response) => {
   const parsed = sendMessageSchema.safeParse(req.body);
@@ -450,7 +459,7 @@ router.post('/join', (req: Request, res: Response) => {
   }
 
   const projectId = getActiveProject()?.id ?? null;
-  const resolution = resolvePane(paneId, projectId, normalizeLlmIdentityBase(name, model ?? null));
+  const resolution = resolvePane(paneId, projectId, registry.deriveNameBase(name, model ?? null));
 
   // Handle pane collision — if the pane is claimed by another LLM, preserve
   // the existing session and reject the newcomer with 409.
@@ -605,6 +614,31 @@ router.get('/pipes/:id', (req: Request, res: Response) => {
   res.json(run);
 });
 
+// GET /pipes/:id/output — read the caller-scoped pipe output
+// Caller identity is resolved server-side from the X-Pane-Id header via the participant registry.
+router.get('/pipes/:id/output', (req: Request, res: Response) => {
+  const paneId = req.headers['x-pane-id'] as string | undefined;
+  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+
+  if (!paneId) {
+    res.status(401).json({ error: 'X-Pane-Id header is required' });
+    return;
+  }
+
+  const participant = registry.getParticipantByPaneId(paneId, projectId);
+  if (!participant) {
+    res.status(403).json({ error: 'No registered participant for the supplied pane' });
+    return;
+  }
+
+  const result = registry.readPipeOutput(req.params.id, participant.name, projectId);
+  if (!result.ok) {
+    res.status(result.status).json({ error: result.error });
+    return;
+  }
+  res.json(result.data);
+});
+
 // POST /pipes/:id/submit — submit a stage artifact for a pipe
 const pipeSubmitSchema = z.object({
   from: z.string().min(1),
@@ -663,6 +697,86 @@ router.post('/pipes/:id/cancel', asyncHandler(async (req: Request, res: Response
     return;
   }
   res.json({ ok: true, cancelled: req.params.id });
+}));
+
+// ── Brainstorm endpoints ─────────────────────────────────────────────────────
+
+// GET /brainstorms — list active brainstorms
+router.get('/brainstorms', (_req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  res.json(registry.getActiveBrainstorms(projectId));
+});
+
+// GET /brainstorms/:id — get brainstorm status
+router.get('/brainstorms/:id', (req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  const record = registry.getBrainstormRecord(req.params.id, projectId);
+  if (!record) {
+    res.status(404).json({ error: 'Brainstorm not found' });
+    return;
+  }
+  res.json(record);
+});
+
+// POST /brainstorms/:id/accept-idea
+router.post('/brainstorms/:id/accept-idea', asyncHandler(async (req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  const ok = await registry.brainstormAcceptIdea(req.params.id, projectId);
+  if (!ok) {
+    res.status(409).json({ error: 'Brainstorm not in ideas_review phase' });
+    return;
+  }
+  res.json({ ok: true });
+}));
+
+// POST /brainstorms/:id/retry-ideas
+const brainstormNoteSchema = z.object({ note: z.string().nullable().optional() });
+
+router.post('/brainstorms/:id/retry-ideas', asyncHandler(async (req: Request, res: Response) => {
+  const parsed = brainstormNoteSchema.safeParse(req.body);
+  const note = parsed.success ? (parsed.data.note ?? null) : null;
+  const projectId = getActiveProject()?.id ?? null;
+  const ok = await registry.brainstormRetryIdeas(req.params.id, note, projectId);
+  if (!ok) {
+    res.status(409).json({ error: 'Brainstorm not in ideas_review phase' });
+    return;
+  }
+  res.json({ ok: true });
+}));
+
+// POST /brainstorms/:id/adjust-details
+router.post('/brainstorms/:id/adjust-details', asyncHandler(async (req: Request, res: Response) => {
+  const parsed = brainstormNoteSchema.safeParse(req.body);
+  const note = parsed.success ? (parsed.data.note ?? null) : null;
+  const projectId = getActiveProject()?.id ?? null;
+  const ok = await registry.brainstormAdjustDetails(req.params.id, note, projectId);
+  if (!ok) {
+    res.status(409).json({ error: 'Brainstorm not in details_review phase' });
+    return;
+  }
+  res.json({ ok: true });
+}));
+
+// POST /brainstorms/:id/finalize
+router.post('/brainstorms/:id/finalize', asyncHandler(async (req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  const ok = await registry.brainstormFinalize(req.params.id, projectId);
+  if (!ok) {
+    res.status(409).json({ error: 'Brainstorm not in details_review phase' });
+    return;
+  }
+  res.json({ ok: true });
+}));
+
+// POST /brainstorms/:id/back-to-ideas
+router.post('/brainstorms/:id/back-to-ideas', asyncHandler(async (req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  const ok = await registry.brainstormBackToIdeas(req.params.id, projectId);
+  if (!ok) {
+    res.status(409).json({ error: 'Brainstorm not in details_review phase' });
+    return;
+  }
+  res.json({ ok: true });
 }));
 
 // ── LLM invite endpoints ─────────────────────────────────────────────────────
@@ -735,9 +849,6 @@ interface AvailableLlm {
   modes: PermissionMode[];
 }
 
-function normalizeLlmIdentityBase(hint: string, model: string | null = null): string {
-  return (hint || model || 'agent').toLowerCase().replace(/[^a-z0-9-]/g, '');
-}
 
 function buildChatJoinPrompt(cli: string, paneId: string, joinedName: string): string {
   return `You are already registered in the DevGlide chat room via a REST fallback as "${joinedName}" on pane "${paneId}". `
@@ -990,22 +1101,20 @@ export function initChat(nsp: Namespace): void {
 
   // Restore participants from disk after server restart — per-project with scoped notifications
   const allProjects = listProjects().projects;
-  const projectResults: Array<{ projectId: string; restored: string[]; failed: string[]; interruptedPipes: string[] }> = [];
+  const projectResults: Array<{ projectId: string; restored: string[]; failed: string[] }> = [];
   for (const proj of allProjects) {
     const { restored, failed } = registry.restoreParticipants(proj.id);
-    const interruptedPipes = registry.restorePipes(proj.id);
-    if (restored.length > 0 || failed.length > 0 || interruptedPipes.length > 0) {
-      projectResults.push({ projectId: proj.id, restored, failed, interruptedPipes });
+    if (restored.length > 0 || failed.length > 0) {
+      projectResults.push({ projectId: proj.id, restored, failed });
     }
   }
   if (projectResults.length > 0) {
     // Emit per-project notifications after nsp is set so dashboard clients see them
     setTimeout(() => {
-      for (const { projectId, restored, failed, interruptedPipes } of projectResults) {
+      for (const { projectId, restored, failed } of projectResults) {
         let body = 'Server restarted.';
         if (restored.length > 0) body += ` Restored (awaiting reclaim): ${restored.join(', ')}.`;
         if (failed.length > 0) body += ` Failed to restore: ${failed.join(', ')}.`;
-        if (interruptedPipes.length > 0) body += ` Interrupted pipes: ${interruptedPipes.map(id => `#${id}`).join(', ')}.`;
         const msg = store.appendMessage({
           from: 'system',
           to: null,

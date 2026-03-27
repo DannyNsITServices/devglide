@@ -10,7 +10,7 @@ export interface ChatMessage {
 
 // ── Pipe types ───────────────────────────────────────────────────────
 
-export type PipeMode = 'linear' | 'merge' | 'merge-all';
+export type PipeMode = 'linear' | 'merge' | 'merge-all' | 'explain' | 'summarize';
 
 export type PipeRole =
   | 'start'
@@ -38,6 +38,30 @@ export interface PipeMessageMeta {
 
 /** Derived pipe status — computed from log, not stored. */
 export type PipeStatus = 'running' | 'completed' | 'failed' | 'cancelled';
+
+export type PipeUiEventType =
+  | 'start'
+  | 'complete'
+  | 'failed'
+  | 'cancel'
+  | 'queued'
+  | 'instruction'
+  | 'stage-output';
+
+export interface PipeUiEvent {
+  id: string;
+  ts: string;
+  type: PipeUiEventType;
+  pipeId: string;
+  mode?: PipeMode | null;
+  actionType?: 'handoff' | 'fan-out-request' | 'synth-request';
+  assignee?: string;
+  from?: string;
+  role?: Extract<PipeRole, 'stage-output' | 'fan-out' | 'final'>;
+  stage?: number;
+  content?: string;
+  reason?: string;
+}
 
 export interface ChatParticipant {
   name: string;

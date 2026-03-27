@@ -1,8 +1,9 @@
 import { randomUUID } from 'crypto';
 import type { ChatMessage, PipeMode, PipeRole, PipeMessageMeta, PipeStatus } from '../types.js';
 import type { ParsedPipeCommand } from './pipe-parser.js';
+import type { StoredPipe } from './pipe-store.js';
 
-// ── Reducer state (derived from log scan) ────────────────────────────────────
+// ── Reducer state ────────────────────────────────────────────────────────────
 
 export interface PipeState {
   pipeId: string;
@@ -31,6 +32,8 @@ function emissionKey(role: PipeRole, stage?: number, targetAssignee?: string): s
 }
 
 // ── Scan log to derive pipe state ────────────────────────────────────────────
+// Note: buildStateFromStore (pipe store) is the primary state source in production.
+// This function is used as a fallback for legacy/recovery pipes not in the store.
 
 export function derivePipeState(messages: ChatMessage[], pipeId: string): PipeState | null {
   let state: PipeState | null = null;
@@ -101,6 +104,56 @@ export function derivePipeState(messages: ChatMessage[], pipeId: string): PipeSt
   return state;
 }
 
+/** Build PipeState directly from the pipe store — no log scanning needed.
+ *  This is the primary state builder for store-tracked pipes. */
+export function buildStateFromStore(pipe: StoredPipe): PipeState {
+  const state: PipeState = {
+    pipeId: pipe.pipeId,
+    mode: pipe.mode,
+    status: pipe.status === 'running' ? 'running' : pipe.status,
+    assignees: pipe.assignees,
+    prompt: pipe.prompt,
+    stageOutputs: new Map(),
+    fanOutOutputs: new Map(),
+    emittedRoles: new Set(),
+    hasHandoffs: new Set(pipe.emittedHandoffs),
+    hasSynthRequest: pipe.emittedSynthRequest,
+    hasFinal: false,
+    hasFailed: pipe.status === 'failed',
+    hasCancelled: pipe.status === 'cancelled',
+  };
+
+  // Populate emittedRoles from store tracking
+  for (const stage of pipe.emittedHandoffs) {
+    state.emittedRoles.add(`handoff:${stage}`);
+  }
+  for (const assignee of pipe.emittedFanOutRequests) {
+    state.emittedRoles.add(`fan-out-request:${assignee}`);
+  }
+  if (pipe.emittedSynthRequest) {
+    state.emittedRoles.add('synth-request');
+  }
+
+  // Populate outputs from store slots
+  for (const [assignee, slotList] of pipe.slots) {
+    for (const slot of slotList) {
+      if (slot.status === 'submitted' && slot.content) {
+        if (slot.stage !== undefined && slot.role !== 'final') {
+          state.stageOutputs.set(slot.stage, { from: assignee, body: slot.content });
+        }
+        if (slot.role === 'fan-out') {
+          state.fanOutOutputs.set(assignee, slot.content);
+        }
+        if (slot.role === 'final') {
+          state.hasFinal = true;
+        }
+      }
+    }
+  }
+
+  return state;
+}
+
 // ── Reducer: compute next actions ────────────────────────────────────────────
 
 export interface PipeAction {
@@ -111,12 +164,16 @@ export interface PipeAction {
   pipe: PipeMessageMeta;
 }
 
+function isMergeAllStyleMode(mode: PipeMode): boolean {
+  return mode === 'merge-all' || mode === 'explain' || mode === 'summarize';
+}
+
 export function computeNextActions(state: PipeState): PipeAction[] {
   // Guard: terminal state → no actions
   if (state.hasFinal || state.hasFailed || state.hasCancelled) return [];
 
   if (state.mode === 'linear') return computeLinearActions(state);
-  if (state.mode === 'merge' || state.mode === 'merge-all') return computeMergeActions(state);
+  if (state.mode === 'merge' || isMergeAllStyleMode(state.mode)) return computeMergeActions(state);
   return [];
 }
 
@@ -131,7 +188,7 @@ function computeLinearActions(state: PipeState): PipeAction[] {
       type: 'handoff',
       targetAssignee: target,
       stage: 1,
-      body: formatLinearHandoff(state, 1, null),
+      body: formatLinearHandoff(state, 1),
       pipe: {
         pipeId: state.pipeId,
         mode: 'linear',
@@ -159,7 +216,7 @@ function computeLinearActions(state: PipeState): PipeAction[] {
       type: 'handoff',
       targetAssignee: target,
       stage: nextStage,
-      body: formatLinearHandoff(state, nextStage, output.body),
+      body: formatLinearHandoff(state, nextStage),
       pipe: {
         pipeId: state.pipeId,
         mode: 'linear',
@@ -177,7 +234,7 @@ function computeLinearActions(state: PipeState): PipeAction[] {
 
 function computeMergeActions(state: PipeState): PipeAction[] {
   const actions: PipeAction[] = [];
-  const isMergeAll = state.mode === 'merge-all';
+  const isMergeAll = isMergeAllStyleMode(state.mode);
   const fanOutAssignees = isMergeAll ? state.assignees : state.assignees.slice(0, -1);
   const synthesizer = state.assignees[state.assignees.length - 1];
 
@@ -222,46 +279,76 @@ function computeMergeActions(state: PipeState): PipeAction[] {
 
 // ── Formatting helpers ───────────────────────────────────────────────────────
 
-function formatLinearHandoff(state: PipeState, stage: number, previousOutput: string | null): string {
+function submitBlock(pipeId: string): string {
+  return `Submit: pipe_submit(pipeId="${pipeId}", content="<your output>")\nDo not use chat_send. Submit once, then wait.`;
+}
+
+function formatLinearHandoff(state: PipeState, stage: number): string {
   const target = state.assignees[stage - 1];
   const total = state.assignees.length;
   const isLast = stage === total;
   const header = `#pipe-${state.pipeId} [linear | stage ${stage}/${total} | @${target}]`;
 
-  let instruction: string;
-  if (isLast) {
-    instruction = 'You are the final stage. Your response will be delivered to the user.';
-  } else if (stage === 1) {
-    instruction = 'Your output will be passed to the next stage.';
-  } else {
-    instruction = 'Refine or build on the previous output. Your result goes to the next stage.';
+  const dest = isLast ? 'Final stage — your response goes to the user.' : 'Your output passes to the next stage.';
+  let body = `${dest}\nPrompt: ${state.prompt}`;
+  if (stage > 1) {
+    body += `\n\nRead previous stage output: pipe_read_output(pipeId="${state.pipeId}")`;
   }
 
-  let body = `${header}\n${instruction}\nPrompt: ${state.prompt}`;
-  if (previousOutput) {
-    body += `\n\n--- Previous stage output ---\n${previousOutput}`;
-  }
-  return body;
+  return `${header}\n\n${body}\n\n${submitBlock(state.pipeId)}`;
 }
 
 function formatFanOutRequest(state: PipeState, assignee: string): string {
   const header = `#pipe-${state.pipeId} [${state.mode} | fan-out | @${assignee}]`;
-  const instruction = 'Provide your independent analysis. Other participants answer in parallel.';
-  return `${header}\n${instruction}\nPrompt: ${state.prompt}`;
+  const mergeAll = isMergeAllStyleMode(state.mode);
+  const synthesizer = state.assignees[state.assignees.length - 1];
+  const isSynthesizer = mergeAll && assignee === synthesizer;
+
+  let body: string;
+  if (state.mode === 'explain') {
+    body = `Explain independently (parallel). Respond with:
+1. Problem  2. Simplest explanation  3. Mental model (≤5 steps)
+4. Visual (Mermaid/ASCII/"No visual needed")  5. Key terms (≤5)
+6. Common misunderstanding  7. Takeaway
+Teach a smart beginner. Clarity over exhaustiveness.`;
+  } else if (state.mode === 'summarize') {
+    body = `Summarize independently (parallel). Respond with:
+1. Topic  2. Key points (3–5 bullets)  3. Why it matters  4. TL;DR (1–2 sentences)
+Compress, cut repetition, minimize jargon.`;
+  } else {
+    body = `Provide your independent analysis. Other participants answer in parallel.`;
+  }
+
+  body += `\nPrompt: ${state.prompt}`;
+  if (isSynthesizer) {
+    body += `\n\nYou have 2 stages. This is fan-out — submit your analysis now. Synthesis comes next.`;
+  }
+
+  return `${header}\n\n${body}\n\n${submitBlock(state.pipeId)}`;
 }
 
 function formatSynthRequest(state: PipeState): string {
   const synthesizer = state.assignees[state.assignees.length - 1];
   const header = `#pipe-${state.pipeId} [${state.mode} | synthesizer | @${synthesizer}]`;
-  const instruction = 'Synthesize the outputs below into a unified response for the user.';
 
-  let context = '';
-  for (const [assignee, output] of state.fanOutOutputs) {
-    if (state.mode === 'merge-all' && assignee === synthesizer) continue;
-    context += `\n--- @${assignee} output ---\n${output}\n`;
+  let body: string;
+  if (state.mode === 'explain') {
+    body = `Synthesize into one teaching response. Sections:
+1. Problem  2. Simplest explanation  3. Mental model  4. Visual
+5. Key terms  6. Common misunderstandings  7. Takeaway
+Pick the clearest framing. At most one visual (Mermaid preferred).`;
+  } else if (state.mode === 'summarize') {
+    body = `Synthesize into one compact summary. Sections:
+1. TL;DR  2. Key points  3. Why it matters  4. Caveat (only if important)
+Pick the clearest framing. Drop redundant points.`;
+  } else {
+    body = `Synthesize the fan-out outputs into a unified response for the user.`;
   }
 
-  return `${header}\n${instruction}\nPrompt: ${state.prompt}${context}`;
+  body += `\nPrompt: ${state.prompt}`;
+  body += `\n\nRead all fan-out outputs: pipe_read_output(pipeId="${state.pipeId}")`;
+
+  return `${header}\n\n${body}\n\n${submitBlock(state.pipeId)}`;
 }
 
 // ── Pipe start description ───────────────────────────────────────────────────
@@ -274,82 +361,12 @@ export function getStartDescription(cmd: ParsedPipeCommand): string {
   if (cmd.mode === 'linear') {
     return cmd.assignees.map(a => `@${a}`).join(' \u2192 ');
   }
-  const isMergeAll = cmd.mode === 'merge-all';
+  const isMergeAll = isMergeAllStyleMode(cmd.mode);
   const fanOutList = isMergeAll ? cmd.assignees : cmd.assignees.slice(0, -1);
   const fanOut = fanOutList.map(a => `@${a}`).join(', ');
   const synthesizer = `@${cmd.assignees[cmd.assignees.length - 1]}`;
   return `[${fanOut}] \u2192 ${synthesizer}`;
 }
-
-// ── Pipe membership check (for fail-fast) ────────────────────────────────────
-
-export interface ActivePipeInfo {
-  pipeId: string;
-  mode: PipeMode;
-  assignee: string;
-}
-
-/**
- * Check if a participant is an active assignee in any running pipe.
- * Scans the log for pipes where this participant is expected but the pipe
- * is not yet terminal.
- */
-export function findActivePipesForParticipant(
-  messages: ChatMessage[],
-  participantName: string,
-): ActivePipeInfo[] {
-  // Collect all pipeIds from messages
-  const pipeIds = new Set<string>();
-  for (const msg of messages) {
-    if (msg.pipe?.pipeId) pipeIds.add(msg.pipe.pipeId);
-  }
-
-  const result: ActivePipeInfo[] = [];
-  for (const pipeId of pipeIds) {
-    const state = derivePipeState(messages, pipeId);
-    if (!state || state.status !== 'running') continue;
-    if (!state.assignees.includes(participantName)) continue;
-
-    // Only include if participant still has pending work in this pipe
-    if (!hasUnfinishedWork(state, participantName)) continue;
-
-    result.push({ pipeId, mode: state.mode, assignee: participantName });
-  }
-  return result;
-}
-
-/** Check if a participant still has unfinished work in a pipe.
- *  For merge synthesizer: always unfinished while pipe is running and no final
- *  exists — even before synth-request is emitted, because they will be needed. */
-function hasUnfinishedWork(state: PipeState, name: string): boolean {
-  if (state.mode === 'linear') {
-    const stageIdx = state.assignees.indexOf(name);
-    if (stageIdx === -1) return false;
-    const stage = stageIdx + 1;
-    // Finished if they already produced stage-output (or final for last stage)
-    return !state.stageOutputs.has(stage) && !state.hasFinal;
-  }
-
-  if (state.mode === 'merge' || state.mode === 'merge-all') {
-    const isMergeAll = state.mode === 'merge-all';
-    const fanOutAssignees = isMergeAll ? state.assignees : state.assignees.slice(0, -1);
-    const synthesizer = state.assignees[state.assignees.length - 1];
-
-    if (fanOutAssignees.includes(name) && !state.fanOutOutputs.has(name)) {
-      return true;
-    }
-    if (name === synthesizer) {
-      // Synthesizer is needed as long as pipe is running and has no final output —
-      // even before synth-request is emitted (during fan-out phase).
-      return !state.hasFinal;
-    }
-  }
-
-  return false;
-}
-
-// Export for testing
-export { hasUnfinishedWork as _hasUnfinishedWork };
 
 /**
  * Determine the pipe role for an LLM response based on the current pipe state.
@@ -379,8 +396,8 @@ export function matchResponse(
     }
   }
 
-  if (state.mode === 'merge' || state.mode === 'merge-all') {
-    const isMergeAll = state.mode === 'merge-all';
+  if (state.mode === 'merge' || isMergeAllStyleMode(state.mode)) {
+    const isMergeAll = isMergeAllStyleMode(state.mode);
     const fanOutAssignees = isMergeAll ? state.assignees : state.assignees.slice(0, -1);
     const synthesizer = state.assignees[state.assignees.length - 1];
 

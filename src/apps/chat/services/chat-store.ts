@@ -1,7 +1,7 @@
 import { mkdirSync, appendFileSync, readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
-import type { ChatMessage } from '../types.js';
+import type { ChatMessage, PipeUiEvent } from '../types.js';
 import { getActiveProject } from '../../../project-context.js';
 import { projectDataDir } from '../../../packages/paths.js';
 
@@ -29,6 +29,21 @@ function getPipeMessagesPath(pipeId: string, projectId?: string | null): string 
   const pipesDir = join(dir, 'pipes');
   mkdirSync(pipesDir, { recursive: true });
   return join(pipesDir, `${pipeId}.jsonl`);
+}
+
+function getPipeEventsLogPath(projectId?: string | null): string | null {
+  const dir = getChatDir(projectId);
+  if (!dir) return null;
+  mkdirSync(dir, { recursive: true });
+  return join(dir, 'pipe-events.jsonl');
+}
+
+function getPipeEventsPath(pipeId: string, projectId?: string | null): string | null {
+  const dir = getChatDir(projectId);
+  if (!dir) return null;
+  const pipesDir = join(dir, 'pipes');
+  mkdirSync(pipesDir, { recursive: true });
+  return join(pipesDir, `${pipeId}.events.jsonl`);
 }
 
 export function appendMessage(msg: Omit<ChatMessage, 'id' | 'ts'>, projectId?: string | null): ChatMessage {
@@ -104,6 +119,75 @@ export function readMessages(opts?: { limit?: number; since?: string; pipeId?: s
   return messages;
 }
 
+export function appendPipeEvent(event: Omit<PipeUiEvent, 'id' | 'ts'>, projectId?: string | null): PipeUiEvent {
+  const full: PipeUiEvent = {
+    id: randomUUID(),
+    ts: new Date().toISOString(),
+    ...event,
+  };
+
+  const line = JSON.stringify(full) + '\n';
+  const filePath = getPipeEventsLogPath(projectId);
+  if (filePath) {
+    appendFileSync(filePath, line);
+  }
+
+  const perPipePath = getPipeEventsPath(full.pipeId, projectId);
+  if (perPipePath) {
+    appendFileSync(perPipePath, line);
+  }
+
+  return full;
+}
+
+export function readPipeEvents(
+  opts?: { limit?: number; since?: string; pipeId?: string },
+  projectId?: string | null,
+): PipeUiEvent[] {
+  let filePath: string | null;
+  let needsPipeFilter = false;
+  if (opts?.pipeId) {
+    const pipePath = getPipeEventsPath(opts.pipeId, projectId);
+    if (pipePath && existsSync(pipePath)) {
+      filePath = pipePath;
+    } else {
+      filePath = getPipeEventsLogPath(projectId);
+      needsPipeFilter = true;
+    }
+  } else {
+    filePath = getPipeEventsLogPath(projectId);
+  }
+  if (!filePath || !existsSync(filePath)) return [];
+
+  const raw = readFileSync(filePath, 'utf8').trim();
+  if (!raw) return [];
+
+  let events: PipeUiEvent[] = raw
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      try { return JSON.parse(line) as PipeUiEvent; }
+      catch { return null; }
+    })
+    .filter((event): event is PipeUiEvent => event !== null);
+
+  if (needsPipeFilter && opts?.pipeId) {
+    events = events.filter((event) => event.pipeId === opts.pipeId);
+  }
+
+  if (opts?.since) {
+    const sinceDate = new Date(opts.since).getTime();
+    events = events.filter((event) => new Date(event.ts).getTime() > sinceDate);
+  }
+
+  const limit = opts?.limit ?? 50;
+  if (events.length > limit) {
+    events = events.slice(-limit);
+  }
+
+  return events;
+}
+
 
 // ── Participant persistence ──────────────────────────────────────────────────
 
@@ -148,6 +232,10 @@ export function clearMessages(projectId?: string | null): void {
   const filePath = getMessagesPath(projectId);
   if (filePath && existsSync(filePath)) {
     writeFileSync(filePath, '');
+  }
+  const pipeEventsPath = getPipeEventsLogPath(projectId);
+  if (pipeEventsPath && existsSync(pipeEventsPath)) {
+    unlinkSync(pipeEventsPath);
   }
   // Also clear per-pipe JSONL files
   const dir = getChatDir(projectId);

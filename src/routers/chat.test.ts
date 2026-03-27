@@ -15,8 +15,16 @@ const registryMock = vi.hoisted(() => ({
   getPipeStoreStatus: vi.fn(() => null),
   submitPipeStage: vi.fn(),
   cancelPipeRun: vi.fn(),
+  readPipeOutput: vi.fn(() => ({ ok: false, status: 404, error: 'Pipe not found' })),
   restoreParticipants: vi.fn(() => ({ restored: [], failed: [] })),
-  restorePipes: vi.fn(() => []),
+  getActiveBrainstorms: vi.fn(() => []),
+  getBrainstormRecord: vi.fn(() => null),
+  brainstormAcceptIdea: vi.fn(async () => false),
+  brainstormRetryIdeas: vi.fn(async () => false),
+  brainstormAdjustDetails: vi.fn(async () => false),
+  brainstormFinalize: vi.fn(async () => false),
+  brainstormBackToIdeas: vi.fn(async () => false),
+  deriveNameBase: vi.fn((hint: string, model: string | null) => (hint || model || 'agent').toLowerCase().replace(/[^a-z0-9-]/g, '')),
 }));
 
 const storeMock = vi.hoisted(() => ({
@@ -965,6 +973,216 @@ describe('chat router invite permission modes', () => {
       // exit is a no-op because settled is already true)
       expect(mockPtyWrite).toHaveBeenCalledTimes(1);
       expect(mockPtyWrite.mock.calls[0][0]).toContain('mcp__devglide-chat__chat_join');
+    });
+  });
+});
+
+describe('chat router pipe output read', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 when X-Pane-Id header is missing', async () => {
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/pipes/abc123/output`);
+      expect(res.status).toBe(401);
+      const data = await res.json() as { error: string };
+      expect(data.error).toContain('X-Pane-Id');
+    });
+  });
+
+  it('returns 403 when X-Pane-Id does not match a registered participant', async () => {
+    registryMock.getParticipantByPaneId.mockReturnValue(null);
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/pipes/abc123/output`, {
+        headers: { 'x-pane-id': 'unknown-pane' },
+      });
+      expect(res.status).toBe(403);
+      const data = await res.json() as { error: string };
+      expect(data.error).toContain('No registered participant');
+    });
+  });
+
+  it('returns 200 with pipe output when caller is entitled', async () => {
+    registryMock.getParticipantByPaneId.mockReturnValue({
+      name: 'bob',
+      kind: 'llm',
+      paneId: 'pane-bob',
+      projectId: 'project-1',
+    });
+    registryMock.readPipeOutput.mockReturnValue({
+      ok: true,
+      data: {
+        pipeId: 'abc123',
+        mode: 'linear',
+        previousOutput: { stage: 1, from: 'alice', content: 'alice output' },
+      },
+    });
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/pipes/abc123/output`, {
+        headers: { 'x-pane-id': 'pane-bob' },
+      });
+      expect(res.status).toBe(200);
+      const data = await res.json() as { pipeId: string; previousOutput: { from: string } };
+      expect(data.pipeId).toBe('abc123');
+      expect(data.previousOutput.from).toBe('alice');
+    });
+  });
+
+  it('forwards 404/403/409 from readPipeOutput', async () => {
+    registryMock.getParticipantByPaneId.mockReturnValue({
+      name: 'bob',
+      kind: 'llm',
+      paneId: 'pane-bob',
+      projectId: 'project-1',
+    });
+    registryMock.readPipeOutput.mockReturnValue({
+      ok: false,
+      status: 409,
+      error: 'Pipe is completed',
+    });
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/pipes/abc123/output`, {
+        headers: { 'x-pane-id': 'pane-bob' },
+      });
+      expect(res.status).toBe(409);
+      const data = await res.json() as { error: string };
+      expect(data.error).toBe('Pipe is completed');
+    });
+  });
+});
+
+describe('chat router brainstorm endpoints', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('GET /brainstorms returns active brainstorms', async () => {
+    registryMock.getActiveBrainstorms.mockReturnValue([
+      { id: 'bs1', phase: 'ideas_review', prompt: 'design a cache' },
+    ]);
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/brainstorms`);
+      expect(res.status).toBe(200);
+      const data = await res.json() as any[];
+      expect(data).toHaveLength(1);
+      expect(data[0].id).toBe('bs1');
+    });
+  });
+
+  it('GET /brainstorms/:id returns 404 for unknown brainstorm', async () => {
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/brainstorms/unknown`);
+      expect(res.status).toBe(404);
+    });
+  });
+
+  it('POST /brainstorms/:id/accept-idea returns 200 on success', async () => {
+    registryMock.brainstormAcceptIdea.mockResolvedValue(true);
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/brainstorms/bs1/accept-idea`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      });
+      expect(res.status).toBe(200);
+    });
+  });
+
+  it('POST /brainstorms/:id/accept-idea returns 409 when not in ideas_review', async () => {
+    registryMock.brainstormAcceptIdea.mockResolvedValue(false);
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/brainstorms/bs1/accept-idea`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      });
+      expect(res.status).toBe(409);
+    });
+  });
+
+  it('POST /brainstorms/:id/retry-ideas passes note from body', async () => {
+    registryMock.brainstormRetryIdeas.mockResolvedValue(true);
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/brainstorms/bs1/retry-ideas`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ note: 'focus on Redis' }),
+      });
+      expect(res.status).toBe(200);
+      expect(registryMock.brainstormRetryIdeas).toHaveBeenCalledWith('bs1', 'focus on Redis', 'project-1');
+    });
+  });
+
+  it('POST /brainstorms/:id/finalize returns 200 on success', async () => {
+    registryMock.brainstormFinalize.mockResolvedValue(true);
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/brainstorms/bs1/finalize`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      });
+      expect(res.status).toBe(200);
+    });
+  });
+
+  it('POST /brainstorms/:id/adjust-details passes note and returns 200', async () => {
+    registryMock.brainstormAdjustDetails.mockResolvedValue(true);
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/brainstorms/bs1/adjust-details`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ note: 'add error handling' }),
+      });
+      expect(res.status).toBe(200);
+      expect(registryMock.brainstormAdjustDetails).toHaveBeenCalledWith('bs1', 'add error handling', 'project-1');
+    });
+  });
+
+  it('POST /brainstorms/:id/adjust-details returns 409 when not in details_review', async () => {
+    registryMock.brainstormAdjustDetails.mockResolvedValue(false);
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/brainstorms/bs1/adjust-details`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      });
+      expect(res.status).toBe(409);
+    });
+  });
+
+  it('POST /brainstorms/:id/back-to-ideas returns 200 on success', async () => {
+    registryMock.brainstormBackToIdeas.mockResolvedValue(true);
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/brainstorms/bs1/back-to-ideas`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      });
+      expect(res.status).toBe(200);
+    });
+  });
+
+  it('POST /brainstorms/:id/back-to-ideas returns 409 when not in details_review', async () => {
+    registryMock.brainstormBackToIdeas.mockResolvedValue(false);
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/brainstorms/bs1/back-to-ideas`, {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+      });
+      expect(res.status).toBe(409);
+    });
+  });
+
+  it('GET /brainstorms/:id returns brainstorm record when found', async () => {
+    registryMock.getBrainstormRecord.mockReturnValue({
+      id: 'bs1', phase: 'ideas_review', prompt: 'design a cache', assignees: ['a', 'b'],
+    });
+
+    await withServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/brainstorms/bs1`);
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.id).toBe('bs1');
+      expect(data.phase).toBe('ideas_review');
     });
   });
 });

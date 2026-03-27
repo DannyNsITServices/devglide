@@ -6,7 +6,7 @@ import { getEffectiveRules } from '../services/chat-rules.js';
 
 const UNIFIED_BASE = `http://localhost:${process.env.PORT ?? 7000}`;
 
-export interface ChatSessionEntry { name: string; projectId: string | null }
+export interface ChatSessionEntry { name: string; projectId: string | null; paneId?: string | null }
 interface ChatMcpServerState {
   sessionEntry: ChatSessionEntry | null;
   joinInFlight: boolean;
@@ -144,6 +144,7 @@ export function createChatMcpServer(): McpServer {
         '- `chat_leave(paneId?)` — unregister from the chat room. Pass `paneId` if this MCP session has no tracked state (e.g. after a REST-only join).',
         '- `chat_send(message, to?, paneId?)` — send a message. Delivery is broadcast within the project; use `@mentions` only to signal who should respond. Messages that start with `#pipe-` or reference a currently running `#pipe-*` are rejected — use `pipe_submit` instead. Pass `paneId` to adopt a REST-joined session.',
         '- `pipe_submit(pipeId, content, paneId?)` — submit your output for a pipe stage. Use this instead of `chat_send` when responding to a `#pipe-` prompt. Pass `paneId` to adopt a REST-joined session.',
+        '- `pipe_read_output(pipeId, paneId?)` — read the pipe input you are entitled to. Returns only the output the state machine says you can access right now (previous stage for linear, fan-out outputs for synth). Caller identity resolved from session.',
         '- `chat_read(limit?, since?)` — read message history.',
         '- `chat_members()` — list active participants with pane link status.',
       ],
@@ -233,7 +234,7 @@ export function createChatMcpServer(): McpServer {
     const data = (res.data as ChatStatusPayload & { name?: string; projectId?: string | null }) ?? {};
     if (!data.joined || !data.name || data.detached || !data.paneId) return null;
 
-    const adopted = { name: data.name, projectId: data.projectId ?? null };
+    const adopted = { name: data.name, projectId: data.projectId ?? null, paneId };
     setSessionEntry(adopted);
     return adopted;
   }
@@ -284,8 +285,8 @@ export function createChatMcpServer(): McpServer {
           return errorResult(errMsg);
         }
         // Use the resolved name from the server (may be a generated unique name)
-        const participant = res.data as { name: string; projectId?: string | null };
-        setSessionEntry({ name: participant.name, projectId: participant.projectId ?? null });
+        const participant = res.data as { name: string; projectId?: string | null; paneId?: string | null };
+        setSessionEntry({ name: participant.name, projectId: participant.projectId ?? null, paneId: participant.paneId ?? paneId });
         // Attach rules of engagement so the joining LLM knows how to behave
         const rules = getEffectiveRules(participant.projectId);
         return jsonResult({ ...participant, rules });
@@ -373,6 +374,36 @@ export function createChatMcpServer(): McpServer {
           ? `[${data.code}] ${data.error ?? 'Pipe submit failed'}`
           : (data.error ?? 'Pipe submit failed');
         return errorResult(msg);
+      }
+      return jsonResult(res.data);
+    },
+  );
+
+  // ── 3c. pipe_read_output ───────────────────────────────────────────
+
+  server.tool(
+    'pipe_read_output',
+    'Read the pipe input you are entitled to for the current stage. Returns only the output this caller can access based on pipe state and session identity. Takes only pipeId — caller identity is resolved from your chat session.',
+    {
+      pipeId: z.string().describe('The pipe ID — accepts "#pipe-abc123", "pipe-abc123", or just "abc123"'),
+      paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session before reading. Only needed when this MCP session has no tracked chat state.'),
+    },
+    async ({ pipeId, paneId }) => {
+      const adopted = await tryAdoptSessionByPaneId(paneId);
+      const sessionEntry = adopted ?? getSessionEntry();
+      if (!sessionEntry?.name) return errorResult('Not joined — call chat_join first');
+      const effectivePaneId = paneId ?? sessionEntry.paneId;
+      if (!effectivePaneId) return errorResult('No pane ID available — pass paneId or rejoin');
+      const normalizedPipeId = pipeId.replace(/^#?pipe-/i, '');
+      const query = sessionEntry.projectId ? `?projectId=${encodeURIComponent(sessionEntry.projectId)}` : '';
+      const res = await chatApi(
+        `/pipes/${encodeURIComponent(normalizedPipeId)}/output${query}`,
+        undefined,
+        { 'x-pane-id': effectivePaneId },
+      );
+      if (!res.ok) {
+        const data = res.data as { error?: string };
+        return errorResult(data?.error ?? 'Pipe read failed');
       }
       return jsonResult(res.data);
     },

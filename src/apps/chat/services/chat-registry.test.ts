@@ -11,6 +11,11 @@ const chatStoreMock = vi.hoisted(() => {
       topic: null,
       ...msg,
     })),
+    appendPipeEvent: vi.fn((event: Record<string, unknown>) => ({
+      id: `pipe-event-${++seq}`,
+      ts: new Date('2026-01-01T00:00:00.000Z').toISOString(),
+      ...event,
+    })),
     clearMessages: vi.fn(),
     readMessages: vi.fn(() => []),
     reset: () => {
@@ -21,6 +26,7 @@ const chatStoreMock = vi.hoisted(() => {
 
 vi.mock('./chat-store.js', () => ({
   appendMessage: chatStoreMock.appendMessage,
+  appendPipeEvent: chatStoreMock.appendPipeEvent,
   clearMessages: chatStoreMock.clearMessages,
   readMessages: chatStoreMock.readMessages,
   saveParticipants: vi.fn(),
@@ -28,6 +34,12 @@ vi.mock('./chat-store.js', () => ({
 }));
 
 const registry = await import('./chat-registry.js');
+
+const R = registry.PTY_INTERACTION_REMINDER;
+/** Format a chat message as it would appear in PTY delivery to an LLM participant. */
+function pty(from: string, body: string): string {
+  return `[DevGlide Chat] @${from}: ${body}${R}`;
+}
 
 async function flushDeliveryQueue(): Promise<void> {
   await vi.advanceTimersByTimeAsync(0);
@@ -38,6 +50,7 @@ describe('chat-registry PTY delivery', () => {
     vi.useFakeTimers();
     chatStoreMock.reset();
     chatStoreMock.appendMessage.mockClear();
+    chatStoreMock.appendPipeEvent.mockClear();
     chatStoreMock.clearMessages.mockClear();
     chatStoreMock.readMessages.mockReset();
     chatStoreMock.readMessages.mockReturnValue([]);
@@ -74,7 +87,7 @@ describe('chat-registry PTY delivery', () => {
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
-      '[DevGlide Chat] @user: first',
+      pty('user', 'first'),
     ]);
 
     // First submit key after 1000ms (PTY_SUBMIT_DELAY_MS)
@@ -82,9 +95,9 @@ describe('chat-registry PTY delivery', () => {
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
-      '[DevGlide Chat] @user: first',
+      pty('user', 'first'),
       '\r',
-      '[DevGlide Chat] @user: second',
+      pty('user', 'second'),
     ]);
 
     // Second message: submit key after 1000ms
@@ -92,9 +105,9 @@ describe('chat-registry PTY delivery', () => {
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
-      '[DevGlide Chat] @user: first',
+      pty('user', 'first'),
       '\r',
-      '[DevGlide Chat] @user: second',
+      pty('user', 'second'),
       '\r',
     ]);
 
@@ -122,7 +135,7 @@ describe('chat-registry PTY delivery', () => {
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
-      '[DevGlide Chat] @user: hello',
+      pty('user', 'hello'),
     ]);
 
     await sendPromise;
@@ -150,7 +163,7 @@ describe('chat-registry PTY delivery', () => {
 
     expect(reclaimed.name).toBe(participant.name);
     expect(writes).toEqual([
-      '[DevGlide Chat] @user: reclaim-race',
+      pty('user', 'reclaim-race'),
     ]);
 
     await sendPromise;
@@ -176,7 +189,7 @@ describe('chat-registry PTY delivery', () => {
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
-      '[DevGlide Chat] @user: close-soon',
+      pty('user', 'close-soon'),
     ]);
     expect(registry.getParticipant(participant.name)?.paneId).toBeNull();
 
@@ -206,19 +219,19 @@ describe('chat-registry PTY delivery', () => {
     const sendPromise = registry.send('user', 'ordered');
     await flushDeliveryQueue();
 
-    expect(writesA).toEqual(['[DevGlide Chat] @user: ordered']);
+    expect(writesA).toEqual([pty('user', 'ordered')]);
     expect(writesB).toEqual([]);
 
     await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
-    expect(writesA).toEqual(['[DevGlide Chat] @user: ordered', '\r']);
-    expect(writesB).toEqual(['[DevGlide Chat] @user: ordered']);
+    expect(writesA).toEqual([pty('user', 'ordered'), '\r']);
+    expect(writesB).toEqual([pty('user', 'ordered')]);
 
     await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
-    expect(writesB).toEqual(['[DevGlide Chat] @user: ordered', '\r']);
+    expect(writesB).toEqual([pty('user', 'ordered'), '\r']);
 
     await sendPromise;
 
@@ -255,14 +268,14 @@ describe('chat-registry PTY delivery', () => {
     await flushDeliveryQueue();
 
     expect(writesSender).toEqual([]);
-    expect(writesA).toEqual([`[DevGlide Chat] @${sender.name}: @${target.name} please handle this`]);
+    expect(writesA).toEqual([pty(sender.name, `@${target.name} please handle this`)]);
     expect(writesB).toEqual([]);
 
     // First delivery completes (submit delay), second starts
     await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
-    expect(writesB).toEqual([`[DevGlide Chat] @${sender.name}: @${target.name} please handle this`]);
+    expect(writesB).toEqual([pty(sender.name, `@${target.name} please handle this`)]);
 
     await vi.advanceTimersByTimeAsync(1000);
     await sendPromise;
@@ -270,6 +283,65 @@ describe('chat-registry PTY delivery', () => {
     registry.leave(sender.name);
     registry.leave(target.name);
     registry.leave(observer.name);
+  });
+
+  it('appends interaction reminder only to LLM participants, not user participants', async () => {
+    const llmWrites: string[] = [];
+    const userWrites: string[] = [];
+
+    globalPtys.set('pane-llm', {
+      ptyProcess: { write: vi.fn((chunk: string) => { llmWrites.push(chunk); }) } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    globalPtys.set('pane-user', {
+      ptyProcess: { write: vi.fn((chunk: string) => { userWrites.push(chunk); }) } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+
+    const llm = registry.join('claude', 'llm', 'pane-llm', 'claude', '\r');
+    const user = registry.join('tester', 'user', 'pane-user', null, '\r');
+
+    // A third participant sends a message — both should receive it via PTY
+    globalPtys.set('pane-sender', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    const sender = registry.join('codex', 'llm', 'pane-sender', 'codex', '\r');
+
+    const sendPromise = registry.send(sender.name, 'hello everyone');
+
+    // Drain all deliveries
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    await sendPromise;
+
+    // LLM participant gets the reminder
+    const llmMsg = llmWrites.find((w) => w.startsWith('[DevGlide Chat]'));
+    expect(llmMsg).toContain('<system-reminder>');
+    expect(llmMsg).toContain('chat_send');
+
+    // User participant does NOT get the reminder
+    const userMsg = userWrites.find((w) => w.startsWith('[DevGlide Chat]'));
+    expect(userMsg).toBeDefined();
+    expect(userMsg).not.toContain('<system-reminder>');
+
+    // Stored message has no reminder
+    const stored = chatStoreMock.appendMessage.mock.calls.find(
+      (c: unknown[]) => (c[0] as { body: string }).body === 'hello everyone',
+    );
+    expect(stored).toBeDefined();
+    expect((stored![0] as { body: string }).body).not.toContain('<system-reminder>');
+
+    registry.leave(llm.name);
+    registry.leave(user.name);
+    registry.leave(sender.name);
   });
 
   it('marks assigned participants as working and returns them to idle after inactivity', async () => {

@@ -11,18 +11,23 @@ let _container = null;
 let _socket = null;
 let _members = [];
 let _messages = [];
+let _pipeEvents = [];
 let _autoScroll = true;
 let _mentionIdx = -1;
 let _voiceHandler = null;
 let _rulesDraft = '';
 let _rulesLoaded = false;
 let _tooltipTarget = null;
+let _brainstorms = {}; // brainstormId -> { phase, ... }
 
 // Pipe slash-command state
 const PIPE_COMMANDS = [
   { name: '/linear-pipe', hint: 'min 2 assignees', description: 'Sequential processing chain' },
   { name: '/merge-pipe', hint: 'min 3 assignees', description: 'Parallel fan-out + synthesizer' },
   { name: '/merge-all-pipe', hint: 'min 2 assignees', description: 'Parallel fan-out (all) + synthesizer' },
+  { name: '/explain', hint: 'defaults to active LLMs', description: 'Teaching-oriented multi-LLM explanation' },
+  { name: '/summarize', hint: 'defaults to active LLMs', description: 'Concise multi-LLM digest for long topics' },
+  { name: '/brainstorm', hint: 'defaults to active LLMs', description: 'Multi-phase brainstorm: ideate → detail → finalize' },
 ];
 let _popupMode = 'none'; // 'none' | 'command' | 'mention'
 
@@ -407,6 +412,40 @@ async function parseJsonSafely(response) {
   }
 }
 
+function mergeById(existing, incoming) {
+  const map = new Map();
+  for (const item of existing || []) {
+    if (item?.id) map.set(item.id, item);
+  }
+  for (const item of incoming || []) {
+    if (item?.id) map.set(item.id, item);
+  }
+  return [...map.values()];
+}
+
+function normalizePipeEvent(event) {
+  if (!event || !event.pipeId) return null;
+  const fallbackId = [
+    'pipe',
+    event.pipeId,
+    event.type || 'event',
+    event.role || event.actionType || event.assignee || event.from || 'ui',
+    event.stage ?? '',
+  ].filter(Boolean).join('-');
+  return {
+    ...event,
+    id: event.id || fallbackId,
+    ts: event.ts || new Date().toISOString(),
+  };
+}
+
+function getTimelineEntries() {
+  return [
+    ..._messages.map(msg => ({ kind: 'message', id: msg.id, ts: msg.ts || '', payload: msg })),
+    ..._pipeEvents.map(event => ({ kind: 'pipe', id: event.id, ts: event.ts || '', payload: event })),
+  ].sort((a, b) => a.ts.localeCompare(b.ts) || a.id.localeCompare(b.id));
+}
+
 // ── HTML ────────────────────────────────────────────────────────────
 
 const BODY_HTML = `
@@ -462,6 +501,21 @@ const BODY_HTML = `
   </div>
 
   <div class="chat-tooltip hidden" id="chat-tooltip" role="tooltip"></div>
+
+  <div class="chat-rules-overlay hidden" id="chat-note-overlay" role="dialog" aria-modal="true" aria-labelledby="chat-note-title">
+    <div class="chat-rules-modal" style="width:min(480px, calc(100vw - 32px));">
+      <div class="chat-rules-header">
+        <h2 id="chat-note-title">Add a Note</h2>
+      </div>
+      <div class="chat-rules-body">
+        <textarea class="chat-rules-textarea" id="chat-note-textarea" rows="4" style="min-height:auto" placeholder="Optional note..."></textarea>
+      </div>
+      <div class="chat-rules-actions">
+        <button class="btn btn-secondary btn-sm" id="chat-note-cancel">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="chat-note-submit">Submit</button>
+      </div>
+    </div>
+  </div>
 `;
 
 // ── Socket setup ────────────────────────────────────────────────────
@@ -477,7 +531,7 @@ function connectSocket() {
   _socket.on('chat:leave', onLeave);
   _socket.on('chat:message', onMessage);
   _socket.on('chat:cleared', onCleared);
-  _socket.on('chat:pipe', onPipeEvent);
+  _socket.on('chat:pipe', handlePipeEvent);
   _socket.on('chat:error', onError);
 }
 
@@ -488,16 +542,239 @@ function disconnectSocket() {
     _socket.off('chat:leave', onLeave);
     _socket.off('chat:message', onMessage);
     _socket.off('chat:cleared', onCleared);
-    _socket.off('chat:pipe', onPipeEvent);
+    _socket.off('chat:pipe', handlePipeEvent);
     _socket.off('chat:error', onError);
     // Don't disconnect — shared socket, other pages need it
     _socket = null;
   }
 }
 
-function onPipeEvent(event) {
-  // Pipe events are informational for now — the UI reacts to messages with pipe metadata.
-  // Future: could show a live pipe progress indicator in the header.
+// ── Brainstorm action panel ──────────────────────────────────────────────────
+
+function buildBrainstormActions(brainstormId, phase) {
+  const panel = document.createElement('div');
+  panel.className = 'brainstorm-actions';
+  panel.dataset.brainstormId = brainstormId;
+
+  if (phase === 'ideas_review') {
+    panel.appendChild(makeBsBtn('Accept Idea', 'accept', () => brainstormAction(brainstormId, 'accept-idea')));
+    panel.appendChild(makeBsBtn('Retry', 'retry', () => brainstormAction(brainstormId, 'retry-ideas')));
+    panel.appendChild(makeBsBtn('Retry with Note', 'note', () => brainstormActionWithNote(brainstormId, 'retry-ideas')));
+  } else if (phase === 'details_review') {
+    panel.appendChild(makeBsBtn('Finalize', 'accept', () => brainstormAction(brainstormId, 'finalize')));
+    panel.appendChild(makeBsBtn('Adjust', 'note', () => brainstormActionWithNote(brainstormId, 'adjust-details')));
+    panel.appendChild(makeBsBtn('Back to Ideas', 'retry', () => brainstormAction(brainstormId, 'back-to-ideas')));
+  }
+  return panel;
+}
+
+function makeBsBtn(label, variant, onClick) {
+  const btn = document.createElement('button');
+  const variantClass = { accept: 'btn-primary', note: 'btn-secondary', retry: 'btn-ghost' }[variant] || 'btn-secondary';
+  btn.className = `btn btn-sm ${variantClass}`;
+  btn.textContent = label;
+  btn.addEventListener('click', async () => {
+    const result = await onClick();
+    if (result === false) return; // cancelled — keep buttons alive
+    const panel = btn.closest('.brainstorm-actions');
+    if (panel) panel.querySelectorAll('button').forEach(b => { b.disabled = true; });
+  });
+  return btn;
+}
+
+async function brainstormAction(brainstormId, action) {
+  try {
+    await fetch(`/api/chat/brainstorms/${brainstormId}/${action}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+  } catch { /* socket events will update the UI */ }
+}
+
+function openNoteModal() {
+  return new Promise((resolve) => {
+    const overlay = _container?.querySelector('#chat-note-overlay');
+    const textarea = _container?.querySelector('#chat-note-textarea');
+    const submitBtn = _container?.querySelector('#chat-note-submit');
+    const cancelBtn = _container?.querySelector('#chat-note-cancel');
+    if (!overlay || !textarea) { resolve(null); return; }
+
+    textarea.value = '';
+    overlay.classList.remove('hidden');
+    textarea.focus();
+
+    function cleanup() {
+      overlay.classList.add('hidden');
+      submitBtn?.removeEventListener('click', onSubmit);
+      cancelBtn?.removeEventListener('click', onCancel);
+      overlay.removeEventListener('click', onBackdrop);
+    }
+    function onSubmit() { cleanup(); resolve(textarea.value || null); }
+    function onCancel() { cleanup(); resolve(undefined); } // undefined = cancelled
+    function onBackdrop(e) { if (e.target === overlay) { cleanup(); resolve(undefined); } }
+
+    submitBtn?.addEventListener('click', onSubmit);
+    cancelBtn?.addEventListener('click', onCancel);
+    overlay.addEventListener('click', onBackdrop);
+  });
+}
+
+async function brainstormActionWithNote(brainstormId, action) {
+  const note = await openNoteModal();
+  if (note === undefined) return false; // user cancelled — keep buttons alive
+  try {
+    await fetch(`/api/chat/brainstorms/${brainstormId}/${action}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: note || null }),
+    });
+  } catch { /* socket events will update the UI */ }
+}
+
+function getPipeTag(pipeId) {
+  return `#pipe-${pipeId}`;
+}
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function stripLeadingPipeTag(text, pipeId) {
+  if (!text || !pipeId) return text || '';
+  const pattern = new RegExp(`^\\s*${escapeRegExp(getPipeTag(pipeId))}\\s*`, 'i');
+  const stripped = text.replace(pattern, '');
+  return stripped || text;
+}
+
+function createSenderEl(senderText, color) {
+  const sender = document.createElement('div');
+  sender.className = 'chat-msg-sender';
+  sender.style.color = color;
+  sender.textContent = senderText;
+  return sender;
+}
+
+function buildPipeMetaEl(pipeId, label) {
+  const meta = document.createElement('div');
+  meta.className = 'chat-msg-meta chat-pipe-meta';
+
+  const badge = document.createElement('span');
+  badge.className = 'chat-pipe-badge';
+  badge.textContent = getPipeTag(pipeId);
+  meta.appendChild(badge);
+
+  if (label) {
+    const labelEl = document.createElement('span');
+    labelEl.className = 'chat-pipe-label';
+    labelEl.textContent = label;
+    meta.appendChild(labelEl);
+  }
+
+  return meta;
+}
+
+function getPipeOutputLabel(role, stage) {
+  if (role === 'fan-out') return 'Fan-out output';
+  if (stage) return `Stage ${stage} output`;
+  return 'Intermediate output';
+}
+
+function buildPipeHeaderEl(senderText, color, pipeId, label) {
+  const header = document.createElement('div');
+  header.className = 'chat-msg-header';
+  header.appendChild(createSenderEl(senderText, color));
+  header.appendChild(buildPipeMetaEl(pipeId, label));
+  return header;
+}
+
+function buildPipeOutputEl({ id, from, to = null, pipeId, label, content, ts, color, extraClass = '', collapsible = false }) {
+  const el = document.createElement('div');
+  el.className = ['chat-msg', 'from-llm', 'chat-pipe-output', extraClass].filter(Boolean).join(' ');
+  el.dataset.id = id;
+  el.style.borderLeftColor = color;
+
+  const header = buildPipeHeaderEl((from || 'system') + (to ? ` \u2192 ${to}` : ''), color, pipeId, label);
+
+  const body = document.createElement('div');
+  body.className = 'chat-msg-body chat-markdown';
+  body.innerHTML = renderMarkdown(stripLeadingPipeTag(content || '', pipeId));
+
+  const time = document.createElement('div');
+  time.className = 'chat-msg-time';
+  time.textContent = formatTime(ts);
+
+  if (collapsible) {
+    const chevron = document.createElement('span');
+    chevron.className = 'chat-pipe-chevron';
+    chevron.textContent = '\u25B6';
+    header.prepend(chevron);
+    header.classList.add('chat-pipe-toggle');
+    header.style.cursor = 'pointer';
+
+    const detail = document.createElement('div');
+    detail.className = 'chat-pipe-detail hidden';
+    detail.appendChild(body);
+    detail.appendChild(time);
+
+    header.addEventListener('click', () => {
+      const open = detail.classList.toggle('hidden');
+      chevron.textContent = open ? '\u25B6' : '\u25BC';
+      header.classList.toggle('chat-pipe-toggle-open', !open);
+    });
+
+    el.appendChild(header);
+    el.appendChild(detail);
+  } else {
+    el.appendChild(header);
+    el.appendChild(body);
+    el.appendChild(time);
+  }
+
+  return el;
+}
+
+function appendRenderedPipeEventEl(event, doScroll = true) {
+  if (!event || event.type !== 'stage-output' || !event.pipeId) return;
+
+  const listEl = _container?.querySelector('#chat-messages-list');
+  if (!listEl) return;
+
+  const empty = listEl.querySelector('.chat-empty-state');
+  if (empty) empty.remove();
+
+  const color = getParticipantColor(findParticipant(event.from));
+  const el = buildPipeOutputEl({
+    id: event.id,
+    from: event.from,
+    pipeId: event.pipeId,
+    label: getPipeOutputLabel(event.role, event.stage),
+    content: event.content,
+    ts: event.ts,
+    color,
+    extraClass: 'chat-pipe-intermediate',
+    collapsible: true,
+  });
+
+  listEl.appendChild(el);
+  renderMermaidBlocks(el);
+
+  if (doScroll) {
+    if (_autoScroll) {
+      scrollToBottom();
+    } else {
+      showNewIndicator();
+    }
+  }
+}
+
+function appendPipeEventTimelineEl(event, doScroll = true) {
+  appendRenderedPipeEventEl(event, doScroll);
+}
+
+function handlePipeEvent(event) {
+  const normalized = normalizePipeEvent(event);
+  if (!normalized) return;
+  if (_pipeEvents.some(existing => existing.id === normalized.id)) return;
+  _pipeEvents.push(normalized);
+  appendPipeEventTimelineEl(normalized);
 }
 
 function onMembers(members) {
@@ -538,6 +815,7 @@ function onError(payload) {
 
 function onCleared() {
   _messages = [];
+  _pipeEvents = [];
   renderAllMessages();
 }
 
@@ -617,7 +895,13 @@ function renderAllMessages() {
   if (!listEl) return;
 
   listEl.innerHTML = '';
-  if (_messages.length === 0) {
+  const entries = getTimelineEntries();
+  for (const entry of entries) {
+    if (entry.kind === 'message') appendMessageEl(entry.payload, false);
+    else appendPipeEventTimelineEl(entry.payload, false);
+  }
+
+  if (listEl.children.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'chat-empty-state';
     empty.innerHTML = `
@@ -627,10 +911,6 @@ function renderAllMessages() {
     `;
     listEl.appendChild(empty);
     return;
-  }
-
-  for (const msg of _messages) {
-    appendMessageEl(msg, false);
   }
   renderMermaidBlocks();
   scrollToBottom();
@@ -648,13 +928,31 @@ function appendMessageEl(msg, doScroll = true) {
   const empty = listEl.querySelector('.chat-empty-state');
   if (empty) empty.remove();
 
-  const el = document.createElement('div');
+  let el = document.createElement('div');
   el.className = 'chat-msg';
   el.dataset.id = msg.id;
 
   if (msg.type === 'system' || msg.type === 'join' || msg.type === 'leave') {
     el.classList.add('from-system');
     el.textContent = msg.body;
+    // Brainstorm review messages get action buttons
+    const bsMatch = msg.body.match(/#brainstorm-([a-z0-9]+)/);
+    if (bsMatch) {
+      const bsId = bsMatch[1];
+      // During historical render (!doScroll) disable buttons if the brainstorm
+      // has advanced past the review phase or is no longer active.
+      // Live messages (doScroll) always get active buttons.
+      const stale = (phase) => !doScroll && (!_brainstorms[bsId] || _brainstorms[bsId].phase !== phase);
+      if (msg.body.includes('Ideas phase complete') || msg.body.includes('Returning to ideas phase')) {
+        const panel = buildBrainstormActions(bsId, 'ideas_review');
+        if (stale('ideas_review')) panel.querySelectorAll('button').forEach(b => { b.disabled = true; });
+        el.appendChild(panel);
+      } else if (msg.body.includes('Detail pass complete')) {
+        const panel = buildBrainstormActions(bsId, 'details_review');
+        if (stale('details_review')) panel.querySelectorAll('button').forEach(b => { b.disabled = true; });
+        el.appendChild(panel);
+      }
+    }
   } else if (msg.from === 'user') {
     el.classList.add('from-user');
     const body = document.createElement('div');
@@ -666,60 +964,37 @@ function appendMessageEl(msg, doScroll = true) {
     el.appendChild(body);
     el.appendChild(time);
   } else if (pipeRole && pipeRole !== 'final' && ['stage-output', 'fan-out'].includes(pipeRole)) {
-    // ── Pipe intermediate: collapsed (expandable) ──
-    el.classList.add('from-llm', 'chat-pipe-intermediate');
-    const color = getParticipantColor(findParticipant(msg.from));
-    el.style.borderLeftColor = color;
-
-    const stageLabel = msg.pipe.stage ? ` stage ${msg.pipe.stage}` : '';
-    const collapsed = document.createElement('div');
-    collapsed.className = 'chat-pipe-collapsed';
-    collapsed.innerHTML = `<span class="chat-pipe-badge">#pipe-${escapeHtml(msg.pipe.pipeId)}${escapeHtml(stageLabel)}</span> <span style="color:${escapeAttr(color)}">${escapeHtml(msg.from)}</span> responded`;
-    collapsed.style.cursor = 'pointer';
-    collapsed.addEventListener('click', () => {
-      const expanded = el.querySelector('.chat-pipe-expanded');
-      if (expanded) expanded.classList.toggle('hidden');
-      collapsed.classList.toggle('chat-pipe-collapsed-open');
-    });
-
-    const expanded = document.createElement('div');
-    expanded.className = 'chat-pipe-expanded hidden';
-    const body = document.createElement('div');
-    body.className = 'chat-msg-body chat-markdown';
-    body.innerHTML = renderMarkdown(msg.body);
-    expanded.appendChild(body);
-
-    el.appendChild(collapsed);
-    el.appendChild(expanded);
+    // ── Pipe intermediate: rendered separately via pipe-event channel ──
+    return;
   } else {
     // ── Regular LLM message or pipe final ──
-    el.classList.add('from-llm');
     const color = getParticipantColor(findParticipant(msg.from));
-    el.style.borderLeftColor = color;
-    const sender = document.createElement('div');
-    sender.className = 'chat-msg-sender';
-    sender.style.color = color;
-    let senderText = msg.from + (msg.to ? ` \u2192 ${msg.to}` : '');
-    sender.textContent = senderText;
-
-    // Add pipe result badge if final
-    if (pipeRole === 'final') {
-      const badge = document.createElement('span');
-      badge.className = 'chat-pipe-badge chat-pipe-badge-final';
-      badge.textContent = `#pipe-${msg.pipe.pipeId} result`;
-      sender.appendChild(document.createTextNode(' '));
-      sender.appendChild(badge);
+    const isPipeFinal = pipeRole === 'final' && msg.pipe?.pipeId;
+    if (isPipeFinal) {
+      el = buildPipeOutputEl({
+        id: msg.id,
+        from: msg.from,
+        to: msg.to,
+        pipeId: msg.pipe.pipeId,
+        label: 'Final output',
+        content: msg.body,
+        ts: msg.ts,
+        color,
+      });
+    } else {
+      el.classList.add('from-llm');
+      el.style.borderLeftColor = color;
+      const sender = createSenderEl(msg.from + (msg.to ? ` \u2192 ${msg.to}` : ''), color);
+      const body = document.createElement('div');
+      body.className = 'chat-msg-body chat-markdown';
+      body.innerHTML = renderMarkdown(msg.body);
+      const time = document.createElement('div');
+      time.className = 'chat-msg-time';
+      time.textContent = formatTime(msg.ts);
+      el.appendChild(sender);
+      el.appendChild(body);
+      el.appendChild(time);
     }
-
-    const body = document.createElement('div');
-    body.className = 'chat-msg-body chat-markdown';
-    body.innerHTML = renderMarkdown(msg.body);
-    const time = document.createElement('div');
-    time.className = 'chat-msg-time';
-    time.textContent = formatTime(msg.ts);
-    el.appendChild(sender);
-    el.appendChild(body);
-    el.appendChild(time);
   }
 
 
@@ -891,7 +1166,7 @@ function onInputChange(e) {
 
   // ── Pipe assignee autocomplete ──
   // If inside a pipe command (before ':'), autocomplete @mentions for connected LLM members only
-  const pipeAssigneeMatch = before.match(/^\/(linear-pipe|merge-pipe|merge-all-pipe)\s+[^:]*@(\w*)$/);
+  const pipeAssigneeMatch = before.match(/^\/(linear-pipe|merge-pipe|merge-all-pipe|explain(?:-pipe)?|summarize(?:-pipe)?)\s+[^:]*@(\w*)$/);
   if (pipeAssigneeMatch) {
     const query = pipeAssigneeMatch[2].toLowerCase();
     const matches = getPipeAssigneeMatches(_members, query);
@@ -1044,12 +1319,21 @@ function onInputKeyDown(e) {
 
 async function loadInitialData() {
   try {
-    const [messagesRes, membersRes] = await Promise.all([
+    const [messagesRes, pipeEventsRes, membersRes, brainstormsRes] = await Promise.all([
       api('/messages?limit=50'),
+      api('/pipe-events?limit=200'),
       api('/members'),
+      api('/brainstorms'),
     ]);
+    if (brainstormsRes.ok) {
+      _brainstorms = {};
+      for (const bs of await brainstormsRes.json()) _brainstorms[bs.id] = bs;
+    }
     if (messagesRes.ok) {
-      _messages = await messagesRes.json();
+      _messages = mergeById(_messages, await messagesRes.json());
+    }
+    if (pipeEventsRes.ok) {
+      _pipeEvents = mergeById(_pipeEvents, await pipeEventsRes.json());
     }
     if (membersRes.ok) {
       _members = (await membersRes.json()).map(m => m.kind === 'llm' ? { ...m, status: 'idle' } : m);
@@ -1080,6 +1364,7 @@ function bindEvents() {
   _container.querySelector('#chat-btn-clear')?.addEventListener('click', async () => {
     await api('/messages', { method: 'DELETE' });
     _messages = [];
+    _pipeEvents = [];
     renderAllMessages();
   });
 
@@ -1115,6 +1400,7 @@ export function mount(container, ctx) {
   _container = container;
   _projectId = ctx?.project?.id || null;
   _messages = [];
+  _pipeEvents = [];
   _members = [];
   _autoScroll = true;
   _rulesDraft = '';
@@ -1189,6 +1475,7 @@ export function unmount(container) {
   _projectId = null;
   _messages = [];
   _members = [];
+  _brainstorms = {};
   _rulesDraft = '';
   _rulesLoaded = false;
 
@@ -1208,7 +1495,9 @@ export function onProjectChange(project) {
 
   _projectId = project?.id || null;
   _messages = [];
+  _pipeEvents = [];
   _members = [];
+  _brainstorms = {};
   _rulesDraft = '';
   _rulesLoaded = false;
 

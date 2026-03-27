@@ -63,6 +63,20 @@ describe('pipe-store createPipe', () => {
     expect(bob[0].role).toBe('fan-out');
     expect(bob[1].role).toBe('final');
   });
+
+  it('creates an explain pipe with merge-all style slots', () => {
+    const pipe = pipeStore.createPipe('pipe-4', 'explain', ['alice', 'bob'], 'teach this', 'proj-1');
+    expect(pipe.mode).toBe('explain');
+    expect(pipe.slots.get('alice')?.map((slot) => slot.role)).toEqual(['fan-out']);
+    expect(pipe.slots.get('bob')?.map((slot) => slot.role)).toEqual(['fan-out', 'final']);
+  });
+
+  it('creates a summarize pipe with merge-all style slots', () => {
+    const pipe = pipeStore.createPipe('pipe-5', 'summarize', ['alice', 'bob'], 'digest this', 'proj-1');
+    expect(pipe.mode).toBe('summarize');
+    expect(pipe.slots.get('alice')?.map((slot) => slot.role)).toEqual(['fan-out']);
+    expect(pipe.slots.get('bob')?.map((slot) => slot.role)).toEqual(['fan-out', 'final']);
+  });
 });
 
 // ── Lease management ──────────────────────────────────────────────────────────

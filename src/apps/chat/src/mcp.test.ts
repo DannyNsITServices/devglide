@@ -84,7 +84,7 @@ describe('chat MCP session ownership', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[0]![0])).toContain('/api/chat/join');
     expect(String(fetchMock.mock.calls[1]![0])).toContain('/api/chat/status?name=alpha-1&projectId=project-1');
-    expect(chatServerSessions.get(server as never)).toEqual([{ name: 'alpha-1', projectId: 'project-1' }]);
+    expect(chatServerSessions.get(server as never)).toEqual([{ name: 'alpha-1', projectId: 'project-1', paneId: 'pane-1' }]);
   });
 
   it('allows a new join when the tracked participant is already gone', async () => {
@@ -105,7 +105,7 @@ describe('chat MCP session ownership', () => {
     expect(second.isError).not.toBe(true);
     expect(parseJsonResult(second)).toMatchObject({ name: 'beta-2', projectId: 'project-1' });
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(chatServerSessions.get(server as never)).toEqual([{ name: 'beta-2', projectId: 'project-1' }]);
+    expect(chatServerSessions.get(server as never)).toEqual([{ name: 'beta-2', projectId: 'project-1', paneId: 'pane-2' }]);
   });
 
   it('allows a new join when the tracked participant is detached', async () => {
@@ -132,7 +132,7 @@ describe('chat MCP session ownership', () => {
     expect(second.isError).not.toBe(true);
     expect(parseJsonResult(second)).toMatchObject({ name: 'beta-2', projectId: 'project-1' });
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(chatServerSessions.get(server as never)).toEqual([{ name: 'beta-2', projectId: 'project-1' }]);
+    expect(chatServerSessions.get(server as never)).toEqual([{ name: 'beta-2', projectId: 'project-1', paneId: 'pane-2' }]);
   });
 
   it('rejects overlapping joins on the same MCP session before a second participant is created', async () => {
@@ -156,7 +156,7 @@ describe('chat MCP session ownership', () => {
     const first = await firstJoinPromise;
 
     expect(parseJsonResult(first)).toMatchObject({ name: 'alpha-1', projectId: 'project-1' });
-    expect(chatServerSessions.get(server as never)).toEqual([{ name: 'alpha-1', projectId: 'project-1' }]);
+    expect(chatServerSessions.get(server as never)).toEqual([{ name: 'alpha-1', projectId: 'project-1', paneId: 'pane-1' }]);
   });
 
   it('rejects overlapping joins while stale-session recovery is still in progress', async () => {
@@ -186,7 +186,7 @@ describe('chat MCP session ownership', () => {
 
     expect(parseJsonResult(recovered)).toMatchObject({ name: 'beta-2', projectId: 'project-1' });
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(chatServerSessions.get(server as never)).toEqual([{ name: 'beta-2', projectId: 'project-1' }]);
+    expect(chatServerSessions.get(server as never)).toEqual([{ name: 'beta-2', projectId: 'project-1', paneId: 'pane-2' }]);
   });
 
   it('adopts an existing REST-joined participant by paneId before sending', async () => {
@@ -217,7 +217,99 @@ describe('chat MCP session ownership', () => {
       projectId: 'project-1',
       message: 'hello',
     });
-    expect(chatServerSessions.get(server as never)).toEqual([{ name: 'alpha-1', projectId: 'project-1' }]);
+    expect(chatServerSessions.get(server as never)).toEqual([{ name: 'alpha-1', projectId: 'project-1', paneId: 'pane-1' }]);
+  });
+
+  it('pipe_read_output adopts session by paneId and sends X-Pane-Id header', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(mockJsonResponse(true, 200, {
+        joined: true,
+        name: 'alpha-1',
+        paneId: 'pane-1',
+        detached: false,
+        projectId: 'project-1',
+      }))
+      .mockResolvedValueOnce(mockJsonResponse(true, 200, {
+        pipeId: 'abc123',
+        mode: 'linear',
+        previousOutput: { stage: 1, from: 'other', content: 'stage 1 work' },
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { createChatMcpServer } = await import('./mcp.js');
+    createChatMcpServer();
+    const pipeReadOutput = registeredTools.get('pipe_read_output');
+    expect(pipeReadOutput).toBeTypeOf('function');
+
+    const result = await pipeReadOutput!({ pipeId: '#pipe-abc123', paneId: 'pane-1' });
+
+    expect(result.isError).not.toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // First call: adopt session via /status?paneId=
+    expect(String(fetchMock.mock.calls[0]![0])).toContain('/api/chat/status?paneId=pane-1');
+    // Second call: GET /pipes/:id/output with X-Pane-Id header
+    const outputUrl = String(fetchMock.mock.calls[1]![0]);
+    expect(outputUrl).toContain('/api/chat/pipes/abc123/output');
+    expect(outputUrl).not.toContain('from=');
+    const headers = fetchMock.mock.calls[1]![1]?.headers as Record<string, string>;
+    expect(headers['x-pane-id']).toBe('pane-1');
+  });
+
+  it('pipe_read_output returns error when not joined', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+
+    const { createChatMcpServer } = await import('./mcp.js');
+    createChatMcpServer();
+    const pipeReadOutput = registeredTools.get('pipe_read_output');
+    expect(pipeReadOutput).toBeTypeOf('function');
+
+    const result = await pipeReadOutput!({ pipeId: 'abc123' });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toContain('Not joined');
+  });
+
+  it('pipe_read_output returns error when no pane ID available', async () => {
+    // Join first (no paneId in response, paneId arg not passed to join)
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(mockJsonResponse(true, 201, { name: 'alpha-1', projectId: 'project-1' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { createChatMcpServer } = await import('./mcp.js');
+    createChatMcpServer();
+    const chatJoin = registeredTools.get('chat_join');
+    await chatJoin!({ name: 'alpha', paneId: 'pane-1', submitKey: 'cr' });
+
+    // Now call pipe_read_output — session has paneId from join arg fallback
+    fetchMock.mockResolvedValueOnce(mockJsonResponse(true, 200, {
+      pipeId: 'abc123', mode: 'linear',
+      previousOutput: { stage: 1, from: 'other', content: 'output' },
+    }));
+    const pipeReadOutput = registeredTools.get('pipe_read_output');
+    const result = await pipeReadOutput!({ pipeId: 'abc123' });
+
+    expect(result.isError).not.toBe(true);
+    const headers = fetchMock.mock.calls[1]![1]?.headers as Record<string, string>;
+    expect(headers['x-pane-id']).toBe('pane-1');
+  });
+
+  it('pipe_read_output forwards REST errors', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(mockJsonResponse(true, 200, {
+        joined: true, name: 'alpha-1', paneId: 'pane-1', detached: false, projectId: 'project-1',
+      }))
+      .mockResolvedValueOnce(mockJsonResponse(false, 403, { error: 'Not an assignee' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { createChatMcpServer } = await import('./mcp.js');
+    createChatMcpServer();
+    const pipeReadOutput = registeredTools.get('pipe_read_output');
+    expect(pipeReadOutput).toBeTypeOf('function');
+
+    const result = await pipeReadOutput!({ pipeId: 'abc123', paneId: 'pane-1' });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toContain('Not an assignee');
   });
 
   it('adopts an existing REST-joined participant by paneId before pipe submit', async () => {

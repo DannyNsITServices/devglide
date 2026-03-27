@@ -19,6 +19,10 @@ export interface StoredPipe {
   status: PipeStatus;
   slots: Map<string, PipeSlot[]>;  // keyed by assignee name
   createdAt: string;
+  // Emission tracking — replaces log scanning for reducer idempotency
+  emittedHandoffs: Set<number>;       // linear stage numbers that have been delivered
+  emittedFanOutRequests: Set<string>; // assignee names that received fan-out requests
+  emittedSynthRequest: boolean;       // whether synth-request has been sent
 }
 
 export interface LeaseInfo {
@@ -141,7 +145,7 @@ export function createPipe(
       submittedAt: null,
     }]);
   } else {
-    // merge-all: ALL assignees get fan-out + last one gets final
+    // merge-all style: ALL assignees get fan-out + last one gets final
     for (let i = 0; i < assignees.length; i++) {
       const a = assignees[i];
       const isLast = i === assignees.length - 1;
@@ -173,6 +177,9 @@ export function createPipe(
     status: 'running',
     slots,
     createdAt: new Date().toISOString(),
+    emittedHandoffs: new Set(),
+    emittedFanOutRequests: new Set(),
+    emittedSynthRequest: false,
   };
   store.set(pipeId, pipe);
 
@@ -187,6 +194,20 @@ export function createPipe(
 /** Get a pipe from the store. */
 export function getPipe(pipeId: string, projectId: string | null): StoredPipe | undefined {
   return getProjectStore(projectId).get(pipeId);
+}
+
+/** Track that a reducer action has been emitted (for idempotency without log scanning). */
+export function markEmitted(
+  pipeId: string,
+  type: 'handoff' | 'fan-out-request' | 'synth-request',
+  key: string | number | undefined,
+  projectId: string | null,
+): void {
+  const pipe = getPipe(pipeId, projectId);
+  if (!pipe) return;
+  if (type === 'handoff' && typeof key === 'number') pipe.emittedHandoffs.add(key);
+  else if (type === 'fan-out-request' && typeof key === 'string') pipe.emittedFanOutRequests.add(key);
+  else if (type === 'synth-request') pipe.emittedSynthRequest = true;
 }
 
 /** Mark a pipe as completed, failed, or cancelled. Releases all leases for its assignees.

@@ -4,8 +4,6 @@ import {
   derivePipeState,
   computeNextActions,
   matchResponse,
-  findActivePipesForParticipant,
-  _hasUnfinishedWork as hasUnfinishedWork,
 } from './pipe-reducer.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -127,6 +125,20 @@ describe('computeNextActions — linear', () => {
     expect(actions[0].stage).toBe(2);
   });
 
+  it('includes compact prompt with pipe_submit in handoff body', () => {
+    const messages = [
+      sysMsg('start', { pipeId: 'abc', mode: 'linear', role: 'start', assignees: ['a', 'b'], prompt: 'X' }),
+    ];
+    const state = derivePipeState(messages, 'abc')!;
+    const actions = computeNextActions(state);
+    const body = actions[0].body;
+    expect(body).toContain('#pipe-abc [linear | stage 1/2 | @a]');
+    expect(body).toContain('pipe_submit(pipeId="abc"');
+    expect(body).toContain('Do not use chat_send');
+    expect(body).toContain('next stage');
+    expect(body).toContain('Prompt: X');
+  });
+
   it('emits nothing after terminal state', () => {
     const messages = [
       sysMsg('start', { pipeId: 'abc', mode: 'linear', role: 'start', assignees: ['a'], prompt: 'X' }),
@@ -172,6 +184,14 @@ describe('computeNextActions — merge', () => {
     const actions = computeNextActions(state);
     expect(actions).toHaveLength(2);
     expect(actions.map(a => a.targetAssignee).sort()).toEqual(['a', 'b']);
+
+    // Synthesizer's fan-out should warn about dual-role
+    const bFanOut = actions.find(a => a.targetAssignee === 'b')!;
+    expect(bFanOut.body).toContain('You have 2 stages');
+    expect(bFanOut.body).toContain('Synthesis comes next');
+    // Non-synthesizer should not have the warning
+    const aFanOut = actions.find(a => a.targetAssignee === 'a')!;
+    expect(aFanOut.body).not.toContain('You have 2 stages');
   });
 
   it('merge-all: emits synth-request only after ALL fan-outs (including synthesizer) are in', () => {
@@ -182,7 +202,7 @@ describe('computeNextActions — merge', () => {
       msg({ from: 'a', body: 'A', pipe: { pipeId: 'abc', mode: 'merge-all', role: 'fan-out' } }),
     ];
     const state = derivePipeState(messages, 'abc')!;
-    
+
     // b (synthesizer) hasn't sent its fan-out yet
     expect(computeNextActions(state)).toHaveLength(0);
 
@@ -193,8 +213,66 @@ describe('computeNextActions — merge', () => {
     expect(actions).toHaveLength(1);
     expect(actions[0].type).toBe('synth-request');
     expect(actions[0].targetAssignee).toBe('b');
-    expect(actions[0].body).toContain('--- @a output ---');
-    expect(actions[0].body).not.toContain('--- @b output ---');
+    expect(actions[0].body).toContain('pipe_read_output(pipeId="abc")');
+    expect(actions[0].body).toContain('pipe_submit(pipeId="abc"');
+    expect(actions[0].body).toContain('Do not use chat_send');
+  });
+
+  it('explain: emits teaching fan-out requests and a teaching synth request', () => {
+    const messages = [
+      sysMsg('start', { pipeId: 'abc', mode: 'explain', role: 'start', assignees: ['a', 'b'], prompt: 'Teach me X' }),
+    ];
+    const state = derivePipeState(messages, 'abc')!;
+    const fanOutActions = computeNextActions(state);
+    expect(fanOutActions).toHaveLength(2);
+    expect(fanOutActions[0].body).toContain('Explain independently');
+    expect(fanOutActions[0].body).toContain('Simplest explanation');
+    expect(fanOutActions[0].body).toContain('pipe_submit(pipeId="abc"');
+    expect(fanOutActions[0].body).toContain('Do not use chat_send');
+
+    messages.push(
+      sysMsg('fo a', { pipeId: 'abc', mode: 'explain', role: 'fan-out-request', targetAssignee: 'a' }),
+      sysMsg('fo b', { pipeId: 'abc', mode: 'explain', role: 'fan-out-request', targetAssignee: 'b' }),
+      msg({ from: 'a', body: 'A', pipe: { pipeId: 'abc', mode: 'explain', role: 'fan-out' } }),
+      msg({ from: 'b', body: 'B', pipe: { pipeId: 'abc', mode: 'explain', role: 'fan-out' } }),
+    );
+
+    const nextState = derivePipeState(messages, 'abc')!;
+    const synthActions = computeNextActions(nextState);
+    expect(synthActions).toHaveLength(1);
+    expect(synthActions[0].targetAssignee).toBe('b');
+    expect(synthActions[0].body).toContain('Common misunderstandings');
+    expect(synthActions[0].body).toContain('pipe_read_output(pipeId="abc")');
+    expect(synthActions[0].body).toContain('pipe_submit(pipeId="abc"');
+  });
+
+  it('summarize: emits concise fan-out requests and a compact synth request', () => {
+    const messages = [
+      sysMsg('start', { pipeId: 'abc', mode: 'summarize', role: 'start', assignees: ['a', 'b'], prompt: 'Summarize topic X' }),
+    ];
+    const state = derivePipeState(messages, 'abc')!;
+    const fanOutActions = computeNextActions(state);
+    expect(fanOutActions).toHaveLength(2);
+    expect(fanOutActions[0].body).toContain('Summarize independently');
+    expect(fanOutActions[0].body).toContain('TL;DR');
+    expect(fanOutActions[0].body).toContain('pipe_submit(pipeId="abc"');
+    expect(fanOutActions[0].body).toContain('Do not use chat_send');
+
+    messages.push(
+      sysMsg('fo a', { pipeId: 'abc', mode: 'summarize', role: 'fan-out-request', targetAssignee: 'a' }),
+      sysMsg('fo b', { pipeId: 'abc', mode: 'summarize', role: 'fan-out-request', targetAssignee: 'b' }),
+      msg({ from: 'a', body: 'A', pipe: { pipeId: 'abc', mode: 'summarize', role: 'fan-out' } }),
+      msg({ from: 'b', body: 'B', pipe: { pipeId: 'abc', mode: 'summarize', role: 'fan-out' } }),
+    );
+
+    const nextState = derivePipeState(messages, 'abc')!;
+    const synthActions = computeNextActions(nextState);
+    expect(synthActions).toHaveLength(1);
+    expect(synthActions[0].targetAssignee).toBe('b');
+    expect(synthActions[0].body).toContain('1. TL;DR');
+    expect(synthActions[0].body).toContain('Caveat (only if important)');
+    expect(synthActions[0].body).toContain('pipe_read_output(pipeId="abc")');
+    expect(synthActions[0].body).toContain('pipe_submit(pipeId="abc"');
   });
 
   it('does not duplicate synth-request', () => {
@@ -302,117 +380,4 @@ describe('matchResponse', () => {
   });
 });
 
-// ── hasUnfinishedWork — fail-fast membership ─────────────────────────────────
 
-describe('hasUnfinishedWork (fail-fast membership)', () => {
-  it('linear: unfinished if no stage-output yet', () => {
-    const messages = [
-      sysMsg('start', { pipeId: 'abc', mode: 'linear', role: 'start', assignees: ['a', 'b'], prompt: 'X' }),
-    ];
-    const state = derivePipeState(messages, 'abc')!;
-    expect(hasUnfinishedWork(state, 'a')).toBe(true);
-  });
-
-  it('linear: finished after producing stage-output', () => {
-    const messages = [
-      sysMsg('start', { pipeId: 'abc', mode: 'linear', role: 'start', assignees: ['a', 'b'], prompt: 'X' }),
-      sysMsg('handoff', { pipeId: 'abc', mode: 'linear', role: 'handoff', stage: 1, targetAssignee: 'a' }),
-      msg({ from: 'a', body: 'done', pipe: { pipeId: 'abc', mode: 'linear', role: 'stage-output', stage: 1 } }),
-    ];
-    const state = derivePipeState(messages, 'abc')!;
-    expect(hasUnfinishedWork(state, 'a')).toBe(false);
-  });
-
-  it('merge fan-out: finished after producing fan-out reply', () => {
-    const messages = [
-      sysMsg('start', { pipeId: 'abc', mode: 'merge', role: 'start', assignees: ['a', 'b', 's'], prompt: 'X' }),
-      sysMsg('fo', { pipeId: 'abc', mode: 'merge', role: 'fan-out-request', targetAssignee: 'a' }),
-      msg({ from: 'a', body: 'A', pipe: { pipeId: 'abc', mode: 'merge', role: 'fan-out' } }),
-    ];
-    const state = derivePipeState(messages, 'abc')!;
-    expect(hasUnfinishedWork(state, 'a')).toBe(false);
-  });
-
-  it('merge synthesizer: unfinished during fan-out (before synth-request)', () => {
-    const messages = [
-      sysMsg('start', { pipeId: 'abc', mode: 'merge', role: 'start', assignees: ['a', 'b', 's'], prompt: 'X' }),
-    ];
-    const state = derivePipeState(messages, 'abc')!;
-    // Synthesizer has no synth-request yet, but is still needed
-    expect(hasUnfinishedWork(state, 's')).toBe(true);
-  });
-
-  it('merge synthesizer: unfinished after synth-request, before final', () => {
-    const messages = [
-      sysMsg('start', { pipeId: 'abc', mode: 'merge', role: 'start', assignees: ['a', 'b', 's'], prompt: 'X' }),
-      sysMsg('fo a', { pipeId: 'abc', mode: 'merge', role: 'fan-out-request', targetAssignee: 'a' }),
-      sysMsg('fo b', { pipeId: 'abc', mode: 'merge', role: 'fan-out-request', targetAssignee: 'b' }),
-      msg({ from: 'a', body: 'A', pipe: { pipeId: 'abc', mode: 'merge', role: 'fan-out' } }),
-      msg({ from: 'b', body: 'B', pipe: { pipeId: 'abc', mode: 'merge', role: 'fan-out' } }),
-      sysMsg('synth', { pipeId: 'abc', mode: 'merge', role: 'synth-request', targetAssignee: 's' }),
-    ];
-    const state = derivePipeState(messages, 'abc')!;
-    expect(hasUnfinishedWork(state, 's')).toBe(true);
-  });
-
-  it('merge synthesizer: finished after final', () => {
-    const messages = [
-      sysMsg('start', { pipeId: 'abc', mode: 'merge', role: 'start', assignees: ['a', 'b', 's'], prompt: 'X' }),
-      sysMsg('fo a', { pipeId: 'abc', mode: 'merge', role: 'fan-out-request', targetAssignee: 'a' }),
-      sysMsg('fo b', { pipeId: 'abc', mode: 'merge', role: 'fan-out-request', targetAssignee: 'b' }),
-      msg({ from: 'a', body: 'A', pipe: { pipeId: 'abc', mode: 'merge', role: 'fan-out' } }),
-      msg({ from: 'b', body: 'B', pipe: { pipeId: 'abc', mode: 'merge', role: 'fan-out' } }),
-      sysMsg('synth', { pipeId: 'abc', mode: 'merge', role: 'synth-request', targetAssignee: 's' }),
-      msg({ from: 's', body: 'final', pipe: { pipeId: 'abc', mode: 'merge', role: 'final' } }),
-    ];
-    const state = derivePipeState(messages, 'abc')!;
-    expect(hasUnfinishedWork(state, 's')).toBe(false);
-  });
-});
-
-// ── findActivePipesForParticipant ────────────────────────────────────────────
-
-describe('findActivePipesForParticipant', () => {
-  it('returns empty for non-participant', () => {
-    const messages = [
-      sysMsg('start', { pipeId: 'abc', mode: 'linear', role: 'start', assignees: ['a', 'b'], prompt: 'X' }),
-    ];
-    expect(findActivePipesForParticipant(messages, 'z')).toHaveLength(0);
-  });
-
-  it('returns pipe for unfinished participant', () => {
-    const messages = [
-      sysMsg('start', { pipeId: 'abc', mode: 'linear', role: 'start', assignees: ['a', 'b'], prompt: 'X' }),
-    ];
-    const result = findActivePipesForParticipant(messages, 'a');
-    expect(result).toHaveLength(1);
-    expect(result[0].pipeId).toBe('abc');
-  });
-
-  it('does not return pipe for finished participant', () => {
-    const messages = [
-      sysMsg('start', { pipeId: 'abc', mode: 'linear', role: 'start', assignees: ['a', 'b'], prompt: 'X' }),
-      sysMsg('handoff', { pipeId: 'abc', mode: 'linear', role: 'handoff', stage: 1, targetAssignee: 'a' }),
-      msg({ from: 'a', body: 'done', pipe: { pipeId: 'abc', mode: 'linear', role: 'stage-output', stage: 1 } }),
-    ];
-    expect(findActivePipesForParticipant(messages, 'a')).toHaveLength(0);
-  });
-
-  it('does not return completed pipe', () => {
-    const messages = [
-      sysMsg('start', { pipeId: 'abc', mode: 'linear', role: 'start', assignees: ['a'], prompt: 'X' }),
-      sysMsg('handoff', { pipeId: 'abc', mode: 'linear', role: 'handoff', stage: 1, targetAssignee: 'a' }),
-      msg({ from: 'a', body: 'done', pipe: { pipeId: 'abc', mode: 'linear', role: 'final', stage: 1 } }),
-    ];
-    expect(findActivePipesForParticipant(messages, 'a')).toHaveLength(0);
-  });
-
-  it('returns pipe for merge synthesizer during fan-out phase', () => {
-    const messages = [
-      sysMsg('start', { pipeId: 'abc', mode: 'merge', role: 'start', assignees: ['a', 'b', 's'], prompt: 'X' }),
-    ];
-    const result = findActivePipesForParticipant(messages, 's');
-    expect(result).toHaveLength(1);
-    expect(result[0].pipeId).toBe('abc');
-  });
-});

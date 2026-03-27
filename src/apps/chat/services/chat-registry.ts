@@ -1,10 +1,11 @@
 import type { Namespace } from 'socket.io';
-import type { ChatParticipant, ChatMessage, PipeMessageMeta } from '../types.js';
+import type { ChatParticipant, ChatMessage, PipeMessageMeta, PipeUiEvent } from '../types.js';
 import { globalPtys, dashboardState, getShellNsp } from '../../shell/src/runtime/shell-state.js';
-import { appendMessage, readMessages, clearMessages, saveParticipants, loadParticipants } from './chat-store.js';
+import { appendMessage, appendPipeEvent, readMessages, clearMessages, saveParticipants, loadParticipants } from './chat-store.js';
 import type { PersistedParticipant } from './chat-store.js';
 import { getActiveProject, onProjectChange } from '../../../project-context.js';
-import { isPipeCommand, parsePipeCommand, isPipeParseError } from './pipe-parser.js';
+import { isPipeCommand, parsePipeCommand, isPipeParseError, validatePipeAssigneeCount, isBrainstormCommand, parseBrainstormCommand } from './pipe-parser.js';
+import * as brainstormStore from './brainstorm-store.js';
 import * as pipeReducer from './pipe-reducer.js';
 import * as pipeStore from './pipe-store.js';
 import { stripAnsi } from './terminal-utils.js';
@@ -18,6 +19,13 @@ const participantStatusTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const panePromptWatchers = new Map<string, { dispose: () => void }>();
 
 const PTY_SUBMIT_DELAY_MS = 1000;
+
+/** Short reminder appended to PTY-delivered messages for LLM participants only. */
+export const PTY_INTERACTION_REMINDER =
+  '\n<system-reminder>\n' +
+  'Reply via `chat_send` (not shell output). For #pipe-* stages use `pipe_submit`. ' +
+  'Discussion only \u2014 execute only when explicitly assigned. Start user-directed replies with @user.\n' +
+  '</system-reminder>';
 const PARTICIPANT_IDLE_TIMEOUT_MS = 30_000;
 const PROMPT_QUIESCENCE_MS = 2000;
 const PANE_DISCONNECT_TIMEOUT_MS = 10_000; // 10 seconds before auto-removal
@@ -341,6 +349,17 @@ function emitToProject(event: string, data: unknown, projectId?: string | null):
   }
 }
 
+function emitPipeEvent(event: Omit<PipeUiEvent, 'id' | 'ts'>, projectId?: string | null): PipeUiEvent {
+  const stored = appendPipeEvent(event, projectId);
+  emitToProject('chat:pipe', stored, projectId);
+  return stored;
+}
+
+function ensurePipeAnchor(body: string, pipeId: string): string {
+  const anchor = `#pipe-${pipeId}`;
+  return body.includes(anchor) ? body : `${anchor} ${body}`;
+}
+
 // Emit refreshed member list when the active project changes
 onProjectChange((project) => {
   emitMembers(project?.id);
@@ -365,7 +384,7 @@ function getPaneDisplayNumber(paneId: string | null): number | null {
 }
 
 /** Normalize the identity base from hint/model (e.g. "claude", "codex"). */
-function deriveNameBase(hint: string, model: string | null): string {
+export function deriveNameBase(hint: string, model: string | null): string {
   return (hint || model || 'agent').toLowerCase().replace(/[^a-z0-9-]/g, '');
 }
 
@@ -629,6 +648,11 @@ export async function send(from: string, body: string, to?: string, projectId?: 
   const senderProjectId = sender?.projectId ?? activeProjectId();
   const resolvedSenderProjectId = resolveProjectId(senderProjectId);
 
+  // ─── Brainstorm command detection (user-only) ──────────────────────
+  if (from === 'user' && isBrainstormCommand(body)) {
+    return handleBrainstormCommand(body, resolvedSenderProjectId);
+  }
+
   // ─── Pipe command detection (user-only) ────────────────────────────
   if (from === 'user' && isPipeCommand(body)) {
     return handlePipeCommand(body, resolvedSenderProjectId);
@@ -646,9 +670,7 @@ export async function send(from: string, body: string, to?: string, projectId?: 
       pipeMeta = undefined;
     }
     // Ensure #pipe-{id} anchor is always in the stored body for searchability
-    if (pipeMeta && !body.includes(`#pipe-${pipeMeta.pipeId}`)) {
-      body = `#pipe-${pipeMeta.pipeId} ${body}`;
-    }
+    if (pipeMeta) body = ensurePipeAnchor(body, pipeMeta.pipeId);
   }
 
   // Resolve targets:
@@ -747,7 +769,10 @@ function deliverToPty(targetName: string, projectId: string | null, msg: ChatMes
         return;
       }
 
-      const formatted = `[DevGlide Chat] @${msg.from}: ${msg.body}`;
+      let formatted = `[DevGlide Chat] @${msg.from}: ${msg.body}`;
+      if (liveTarget.kind === 'llm') {
+        formatted += PTY_INTERACTION_REMINDER;
+      }
 
       entry.ptyProcess.write(formatted);
 
@@ -789,6 +814,25 @@ export function listParticipants(projectId?: string | null): ChatParticipant[] {
   }
   result.sort((a, b) => a.name.localeCompare(b.name));
   return result;
+}
+
+function comparePipeAssigneeOrder(a: ChatParticipant, b: ChatParticipant): number {
+  const byJoin = a.joinedAt.localeCompare(b.joinedAt);
+  if (byJoin !== 0) return byJoin;
+  return a.name.localeCompare(b.name);
+}
+
+export function listDefaultPipeAssignees(projectId?: string | null): ChatParticipant[] {
+  pruneStaleParticipants();
+
+  const pid = resolveProjectId(projectId);
+  return [...participants.values()]
+    .filter((participant) =>
+      participant.projectId === pid
+      && participant.kind === 'llm'
+      && !participant.detached
+      && !!participant.paneId)
+    .sort(comparePipeAssigneeOrder);
 }
 
 export function getParticipant(name: string, projectId?: string | null): ChatParticipant | undefined {
@@ -839,7 +883,7 @@ export function onPaneClosed(paneId: string, projectId?: string | null): void {
 // ── Pipe orchestration (log-centric reducer model) ───────────────────────────
 
 async function handlePipeCommand(body: string, projectId: string | null): Promise<ChatMessage> {
-  const parsed = parsePipeCommand(body);
+  const parsed = parsePipeCommand(body, (name) => getParticipantExact(name, projectId) != null);
   if (isPipeParseError(parsed)) {
     const userMsg = appendMessage({ from: 'user', to: null, body, type: 'message' }, projectId);
     emitToProject('chat:message', userMsg, projectId);
@@ -856,10 +900,28 @@ async function handlePipeCommand(body: string, projectId: string | null): Promis
   const userMsg = appendMessage({ from: 'user', to: null, body, type: 'message' }, projectId);
   emitToProject('chat:message', userMsg, projectId);
 
+  const resolvedAssignees = parsed.assignees.length > 0
+    ? parsed.assignees
+    : listDefaultPipeAssignees(projectId).map((participant) => participant.name);
+
+  const countError = validatePipeAssigneeCount(parsed.mode, resolvedAssignees.length);
+  if (countError) {
+    const detail = parsed.assignees.length === 0
+      ? ' No eligible default LLM assignees were available.'
+      : '';
+    const errorMsg = appendMessage({
+      from: 'system', to: null,
+      body: `Pipe error: ${countError}${detail}`,
+      type: 'system',
+    }, projectId);
+    emitToProject('chat:message', errorMsg, projectId);
+    return userMsg;
+  }
+
   // Validate all assignees are connected, live LLM participants
   const invalid: string[] = [];
   const reasons: string[] = [];
-  for (const a of parsed.assignees) {
+  for (const a of resolvedAssignees) {
     const p = getParticipantExact(a, projectId);
     if (!p) { invalid.push(a); reasons.push(`@${a} not found`); continue; }
     if (p.kind !== 'llm') { invalid.push(a); reasons.push(`@${a} is not an LLM`); continue; }
@@ -878,10 +940,11 @@ async function handlePipeCommand(body: string, projectId: string | null): Promis
 
   // Write start message to log with pipe metadata
   const pipeId = pipeReducer.generatePipeId();
-  const desc = pipeReducer.getStartDescription(parsed);
+  const resolved = { ...parsed, assignees: resolvedAssignees };
+  const desc = pipeReducer.getStartDescription(resolved);
 
   // Create pipe in the isolated stage store
-  pipeStore.createPipe(pipeId, parsed.mode, parsed.assignees, parsed.prompt, projectId);
+  pipeStore.createPipe(pipeId, parsed.mode, resolvedAssignees, parsed.prompt, projectId);
 
   const startMsg = appendMessage({
     from: 'system', to: null,
@@ -891,12 +954,12 @@ async function handlePipeCommand(body: string, projectId: string | null): Promis
       pipeId,
       mode: parsed.mode,
       role: 'start',
-      assignees: parsed.assignees,
+      assignees: resolvedAssignees,
       prompt: parsed.prompt,
     },
   }, projectId);
   emitToProject('chat:message', startMsg, projectId);
-  emitToProject('chat:pipe', { type: 'start', pipeId, mode: parsed.mode }, projectId);
+  emitPipeEvent({ type: 'start', pipeId, mode: parsed.mode }, projectId);
 
   // Run reducer to emit initial handoff/fan-out
   await runPipeReducer(pipeId, projectId);
@@ -908,27 +971,43 @@ async function handlePipeCommand(body: string, projectId: string | null): Promis
  *  Uses #pipe-{id} in the body as primary discriminator; falls back to
  *  most-recently-prompted pipe if no explicit tag is present. */
 function detectPipeResponse(from: string, body: string, projectId: string | null): PipeMessageMeta | undefined {
-  const messages = readMessages({ limit: 10000 }, projectId);
+  // ── Store-backed detection (primary) ──
+  const explicitMatch = body.match(/#pipe-([a-f0-9]+)/);
+  if (explicitMatch) {
+    const storedPipe = pipeStore.getPipe(explicitMatch[1], projectId);
+    if (storedPipe && storedPipe.status === 'running') {
+      const state = pipeReducer.buildStateFromStore(storedPipe);
+      const meta = pipeReducer.matchResponse(state, from);
+      if (meta) return meta;
+    }
+  }
 
-  // Collect all pipe IDs from log
+  const senderPipeIds = pipeStore.getActivePipesForParticipant(from, projectId);
+  for (const pipeId of senderPipeIds) {
+    const storedPipe = pipeStore.getPipe(pipeId, projectId);
+    if (!storedPipe || storedPipe.status !== 'running') continue;
+    const state = pipeReducer.buildStateFromStore(storedPipe);
+    const meta = pipeReducer.matchResponse(state, from);
+    if (meta) return meta;
+  }
+
+  // ── Log-backed fallback (recovery / legacy pipes not in store) ──
+  const messages = readMessages({ limit: 10000 }, projectId);
   const pipeIds = new Set<string>();
   for (const msg of messages) {
     if (msg.pipe?.pipeId) pipeIds.add(msg.pipe.pipeId);
   }
   if (pipeIds.size === 0) return undefined;
 
-  // Primary: check if body explicitly references #pipe-{id}
-  const explicitMatch = body.match(/#pipe-([a-f0-9]+)/);
   if (explicitMatch && pipeIds.has(explicitMatch[1])) {
     const state = pipeReducer.derivePipeState(messages, explicitMatch[1]);
-    if (state) {
+    if (state && state.status === 'running') {
       const meta = pipeReducer.matchResponse(state, from);
       if (meta) return meta;
     }
   }
 
-  // Fallback: find the most recently prompted pipe for this sender
-  // (scan messages in reverse to find last handoff/fan-out-request/synth-request targeting this sender)
+  // Last resort: find the most recently prompted pipe for this sender in the log
   let lastPromptedPipeId: string | undefined;
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
@@ -945,7 +1024,7 @@ function detectPipeResponse(from: string, body: string, projectId: string | null
 
   if (lastPromptedPipeId) {
     const state = pipeReducer.derivePipeState(messages, lastPromptedPipeId);
-    if (state) {
+    if (state && state.status === 'running') {
       const meta = pipeReducer.matchResponse(state, from);
       if (meta) return meta;
     }
@@ -954,87 +1033,86 @@ function detectPipeResponse(from: string, body: string, projectId: string | null
   return undefined;
 }
 
-/** Run the pipe reducer: scan log, compute next actions, execute them.
- *  Stage outputs are read from the pipe store (source of truth), merged into
- *  the log-derived state so the reducer's action computation uses store data. */
+/** Run the pipe reducer: derive state from pipe store, compute next actions, execute them.
+ *  Pipe instructions and intermediate outputs NEVER enter chat history.
+ *  Only the final result is appended as a public chat message. */
 async function runPipeReducer(pipeId: string, projectId: string | null): Promise<void> {
-  // Read only messages for this pipe instead of scanning full history
-  const messages = readMessages({ limit: 10000, pipeId }, projectId);
-  const state = pipeReducer.derivePipeState(messages, pipeId);
-  if (!state) return;
-
-  // When the pipe is tracked in the store, the store is the SOLE source of truth
-  // for stage content — clear log-derived outputs and use only store data.
-  // This prevents regular chat messages from ever becoming stage input.
   const storedPipe = pipeStore.getPipe(pipeId, projectId);
-  if (storedPipe) {
-    state.stageOutputs.clear();
-    state.fanOutOutputs.clear();
-    for (const [assignee, slotList] of storedPipe.slots) {
-      for (const slot of slotList) {
-        if (slot.status === 'submitted' && slot.content) {
-          if (slot.stage !== undefined) {
-            state.stageOutputs.set(slot.stage, { from: assignee, body: slot.content });
-          }
-          if (slot.role === 'fan-out') {
-            state.fanOutOutputs.set(assignee, slot.content);
-          }
+  if (!storedPipe || storedPipe.status !== 'running') return;
+
+  // Build state entirely from pipe store — no log scanning
+  const state = pipeReducer.buildStateFromStore(storedPipe);
+
+  // Check for completion — broadcast final result as a public chat message
+  if (state.hasFinal) {
+    pipeStore.markPipeStatus(pipeId, 'completed', projectId);
+
+    // Read the final output from pipe state and broadcast it to all participants.
+    // This is the ONLY pipe output that enters chat history and LLM context.
+    const finalContent = readFinalOutput(pipeId, projectId);
+    if (finalContent) {
+      // Render pipe result as a normal chat message from the actual author
+      const resultMsg = appendMessage({
+        from: finalContent.from, to: null,
+        body: ensurePipeAnchor(finalContent.body, pipeId),
+        type: 'message',
+        pipe: { pipeId, mode: state.mode, role: 'final' },
+      }, projectId);
+      emitToProject('chat:message', resultMsg, projectId);
+      // Broadcast to all PTYs — this is the public final result
+      for (const p of participants.values()) {
+        if (p.paneId && p.projectId === projectId && !p.detached) {
+          await deliverToPty(p.name, projectId, resultMsg);
         }
       }
     }
-  }
 
-  // Check for completion
-  if (state.hasFinal) {
-    pipeStore.markPipeStatus(pipeId, 'completed', projectId);
-    const completeMsg = appendMessage({
-      from: 'system', to: null,
-      body: `#pipe-${pipeId} Pipe completed.`,
-      type: 'system',
-    }, projectId);
-    emitToProject('chat:message', completeMsg, projectId);
-    emitToProject('chat:pipe', { type: 'complete', pipeId }, projectId);
+    emitPipeEvent({ type: 'complete', pipeId }, projectId);
+
+    // Check if this pipe is a brainstorm child — advance brainstorm state
+    await advanceBrainstormOnChildComplete(pipeId, projectId);
     return;
   }
 
   const actions = pipeReducer.computeNextActions(state);
   for (const action of actions) {
     // Grant lease to target assignee in the store
-    if (storedPipe) {
-      const leaseResult = pipeStore.grantLease(pipeId, action.targetAssignee, projectId);
-      if (!leaseResult.ok) {
-        // Participant has a lease for another pipe — queue this pipe for retry
-        // when the conflicting lease is released. Do NOT deliver the handoff.
-        pipeStore.addPendingPipe(action.targetAssignee, projectId, pipeId);
-
-        // Emit a visible diagnostic so users/agents know the pipe is queued
-        const diagMsg = appendMessage({
-          from: 'system', to: null,
-          body: `#pipe-${pipeId} Stage for @${action.targetAssignee} is queued: ${leaseResult.error}`,
-          type: 'system',
-          pipe: {
-            pipeId,
-            mode: storedPipe.mode,
-            role: 'lease-queued' as any,
-            targetAssignee: action.targetAssignee,
-          },
-        }, projectId);
-        emitToProject('chat:message', diagMsg, projectId);
-        continue;
-      }
+    const leaseResult = pipeStore.grantLease(pipeId, action.targetAssignee, projectId);
+    if (!leaseResult.ok) {
+      pipeStore.addPendingPipe(action.targetAssignee, projectId, pipeId);
+      // Emit queued diagnostic to dashboard UI only — NOT to chat history
+      emitPipeEvent({
+        type: 'queued',
+        pipeId,
+        assignee: action.targetAssignee,
+        reason: leaseResult.error,
+      }, projectId);
+      continue;
     }
 
-    // Store the delivery in log with pipe metadata
-    const deliveryMsg = appendMessage({
+    // Track emission in pipe store (replaces appendMessage to chat history)
+    pipeStore.markEmitted(pipeId, action.type, action.type === 'handoff' ? action.stage : action.targetAssignee, projectId);
+
+    // Construct delivery message for PTY injection — NOT stored in chat history.
+    // Only the dashboard UI and the target LLM see this.
+    const deliveryMsg: import('../types.js').ChatMessage = {
+      id: `pipe-${pipeId}-${action.type}-${action.targetAssignee}`,
+      ts: new Date().toISOString(),
       from: 'system',
       to: action.targetAssignee,
       body: action.body,
       type: 'system',
       pipe: action.pipe,
-    }, projectId);
+    };
 
-    // Emit status to dashboard
-    emitToProject('chat:message', deliveryMsg, projectId);
+    // Emit to dashboard UI as a pipe event (not chat:message — stays out of chat rendering)
+    emitPipeEvent({
+      type: 'instruction',
+      pipeId,
+      actionType: action.type,
+      assignee: action.targetAssignee,
+      stage: action.stage,
+    }, projectId);
 
     // PTY deliver only to the target assignee
     const target = getParticipantExact(action.targetAssignee, projectId);
@@ -1042,6 +1120,20 @@ async function runPipeReducer(pipeId: string, projectId: string | null): Promise
       await deliverToPty(action.targetAssignee, projectId, deliveryMsg);
     }
   }
+}
+
+/** Read the final output content from pipe state. */
+function readFinalOutput(pipeId: string, projectId: string | null): { from: string; body: string } | null {
+  const pipe = pipeStore.getPipe(pipeId, projectId);
+  if (!pipe) return null;
+  for (const [, slotList] of pipe.slots) {
+    for (const slot of slotList) {
+      if (slot.role === 'final' && slot.status === 'submitted' && slot.content) {
+        return { from: slot.assignee, body: slot.content };
+      }
+    }
+  }
+  return null;
 }
 
 /** Drain pending pipe queues for a list of assignees whose leases were just released.
@@ -1070,43 +1162,23 @@ function failPipesForParticipant(
     const storedPipe = pipeStore.getPipe(pipeId, projectId);
     if (!storedPipe || storedPipe.status !== 'running') continue;
 
-    // Derive state from log for the mode info needed by system messages
-    const state = pipeReducer.derivePipeState(
-      readMessages({ limit: 10000, pipeId }, projectId), pipeId,
-    );
-    if (!state || state.status !== 'running') continue;
-
-    // Append assignee-unavailable
-    appendMessage({
-      from: 'system', to: null,
-      body: `#pipe-${pipeId} @${name} became unavailable (${reason}).`,
-      type: 'system',
-      pipe: {
-        pipeId,
-        mode: state.mode,
-        role: 'assignee-unavailable',
-        targetAssignee: name,
-        reason,
-      },
-    }, projectId);
-
     // Update store — releases leases for this pipe's assignees
     const releasedAssignees = pipeStore.markPipeStatus(pipeId, 'failed', projectId);
 
-    // Append failed
+    // Post failure to chat history (public lifecycle event)
     const failMsg = appendMessage({
       from: 'system', to: null,
-      body: `#pipe-${pipeId} Pipe stopped: @${name} became unavailable.`,
+      body: `#pipe-${pipeId} Pipe stopped: @${name} became unavailable (${reason}).`,
       type: 'system',
       pipe: {
         pipeId,
-        mode: state.mode,
+        mode: storedPipe.mode,
         role: 'failed',
         reason,
       },
     }, projectId);
     emitToProject('chat:message', failMsg, projectId);
-    emitToProject('chat:pipe', { type: 'failed', pipeId }, projectId);
+    emitPipeEvent({ type: 'failed', pipeId }, projectId);
 
     // Drain pending queues for released assignees — unblock any pipes waiting for their lease
     drainPendingPipes(releasedAssignees, projectId);
@@ -1116,9 +1188,8 @@ function failPipesForParticipant(
 /** Cancel a running pipe by user request. */
 export async function cancelPipeRun(pipeId: string, projectId?: string | null): Promise<boolean> {
   const pid = resolveProjectId(projectId);
-  const messages = readMessages({ limit: 10000 }, pid);
-  const state = pipeReducer.derivePipeState(messages, pipeId);
-  if (!state || state.status !== 'running') return false;
+  const pipe = pipeStore.getPipe(pipeId, pid);
+  if (!pipe || pipe.status !== 'running') return false;
 
   // Update store — releases leases for this pipe's assignees
   const releasedAssignees = pipeStore.markPipeStatus(pipeId, 'cancelled', pid);
@@ -1129,13 +1200,13 @@ export async function cancelPipeRun(pipeId: string, projectId?: string | null): 
     type: 'system',
     pipe: {
       pipeId,
-      mode: state.mode,
+      mode: pipe.mode,
       role: 'cancelled',
       reason: 'cancelled-by-user',
     },
   }, pid);
   emitToProject('chat:message', cancelMsg, pid);
-  emitToProject('chat:pipe', { type: 'cancel', pipeId }, pid);
+  emitPipeEvent({ type: 'cancel', pipeId }, pid);
 
   // Drain pending queues for released assignees — unblock any pipes waiting for their lease
   drainPendingPipes(releasedAssignees, pid);
@@ -1150,7 +1221,7 @@ export async function submitPipeStage(
   from: string,
   content: string,
   projectId: string | null,
-): Promise<{ ok: boolean; error?: string; code?: string; message?: ChatMessage }> {
+): Promise<{ ok: boolean; error?: string; code?: string; message?: ChatMessage; myWorkComplete?: boolean; pendingStages?: number }> {
   // Validate and store in the pipe stage store
   const result = pipeStore.submitStage(pipeId, from, content, projectId, true);
   if (!result.ok) return { ok: false, error: result.error, code: result.code };
@@ -1171,22 +1242,20 @@ export async function submitPipeStage(
     stage: slot?.stage,
   };
 
-  // Post a chat message for display (pipe artifact visible in chat history)
-  const body = `#pipe-${pipeId} ${content}`;
-  const msg = appendMessage({
+  // Emit non-final stage submissions as pipe-step events — NOT as chat:message.
+  // The completion handler is the sole emitter of the public final result via chat:message.
+  const body = ensurePipeAnchor(content, pipeId);
+  const msg: import('../types.js').ChatMessage = {
+    id: `pipe-${pipeId}-${role}-${from}`,
+    ts: new Date().toISOString(),
     from,
     to: null,
     body,
     type: 'message',
     pipe: pipeMeta,
-  }, projectId);
-  emitToProject('chat:message', msg, projectId);
-
-  // PTY deliver to other participants so they see the output
-  for (const p of participants.values()) {
-    if (p.name !== from && p.paneId && p.projectId === projectId) {
-      await deliverToPty(p.name, projectId, msg);
-    }
+  };
+  if (role !== 'final') {
+    emitPipeEvent({ type: 'stage-output', pipeId, from, role, stage: slot?.stage, content: body }, projectId);
   }
 
   // Run the reducer to advance the pipeline
@@ -1196,7 +1265,14 @@ export async function submitPipeStage(
   // any pipes that were waiting for this participant's lease.
   drainPendingPipes([from], projectId);
 
-  return { ok: true, message: msg };
+  // Check if the submitter has remaining unsubmitted slots in this pipe
+  const updatedPipe = pipeStore.getPipe(pipeId, projectId);
+  const assigneeSlots = updatedPipe?.slots.get(from) ?? [];
+  const pendingSlots = assigneeSlots.filter(s => s.status !== 'submitted');
+  const myWorkComplete = pendingSlots.length === 0;
+  const pendingStages = pendingSlots.length;
+
+  return { ok: true, message: msg, myWorkComplete, pendingStages };
 }
 
 /** Get pipe status from the store. */
@@ -1204,35 +1280,412 @@ export function getPipeStoreStatus(pipeId: string, projectId?: string | null) {
   return pipeStore.getPipeStatus(pipeId, resolveProjectId(projectId));
 }
 
-/** Get active pipes for a project (derived from log). */
+/** Get active pipes for a project (from pipe store). */
 export function getActivePipes(projectId?: string | null): Array<{ pipeId: string; mode: string; status: string }> {
   const pid = resolveProjectId(projectId);
-  const messages = readMessages({ limit: 10000 }, pid);
-  const pipeIds = new Set<string>();
-  for (const msg of messages) {
-    if (msg.pipe?.pipeId) pipeIds.add(msg.pipe.pipeId);
-  }
-
-  const result: Array<{ pipeId: string; mode: string; status: string }> = [];
-  for (const pipeId of pipeIds) {
-    const state = pipeReducer.derivePipeState(messages, pipeId);
-    if (state && state.status === 'running') {
-      result.push({ pipeId: state.pipeId, mode: state.mode, status: state.status });
-    }
-  }
-  return result;
+  return pipeStore.listActivePipes(pid).map(p => ({ pipeId: p.pipeId, mode: p.mode, status: p.status }));
 }
 
-/** Get a specific pipe's state (derived from log). */
+/** Get a specific pipe's state (from pipe store). */
 export function getPipeRun(pipeId: string, projectId?: string | null): { pipeId: string; mode: string; status: string; projectId: string | null } | undefined {
   const pid = resolveProjectId(projectId);
-  const messages = readMessages({ limit: 10000 }, pid);
-  const state = pipeReducer.derivePipeState(messages, pipeId);
-  if (!state) return undefined;
-  return { pipeId: state.pipeId, mode: state.mode, status: state.status, projectId: pid };
+  const pipe = pipeStore.getPipe(pipeId, pid);
+  if (!pipe) return undefined;
+  return { pipeId: pipe.pipeId, mode: pipe.mode, status: pipe.status, projectId: pid };
 }
 
-/** No-op: pipes are now self-recovering from the chat log. */
-export function restorePipes(_projectId: string | null): string[] {
-  return [];
+// ── Pipe output read (caller-scoped) ──────────────────────────────────────────
+
+export interface PipeReadOutputResult {
+  pipeId: string;
+  mode: string;
+  previousOutput?: { stage: number; from: string; content: string };
+  fanOutOutputs?: Array<{ from: string; content: string }>;
 }
+
+/** Read the pipe output that the caller is entitled to right now.
+ *  Linear pipes: returns previous stage output for the current downstream assignee.
+ *  Merge pipes: returns fan-out outputs for the synthesizer after synth-request. */
+export function readPipeOutput(
+  pipeId: string,
+  callerName: string,
+  projectId?: string | null,
+): { ok: true; data: PipeReadOutputResult } | { ok: false; status: number; error: string } {
+  const pid = resolveProjectId(projectId);
+  const pipe = pipeStore.getPipe(pipeId, pid);
+  if (!pipe) return { ok: false, status: 404, error: `Pipe #${pipeId} not found` };
+  if (pipe.status !== 'running') {
+    return { ok: false, status: 409, error: `Pipe #${pipeId} is ${pipe.status} — output reads are only allowed while the pipe is running` };
+  }
+
+  const assigneeIndex = pipe.assignees.indexOf(callerName);
+  if (assigneeIndex === -1) {
+    return { ok: false, status: 403, error: `${callerName} is not an assignee of pipe #${pipeId}` };
+  }
+
+  if (pipe.mode === 'linear') {
+    const callerStage = assigneeIndex + 1;
+    if (callerStage === 1) {
+      return { ok: false, status: 409, error: 'Stage 1 has no previous input to read' };
+    }
+    if (!pipe.emittedHandoffs.has(callerStage)) {
+      return { ok: false, status: 409, error: `Handoff for stage ${callerStage} has not been emitted yet` };
+    }
+    const prevStage = callerStage - 1;
+    const output = pipeStore.getStageOutput(pipeId, prevStage, pid);
+    if (!output) {
+      return { ok: false, status: 409, error: `Stage ${prevStage} output not yet submitted` };
+    }
+    return {
+      ok: true,
+      data: {
+        pipeId: pipe.pipeId,
+        mode: pipe.mode,
+        previousOutput: { stage: prevStage, from: output.from, content: output.body },
+      },
+    };
+  }
+
+  // merge / merge-all / explain / summarize
+  const synthesizer = pipe.assignees[pipe.assignees.length - 1];
+  if (callerName !== synthesizer) {
+    return { ok: false, status: 403, error: `Only the synthesizer (@${synthesizer}) can read fan-out outputs` };
+  }
+  if (!pipe.emittedSynthRequest) {
+    return { ok: false, status: 409, error: 'Synth request has not been emitted yet' };
+  }
+  const isMergeAll = pipe.mode === 'merge-all' || pipe.mode === 'explain' || pipe.mode === 'summarize';
+  const outputs = pipeStore.getFanOutOutputs(pipeId, pid);
+  const fanOutOutputs: Array<{ from: string; content: string }> = [];
+  for (const [assignee, content] of outputs) {
+    if (isMergeAll && assignee === synthesizer) continue;
+    fanOutOutputs.push({ from: assignee, content });
+  }
+  return {
+    ok: true,
+    data: { pipeId: pipe.pipeId, mode: pipe.mode, fanOutOutputs },
+  };
+}
+
+// ── Brainstorm command handling ───────────────────────────────────────────────
+
+async function handleBrainstormCommand(body: string, projectId: string | null): Promise<ChatMessage> {
+  const parsed = parseBrainstormCommand(body, (name) => getParticipantExact(name, projectId) != null);
+  if ('error' in parsed) {
+    const userMsg = appendMessage({ from: 'user', to: null, body, type: 'message' }, projectId);
+    emitToProject('chat:message', userMsg, projectId);
+    const errorMsg = appendMessage({
+      from: 'system', to: null,
+      body: `Brainstorm error: ${parsed.error}`,
+      type: 'system',
+    }, projectId);
+    emitToProject('chat:message', errorMsg, projectId);
+    return userMsg;
+  }
+
+  const userMsg = appendMessage({ from: 'user', to: null, body, type: 'message' }, projectId);
+  emitToProject('chat:message', userMsg, projectId);
+
+  // Resolve assignees (default to all active LLMs if none specified)
+  const resolvedAssignees = parsed.assignees.length > 0
+    ? parsed.assignees
+    : listDefaultPipeAssignees(projectId).map(p => p.name);
+
+  if (resolvedAssignees.length < 2) {
+    const detail = parsed.assignees.length === 0
+      ? ' No eligible default LLM assignees were available.'
+      : '';
+    const errorMsg = appendMessage({
+      from: 'system', to: null,
+      body: `Brainstorm error: at least 2 LLM participants are required.${detail}`,
+      type: 'system',
+    }, projectId);
+    emitToProject('chat:message', errorMsg, projectId);
+    return userMsg;
+  }
+
+  // Validate assignees are connected LLMs
+  const invalid: string[] = [];
+  const reasons: string[] = [];
+  for (const a of resolvedAssignees) {
+    const p = getParticipantExact(a, projectId);
+    if (!p) { invalid.push(a); reasons.push(`@${a} not found`); continue; }
+    if (p.kind !== 'llm') { invalid.push(a); reasons.push(`@${a} is not an LLM`); continue; }
+    if (p.detached) { invalid.push(a); reasons.push(`@${a} is detached`); continue; }
+    if (!p.paneId) { invalid.push(a); reasons.push(`@${a} has no pane`); continue; }
+  }
+  if (invalid.length > 0) {
+    const errorMsg = appendMessage({
+      from: 'system', to: null,
+      body: `Brainstorm error: invalid assignees (${reasons.join('; ')}).`,
+      type: 'system',
+    }, projectId);
+    emitToProject('chat:message', errorMsg, projectId);
+    return userMsg;
+  }
+
+  // Create brainstorm record
+  const brainstormId = pipeReducer.generatePipeId();
+  brainstormStore.createBrainstorm(brainstormId, resolvedAssignees, parsed.prompt, projectId);
+
+  const assigneeList = resolvedAssignees.map(a => `@${a}`).join(', ');
+  const startMsg = appendMessage({
+    from: 'system', to: null,
+    body: `#brainstorm-${brainstormId} Brainstorm started: ${assigneeList}\nTopic: ${parsed.prompt}\nPhase: Ideas`,
+    type: 'system',
+  }, projectId);
+  emitToProject('chat:message', startMsg, projectId);
+
+  // Launch the first idea round (merge-all child pipe)
+  await launchBrainstormIdeaRound(brainstormId, projectId);
+
+  return userMsg;
+}
+
+/** Launch (or re-launch on retry) a merge-all child pipe for the brainstorm idea phase. */
+async function launchBrainstormIdeaRound(brainstormId: string, projectId: string | null): Promise<void> {
+  const record = brainstormStore.getBrainstorm(brainstormId, projectId);
+  if (!record) return;
+
+  const prompt = record.latestUserNote
+    ? `${record.prompt}\n\nUser note: ${record.latestUserNote}`
+    : record.prompt;
+
+  const childPipeId = pipeReducer.generatePipeId();
+  pipeStore.createPipe(childPipeId, 'merge-all', record.assignees, prompt, projectId);
+  brainstormStore.linkChildPipe(brainstormId, childPipeId, projectId);
+  brainstormStore.updateBrainstorm(brainstormId, projectId, {
+    activeChildPipeId: childPipeId,
+    phase: 'ideas',
+    ideaIterations: record.ideaIterations + 1,
+  });
+
+  const desc = pipeReducer.getStartDescription({ mode: 'merge-all', assignees: record.assignees, prompt });
+  const pipeStartMsg = appendMessage({
+    from: 'system', to: null,
+    body: `#pipe-${childPipeId} Pipe started (merge-all): ${desc}`,
+    type: 'system',
+    pipe: { pipeId: childPipeId, mode: 'merge-all' as const, role: 'start' as const, assignees: record.assignees, prompt },
+  }, projectId);
+  emitToProject('chat:message', pipeStartMsg, projectId);
+  emitPipeEvent({ type: 'start', pipeId: childPipeId, mode: 'merge-all' }, projectId);
+
+  await runPipeReducer(childPipeId, projectId);
+}
+
+/** Called when a child pipe completes — advances the brainstorm phase if applicable. */
+async function advanceBrainstormOnChildComplete(childPipeId: string, projectId: string | null): Promise<void> {
+  const record = brainstormStore.findBrainstormByChildPipe(childPipeId, projectId);
+  if (!record || record.activeChildPipeId !== childPipeId) return;
+
+  if (record.phase === 'ideas') {
+    const finalOutput = readFinalOutput(childPipeId, projectId);
+    brainstormStore.updateBrainstorm(record.id, projectId, {
+      phase: 'ideas_review',
+      activeChildPipeId: null,
+      candidateIdea: finalOutput?.body ?? null,
+    });
+
+    const reviewMsg = appendMessage({
+      from: 'system', to: null,
+      body: `#brainstorm-${record.id} Ideas phase complete (iteration ${record.ideaIterations}).\nReview the merged idea above and choose:\n• Accept — advance to detail phase\n• Retry — rerun idea generation\n• Retry with note — add guidance and rerun`,
+      type: 'system',
+    }, projectId);
+    emitToProject('chat:message', reviewMsg, projectId);
+    return;
+  }
+
+  if (record.phase === 'details') {
+    const finalOutput = readFinalOutput(childPipeId, projectId);
+    brainstormStore.updateBrainstorm(record.id, projectId, {
+      phase: 'details_review',
+      activeChildPipeId: null,
+      candidateDraft: finalOutput?.body ?? null,
+    });
+
+    const reviewMsg = appendMessage({
+      from: 'system', to: null,
+      body: `#brainstorm-${record.id} Detail pass complete (iteration ${record.detailIterations}).\nReview the detailed draft above and choose:\n• Finalize — accept draft and generate final output\n• Adjust — retry detail pass with guidance\n• Back to Ideas — return to idea phase`,
+      type: 'system',
+    }, projectId);
+    emitToProject('chat:message', reviewMsg, projectId);
+    return;
+  }
+
+  if (record.phase === 'finalizing') {
+    brainstormStore.updateBrainstorm(record.id, projectId, {
+      phase: 'complete',
+      activeChildPipeId: null,
+    });
+
+    const completeMsg = appendMessage({
+      from: 'system', to: null,
+      body: `#brainstorm-${record.id} Brainstorm complete.`,
+      type: 'system',
+    }, projectId);
+    emitToProject('chat:message', completeMsg, projectId);
+  }
+}
+
+/** Re-launch the idea round with an optional user note (called by approve/retry endpoints). */
+export async function brainstormRetryIdeas(brainstormId: string, userNote: string | null, projectId?: string | null): Promise<boolean> {
+  const pid = resolveProjectId(projectId);
+  const record = brainstormStore.getBrainstorm(brainstormId, pid);
+  if (!record || record.phase !== 'ideas_review') return false;
+
+  brainstormStore.updateBrainstorm(brainstormId, pid, { latestUserNote: userNote });
+  await launchBrainstormIdeaRound(brainstormId, pid);
+  return true;
+}
+
+/** Accept the current idea and launch detail phase (linear child pipe). */
+export async function brainstormAcceptIdea(brainstormId: string, projectId?: string | null): Promise<boolean> {
+  const pid = resolveProjectId(projectId);
+  const record = brainstormStore.getBrainstorm(brainstormId, pid);
+  if (!record || record.phase !== 'ideas_review') return false;
+
+  brainstormStore.updateBrainstorm(brainstormId, pid, {
+    acceptedIdea: record.candidateIdea,
+    candidateIdea: null,
+    latestUserNote: null,
+  });
+
+  const acceptMsg = appendMessage({
+    from: 'system', to: null,
+    body: `#brainstorm-${brainstormId} Idea accepted. Advancing to detail phase.`,
+    type: 'system',
+  }, pid);
+  emitToProject('chat:message', acceptMsg, pid);
+
+  await launchBrainstormDetailRound(brainstormId, pid);
+  return true;
+}
+
+/** Launch (or re-launch on adjust) a linear child pipe for the brainstorm detail phase. */
+async function launchBrainstormDetailRound(brainstormId: string, projectId: string | null): Promise<void> {
+  const record = brainstormStore.getBrainstorm(brainstormId, projectId);
+  if (!record) return;
+
+  let prompt = `Brainstorm detail phase — deepen the following accepted idea:\n\n${record.acceptedIdea}\n\nAdd implementation details, architecture considerations, trade-offs, and concrete next steps.`;
+  if (record.latestUserNote) {
+    prompt += `\n\nUser note: ${record.latestUserNote}`;
+  }
+
+  const childPipeId = pipeReducer.generatePipeId();
+  pipeStore.createPipe(childPipeId, 'linear', record.assignees, prompt, projectId);
+  brainstormStore.linkChildPipe(brainstormId, childPipeId, projectId);
+  brainstormStore.updateBrainstorm(brainstormId, projectId, {
+    activeChildPipeId: childPipeId,
+    phase: 'details',
+    detailIterations: record.detailIterations + 1,
+  });
+
+  const desc = pipeReducer.getStartDescription({ mode: 'linear', assignees: record.assignees, prompt });
+  const pipeStartMsg = appendMessage({
+    from: 'system', to: null,
+    body: `#pipe-${childPipeId} Pipe started (linear): ${desc}`,
+    type: 'system',
+    pipe: { pipeId: childPipeId, mode: 'linear' as const, role: 'start' as const, assignees: record.assignees, prompt },
+  }, projectId);
+  emitToProject('chat:message', pipeStartMsg, projectId);
+  emitPipeEvent({ type: 'start', pipeId: childPipeId, mode: 'linear' }, projectId);
+
+  await runPipeReducer(childPipeId, projectId);
+}
+
+/** Launch the finalize pass — single LLM produces the final structured output. */
+async function launchBrainstormFinalizeRound(brainstormId: string, projectId: string | null): Promise<void> {
+  const record = brainstormStore.getBrainstorm(brainstormId, projectId);
+  if (!record) return;
+
+  const prompt = `Brainstorm finalize — produce the final comprehensive document.\n\nAccepted Idea:\n${record.acceptedIdea}\n\nAccepted Detail Draft:\n${record.acceptedDraft}\n\nCreate a complete, structured output covering: concept, architecture, trade-offs, decisions, and next steps.`;
+
+  // Use a single assignee (first in list) for the final pass
+  const finalAssignees = [record.assignees[0]];
+  const childPipeId = pipeReducer.generatePipeId();
+  pipeStore.createPipe(childPipeId, 'linear', finalAssignees, prompt, projectId);
+  brainstormStore.linkChildPipe(brainstormId, childPipeId, projectId);
+  brainstormStore.updateBrainstorm(brainstormId, projectId, {
+    activeChildPipeId: childPipeId,
+    phase: 'finalizing',
+  });
+
+  const desc = pipeReducer.getStartDescription({ mode: 'linear', assignees: finalAssignees, prompt });
+  const pipeStartMsg = appendMessage({
+    from: 'system', to: null,
+    body: `#pipe-${childPipeId} Pipe started (linear): ${desc}`,
+    type: 'system',
+    pipe: { pipeId: childPipeId, mode: 'linear' as const, role: 'start' as const, assignees: finalAssignees, prompt },
+  }, projectId);
+  emitToProject('chat:message', pipeStartMsg, projectId);
+  emitPipeEvent({ type: 'start', pipeId: childPipeId, mode: 'linear' }, projectId);
+
+  await runPipeReducer(childPipeId, projectId);
+}
+
+/** Adjust and retry the current detail pass with a user note. */
+export async function brainstormAdjustDetails(brainstormId: string, userNote: string | null, projectId?: string | null): Promise<boolean> {
+  const pid = resolveProjectId(projectId);
+  const record = brainstormStore.getBrainstorm(brainstormId, pid);
+  if (!record || record.phase !== 'details_review') return false;
+
+  brainstormStore.updateBrainstorm(brainstormId, pid, { latestUserNote: userNote, candidateDraft: null });
+  await launchBrainstormDetailRound(brainstormId, pid);
+  return true;
+}
+
+/** Accept the current detail draft and launch the finalize phase. */
+export async function brainstormFinalize(brainstormId: string, projectId?: string | null): Promise<boolean> {
+  const pid = resolveProjectId(projectId);
+  const record = brainstormStore.getBrainstorm(brainstormId, pid);
+  if (!record || record.phase !== 'details_review') return false;
+
+  brainstormStore.updateBrainstorm(brainstormId, pid, {
+    acceptedDraft: record.candidateDraft,
+    candidateDraft: null,
+  });
+
+  const acceptMsg = appendMessage({
+    from: 'system', to: null,
+    body: `#brainstorm-${brainstormId} Details accepted. Generating final output.`,
+    type: 'system',
+  }, pid);
+  emitToProject('chat:message', acceptMsg, pid);
+
+  await launchBrainstormFinalizeRound(brainstormId, pid);
+  return true;
+}
+
+/** Go back to ideas phase from detail review. */
+export async function brainstormBackToIdeas(brainstormId: string, projectId?: string | null): Promise<boolean> {
+  const pid = resolveProjectId(projectId);
+  const record = brainstormStore.getBrainstorm(brainstormId, pid);
+  if (!record || record.phase !== 'details_review') return false;
+
+  brainstormStore.updateBrainstorm(brainstormId, pid, {
+    phase: 'ideas_review',
+    candidateDraft: null,
+    acceptedDraft: null,
+    latestUserNote: null,
+  });
+
+  const backMsg = appendMessage({
+    from: 'system', to: null,
+    body: `#brainstorm-${brainstormId} Returning to ideas phase. Review the idea and choose: Accept, Retry, or Retry with note.`,
+    type: 'system',
+  }, pid);
+  emitToProject('chat:message', backMsg, pid);
+  return true;
+}
+
+// ── Brainstorm accessors ─────────────────────────────────────────────────────
+
+export function getBrainstormRecord(id: string, projectId?: string | null) {
+  return brainstormStore.getBrainstorm(id, resolveProjectId(projectId));
+}
+
+export function getActiveBrainstorms(projectId?: string | null) {
+  return brainstormStore.listActiveBrainstorms(resolveProjectId(projectId));
+}
+
+
