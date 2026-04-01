@@ -90,3 +90,40 @@ export interface ChatParticipant {
 export interface ChatJoinResponse extends ChatParticipant {
   rules: string;        // effective rules of engagement (markdown)
 }
+
+// ── Assignment types ────────────────────────────────────────────────
+
+/** Lifecycle states for a durable assignment. */
+export type AssignmentStatus =
+  | 'assigned'          // created, notification not yet sent
+  | 'notified'          // compact notification delivered via PTY
+  | 'acknowledged'      // assignee acknowledged receipt
+  | 'payload_fetched'   // assignee fetched the authoritative payload
+  | 'submitted'         // assignee submitted stage output
+  | 'expired'           // deadline passed without submission
+  | 'reassigned'        // replaced by a new assignment to a different agent
+  | 'superseded'        // replaced by a retry of the same agent
+  | 'cancelled';        // pipe was cancelled, assignment voided
+
+/** Terminal statuses — an assignment in one of these states cannot transition further. */
+export const TERMINAL_ASSIGNMENT_STATUSES: ReadonlySet<AssignmentStatus> = new Set([
+  'submitted', 'expired', 'reassigned', 'superseded', 'cancelled',
+]);
+
+/** Valid status transitions for the assignment state machine. */
+export const ASSIGNMENT_TRANSITIONS: Readonly<Record<AssignmentStatus, readonly AssignmentStatus[]>> = {
+  assigned:         ['notified', 'expired', 'reassigned', 'superseded', 'cancelled'],
+  notified:         ['acknowledged', 'expired', 'reassigned', 'superseded', 'cancelled'],
+  acknowledged:     ['payload_fetched', 'expired', 'reassigned', 'superseded', 'cancelled'],
+  payload_fetched:  ['submitted', 'expired', 'reassigned', 'superseded', 'cancelled'],
+  submitted:        [],
+  expired:          [],
+  reassigned:       [],
+  superseded:       [],
+  cancelled:        [],
+};
+
+// ── Payload types ───────────────────────────────────────────────────
+
+/** Lifecycle states for stored payloads. */
+export type PayloadStatus = 'active' | 'archived' | 'deleted';
