@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as pipeStore from './pipe-store.js';
+import * as assignmentQueries from './pipe-assignment-queries.js';
 
 beforeEach(() => {
   pipeStore._resetForTest();
@@ -328,5 +329,54 @@ describe('pipe-store lifecycle', () => {
     // Can still grant in proj-2 (different project, no conflict)
     const result = pipeStore.grantLease('pipe-1', 'alice', 'proj-2');
     expect(result.ok).toBe(true);
+  });
+});
+
+// ── Lease-aware authorization (claude-15) ────────────────────────────────────
+
+describe('pipe-store lease expiry enforcement', () => {
+  it('isLeaseExpired returns false when no deadline', () => {
+    pipeStore.createPipe('pipe-no-timeout', 'linear', ['alice', 'bob'], 'test', 'proj-1', { stageTimeoutMs: 0 });
+    const result = pipeStore.grantLease('pipe-no-timeout', 'alice', 'proj-1');
+    expect(result.ok).toBe(true);
+    expect(result.lease!.deadline).toBeNull();
+    expect(pipeStore.isLeaseExpired(result.lease!)).toBe(false);
+  });
+
+  it('isLeaseExpired returns true when past deadline', () => {
+    createLinearPipe();
+    const result = pipeStore.grantLease('pipe-1', 'alice', 'proj-1');
+    const farFuture = Date.now() + 10 * 60 * 1000;
+    expect(pipeStore.isLeaseExpired(result.lease!, farFuture)).toBe(true);
+  });
+
+  it('submitStage accepts submission with active lease', () => {
+    createLinearPipe();
+    pipeStore.grantLease('pipe-1', 'alice', 'proj-1');
+    const result = pipeStore.submitStage('pipe-1', 'alice', 'timely output', 'proj-1', true);
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe('pipe-store assignment queries', () => {
+  it('getAssignmentsForParticipant returns slots', () => {
+    createLinearPipe();
+    pipeStore.grantLease('pipe-1', 'alice', 'proj-1');
+    const a = assignmentQueries.getAssignmentsForParticipant('alice', 'proj-1');
+    expect(a).toHaveLength(1);
+    expect(a[0].leaseStatus).toBe('active');
+  });
+
+  it('getAssignmentForPipe returns details', () => {
+    createLinearPipe();
+    pipeStore.grantLease('pipe-1', 'alice', 'proj-1');
+    const a = assignmentQueries.getAssignmentForPipe('pipe-1', 'alice', 'proj-1');
+    expect(a).toBeDefined();
+    expect(a!.leaseStatus).toBe('active');
+  });
+
+  it('getAssignmentForPipe returns undefined for non-assignee', () => {
+    createLinearPipe();
+    expect(assignmentQueries.getAssignmentForPipe('pipe-1', 'stranger', 'proj-1')).toBeUndefined();
   });
 });

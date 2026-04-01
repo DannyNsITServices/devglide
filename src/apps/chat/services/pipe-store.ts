@@ -42,6 +42,7 @@ export type PipeErrorCode =
   | 'PIPE_CLOSED'
   | 'PIPE_NOT_ASSIGNED'
   | 'PIPE_LEASE_NOT_HELD'
+  | 'PIPE_LEASE_EXPIRED'
   | 'PIPE_ALREADY_SUBMITTED'
   | 'PIPE_LEASE_CONFLICT';
 
@@ -304,6 +305,12 @@ export function getActiveLease(assignee: string, projectId: string | null): Leas
   return activeLeases.get(leaseKey(assignee, projectId));
 }
 
+/** Check whether a lease has passed its deadline. */
+export function isLeaseExpired(lease: LeaseInfo, now: number = Date.now()): boolean {
+  if (!lease.deadline) return false;
+  return now >= new Date(lease.deadline).getTime();
+}
+
 /** Release all leases for a pipe's assignees. Returns names of assignees whose leases were released. */
 function releaseAllLeases(pipe: StoredPipe, projectId: string | null): string[] {
   const released: string[] = [];
@@ -385,6 +392,15 @@ export function submitStage(
           `Stage submission requires an active lease granted by the system.`,
       };
     }
+    // Reject submits after the lease deadline has passed.
+    if (isLeaseExpired(lease)) {
+      return {
+        ok: false,
+        code: 'PIPE_LEASE_EXPIRED',
+        error: `Lease for ${assignee} on pipe #${pipeId} expired at ${lease.deadline}. ` +
+          `The stage deadline has passed — submission rejected.`,
+      };
+    }
     slot = assigneeSlots.find(s => s.role === lease.slotRole && (s.stage === lease.stage || (s.stage === undefined && lease.stage === undefined)) && s.status === 'leased');
   } else {
     // Non-leased submission (backward compat) — take the first non-submitted task
@@ -403,6 +419,71 @@ export function submitStage(
     slot: { ...slot },
     pipe: { pipeId: pipe.pipeId, mode: pipe.mode, status: pipe.status },
   };
+}
+
+// ── Assignment queries (reconnect / recovery) ───────────────────────────────
+
+export interface ParticipantAssignment {
+  pipeId: string;
+  mode: PipeMode;
+  role: PipeSlot['role'];
+  stage?: number;
+  slotStatus: PipeSlot['status'];
+  leaseStatus: 'active' | 'expired' | 'none';
+  deadline: string | null;
+  grantedAt: string | null;
+  pipeStatus: PipeStatus;
+}
+
+/** List all non-submitted slots for a participant across running pipes.
+ *  Used by reconnect recovery and the pipe_list_assignments tool. */
+export function getAssignmentsForParticipant(
+  assignee: string,
+  projectId: string | null,
+): ParticipantAssignment[] {
+  const activePipeIds = getActivePipesForParticipant(assignee, projectId);
+  const assignments: ParticipantAssignment[] = [];
+  const lease = getActiveLease(assignee, projectId);
+
+  for (const pipeId of activePipeIds) {
+    const pipe = getPipe(pipeId, projectId);
+    if (!pipe) continue;
+
+    const slots = pipe.slots.get(assignee);
+    if (!slots) continue;
+
+    for (const slot of slots) {
+      if (slot.status === 'submitted') continue;
+
+      const isLeasedSlot = lease?.pipeId === pipeId
+        && lease.slotRole === slot.role
+        && (lease.stage === slot.stage || (lease.stage === undefined && slot.stage === undefined));
+
+      let leaseStatus: ParticipantAssignment['leaseStatus'] = 'none';
+      let deadline: string | null = null;
+      let grantedAt: string | null = null;
+
+      if (isLeasedSlot && lease) {
+        leaseStatus = isLeaseExpired(lease) ? 'expired' : 'active';
+        deadline = lease.deadline;
+        grantedAt = lease.grantedAt;
+      }
+
+      assignments.push({
+        pipeId,
+        mode: pipe.mode,
+        role: slot.role,
+        stage: slot.stage,
+        slotStatus: slot.status,
+        leaseStatus,
+        deadline,
+        grantedAt,
+        pipeStatus: pipe.status,
+      });
+    }
+  }
+
+  return assignments;
 }
 
 // ── Queries ───────────────────────────────────────────────────────────────────
