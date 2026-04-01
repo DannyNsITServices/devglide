@@ -388,8 +388,40 @@ export interface PayloadRecoveryEvent {
   ts?: string;
 }
 
+/** Restore persisted timestamp on a recovered payload.
+ *  Mutators stamp fresh timestamps during replay — this overwrites them
+ *  with the original event timestamps so TTL and audit remain faithful. */
+function restorePayloadTimestamp(
+  payloadId: string,
+  projectId: string | null,
+  eventType: PayloadRecoveryEvent['type'],
+  ts: string,
+): void {
+  const payload = getProjectStore(projectId).get(payloadId);
+  if (!payload) return;
+
+  switch (eventType) {
+    case 'payload-created':
+      payload.createdAt = ts;
+      payload.updatedAt = ts;
+      break;
+    case 'payload-updated':
+      payload.updatedAt = ts;
+      break;
+    case 'payload-archived':
+      payload.archivedAt = ts;
+      payload.updatedAt = ts;
+      break;
+    case 'payload-deleted':
+      payload.deletedAt = ts;
+      payload.updatedAt = ts;
+      break;
+  }
+}
+
 /** Rehydrate payload state from persisted events.
- *  Called on server restart. Returns payloadIds that are still active. */
+ *  Called on server restart. Preserves original event timestamps for TTL
+ *  and audit fidelity. Returns payloadIds that are still active. */
 export function rehydrateFromEvents(
   events: PayloadRecoveryEvent[],
   projectId: string | null,
@@ -425,20 +457,33 @@ export function rehydrateFromEvents(
               }
             }
           }
+          // Restore original creation timestamp
+          if (event.ts) {
+            restorePayloadTimestamp(event.payloadId, projectId, 'payload-created', event.ts);
+          }
         }
         break;
       }
       case 'payload-updated': {
         if (event.content === undefined) break;
         updatePayloadContent(event.payloadId, event.content, projectId);
+        if (event.ts) {
+          restorePayloadTimestamp(event.payloadId, projectId, 'payload-updated', event.ts);
+        }
         break;
       }
       case 'payload-archived': {
         archivePayload(event.payloadId, projectId);
+        if (event.ts) {
+          restorePayloadTimestamp(event.payloadId, projectId, 'payload-archived', event.ts);
+        }
         break;
       }
       case 'payload-deleted': {
         deletePayload(event.payloadId, projectId);
+        if (event.ts) {
+          restorePayloadTimestamp(event.payloadId, projectId, 'payload-deleted', event.ts);
+        }
         break;
       }
     }

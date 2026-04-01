@@ -335,6 +335,71 @@ export function reassignAssignment(
   };
 }
 
+/** Retry an assignment with the same assignee (e.g., after a transient failure).
+ *  Marks the current assignment as 'superseded' and creates a new one with incremented attempt.
+ *  Unlike reassignAssignment, the assignee stays the same — this is a same-agent retry. */
+export function retryAssignment(
+  assignmentId: string,
+  projectId: string | null,
+  reason: string,
+): { ok: true; old: Assignment; new: Assignment } | { ok: false; error: string; code?: AssignmentErrorCode } {
+  const store = getProjectStore(projectId);
+  const old = store.get(assignmentId);
+  if (!old) {
+    return { ok: false, code: 'ASSIGNMENT_NOT_FOUND', error: `Assignment ${assignmentId} not found` };
+  }
+
+  if (TERMINAL_ASSIGNMENT_STATUSES.has(old.status)) {
+    return {
+      ok: false,
+      code: 'ASSIGNMENT_TERMINAL',
+      error: `Assignment ${assignmentId} is in terminal status '${old.status}'`,
+    };
+  }
+
+  // Mark the old assignment as superseded
+  const now = clock.isoNow();
+  old.status = 'superseded';
+  old.reassignReason = reason;
+  old.version++;
+
+  // Remove from active index
+  const aIndex = getActiveIndex(projectId);
+  const key = activeKey(old.pipeId, old.stageId);
+  aIndex.delete(key);
+
+  // Create the replacement assignment for the same assignee
+  const result = createAssignment(
+    old.pipeId,
+    old.stageId,
+    old.payloadId,
+    old.assignee,   // same assignee — this is a retry, not a reassignment
+    old.role,
+    projectId,
+    { stage: old.stage, supersedes: old.assignmentId },
+  );
+
+  if (!result.ok || !result.assignment) {
+    // Roll back
+    old.status = 'assigned';
+    old.reassignReason = null;
+    old.version--;
+    aIndex.set(key, old.assignmentId);
+    return { ok: false, error: result.error ?? 'Failed to create retry assignment' };
+  }
+
+  // Link the chain
+  old.supersededBy = result.assignment.assignmentId;
+  const newAssignment = store.get(result.assignment.assignmentId)!;
+  newAssignment.supersedes = old.assignmentId;
+
+  return {
+    ok: true,
+    old: { ...old },
+    new: { ...newAssignment },
+  };
+}
+
 /** Cancel all non-terminal assignments for a pipe.
  *  Called when a pipe is cancelled or failed. Returns cancelled assignmentIds. */
 export function cancelPipeAssignments(pipeId: string, projectId: string | null): string[] {
@@ -540,8 +605,36 @@ export interface AssignmentRecoveryEvent {
   ts?: string;
 }
 
+/** Restore persisted timestamps and version on a recovered assignment.
+ *  Mutators stamp fresh timestamps during replay — this overwrites them
+ *  with the original event timestamps so TTL, audit, and recovery semantics
+ *  remain faithful to the original timeline. */
+function restoreEventTimestamp(
+  assignmentId: string,
+  projectId: string | null,
+  status: AssignmentStatus,
+  ts: string,
+  version?: number,
+): void {
+  const assignment = getProjectStore(projectId).get(assignmentId);
+  if (!assignment) return;
+
+  switch (status) {
+    case 'assigned':        assignment.createdAt = ts; break;
+    case 'notified':        assignment.notifiedAt = ts; break;
+    case 'acknowledged':    assignment.acknowledgedAt = ts; break;
+    case 'payload_fetched': assignment.fetchedAt = ts; break;
+    case 'submitted':       assignment.submittedAt = ts; break;
+    case 'expired':         assignment.expiredAt = ts; break;
+    case 'reassigned':      assignment.reassignedAt = ts; break;
+    case 'cancelled':       assignment.cancelledAt = ts; break;
+  }
+  if (version !== undefined) assignment.version = version;
+}
+
 /** Rehydrate assignment state from persisted events.
- *  Called on server restart. Returns assignmentIds that are still active. */
+ *  Called on server restart. Preserves original event timestamps for TTL
+ *  and audit fidelity. Returns assignmentIds that are still active. */
 export function rehydrateFromEvents(
   events: AssignmentRecoveryEvent[],
   projectId: string | null,
@@ -578,16 +671,28 @@ export function rehydrateFromEvents(
             addToParticipantIndex(event.assignee, event.assignmentId, projectId);
           }
         }
+        // Restore original creation timestamp
+        if (event.ts) {
+          restoreEventTimestamp(event.assignmentId, projectId, 'assigned', event.ts, event.attempt);
+        }
         break;
       }
       case 'assignment-transitioned': {
         if (!event.status) break;
         transitionAssignment(event.assignmentId, event.status, projectId);
+        // Restore original event timestamp — overwrite the fresh one stamped by transitionAssignment
+        if (event.ts) {
+          restoreEventTimestamp(event.assignmentId, projectId, event.status, event.ts);
+        }
         break;
       }
       case 'assignment-reassigned': {
         if (!event.newAssignee) break;
         reassignAssignment(event.assignmentId, event.newAssignee, projectId, event.reason ?? 'recovery');
+        // Restore original reassignment timestamp on the old assignment
+        if (event.ts) {
+          restoreEventTimestamp(event.assignmentId, projectId, 'reassigned', event.ts);
+        }
         break;
       }
       case 'assignment-cancelled': {

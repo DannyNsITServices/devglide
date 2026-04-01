@@ -560,6 +560,91 @@ describe('rehydrateFromEvents', () => {
   });
 });
 
+// ── retryAssignment ──────────────────────────────────────────────────────────
+
+describe('retryAssignment', () => {
+  it('creates a new attempt with same assignee, marks old as superseded', () => {
+    const { assignment } = createTestAssignment();
+    assignmentStore.transitionAssignment(assignment!.assignmentId, 'notified', 'proj-1');
+
+    const result = assignmentStore.retryAssignment(
+      assignment!.assignmentId, 'proj-1', 'transient failure',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Old assignment is superseded (not reassigned)
+    expect(result.old.status).toBe('superseded');
+    expect(result.old.reassignReason).toBe('transient failure');
+    expect(result.old.supersededBy).toBe(result.new.assignmentId);
+
+    // New assignment has same assignee but incremented attempt
+    expect(result.new.assignee).toBe('alice'); // same assignee
+    expect(result.new.attempt).toBe(2);
+    expect(result.new.supersedes).toBe(result.old.assignmentId);
+    expect(result.new.status).toBe('assigned');
+  });
+
+  it('rejects retry of terminal assignment', () => {
+    const { assignment } = createTestAssignment();
+    submitAssignment(assignment!.assignmentId);
+
+    const result = assignmentStore.retryAssignment(
+      assignment!.assignmentId, 'proj-1', 'test',
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it('new retry becomes the active assignment', () => {
+    const { assignment } = createTestAssignment();
+    const result = assignmentStore.retryAssignment(
+      assignment!.assignmentId, 'proj-1', 'retry',
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const active = assignmentStore.getActiveAssignment('pipe-1', 'linear:1', 'proj-1');
+    expect(active).toBeDefined();
+    expect(active!.assignmentId).toBe(result.new.assignmentId);
+    expect(active!.assignee).toBe('alice');
+  });
+});
+
+// ── Recovery timestamp fidelity ──────────────────────────────────────────────
+
+describe('recovery timestamp fidelity', () => {
+  it('preserves original event timestamps during rehydration', () => {
+    const events: assignmentStore.AssignmentRecoveryEvent[] = [
+      {
+        type: 'assignment-created',
+        assignmentId: 'a-001',
+        pipeId: 'pipe-1',
+        stageId: 'linear:1',
+        payloadId: 'payload-1',
+        assignee: 'alice',
+        role: 'stage-output',
+        stage: 1,
+        ts: '2026-03-15T10:00:00.000Z',
+      },
+      {
+        type: 'assignment-transitioned',
+        assignmentId: 'a-001',
+        pipeId: 'pipe-1',
+        stageId: 'linear:1',
+        status: 'notified',
+        ts: '2026-03-15T10:00:05.000Z',
+      },
+    ];
+
+    assignmentStore.rehydrateFromEvents(events, 'proj-1');
+    const assignment = assignmentStore.getAssignment('a-001', 'proj-1');
+
+    // Timestamps should match the persisted events, not the current clock
+    expect(assignment!.createdAt).toBe('2026-03-15T10:00:00.000Z');
+    expect(assignment!.notifiedAt).toBe('2026-03-15T10:00:05.000Z');
+  });
+});
+
 // ── Clock injection ──────────────────────────────────────────────────────────
 
 describe('clock injection', () => {

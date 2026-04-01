@@ -366,6 +366,39 @@ describe('rehydrateFromEvents', () => {
   });
 });
 
+// ── Recovery timestamp fidelity ──────────────────────────────────────────────
+
+describe('recovery timestamp fidelity', () => {
+  it('preserves original event timestamps during rehydration', () => {
+    const events: payloadStore.PayloadRecoveryEvent[] = [
+      {
+        type: 'payload-created',
+        payloadId: 'p-001',
+        pipeId: 'pipe-1',
+        stageId: 'linear:1',
+        content: 'test content',
+        producedBy: 'alice',
+        ts: '2026-03-15T10:00:00.000Z',
+      },
+      {
+        type: 'payload-archived',
+        payloadId: 'p-001',
+        pipeId: 'pipe-1',
+        stageId: 'linear:1',
+        ts: '2026-03-15T12:00:00.000Z',
+      },
+    ];
+
+    payloadStore.rehydrateFromEvents(events, 'proj-1');
+    const payload = payloadStore.getPayload('p-001', 'proj-1');
+
+    // Timestamps should match the persisted events, not the current clock
+    expect(payload!.createdAt).toBe('2026-03-15T10:00:00.000Z');
+    expect(payload!.archivedAt).toBe('2026-03-15T12:00:00.000Z');
+    expect(payload!.updatedAt).toBe('2026-03-15T12:00:00.000Z');
+  });
+});
+
 // ── Clock injection ──────────────────────────────────────────────────────────
 
 describe('clock injection', () => {
