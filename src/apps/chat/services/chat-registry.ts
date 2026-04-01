@@ -1062,6 +1062,9 @@ function handleStageTimeout(
 
 // ── Pipe liveness watchdog ──────────────────────────────────────────────────
 
+const PIPE_CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+let lastCleanupAt = 0;
+
 /** Periodic watchdog that checks pane liveness for active pipe leaseholders
  *  and enforces stage deadlines. Runs every PIPE_WATCHDOG_INTERVAL_MS. */
 function pipeWatchdogTick(): void {
@@ -1081,6 +1084,18 @@ function pipeWatchdogTick(): void {
                    findPipeAcrossProjects(lease.pipeId);
       if (pipe && pipe.status === 'running') {
         handleStageTimeout(lease.pipeId, lease.assignee, findProjectForPipe(lease.pipeId), pipe.timeoutPolicy);
+      }
+    }
+  }
+
+  // 3. Periodic cleanup of terminal pipes (throttled to every 10 minutes)
+  if (now - lastCleanupAt >= PIPE_CLEANUP_INTERVAL_MS) {
+    lastCleanupAt = now;
+    const pid = activeProjectId();
+    if (pid) {
+      const removed = pipeStore.cleanupTerminalPipes(pid);
+      if (removed.length > 0) {
+        removePipeFiles(removed, pid);
       }
     }
   }

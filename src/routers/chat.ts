@@ -1114,7 +1114,18 @@ export function initChat(nsp: Namespace): void {
       projectResults.push({ projectId: proj.id, restored, failed });
     }
   }
-  if (projectResults.length > 0) {
+  // Recover active pipes from persisted event logs — per-project
+  let totalRecoveredPipes = 0;
+  for (const proj of allProjects) {
+    totalRecoveredPipes += registry.recoverPipes(proj.id);
+  }
+
+  // Run stale pipe cleanup on startup (removes terminal pipes older than 24h)
+  for (const proj of allProjects) {
+    registry.cleanupStalePipes(proj.id);
+  }
+
+  if (projectResults.length > 0 || totalRecoveredPipes > 0) {
     // Emit per-project notifications after nsp is set so dashboard clients see them
     setTimeout(() => {
       for (const { projectId, restored, failed } of projectResults) {

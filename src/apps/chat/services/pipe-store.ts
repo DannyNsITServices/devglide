@@ -610,12 +610,71 @@ export function rehydrateFromEvents(
         terminalEvent.type === 'cancel' ? 'cancelled' : 'failed';
       markPipeStatus(pipeId, status, projectId);
     } else {
-      // Pipe was running when server stopped — it's recoverable
+      // Pipe was running when server stopped — it's recoverable.
+      // Rebuild emission tracking from submitted slot state so the reducer
+      // doesn't re-emit handoffs/fan-outs that were already delivered.
+      rebuildEmissionState(pipeId, projectId);
       runningPipes.push(pipeId);
     }
   }
 
   return runningPipes;
+}
+
+/** Rebuild emission tracking from submitted slot state.
+ *  After rehydration, the emission sets are empty. This function infers which
+ *  emissions have already occurred by examining slot statuses:
+ *  - Linear: if stage N is submitted or leased, handoffs 1..N were emitted.
+ *  - Merge/merge-all: if assignee X's fan-out slot is submitted/leased, their fan-out request was emitted.
+ *  - If all fan-out slots are submitted, the synth request was emitted.
+ *  This prevents the reducer from re-emitting stale prompts after restart. */
+function rebuildEmissionState(pipeId: string, projectId: string | null): void {
+  const pipe = getPipe(pipeId, projectId);
+  if (!pipe) return;
+
+  if (pipe.mode === 'linear') {
+    // For linear pipes: any stage that is submitted or leased implies its handoff was emitted.
+    // Also, the stage AFTER the last submitted stage was emitted (it's the next handoff target).
+    let maxSubmittedStage = 0;
+    for (const [, slotList] of pipe.slots) {
+      for (const slot of slotList) {
+        if (slot.stage && (slot.status === 'submitted' || slot.status === 'leased')) {
+          if (slot.stage > maxSubmittedStage) maxSubmittedStage = slot.stage;
+        }
+      }
+    }
+    // Handoffs 1..maxSubmittedStage were emitted (each stage received its handoff and acted on it)
+    for (let i = 1; i <= maxSubmittedStage; i++) {
+      pipe.emittedHandoffs.add(i);
+    }
+  } else {
+    // Merge / merge-all / explain / summarize
+    const synthesizer = pipe.assignees[pipe.assignees.length - 1];
+    let allFanOutsSubmitted = true;
+
+    for (const [assignee, slotList] of pipe.slots) {
+      for (const slot of slotList) {
+        if (slot.role === 'fan-out' && (slot.status === 'submitted' || slot.status === 'leased')) {
+          pipe.emittedFanOutRequests.add(assignee);
+        }
+        if (slot.role === 'fan-out' && slot.status !== 'submitted') {
+          allFanOutsSubmitted = false;
+        }
+      }
+    }
+
+    // If all fan-out slots are submitted AND the synthesizer has a leased/submitted final slot,
+    // then the synth request was emitted
+    if (allFanOutsSubmitted) {
+      const synthSlots = pipe.slots.get(synthesizer);
+      if (synthSlots) {
+        const finalSlot = synthSlots.find(s => s.role === 'final');
+        if (finalSlot && (finalSlot.status === 'leased' || finalSlot.status === 'submitted')) {
+          pipe.emittedSynthRequest = true;
+        }
+      }
+    }
+  }
 }
 
 // ── Test helper ───────────────────────────────────────────────────────────────

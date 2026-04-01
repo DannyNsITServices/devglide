@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as pipeStore from './pipe-store.js';
+import * as pipeReducer from './pipe-reducer.js';
 import { parsePipeCommand, parseDuration } from './pipe-parser.js';
 
 beforeEach(() => {
@@ -360,5 +361,104 @@ describe('pipe-store rehydrateFromEvents', () => {
     expect(running).toEqual([]);
     // Original prompt should be preserved
     expect(pipeStore.getPipe('existing', 'proj-1')!.prompt).toBe('already here');
+  });
+});
+
+// ── Emission state rebuild on recovery ───────────────────────────────────────
+
+describe('pipe-store emission rebuild on recovery', () => {
+  it('rebuilds linear emission state: submitted stage-1 marks handoff-1 as emitted', () => {
+    const events: pipeStore.PipeRecoveryEvent[] = [
+      { type: 'start', pipeId: 'lr1', mode: 'linear', assignees: ['alice', 'bob', 'carol'], prompt: 'test' },
+      { type: 'stage-output', pipeId: 'lr1', from: 'alice', content: 'alice output' },
+    ];
+    pipeStore.rehydrateFromEvents(events, 'proj-1');
+    const pipe = pipeStore.getPipe('lr1', 'proj-1')!;
+    // Stage 1 (alice) was submitted, so handoff for stage 1 was emitted
+    expect(pipe.emittedHandoffs.has(1)).toBe(true);
+    // Handoff for stage 2 has NOT been emitted yet (bob hasn't started)
+    expect(pipe.emittedHandoffs.has(2)).toBe(false);
+  });
+
+  it('rebuilds linear emission state: two submitted stages mark handoffs 1 and 2 as emitted', () => {
+    const events: pipeStore.PipeRecoveryEvent[] = [
+      { type: 'start', pipeId: 'lr2', mode: 'linear', assignees: ['alice', 'bob', 'carol'], prompt: 'test' },
+      { type: 'stage-output', pipeId: 'lr2', from: 'alice', content: 'alice output' },
+      { type: 'stage-output', pipeId: 'lr2', from: 'bob', content: 'bob output' },
+    ];
+    pipeStore.rehydrateFromEvents(events, 'proj-1');
+    const pipe = pipeStore.getPipe('lr2', 'proj-1')!;
+    expect(pipe.emittedHandoffs.has(1)).toBe(true);
+    expect(pipe.emittedHandoffs.has(2)).toBe(true);
+    expect(pipe.emittedHandoffs.has(3)).toBe(false);
+  });
+
+  it('rebuilds merge-all emission state: submitted fan-out marks fan-out request as emitted', () => {
+    const events: pipeStore.PipeRecoveryEvent[] = [
+      { type: 'start', pipeId: 'mr1', mode: 'merge-all', assignees: ['alice', 'bob'], prompt: 'test' },
+      { type: 'stage-output', pipeId: 'mr1', from: 'alice', content: 'alice analysis' },
+    ];
+    pipeStore.rehydrateFromEvents(events, 'proj-1');
+    const pipe = pipeStore.getPipe('mr1', 'proj-1')!;
+    expect(pipe.emittedFanOutRequests.has('alice')).toBe(true);
+    // Bob's fan-out was not submitted, but it should still be marked if we're recovering
+    // (the fan-out request was sent to both participants at pipe start)
+    // Actually, bob's fan-out slot is still pending, so the request may or may not have been emitted.
+    // The safest approach: bob's fan-out is pending, so it's NOT marked as emitted.
+    // The reducer will re-emit it, which is correct — bob didn't respond.
+    expect(pipe.emittedFanOutRequests.has('bob')).toBe(false);
+    expect(pipe.emittedSynthRequest).toBe(false);
+  });
+
+  it('rebuilds merge-all emission state: all fan-outs submitted but synth not started', () => {
+    const events: pipeStore.PipeRecoveryEvent[] = [
+      { type: 'start', pipeId: 'mr2', mode: 'merge-all', assignees: ['alice', 'bob'], prompt: 'test' },
+      { type: 'stage-output', pipeId: 'mr2', from: 'alice', content: 'alice analysis' },
+      // bob is the synthesizer in merge-all, his fan-out slot submitted too
+      { type: 'stage-output', pipeId: 'mr2', from: 'bob', content: 'bob analysis' },
+    ];
+    pipeStore.rehydrateFromEvents(events, 'proj-1');
+    const pipe = pipeStore.getPipe('mr2', 'proj-1')!;
+    expect(pipe.emittedFanOutRequests.has('alice')).toBe(true);
+    expect(pipe.emittedFanOutRequests.has('bob')).toBe(true);
+    // All fan-outs submitted but the final (synth) slot for bob is still pending
+    // So synth request has NOT been emitted yet
+    expect(pipe.emittedSynthRequest).toBe(false);
+  });
+
+  it('rebuilds no emissions for a pipe with no submissions', () => {
+    const events: pipeStore.PipeRecoveryEvent[] = [
+      { type: 'start', pipeId: 'empty1', mode: 'linear', assignees: ['alice', 'bob'], prompt: 'test' },
+    ];
+    pipeStore.rehydrateFromEvents(events, 'proj-1');
+    const pipe = pipeStore.getPipe('empty1', 'proj-1')!;
+    expect(pipe.emittedHandoffs.size).toBe(0);
+    expect(pipe.emittedFanOutRequests.size).toBe(0);
+    expect(pipe.emittedSynthRequest).toBe(false);
+  });
+
+  it('linear recovery resumes at correct stage (does not re-emit submitted handoffs)', () => {
+    // Simulate: 3-stage linear pipe where stage 1 (alice) already submitted
+    // After recovery, the reducer should only emit handoff for stage 2, not stage 1
+    const events: pipeStore.PipeRecoveryEvent[] = [
+      { type: 'start', pipeId: 'resume1', mode: 'linear', assignees: ['alice', 'bob', 'carol'], prompt: 'test' },
+      { type: 'stage-output', pipeId: 'resume1', from: 'alice', content: 'alice done' },
+    ];
+    pipeStore.rehydrateFromEvents(events, 'proj-1');
+    const pipe = pipeStore.getPipe('resume1', 'proj-1')!;
+
+    // Verify emission state prevents duplicate handoffs
+    expect(pipe.emittedHandoffs.has(1)).toBe(true);  // stage 1 already happened
+    expect(pipe.emittedHandoffs.has(2)).toBe(false);  // stage 2 not yet
+
+    // Now simulate what the reducer would do
+    const state = pipeReducer.buildStateFromStore(pipe);
+    const actions = pipeReducer.computeNextActions(state);
+
+    // Should emit exactly one action: handoff for stage 2 (bob)
+    expect(actions).toHaveLength(1);
+    expect(actions[0].targetAssignee).toBe('bob');
+    expect(actions[0].type).toBe('handoff');
+    expect(actions[0].stage).toBe(2);
   });
 });
