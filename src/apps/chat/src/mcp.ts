@@ -354,13 +354,14 @@ export function createChatMcpServer(): McpServer {
 
   server.tool(
     'pipe_submit',
-    'Submit your output for a pipe stage. Use this instead of chat_send when responding to a #pipe- prompt. Accepts pipeId in any format: "#pipe-abc123", "pipe-abc123", or just "abc123".',
+    'Submit your output for a pipe stage. Use this instead of chat_send when responding to a #pipe- prompt. Optionally pass assignmentId for forward-compatible assignment binding.',
     {
       pipeId: z.string().describe('The pipe ID — accepts "#pipe-abc123", "pipe-abc123", or just "abc123"'),
       content: z.string().describe('Your stage output content (markdown supported)'),
+      assignmentId: z.string().optional().describe('Optional assignment ID for forward-compatible assignment binding.'),
       paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session before submitting. Only needed when this MCP session has no tracked chat state.'),
     },
-    async ({ pipeId, content, paneId }) => {
+    async ({ pipeId, content, assignmentId, paneId }) => {
       const adopted = await tryAdoptSessionByPaneId(paneId);
       const sessionName = adopted?.name ?? getSessionName();
       const sessionProjectId = adopted?.projectId ?? getSessionProjectId();
@@ -413,6 +414,46 @@ export function createChatMcpServer(): McpServer {
     },
   );
 
+
+  // ── 3d. pipe_list_assignments ──────────────────────────────────────
+
+  server.tool(
+    'pipe_list_assignments',
+    'List your active and pending pipe assignments with lease status and deadlines.',
+    { paneId: z.string().optional().describe('Optional pane ID to adopt session.') },
+    async ({ paneId }) => {
+      const adopted = await tryAdoptSessionByPaneId(paneId);
+      const sessionName = adopted?.name ?? getSessionName();
+      const sessionProjectId = adopted?.projectId ?? getSessionProjectId();
+      if (!sessionName) return errorResult('Not joined — call chat_join first');
+      const res = await chatApi(`/pipes/assignments?assignee=${encodeURIComponent(sessionName)}${sessionProjectId ? `&projectId=${encodeURIComponent(sessionProjectId)}` : ''}`);
+      if (!res.ok) return errorResult((res.data as { error?: string })?.error ?? 'Failed to list assignments');
+      return jsonResult(res.data);
+    },
+  );
+
+  // ── 3e. pipe_get_assignment ───────────────────────────────────────
+
+  server.tool(
+    'pipe_get_assignment',
+    'Get your assignment details for a specific pipe (role, stage, lease status, deadline).',
+    {
+      pipeId: z.string().describe('The pipe ID'),
+      paneId: z.string().optional().describe('Optional pane ID to adopt session.'),
+    },
+    async ({ pipeId, paneId }) => {
+      const adopted = await tryAdoptSessionByPaneId(paneId);
+      const sessionName = adopted?.name ?? getSessionName();
+      const sessionProjectId = adopted?.projectId ?? getSessionProjectId();
+      if (!sessionName) return errorResult('Not joined — call chat_join first');
+      const normalizedPipeId = pipeId.replace(/^#?pipe-/i, '');
+      const query = sessionProjectId ? `?projectId=${encodeURIComponent(sessionProjectId)}` : '';
+      const res = await chatApi(`/pipes/${encodeURIComponent(normalizedPipeId)}/assignment${query}`, undefined, { 'x-pane-id': paneId ?? getSessionEntry()?.paneId ?? '' });
+      if (!res.ok) return errorResult((res.data as { error?: string })?.error ?? 'Failed to get assignment');
+      return jsonResult(res.data);
+    },
+  );
+
   // ── 4. chat_read ──────────────────────────────────────────────────────
 
   server.tool(
@@ -443,6 +484,7 @@ export function createChatMcpServer(): McpServer {
     },
   );
 
+// ── pipe_status ──────────────────────────────────────────────────────  server.tool(    'pipe_status',    'Get detailed status of a pipe: slot states, active leases, timing breakdown, and dead-letter entries.',    {      pipeId: z.string().describe('The pipe ID'),      paneId: z.string().optional().describe('Optional pane ID to adopt session'),    },    async ({ pipeId, paneId }) => {      await tryAdoptSessionByPaneId(paneId);      const sessionEntry = getSessionEntry();      const pid = sessionEntry?.projectId ?? null;      const normalizedPipeId = pipeId.replace(/^#?pipe-/i, '');      const query = pid ? `?projectId=${encodeURIComponent(pid)}` : '';      const [statusRes, timingRes] = await Promise.all([        chatApi(`/pipes/${encodeURIComponent(normalizedPipeId)}/status${query}`).catch(() => null),        chatApi(`/pipes/${encodeURIComponent(normalizedPipeId)}/timing${query}`).catch(() => null),      ]);      if (!statusRes?.ok) {        const data = statusRes?.data as { error?: string } | undefined;        return errorResult(data?.error ?? `Pipe #${normalizedPipeId} not found`);      }      const result: Record<string, unknown> = { ...(statusRes.data as Record<string, unknown>) };      if (timingRes?.ok) {        const td = timingRes.data as Record<string, unknown>;        result.timing = { totalDurationMs: td.totalDurationMs, criticalPathMs: td.criticalPathMs, completedAt: td.completedAt, stages: td.stages };      }      return jsonResult(result);    },  );
   // ── 6. chat_status ────────────────────────────────────────────────────
 
   server.tool(
