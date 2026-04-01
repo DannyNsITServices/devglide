@@ -806,7 +806,7 @@ function shellEscape(s: string): string {
 /** Maps permission mode to CLI-specific flags. */
 const CLI_MODE_FLAGS: Record<string, Partial<Record<PermissionMode, string[]>>> = {
   claude:  { 'auto-accept': ['--dangerously-skip-permissions'] },
-  codex:   { 'auto-accept': ['-a', 'never'] },
+  codex:   { 'auto-accept': ['--dangerously-bypass-approvals-and-sandbox'] },
   gemini:  {},
   cursor:  {},
 };
