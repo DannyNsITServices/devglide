@@ -12,6 +12,8 @@ export interface ChatMessage {
 
 export type PipeMode = 'linear' | 'merge' | 'merge-all' | 'explain' | 'summarize';
 
+export type PipeTimeoutPolicy = 'fail' | 'reassign' | 'escalate';
+
 export type PipeRole =
   | 'start'
   | 'handoff'
@@ -33,7 +35,7 @@ export interface PipeMessageMeta {
   stage?: number;               // 1-indexed, for linear handoff/stage-output
   expectedAssignees?: string[]; // who the reducer expects responses from at current step
   targetAssignee?: string;      // who this system message is directed at (handoff, fan-out-request, synth-request)
-  reason?: 'left' | 'detached' | 'pane-closed' | 'cancelled-by-user';
+  reason?: 'left' | 'detached' | 'pane-closed' | 'cancelled-by-user' | 'timeout';
 }
 
 /** Derived pipe status — computed from log, not stored. */
@@ -61,6 +63,11 @@ export interface PipeUiEvent {
   stage?: number;
   content?: string;
   reason?: string;
+  // Recovery fields — present on 'start' events for state reconstruction
+  assignees?: string[];
+  prompt?: string;
+  stageTimeoutMs?: number;
+  timeoutPolicy?: PipeTimeoutPolicy;
 }
 
 export interface ChatParticipant {

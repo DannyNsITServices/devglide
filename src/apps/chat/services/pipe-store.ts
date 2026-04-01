@@ -1,4 +1,4 @@
-import type { PipeMode, PipeStatus } from '../types.js';
+import type { PipeMode, PipeStatus, PipeTimeoutPolicy } from '../types.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -23,6 +23,9 @@ export interface StoredPipe {
   emittedHandoffs: Set<number>;       // linear stage numbers that have been delivered
   emittedFanOutRequests: Set<string>; // assignee names that received fan-out requests
   emittedSynthRequest: boolean;       // whether synth-request has been sent
+  // Stage timeout configuration
+  stageTimeoutMs: number;             // per-stage deadline in milliseconds (0 = no timeout)
+  timeoutPolicy: PipeTimeoutPolicy;   // what to do when a stage times out
 }
 
 export interface LeaseInfo {
@@ -31,6 +34,7 @@ export interface LeaseInfo {
   slotRole: string;
   stage?: number;
   grantedAt: string;
+  deadline: string | null;  // ISO timestamp when this lease expires (null = no deadline)
 }
 
 export type PipeErrorCode =
@@ -101,6 +105,8 @@ function getProjectStore(projectId: string | null): Map<string, StoredPipe> {
 
 // ── Pipe lifecycle ────────────────────────────────────────────────────────────
 
+export const DEFAULT_STAGE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
 /** Create a new pipe in the store with slots for each assignee. */
 export function createPipe(
   pipeId: string,
@@ -108,6 +114,7 @@ export function createPipe(
   assignees: string[],
   prompt: string,
   projectId: string | null,
+  opts?: { stageTimeoutMs?: number; timeoutPolicy?: PipeTimeoutPolicy },
 ): StoredPipe {
   const store = getProjectStore(projectId);
   const slots = new Map<string, PipeSlot[]>();
@@ -180,6 +187,8 @@ export function createPipe(
     emittedHandoffs: new Set(),
     emittedFanOutRequests: new Set(),
     emittedSynthRequest: false,
+    stageTimeoutMs: opts?.stageTimeoutMs ?? DEFAULT_STAGE_TIMEOUT_MS,
+    timeoutPolicy: opts?.timeoutPolicy ?? 'fail',
   };
   store.set(pipeId, pipe);
 
@@ -264,12 +273,17 @@ export function grantLease(
   if (!slot) return { ok: false, error: `${assignee} has no pending tasks for pipe #${pipeId}` };
 
   slot.status = 'leased';
+  const now = new Date();
+  const deadline = pipe.stageTimeoutMs > 0
+    ? new Date(now.getTime() + pipe.stageTimeoutMs).toISOString()
+    : null;
   const lease: LeaseInfo = {
     pipeId,
     assignee,
     slotRole: slot.role,
     stage: slot.stage,
-    grantedAt: new Date().toISOString(),
+    grantedAt: now.toISOString(),
+    deadline,
   };
   activeLeases.set(key, lease);
   return { ok: true, lease };
@@ -296,6 +310,11 @@ function releaseAllLeases(pipe: StoredPipe, projectId: string | null): string[] 
     }
   }
   return released;
+}
+
+/** Get all active leases (for watchdog / deadline checks). */
+export function getAllActiveLeases(): ReadonlyMap<string, LeaseInfo> {
+  return activeLeases;
 }
 
 // ── Pending pipe queue (for lease conflicts) ──────────────────────────────────
@@ -490,6 +509,113 @@ export function listActivePipes(projectId: string | null): Array<{
     }
   }
   return result;
+}
+
+// ── Terminal pipe cleanup ────────────────────────────────────────────────────
+
+export const DEFAULT_PIPE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/** Remove terminal pipes (completed/failed/cancelled) that exceed the given TTL.
+ *  Returns the pipeIds that were removed. */
+export function cleanupTerminalPipes(
+  projectId: string | null,
+  ttlMs: number = DEFAULT_PIPE_TTL_MS,
+): string[] {
+  const store = getProjectStore(projectId);
+  const now = Date.now();
+  const removed: string[] = [];
+
+  for (const [pipeId, pipe] of store) {
+    if (pipe.status === 'running') continue;
+    // Use the last slot submission time or createdAt as the reference
+    let latestTs = new Date(pipe.createdAt).getTime();
+    for (const [, slotList] of pipe.slots) {
+      for (const slot of slotList) {
+        if (slot.submittedAt) {
+          const t = new Date(slot.submittedAt).getTime();
+          if (t > latestTs) latestTs = t;
+        }
+      }
+    }
+    if (now - latestTs >= ttlMs) {
+      store.delete(pipeId);
+      removed.push(pipeId);
+    }
+  }
+
+  return removed;
+}
+
+// ── Recovery from persisted events ───────────────────────────────────────────
+
+export interface PipeRecoveryEvent {
+  type: string;
+  pipeId: string;
+  mode?: PipeMode;
+  assignees?: string[];
+  prompt?: string;
+  stageTimeoutMs?: number;
+  timeoutPolicy?: PipeTimeoutPolicy;
+  from?: string;
+  role?: string;
+  stage?: number;
+  content?: string;
+}
+
+/** Rehydrate pipe state from persisted events.
+ *  Called on server restart to rebuild in-memory pipes from event logs.
+ *  Returns the list of pipeIds that are still in 'running' state. */
+export function rehydrateFromEvents(
+  events: PipeRecoveryEvent[],
+  projectId: string | null,
+): string[] {
+  // Group events by pipeId, preserving order
+  const grouped = new Map<string, PipeRecoveryEvent[]>();
+  for (const event of events) {
+    let list = grouped.get(event.pipeId);
+    if (!list) { list = []; grouped.set(event.pipeId, list); }
+    list.push(event);
+  }
+
+  const runningPipes: string[] = [];
+
+  for (const [pipeId, pipeEvents] of grouped) {
+    // Find the start event
+    const startEvent = pipeEvents.find(e => e.type === 'start');
+    if (!startEvent || !startEvent.assignees || !startEvent.prompt || !startEvent.mode) continue;
+
+    // Skip if already in store (shouldn't happen, but defensive)
+    if (getPipe(pipeId, projectId)) continue;
+
+    // Recreate the pipe
+    createPipe(pipeId, startEvent.mode, startEvent.assignees, startEvent.prompt, projectId, {
+      stageTimeoutMs: startEvent.stageTimeoutMs,
+      timeoutPolicy: startEvent.timeoutPolicy,
+    });
+
+    // Replay submissions
+    for (const event of pipeEvents) {
+      if (event.type === 'stage-output' && event.from && event.content) {
+        submitStage(pipeId, event.from, event.content, projectId, false);
+      }
+    }
+
+    // Apply terminal status if pipe ended
+    const terminalEvent = pipeEvents.find(e =>
+      e.type === 'complete' || e.type === 'failed' || e.type === 'cancel'
+    );
+    if (terminalEvent) {
+      const status: PipeStatus =
+        terminalEvent.type === 'complete' ? 'completed' :
+        terminalEvent.type === 'cancel' ? 'cancelled' : 'failed';
+      markPipeStatus(pipeId, status, projectId);
+    } else {
+      // Pipe was running when server stopped — it's recoverable
+      runningPipes.push(pipeId);
+    }
+  }
+
+  return runningPipes;
 }
 
 // ── Test helper ───────────────────────────────────────────────────────────────

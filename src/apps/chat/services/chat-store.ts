@@ -259,3 +259,51 @@ export function clearMessages(projectId?: string | null): void {
 export function readPipeMessages(pipeId: string, projectId?: string | null): ChatMessage[] {
   return readMessages({ limit: 10000, pipeId }, projectId);
 }
+
+// ── Pipe recovery ───────────────────────────────────────────────────────────
+
+/** Discover all pipe IDs that have per-pipe event files on disk.
+ *  Returns pipeIds extracted from filenames matching `{pipeId}.events.jsonl`. */
+export function discoverPersistedPipeIds(projectId?: string | null): string[] {
+  const dir = getChatDir(projectId);
+  if (!dir) return [];
+  const pipesDir = join(dir, 'pipes');
+  if (!existsSync(pipesDir)) return [];
+  const pipeIds: string[] = [];
+  for (const file of readdirSync(pipesDir)) {
+    const match = file.match(/^([a-f0-9]+)\.events\.jsonl$/);
+    if (match) pipeIds.push(match[1]);
+  }
+  return pipeIds;
+}
+
+/** Remove per-pipe JSONL files for the given pipeIds. */
+export function removePipeFiles(pipeIds: string[], projectId?: string | null): void {
+  const dir = getChatDir(projectId);
+  if (!dir) return;
+  const pipesDir = join(dir, 'pipes');
+  for (const pipeId of pipeIds) {
+    for (const suffix of ['.jsonl', '.events.jsonl']) {
+      const filePath = join(pipesDir, `${pipeId}${suffix}`);
+      if (existsSync(filePath)) {
+        try { unlinkSync(filePath); } catch { /* ignore */ }
+      }
+    }
+  }
+}
+
+/** Read all events for a specific pipe from its per-pipe events file. */
+export function readAllPipeEvents(pipeId: string, projectId?: string | null): PipeUiEvent[] {
+  const filePath = getPipeEventsPath(pipeId, projectId);
+  if (!filePath || !existsSync(filePath)) return [];
+  const raw = readFileSync(filePath, 'utf8').trim();
+  if (!raw) return [];
+  return raw
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      try { return JSON.parse(line) as PipeUiEvent; }
+      catch { return null; }
+    })
+    .filter((e): e is PipeUiEvent => e !== null);
+}

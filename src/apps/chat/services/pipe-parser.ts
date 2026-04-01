@@ -1,9 +1,11 @@
-import type { PipeMode } from '../types.js';
+import type { PipeMode, PipeTimeoutPolicy } from '../types.js';
 
 export interface ParsedPipeCommand {
   mode: PipeMode;
   assignees: string[];
   prompt: string;
+  stageTimeoutMs?: number;
+  timeoutPolicy?: PipeTimeoutPolicy;
 }
 
 export interface PipeParseError {
@@ -49,6 +51,21 @@ export function isPipeCommand(body: string): boolean {
   return PIPE_CMD_RE.test(body.trim());
 }
 
+/** Parse a human-friendly duration string (e.g. "5m", "30s", "1h") to milliseconds. */
+export function parseDuration(s: string): number | null {
+  const match = s.match(/^(\d+)(s|m|h)$/);
+  if (!match) return null;
+  const value = parseInt(match[1], 10);
+  if (value <= 0) return null;
+  const unit = match[2];
+  if (unit === 's') return value * 1000;
+  if (unit === 'm') return value * 60 * 1000;
+  if (unit === 'h') return value * 60 * 60 * 1000;
+  return null;
+}
+
+const VALID_TIMEOUT_POLICIES = ['fail', 'reassign', 'escalate'] as const;
+
 export function parsePipeCommand(
   body: string,
   isKnownAssignee?: (name: string) => boolean,
@@ -68,6 +85,34 @@ export function parsePipeCommand(
   else mode = 'summarize';
 
   let remaining = cmdMatch[2].trim();
+
+  // Parse optional flags (--timeout <duration>, --on-timeout <policy>) before @assignees
+  let stageTimeoutMs: number | undefined;
+  let timeoutPolicy: PipeTimeoutPolicy | undefined;
+
+  while (true) {
+    const flagMatch = remaining.match(/^--([\w-]+)\s+(\S+)\s*/);
+    if (!flagMatch) break;
+
+    const flagName = flagMatch[1];
+    const flagValue = flagMatch[2];
+
+    if (flagName === 'timeout') {
+      const ms = parseDuration(flagValue);
+      if (ms === null) return { error: `Invalid timeout duration: ${flagValue}. Use e.g. 5m, 30s, 1h.` };
+      stageTimeoutMs = ms;
+    } else if (flagName === 'on-timeout') {
+      if (!(VALID_TIMEOUT_POLICIES as readonly string[]).includes(flagValue)) {
+        return { error: `Invalid timeout policy: ${flagValue}. Use fail, reassign, or escalate.` };
+      }
+      timeoutPolicy = flagValue as PipeTimeoutPolicy;
+    } else {
+      break; // Unknown flag — stop flag parsing, rest is @mentions/prompt
+    }
+
+    remaining = remaining.slice(flagMatch[0].length);
+  }
+
   const assignees: string[] = [];
 
   while (true) {
@@ -95,7 +140,13 @@ export function parsePipeCommand(
     return { error: 'Duplicate assignees not allowed.' };
   }
 
-  return { mode, assignees, prompt };
+  return {
+    mode,
+    assignees,
+    prompt,
+    ...(stageTimeoutMs !== undefined ? { stageTimeoutMs } : {}),
+    ...(timeoutPolicy !== undefined ? { timeoutPolicy } : {}),
+  };
 }
 
 export function isPipeParseError(result: PipeParseResult): result is PipeParseError {
