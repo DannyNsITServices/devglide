@@ -94,6 +94,11 @@ function leaseKey(assignee: string, projectId: string | null): string {
   return `${projectId ?? '__none__'}:${assignee}`;
 }
 
+/** Get all projectIds that have pipe data in the store. */
+export function getTrackedProjectIds(): Array<string | null> {
+  return [...stores.keys()];
+}
+
 function getProjectStore(projectId: string | null): Map<string, StoredPipe> {
   let store = stores.get(projectId);
   if (!store) {

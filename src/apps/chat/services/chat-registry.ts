@@ -1089,10 +1089,10 @@ function pipeWatchdogTick(): void {
   }
 
   // 3. Periodic cleanup of terminal pipes (throttled to every 10 minutes)
+  //    Iterates all projects with pipe data, not just the active one.
   if (now - lastCleanupAt >= PIPE_CLEANUP_INTERVAL_MS) {
     lastCleanupAt = now;
-    const pid = activeProjectId();
-    if (pid) {
+    for (const pid of pipeStore.getTrackedProjectIds()) {
       const removed = pipeStore.cleanupTerminalPipes(pid);
       if (removed.length > 0) {
         removePipeFiles(removed, pid);
