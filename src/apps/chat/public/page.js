@@ -6,7 +6,7 @@ import { escapeHtml, escapeAttr, sanitizeHtml } from '/shared-assets/ui-utils.js
 import { dashboardSocket } from '/state.js';
 import { createHeader } from '/shared-ui/components/header.js';
 import { getMentionMatches, getPipeAssigneeMatches } from './mention-suggestions.js';
-import { DEFAULT_VISIBLE_TERMINAL, getVisiblePipeSummaries } from './pipe-visibility.js';
+import { DEFAULT_VISIBLE_TERMINAL, getMobilePipeFabState, getVisiblePipeSummaries } from './pipe-visibility.js';
 
 let _container = null;
 let _socket = null;
@@ -1221,23 +1221,23 @@ function renderMobilePipeFab() {
   const fab = _container?.querySelector('#chat-pipe-fab');
   if (!fab) return;
 
-  const runningCount = _pipeSummaries.filter(p => p.status === 'running').length;
-  const deadCount = _pipeDeadLetters.length;
+  const { runningCount, deadLetterCount, hasRunning, hasAlert } =
+    getMobilePipeFabState(_pipeSummaries, _pipeDeadLetters);
 
   const countEl = fab.querySelector('#chat-pipe-fab-count');
   if (countEl) {
     countEl.textContent = String(runningCount);
-    countEl.classList.toggle('hidden', runningCount === 0);
+    countEl.classList.toggle('hidden', !hasRunning);
   }
 
   const alertEl = fab.querySelector('#chat-pipe-fab-alert');
   if (alertEl) {
-    alertEl.textContent = String(deadCount);
-    alertEl.classList.toggle('hidden', deadCount === 0);
+    alertEl.textContent = String(deadLetterCount);
+    alertEl.classList.toggle('hidden', !hasAlert);
   }
 
-  fab.classList.toggle('has-running', runningCount > 0);
-  fab.classList.toggle('has-alert', deadCount > 0);
+  fab.classList.toggle('has-running', hasRunning);
+  fab.classList.toggle('has-alert', hasAlert);
 }
 
 function renderMobilePipeDrawerContent() {

@@ -1,5 +1,20 @@
 export const DEFAULT_VISIBLE_TERMINAL = 10;
 
+/**
+ * Compute the mobile FAB badge state from pipe data.
+ * Pure function — no DOM dependencies.
+ */
+export function getMobilePipeFabState(pipeSummaries, deadLetters) {
+  const runningCount = pipeSummaries.filter(p => p.status === 'running').length;
+  const deadLetterCount = deadLetters.length;
+  return {
+    runningCount,
+    deadLetterCount,
+    hasRunning: runningCount > 0,
+    hasAlert: deadLetterCount > 0,
+  };
+}
+
 export function getPipeStatusRank(status) {
   return status === 'running' ? 0 : status === 'failed' ? 1 : status === 'cancelled' ? 2 : 3;
 }
