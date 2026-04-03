@@ -476,7 +476,6 @@ const BODY_HTML = `
     <div class="chat-members-panel" id="chat-members-panel">
       <div class="chat-members-toolbar">
         <div class="chat-members-title" id="chat-members-title">Members (0)</div>
-        <button class="df-btn df-btn--icon" id="chat-btn-invite" type="button" aria-label="Invite agent" title="Invite agent">+</button>
       </div>
       <div id="chat-members-list"></div>
       <div class="chat-pipes-section" id="chat-pipes-section">
@@ -521,25 +520,6 @@ const BODY_HTML = `
       <div class="chat-rules-actions">
         <button class="btn btn-secondary btn-sm" id="chat-rules-reset">Reset To Default</button>
         <button class="btn btn-primary btn-sm" id="chat-rules-save">Save Rules</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="chat-invite-overlay hidden" id="chat-invite-overlay" role="dialog" aria-modal="true" aria-labelledby="chat-invite-title">
-    <div class="chat-invite-modal">
-      <div class="chat-invite-header">
-        <div>
-          <h2 id="chat-invite-title">Invite Agent</h2>
-          <p class="chat-invite-desc">Launch an LLM agent into this chat room.</p>
-        </div>
-        <button class="df-btn df-btn--ghost df-btn--sm" id="chat-invite-close" aria-label="Close">Close</button>
-      </div>
-      <div class="chat-invite-body" id="chat-invite-body">
-        <div class="chat-invite-loading">Scanning for available CLIs...</div>
-      </div>
-      <div class="chat-invite-actions">
-        <span class="chat-invite-status" id="chat-invite-status"></span>
-        <button class="df-btn df-btn--secondary df-btn--sm" id="chat-invite-close-2">Cancel</button>
       </div>
     </div>
   </div>
@@ -1409,7 +1389,7 @@ function renderAllMessages() {
     empty.innerHTML = `
       <div class="chat-empty-icon">\u275D</div>
       <div>No messages yet</div>
-      <div class="chat-empty-hint">Send a message or have an LLM join with chat_join</div>
+      <div class="chat-empty-hint">Send a message or add an LLM from Shell, then join with chat_join</div>
     `;
     listEl.appendChild(empty);
     return;
@@ -1885,14 +1865,6 @@ function bindEvents() {
     if (e.target?.id === 'chat-rules-overlay') closeRulesEditor();
   });
 
-  // Invite modal
-  _container.querySelector('#chat-btn-invite')?.addEventListener('click', openInviteModal);
-  _container.querySelector('#chat-invite-close')?.addEventListener('click', closeInviteModal);
-  _container.querySelector('#chat-invite-close-2')?.addEventListener('click', closeInviteModal);
-  _container.querySelector('#chat-invite-overlay')?.addEventListener('click', (e) => {
-    if (e.target?.id === 'chat-invite-overlay') closeInviteModal();
-  });
-
   // Auto-scroll detection
   const listEl = _container.querySelector('#chat-messages-list');
   if (listEl) {
@@ -1905,102 +1877,6 @@ function bindEvents() {
 
   // New messages indicator click
   _container.querySelector('#chat-new-indicator')?.addEventListener('click', scrollToBottom);
-}
-
-// ── Invite LLM ─────────────────────────────────────────────────────
-
-let _availableLlms = null;
-
-async function fetchAvailableLlms(rescan = false) {
-  try {
-    const url = rescan ? '/invite/available?rescan=true' : '/invite/available';
-    const res = await api(url);
-    const data = await parseJsonSafely(res);
-    if (!res.ok) throw new Error(data?.error || 'Failed to fetch');
-    _availableLlms = data;
-    return data;
-  } catch {
-    _availableLlms = [];
-    return [];
-  }
-}
-
-function renderInviteBody(llms) {
-  const body = _container?.querySelector('#chat-invite-body');
-  if (!body) return;
-
-  if (!llms || llms.length === 0) {
-    body.innerHTML = '<div class="chat-invite-empty">No LLM CLIs detected on PATH.<br>Install claude, codex, or gemini to invite agents.</div>';
-    return;
-  }
-
-  body.innerHTML = llms.map(llm => `
-    <div class="chat-invite-agent" data-cli="${escapeAttr(llm.cli)}">
-      <div class="chat-invite-agent-info">
-        <span class="chat-invite-agent-icon">${escapeHtml(llm.icon)}</span>
-        <span class="chat-invite-agent-name">${escapeHtml(llm.name)}</span>
-      </div>
-      <div class="chat-invite-agent-actions">
-        ${llm.modes.map(mode => `
-          <button class="df-btn df-btn--primary df-btn--sm chat-invite-launch"
-            data-cli="${escapeAttr(llm.cli)}" data-mode="${escapeAttr(mode)}"
-            type="button">${escapeHtml(mode === 'auto-accept' ? 'Auto' : mode === 'supervised' ? 'Supervised' : mode)}</button>
-        `).join('')}
-      </div>
-    </div>
-  `).join('');
-
-  // Attach launch handlers
-  body.querySelectorAll('.chat-invite-launch').forEach(btn => {
-    btn.addEventListener('click', () => inviteAgent(btn.dataset.cli, btn.dataset.mode));
-  });
-}
-
-function setInviteStatus(message, tone = '') {
-  const el = _container?.querySelector('#chat-invite-status');
-  if (!el) return;
-  el.textContent = message || '';
-  el.className = 'chat-invite-status' + (tone ? ` ${tone}` : '');
-}
-
-async function openInviteModal() {
-  const overlay = _container?.querySelector('#chat-invite-overlay');
-  if (!overlay) return;
-  overlay.classList.remove('hidden');
-  setInviteStatus('');
-
-  const body = _container?.querySelector('#chat-invite-body');
-  if (body) body.innerHTML = '<div class="chat-invite-loading">Scanning for available CLIs...</div>';
-
-  const llms = await fetchAvailableLlms();
-  renderInviteBody(llms);
-}
-
-function closeInviteModal() {
-  _container?.querySelector('#chat-invite-overlay')?.classList.add('hidden');
-  setInviteStatus('');
-}
-
-async function inviteAgent(cli, mode) {
-  setInviteStatus(`Launching ${cli}...`);
-
-  // Disable all launch buttons while launching
-  _container?.querySelectorAll('.chat-invite-launch').forEach(b => { b.disabled = true; });
-
-  try {
-    const res = await api('/invite', {
-      method: 'POST',
-      body: JSON.stringify({ cli, mode }),
-    });
-    const data = await parseJsonSafely(res);
-    if (!res.ok) throw new Error(data?.error || 'Failed to launch agent');
-    setInviteStatus(`${data.name || cli} launched on ${data.paneId}`, 'success');
-    setTimeout(closeInviteModal, 1500);
-  } catch (err) {
-    setInviteStatus(err instanceof Error ? err.message : 'Failed to launch', 'error');
-  } finally {
-    _container?.querySelectorAll('.chat-invite-launch').forEach(b => { b.disabled = false; });
-  }
 }
 
 // ── Exports ─────────────────────────────────────────────────────────

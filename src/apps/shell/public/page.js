@@ -122,7 +122,7 @@ const BODY_HTML = `
     meta: '<span class="pane-count" data-ref="paneCount">0 panes</span><div class="mobile-actions" data-ref="mobileActions"><button class="mobile-action-btn" data-action="new-terminal" title="New Terminal">&gt;_</button><button class="mobile-action-btn" data-action="new-browser" title="New Browser">&#x25A1;</button></div>',
     actions: `
       <div class="shell-agent-toolbar">
-        <button class="btn btn-primary shell-agent-btn" type="button" data-ref="launchAgentBtn">Launch Agent</button>
+        <button class="btn btn-primary shell-agent-btn" type="button" data-ref="launchAgentBtn">Add LLM</button>
         <div class="shell-agent-dropdown hidden" data-ref="agentDropdown"></div>
       </div>
     `,
@@ -1669,16 +1669,45 @@ export async function mount(container, ctx) {
   // 4. Set initial project
   activeProject = ctx?.project || null;
 
-  // 5. Load xterm.js dynamically
+  // 5. Wire UI events (before xterm so they work even if CDN load fails)
+  refs.tabBar.querySelector('[data-tab="grid"]').addEventListener('click', () => setActiveTab(refs, 'grid'));
+  refs.launchAgentBtn?.addEventListener('click', () => toggleAgentDropdown(false));
+  container.addEventListener('mouseover', onTooltipOver);
+  container.addEventListener('mouseout', onTooltipOut);
+  refs.mobileActions?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    if (btn.dataset.action === 'new-terminal') requestPane({ shellType: 'default' });
+    if (btn.dataset.action === 'new-browser') socket.emit('browser:create', { url: '', currentTab: activeTab });
+  });
+  container.addEventListener('click', (e) => {
+    const dropdown = refs.agentDropdown;
+    if (dropdown && !dropdown.classList.contains('hidden')) {
+      const withinToolbar = e.target.closest('.shell-agent-toolbar');
+      if (!withinToolbar) dropdown.classList.add('hidden');
+    }
+    if (isMobile()) return;
+    // Only handle clicks on the container/pane-container background, not on interactive elements
+    const target = e.target;
+    if (target !== container && target !== refs.paneContainer && !target.matches('.shell-empty-state, .shell-empty-state *')) return;
+    const focusId = activeTab !== 'grid' ? activeTab : activePaneId;
+    if (focusId) {
+      setTimeout(() => {
+        panes.get(focusId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
+      }, 300);
+    }
+  });
+
+  // 6. Load xterm.js dynamically
   await ensureXterm();
 
   // Guard: if unmounted while loading xterm, bail out
   if (!_container) return;
 
-  // 6. Wire socket events
+  // 7. Wire socket events
   wireSocketEvents(refs);
 
-  // 7. Always request a fresh snapshot so panes created while unmounted are picked up
+  // 8. Always request a fresh snapshot so panes created while unmounted are picked up
   socket.emit('state:request-snapshot');
 
   if (panes.size > 0) {
@@ -1713,50 +1742,14 @@ export async function mount(container, ctx) {
     // Fresh mount — snapshot requested above will populate panes
   }
 
-  // 7. Wire Grid tab click
-  refs.tabBar.querySelector('[data-tab="grid"]').addEventListener('click', () => setActiveTab(refs, 'grid'));
-
-  refs.launchAgentBtn?.addEventListener('click', () => toggleAgentDropdown(false));
-
-  // 8. Wire tooltip events for agent toolbar
-  container.addEventListener('mouseover', onTooltipOver);
-  container.addEventListener('mouseout', onTooltipOut);
-
-  // 7a. Wire mobile action buttons (new terminal / new browser)
-  refs.mobileActions?.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    if (btn.dataset.action === 'new-terminal') requestPane({ shellType: 'default' });
-    if (btn.dataset.action === 'new-browser') socket.emit('browser:create', { url: '', currentTab: activeTab });
-  });
-
-  // 7b. Auto-focus active terminal when clicking the shell container background
-  container.addEventListener('click', (e) => {
-    const dropdown = refs.agentDropdown;
-    if (dropdown && !dropdown.classList.contains('hidden')) {
-      const withinToolbar = e.target.closest('.shell-agent-toolbar');
-      if (!withinToolbar) dropdown.classList.add('hidden');
-    }
-    if (isMobile()) return;
-    // Only handle clicks on the container/pane-container background, not on interactive elements
-    const target = e.target;
-    if (target !== container && target !== refs.paneContainer && !target.matches('.shell-empty-state, .shell-empty-state *')) return;
-    const focusId = activeTab !== 'grid' ? activeTab : activePaneId;
-    if (focusId) {
-      setTimeout(() => {
-        panes.get(focusId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
-      }, 300);
-    }
-  });
-
-  // 8. Voice input — listen for voice:result on document
+  // 9. Voice input — listen for voice:result on document
   _voiceHandler = (e) => {
     const text = e.detail?.text;
     if (text && activePaneId) panes.get(activePaneId)?.sendInput(text);
   };
   document.addEventListener('voice:result', _voiceHandler);
 
-  // 9. Keyboard shortcuts
+  // 10. Keyboard shortcuts
   _keydownHandler = (e) => {
     if (typeof KeymapRegistry === 'undefined') return;
     const action = KeymapRegistry.resolve(e);
@@ -1835,7 +1828,7 @@ export async function mount(container, ctx) {
   };
   document.addEventListener('keydown', _keydownHandler);
 
-  // 10. Swipe navigation (mobile)
+  // 11. Swipe navigation (mobile)
   let touchStartX = 0;
   refs.paneContainer.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
@@ -1854,7 +1847,7 @@ export async function mount(container, ctx) {
     }
   }, { passive: true });
 
-  // 11. Window resize handler
+  // 12. Window resize handler
   const resizeHandler = () => {
     clearTimeout(_resizeTimer);
     _resizeTimer = setTimeout(() => relayout(refs), 100);

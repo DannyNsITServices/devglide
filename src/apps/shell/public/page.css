@@ -4,6 +4,11 @@
 /* ── Shell — App-specific styles ─────────────────────────────────────────────── */
 /* Common primitives (page root, header, scrollbar) are in shared-ui.css.      */
 
+.page-shell header {
+  position: relative;
+  z-index: 10;
+}
+
 .page-shell .pane-count {
   color: var(--df-color-text-muted);
 }
@@ -62,6 +67,7 @@
 .page-shell .shell-agent-name {
   flex: 1;
   min-width: 0;
+  font-size: var(--df-font-size-sm);
   color: var(--df-color-text-primary);
   white-space: nowrap;
   overflow: hidden;
