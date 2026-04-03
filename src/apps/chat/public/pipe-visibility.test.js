@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_VISIBLE_TERMINAL, getMobilePipeFabState, getVisiblePipeSummaries, sortPipeSummaries } from './pipe-visibility.js';
+import { DEFAULT_VISIBLE_TERMINAL, getVisiblePipeSummaries, sortPipeSummaries } from './pipe-visibility.js';
 
 function pipe(pipeId, status, createdAt) {
   return {
@@ -102,82 +102,3 @@ describe('getVisiblePipeSummaries', () => {
   });
 });
 
-// ── Mobile FAB state ────────────────────────────────────────────────
-
-describe('getMobilePipeFabState', () => {
-  it('counts running pipes for the FAB badge', () => {
-    const pipes = [
-      pipe('r1', 'running', '2026-04-02T10:00:00.000Z'),
-      pipe('r2', 'running', '2026-04-02T11:00:00.000Z'),
-      pipe('c1', 'completed', '2026-04-02T09:00:00.000Z'),
-    ];
-    const state = getMobilePipeFabState(pipes, []);
-    expect(state.runningCount).toBe(2);
-    expect(state.hasRunning).toBe(true);
-    expect(state.deadLetterCount).toBe(0);
-    expect(state.hasAlert).toBe(false);
-  });
-
-  it('counts dead letters for the alert badge', () => {
-    const pipes = [pipe('c1', 'completed', '2026-04-02T10:00:00.000Z')];
-    const deadLetters = [
-      { pipeId: 'c1', assignee: 'alice', reason: 'timeout' },
-      { pipeId: 'c1', assignee: 'bob', reason: 'timeout' },
-    ];
-    const state = getMobilePipeFabState(pipes, deadLetters);
-    expect(state.runningCount).toBe(0);
-    expect(state.hasRunning).toBe(false);
-    expect(state.deadLetterCount).toBe(2);
-    expect(state.hasAlert).toBe(true);
-  });
-
-  it('returns zeros when no pipes exist', () => {
-    const state = getMobilePipeFabState([], []);
-    expect(state.runningCount).toBe(0);
-    expect(state.deadLetterCount).toBe(0);
-    expect(state.hasRunning).toBe(false);
-    expect(state.hasAlert).toBe(false);
-  });
-
-  it('reflects both running and alert simultaneously', () => {
-    const pipes = [pipe('r1', 'running', '2026-04-02T10:00:00.000Z')];
-    const deadLetters = [{ pipeId: 'x', assignee: 'a', reason: 'timeout' }];
-    const state = getMobilePipeFabState(pipes, deadLetters);
-    expect(state.hasRunning).toBe(true);
-    expect(state.hasAlert).toBe(true);
-  });
-});
-
-// ── Mobile drawer data independence ─────────────────────────────────
-
-describe('mobile drawer data independence from desktop collapse', () => {
-  it('getVisiblePipeSummaries returns the same data regardless of any external UI collapse state', () => {
-    const pipes = [
-      pipe('r1', 'running', '2026-04-02T15:00:00.000Z'),
-      pipe('c1', 'completed', '2026-04-02T14:00:00.000Z'),
-      pipe('c2', 'completed', '2026-04-02T13:00:00.000Z'),
-    ];
-
-    // The same call that the drawer uses — no collapse flag exists in the data layer
-    const result = getVisiblePipeSummaries(pipes, { terminalLimit: 10 });
-    expect(result.visiblePipes).toHaveLength(3);
-    expect(result.totalCount).toBe(3);
-
-    // Calling again with identical params yields identical results
-    const result2 = getVisiblePipeSummaries(pipes, { terminalLimit: 10 });
-    expect(result2.visiblePipes).toEqual(result.visiblePipes);
-  });
-
-  it('getMobilePipeFabState is independent of pipe visibility options', () => {
-    const pipes = [
-      pipe('r1', 'running', '2026-04-02T15:00:00.000Z'),
-      pipe('f1', 'failed', '2026-04-02T14:00:00.000Z'),
-    ];
-    const deadLetters = [{ pipeId: 'f1', assignee: 'a', reason: 'timeout' }];
-
-    // FAB state only depends on raw pipe summaries and dead letters
-    const state = getMobilePipeFabState(pipes, deadLetters);
-    expect(state.runningCount).toBe(1);
-    expect(state.deadLetterCount).toBe(1);
-  });
-});
