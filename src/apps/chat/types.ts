@@ -127,3 +127,84 @@ export const ASSIGNMENT_TRANSITIONS: Readonly<Record<AssignmentStatus, readonly 
 
 /** Lifecycle states for stored payloads. */
 export type PayloadStatus = 'active' | 'archived' | 'deleted';
+
+// —— Pipe observability types ———————————————————————————————————————————————
+
+export interface StageTiming {
+  stage?: number;
+  assignee: string;
+  role: Extract<PipeRole, 'stage-output' | 'fan-out' | 'final'>;
+  grantedAt: string | null;
+  submittedAt: string | null;
+  deadline: string | null;
+  durationMs: number | null;
+}
+
+export interface PipeTimingSummary {
+  pipeId: string;
+  mode: PipeMode;
+  status: PipeStatus;
+  createdAt: string;
+  completedAt: string | null;
+  totalDurationMs: number | null;
+  stages: StageTiming[];
+  criticalPathMs: number | null;
+  stageTimeoutMs: number;
+  timeoutPolicy: PipeTimeoutPolicy;
+}
+
+export interface RuntimeLeaseStatus {
+  pipeId: string;
+  assignee: string;
+  slotRole: string;
+  stage?: number;
+  grantedAt: string;
+  deadline: string | null;
+  elapsedMs: number;
+  remainingMs: number | null;
+  isOverdue: boolean;
+}
+
+export interface DeadLetterEntry {
+  pipeId: string;
+  assignee: string;
+  stage?: number;
+  role: string;
+  status: 'timeout-expired' | 'stuck' | 'delivery-failed';
+  reason: string;
+  grantedAt: string | null;
+  deadline: string | null;
+  elapsedMs: number;
+  pipeMode: PipeMode;
+  pipeStatus: PipeStatus;
+}
+
+// —— Pipe provenance types ————————————————————————————————————————————————
+
+export type ProvenanceEvent =
+  | 'created'
+  | 'stage-granted'
+  | 'stage-submitted'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'payload-created'
+  | 'payload-fetched'
+  | 'assignment-created'
+  | 'assignment-transitioned'
+  | 'delivery-created'
+  | 'delivery-fetched'
+  | 'delivery-exhausted';
+
+export interface ProvenanceRecord {
+  ts: string;
+  pipeId: string;
+  event: ProvenanceEvent;
+  actor: string;
+  actorKind: 'user' | 'llm' | 'system';
+  stage?: number;
+  role?: PipeRole | Extract<PipeRole, 'stage-output' | 'fan-out' | 'final'>;
+  assignmentId?: string;
+  payloadId?: string;
+  metadata?: Record<string, unknown>;
+}

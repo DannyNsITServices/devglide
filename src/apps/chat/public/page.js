@@ -6,12 +6,25 @@ import { escapeHtml, escapeAttr, sanitizeHtml } from '/shared-assets/ui-utils.js
 import { dashboardSocket } from '/state.js';
 import { createHeader } from '/shared-ui/components/header.js';
 import { getMentionMatches, getPipeAssigneeMatches } from './mention-suggestions.js';
+import { DEFAULT_VISIBLE_TERMINAL, getVisiblePipeSummaries } from './pipe-visibility.js';
 
 let _container = null;
 let _socket = null;
 let _members = [];
 let _messages = [];
 let _pipeEvents = [];
+let _pipeSummaries = [];
+let _pipeLeases = [];
+let _pipeDeadLetters = [];
+let _pipeStatusById = {};
+let _pipeStatusLoading = new Set();
+let _pipeTimingById = {};
+let _pipeTimingLoading = new Set();
+let _pipesCollapsed = false;
+let _expandedPipeId = null;
+let _showAllPipes = false;
+let _pipesPollTimer = null;
+let _leaseTickTimer = null;
 let _autoScroll = true;
 let _mentionIdx = -1;
 let _voiceHandler = null;
@@ -37,6 +50,7 @@ let _markedReady = false;
 let _mermaidReady = false;
 let _mermaidFailed = false;
 let _mermaidIdCounter = 0;
+const PIPE_POLL_INTERVAL_MS = 8_000;
 
 function draftKey(projectId) {
   return projectId ? `${DRAFT_KEY_PREFIX}:${projectId}` : DRAFT_KEY_PREFIX;
@@ -464,6 +478,16 @@ const BODY_HTML = `
         <div class="chat-members-title" id="chat-members-title">Members (0)</div>
       </div>
       <div id="chat-members-list"></div>
+      <div class="chat-pipes-section" id="chat-pipes-section">
+        <div class="chat-pipes-toolbar">
+          <div class="chat-pipes-title">
+            <span id="chat-pipes-title">Pipes (0)</span>
+            <span class="chat-pipes-alert hidden" id="chat-pipes-alert"></span>
+          </div>
+          <button class="btn btn-ghost btn-sm chat-pipes-toggle" id="chat-pipes-toggle" type="button" aria-expanded="true" aria-controls="chat-pipes-list">Hide</button>
+        </div>
+        <div id="chat-pipes-list"></div>
+      </div>
     </div>
 
     <div class="chat-messages-area">
@@ -775,6 +799,9 @@ function handlePipeEvent(event) {
   if (_pipeEvents.some(existing => existing.id === normalized.id)) return;
   _pipeEvents.push(normalized);
   appendPipeEventTimelineEl(normalized);
+  if (['start', 'complete', 'failed', 'cancel'].includes(normalized.type)) {
+    fetchPipes();
+  }
 }
 
 function onMembers(members) {
@@ -817,6 +844,461 @@ function onCleared() {
   _messages = [];
   _pipeEvents = [];
   renderAllMessages();
+}
+
+function getPipeShortId(pipeId) {
+  return `#${String(pipeId || '').slice(0, 8)}`;
+}
+
+function getPipeStatusSymbol(status) {
+  if (status === 'running') return 'O';
+  if (status === 'completed') return 'OK';
+  if (status === 'failed') return 'ERR';
+  if (status === 'cancelled') return 'X';
+  return '?';
+}
+
+function formatPipeCountdown(ms) {
+  if (ms == null) return 'leased';
+  if (ms <= 0) return 'overdue';
+  const totalSeconds = Math.ceil(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+  return `${seconds}s`;
+}
+
+function formatDurationMs(ms) {
+  if (ms == null) return '--';
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+  return `${seconds}s`;
+}
+
+function renderPipeAlert() {
+  const alertEl = _container?.querySelector('#chat-pipes-alert');
+  if (!alertEl) return;
+  if (_pipeDeadLetters.length === 0) {
+    alertEl.textContent = '';
+    alertEl.classList.add('hidden');
+    return;
+  }
+  alertEl.textContent = `! ${_pipeDeadLetters.length}`;
+  alertEl.classList.remove('hidden');
+}
+
+function getPipeSummary(pipeId) {
+  return _pipeSummaries.find(pipe => pipe.pipeId === pipeId) ?? null;
+}
+
+function getPipeLeases(pipeId) {
+  return _pipeLeases.filter(lease => lease.pipeId === pipeId);
+}
+
+function getPipeDeadLetters(pipeId) {
+  return _pipeDeadLetters.filter(entry => entry.pipeId === pipeId);
+}
+
+function getPipeSlotStatus(slot, leases, deadLetters) {
+  const deadLetter = deadLetters.find(entry => entry.assignee === slot.assignee && entry.role === slot.role && entry.stage === slot.stage);
+  if (deadLetter) return deadLetter.status;
+
+  if (slot.status === 'submitted') {
+    return slot.submittedAt ? `submitted ${formatTime(slot.submittedAt)}` : 'submitted';
+  }
+
+  const lease = leases.find(entry => entry.assignee === slot.assignee && entry.slotRole === slot.role && entry.stage === slot.stage);
+  if (lease) return formatPipeCountdown(lease.remainingMs);
+  return slot.status;
+}
+
+function buildPipeSlotRow(slot, leases, deadLetters) {
+  const row = document.createElement('div');
+  row.className = 'chat-pipe-slot-row';
+
+  const deadLetter = deadLetters.find(entry => entry.assignee === slot.assignee && entry.role === slot.role && entry.stage === slot.stage);
+  if (deadLetter) row.classList.add('chat-pipe-slot-dead');
+
+  const slotLabel = document.createElement('span');
+  slotLabel.className = 'chat-pipe-slot-name';
+  const stageLabel = slot.stage ? ` stage ${slot.stage}` : '';
+  slotLabel.textContent = `${slot.assignee} (${slot.role}${stageLabel})`;
+
+  const slotState = document.createElement('span');
+  slotState.className = 'chat-pipe-slot-state';
+
+  const lease = !deadLetter && slot.status !== 'submitted'
+    ? leases.find(entry => entry.assignee === slot.assignee && entry.slotRole === slot.role && entry.stage === slot.stage)
+    : null;
+
+  if (lease?.deadline) {
+    // Live countdown badge
+    slotState.classList.add('pipe-lease-badge');
+    slotState.dataset.deadline = String(new Date(lease.deadline).getTime());
+    const pipe = getPipeSummary(lease.pipeId);
+    slotState.dataset.timeout = String(pipe?.stageTimeoutMs ?? 0);
+    const remainingMs = new Date(lease.deadline).getTime() - Date.now();
+    slotState.textContent = formatPipeCountdown(remainingMs);
+    // Initial color class
+    const pct = pipe?.stageTimeoutMs ? remainingMs / pipe.stageTimeoutMs : (remainingMs > 0 ? 1 : 0);
+    if (remainingMs <= 0) slotState.classList.add('lease-overdue');
+    else if (pct < 0.25) slotState.classList.add('lease-critical');
+    else if (pct < 0.5) slotState.classList.add('lease-warn');
+    else slotState.classList.add('lease-ok');
+  } else {
+    slotState.textContent = getPipeSlotStatus(slot, leases, deadLetters);
+    if (slot.status === 'submitted') slotState.classList.add('chat-pipe-slot-submitted');
+  }
+
+  row.appendChild(slotLabel);
+  row.appendChild(slotState);
+  return row;
+}
+
+function buildPipeTimingEl(timing) {
+  const section = document.createElement('div');
+  section.className = 'chat-pipe-timing';
+
+  const header = document.createElement('div');
+  header.className = 'chat-pipe-timing-header';
+  header.textContent = `Total: ${formatDurationMs(timing.totalDurationMs)}`;
+  section.appendChild(header);
+
+  if (timing.stages?.length > 0) {
+    for (const stage of timing.stages) {
+      const row = document.createElement('div');
+      row.className = 'chat-pipe-timing-row';
+
+      const label = document.createElement('span');
+      label.className = 'chat-pipe-timing-label';
+      const stageLabel = stage.stage != null ? `stage ${stage.stage}` : stage.role;
+      label.textContent = `${stage.assignee} (${stageLabel})`;
+
+      const dur = document.createElement('span');
+      dur.className = 'chat-pipe-timing-duration';
+      dur.textContent = formatDurationMs(stage.durationMs);
+
+      row.appendChild(label);
+      row.appendChild(dur);
+      section.appendChild(row);
+    }
+  }
+
+  return section;
+}
+
+function buildPipeDetailEl(pipe) {
+  const detail = document.createElement('div');
+  detail.className = 'chat-pipe-row-detail';
+
+  const detailState = _pipeStatusById[pipe.pipeId];
+  const deadLetters = getPipeDeadLetters(pipe.pipeId);
+
+  if (!detailState && _pipeStatusLoading.has(pipe.pipeId)) {
+    const loading = document.createElement('div');
+    loading.className = 'chat-pipe-row-hint';
+    loading.textContent = 'Loading details...';
+    detail.appendChild(loading);
+  } else if (detailState?.prompt) {
+    const prompt = document.createElement('div');
+    prompt.className = 'chat-pipe-row-hint';
+    prompt.textContent = detailState.prompt;
+    detail.appendChild(prompt);
+  }
+
+  const slots = detailState?.slots ?? [];
+  const leases = detailState?.leases ?? getPipeLeases(pipe.pipeId);
+  if (slots.length > 0) {
+    for (const slot of slots) {
+      detail.appendChild(buildPipeSlotRow(slot, leases, deadLetters));
+    }
+  } else {
+    const hint = document.createElement('div');
+    hint.className = 'chat-pipe-row-hint';
+    hint.textContent = pipe.status === 'running' ? 'Expand to inspect pipe state.' : 'No slot detail loaded.';
+    detail.appendChild(hint);
+  }
+
+  if (deadLetters.length > 0) {
+    const issue = document.createElement('div');
+    issue.className = 'chat-pipe-row-issue';
+    issue.textContent = deadLetters.map(entry => `${entry.assignee}: ${entry.reason}`).join(' | ');
+    detail.appendChild(issue);
+  }
+
+  // Timing drilldown for terminal pipes
+  const timing = _pipeTimingById[pipe.pipeId];
+  if (pipe.status !== 'running' && timing) {
+    detail.appendChild(buildPipeTimingEl(timing));
+  } else if (pipe.status !== 'running' && _pipeTimingLoading.has(pipe.pipeId)) {
+    const loadingTiming = document.createElement('div');
+    loadingTiming.className = 'chat-pipe-row-hint';
+    loadingTiming.textContent = 'Loading timing...';
+    detail.appendChild(loadingTiming);
+  }
+
+  if (pipe.status === 'running') {
+    const actionRow = document.createElement('div');
+    actionRow.className = 'chat-pipe-row-actions';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-ghost btn-sm';
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancel pipe';
+    cancelBtn.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      const confirmed = globalThis.confirm?.(
+        `Cancel pipe ${getPipeShortId(pipe.pipeId)}? This will release all leases and stop pending stages.`,
+      ) ?? true;
+      if (!confirmed) return;
+      cancelBtn.disabled = true;
+      try {
+        await api(`/pipes/${pipe.pipeId}/cancel`, { method: 'POST' });
+        await fetchPipes();
+      } finally {
+        cancelBtn.disabled = false;
+      }
+    });
+
+    actionRow.appendChild(cancelBtn);
+    detail.appendChild(actionRow);
+  }
+
+  return detail;
+}
+
+function buildPipeRowEl(pipe) {
+  const row = document.createElement('div');
+  row.className = 'chat-pipe-row';
+  row.dataset.pipeId = pipe.pipeId;
+
+  const header = document.createElement('button');
+  header.type = 'button';
+  header.className = 'chat-pipe-row-header';
+  header.setAttribute('aria-expanded', String(_expandedPipeId === pipe.pipeId));
+
+  const left = document.createElement('span');
+  left.className = 'chat-pipe-row-main';
+
+  const chevron = document.createElement('span');
+  chevron.className = 'chat-pipe-row-chevron';
+  chevron.textContent = _expandedPipeId === pipe.pipeId ? 'v' : '>';
+
+  const badge = document.createElement('span');
+  badge.className = 'chat-pipe-row-badge';
+  badge.textContent = getPipeShortId(pipe.pipeId);
+
+  const mode = document.createElement('span');
+  mode.className = 'chat-pipe-row-mode';
+  mode.textContent = pipe.mode;
+
+  left.appendChild(chevron);
+  left.appendChild(badge);
+  left.appendChild(mode);
+
+  const right = document.createElement('span');
+  right.className = 'chat-pipe-row-meta';
+
+  const status = document.createElement('span');
+  status.className = 'chat-pipe-row-status';
+  status.textContent = getPipeStatusSymbol(pipe.status);
+
+  const progress = document.createElement('span');
+  progress.className = 'chat-pipe-row-progress';
+  progress.textContent = `${pipe.slotSummary?.submitted ?? 0}/${pipe.slotSummary?.total ?? 0}`;
+
+  right.appendChild(status);
+  right.appendChild(progress);
+
+  header.appendChild(left);
+  header.appendChild(right);
+  header.addEventListener('click', async () => {
+    const nextExpanded = _expandedPipeId === pipe.pipeId ? null : pipe.pipeId;
+    _expandedPipeId = nextExpanded;
+    renderPipes();
+    if (nextExpanded) await ensurePipeStatusLoaded(nextExpanded);
+  });
+
+  row.appendChild(header);
+
+  if (_expandedPipeId === pipe.pipeId) {
+    row.appendChild(buildPipeDetailEl(pipe));
+  }
+
+  return row;
+}
+
+function renderPipes() {
+  const listEl = _container?.querySelector('#chat-pipes-list');
+  const titleEl = _container?.querySelector('#chat-pipes-title');
+  const toggleEl = _container?.querySelector('#chat-pipes-toggle');
+  if (!listEl) return;
+
+  renderPipeAlert();
+
+  if (toggleEl) {
+    toggleEl.textContent = _pipesCollapsed ? 'Show' : 'Hide';
+    toggleEl.setAttribute('aria-expanded', String(!_pipesCollapsed));
+  }
+
+  const {
+    visiblePipes,
+    hiddenTerminalCount,
+    totalCount,
+    totalTerminalCount,
+    canToggleTerminalHistory,
+  } = getVisiblePipeSummaries(_pipeSummaries, {
+    expandedPipeId: _expandedPipeId,
+    showAll: _showAllPipes,
+    terminalLimit: DEFAULT_VISIBLE_TERMINAL,
+  });
+
+  if (titleEl) {
+    titleEl.textContent = hiddenTerminalCount > 0
+      ? `Pipes (${visiblePipes.length} of ${totalCount})`
+      : `Pipes (${totalCount})`;
+  }
+
+  listEl.innerHTML = '';
+  listEl.classList.toggle('hidden', _pipesCollapsed);
+  if (_pipesCollapsed) return;
+
+  if (visiblePipes.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'chat-pipe-row-hint';
+    empty.textContent = 'No active or recent pipes.';
+    listEl.appendChild(empty);
+    return;
+  }
+
+  for (const pipe of visiblePipes) {
+    listEl.appendChild(buildPipeRowEl(pipe));
+  }
+
+  if (canToggleTerminalHistory) {
+    const historyToggle = document.createElement('button');
+    historyToggle.className = 'btn btn-ghost btn-sm chat-pipes-show-all';
+    historyToggle.type = 'button';
+    historyToggle.textContent = _showAllPipes
+      ? 'Show fewer'
+      : `Show all history (${totalTerminalCount})`;
+    historyToggle.addEventListener('click', () => {
+      _showAllPipes = !_showAllPipes;
+      renderPipes();
+    });
+    listEl.appendChild(historyToggle);
+  }
+}
+
+async function fetchPipes() {
+  try {
+    const [allRes, leasesRes, deadLettersRes] = await Promise.all([
+      api('/pipes/all'),
+      api('/pipes/leases'),
+      api('/pipes/dead-letters'),
+    ]);
+
+    if (allRes.ok) {
+      _pipeSummaries = await allRes.json();
+      if (_expandedPipeId && !getPipeSummary(_expandedPipeId)) _expandedPipeId = null;
+    }
+    if (leasesRes.ok) _pipeLeases = await leasesRes.json();
+    if (deadLettersRes.ok) _pipeDeadLetters = await deadLettersRes.json();
+
+    renderPipes();
+    if (_expandedPipeId) ensurePipeStatusLoaded(_expandedPipeId, true);
+  } catch (err) {
+    console.error('[chat] Failed to fetch pipe monitor data:', err);
+  }
+}
+
+async function ensurePipeStatusLoaded(pipeId, force = false) {
+  if (!pipeId || _pipeStatusLoading.has(pipeId)) return;
+  if (!force && _pipeStatusById[pipeId]) return;
+
+  _pipeStatusLoading.add(pipeId);
+  renderPipes();
+  try {
+    const res = await api(`/pipes/${pipeId}/status`);
+    if (!res.ok) return;
+    _pipeStatusById = { ..._pipeStatusById, [pipeId]: await res.json() };
+    // Auto-fetch timing for terminal pipes
+    const pipe = getPipeSummary(pipeId);
+    if (pipe && pipe.status !== 'running') {
+      ensurePipeTimingLoaded(pipeId);
+    }
+  } catch (err) {
+    console.error(`[chat] Failed to load pipe status for ${pipeId}:`, err);
+  } finally {
+    _pipeStatusLoading.delete(pipeId);
+    renderPipes();
+  }
+}
+
+async function ensurePipeTimingLoaded(pipeId, force = false) {
+  if (!pipeId || _pipeTimingLoading.has(pipeId)) return;
+  if (!force && _pipeTimingById[pipeId]) return;
+
+  _pipeTimingLoading.add(pipeId);
+  try {
+    const res = await api(`/pipes/${pipeId}/timing`);
+    if (!res.ok) return;
+    _pipeTimingById = { ..._pipeTimingById, [pipeId]: await res.json() };
+  } catch (err) {
+    console.error(`[chat] Failed to load pipe timing for ${pipeId}:`, err);
+  } finally {
+    _pipeTimingLoading.delete(pipeId);
+    renderPipes();
+  }
+}
+
+function startPipePolling() {
+  stopPipePolling();
+  _pipesPollTimer = setInterval(() => { fetchPipes(); }, PIPE_POLL_INTERVAL_MS);
+}
+
+function stopPipePolling() {
+  if (_pipesPollTimer) {
+    clearInterval(_pipesPollTimer);
+    _pipesPollTimer = null;
+  }
+}
+
+function startLeaseCountdown() {
+  stopLeaseCountdown();
+  _leaseTickTimer = setInterval(() => {
+    const badges = _container?.querySelectorAll('.pipe-lease-badge[data-deadline]');
+    if (!badges || badges.length === 0) return;
+    const now = Date.now();
+    for (const badge of badges) {
+      const deadline = Number(badge.dataset.deadline);
+      const timeout = Number(badge.dataset.timeout) || 0;
+      if (!deadline) continue;
+      const remainingMs = deadline - now;
+      badge.textContent = formatPipeCountdown(remainingMs);
+      // Color-code by percentage of time remaining
+      const pct = timeout > 0 ? remainingMs / timeout : (remainingMs > 0 ? 1 : 0);
+      badge.classList.remove('lease-ok', 'lease-warn', 'lease-critical', 'lease-overdue');
+      if (remainingMs <= 0) {
+        badge.classList.add('lease-overdue');
+      } else if (pct < 0.25) {
+        badge.classList.add('lease-critical');
+      } else if (pct < 0.5) {
+        badge.classList.add('lease-warn');
+      } else {
+        badge.classList.add('lease-ok');
+      }
+    }
+  }, 1000);
+}
+
+function stopLeaseCountdown() {
+  if (_leaseTickTimer) {
+    clearInterval(_leaseTickTimer);
+    _leaseTickTimer = null;
+  }
 }
 
 
@@ -1339,6 +1821,7 @@ async function loadInitialData() {
       _members = (await membersRes.json()).map(m => m.kind === 'llm' ? { ...m, status: 'idle' } : m);
     }
     renderMembers();
+    await fetchPipes();
     renderAllMessages();
   } catch (err) {
     console.error('[chat] Failed to load initial data:', err);
@@ -1372,6 +1855,10 @@ function bindEvents() {
   _container.querySelector('#chat-rules-close')?.addEventListener('click', closeRulesEditor);
   _container.querySelector('#chat-rules-save')?.addEventListener('click', saveRules);
   _container.querySelector('#chat-rules-reset')?.addEventListener('click', resetRules);
+  _container.querySelector('#chat-pipes-toggle')?.addEventListener('click', () => {
+    _pipesCollapsed = !_pipesCollapsed;
+    renderPipes();
+  });
   _container.querySelector('#chat-rules-textarea')?.addEventListener('input', syncRulesDraftFromInput);
   _container.querySelector('#chat-rules-overlay')?.addEventListener('click', (e) => {
     if (e.target?.id === 'chat-rules-overlay') closeRulesEditor();
@@ -1402,6 +1889,16 @@ export function mount(container, ctx) {
   _messages = [];
   _pipeEvents = [];
   _members = [];
+  _pipeSummaries = [];
+  _pipeLeases = [];
+  _pipeDeadLetters = [];
+  _pipeStatusById = {};
+  _pipeStatusLoading = new Set();
+  _pipeTimingById = {};
+  _pipeTimingLoading = new Set();
+  _pipesCollapsed = false;
+  _expandedPipeId = null;
+  _showAllPipes = false;
   _autoScroll = true;
   _rulesDraft = '';
   _rulesLoaded = false;
@@ -1423,6 +1920,8 @@ export function mount(container, ctx) {
   bindEvents();
   loadInitialData();
   connectSocket();
+  startPipePolling();
+  startLeaseCountdown();
 
   // Voice STT — insert transcribed text into chat input
   _voiceHandler = (e) => {
@@ -1469,12 +1968,25 @@ export function unmount(container) {
   }
   closeMentionPopup();
   disconnectSocket();
+  stopPipePolling();
+  stopLeaseCountdown();
   container.classList.remove('page-chat', 'app-page');
   container.innerHTML = '';
   _container = null;
   _projectId = null;
   _messages = [];
+  _pipeEvents = [];
   _members = [];
+  _pipeSummaries = [];
+  _pipeLeases = [];
+  _pipeDeadLetters = [];
+  _pipeStatusById = {};
+  _pipeStatusLoading = new Set();
+  _pipeTimingById = {};
+  _pipeTimingLoading = new Set();
+  _pipesCollapsed = false;
+  _expandedPipeId = null;
+  _showAllPipes = false;
   _brainstorms = {};
   _rulesDraft = '';
   _rulesLoaded = false;
@@ -1497,6 +2009,16 @@ export function onProjectChange(project) {
   _messages = [];
   _pipeEvents = [];
   _members = [];
+  _pipeSummaries = [];
+  _pipeLeases = [];
+  _pipeDeadLetters = [];
+  _pipeStatusById = {};
+  _pipeStatusLoading = new Set();
+  _pipeTimingById = {};
+  _pipeTimingLoading = new Set();
+  _pipesCollapsed = false;
+  _expandedPipeId = null;
+  _showAllPipes = false;
   _brainstorms = {};
   _rulesDraft = '';
   _rulesLoaded = false;

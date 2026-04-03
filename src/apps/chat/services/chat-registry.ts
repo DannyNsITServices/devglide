@@ -11,6 +11,8 @@ import * as pipeStore from './pipe-store.js';
 import * as pipeDelivery from './pipe-delivery.js';
 import * as assignmentQueries from './pipe-assignment-queries.js';
 import * as provenance from './pipe-provenance.js';
+import * as materializer from './pipe-assignment-materializer.js';
+import * as payloadStore from './payload-store.js';
 import { stripAnsi } from './terminal-utils.js';
 
 // In-memory participant registry
@@ -1103,6 +1105,7 @@ function handleStageTimeout(
   // 'fail' (default) or 'reassign' (not yet implemented — falls through to fail)
   clearAllDeadlinesForPipe(pipeId);
   const releasedAssignees = pipeStore.markPipeStatus(pipeId, 'failed', projectId);
+  provenance.recordProvenance(projectId, { pipeId, event: 'failed', actor: 'system', actorKind: 'system', metadata: { reason: 'timeout', assignee, policy } });
   const policyNote = policy === 'reassign'
     ? ' (reassign policy not yet supported — pipe failed instead)'
     : '';
@@ -1379,6 +1382,7 @@ async function runPipeReducer(pipeId: string, projectId: string | null): Promise
   if (state.hasFinal) {
     clearAllDeadlinesForPipe(pipeId);
     pipeDelivery.cancelAllDeliveries(pipeId, projectId);
+    materializer.cancelPipeAssignments(pipeId, projectId);
     pipeStore.markPipeStatus(pipeId, 'completed', projectId);
     provenance.recordProvenance(projectId, { pipeId, event: 'completed', actor: 'system', actorKind: 'system' });
 
@@ -1427,14 +1431,15 @@ async function runPipeReducer(pipeId: string, projectId: string | null): Promise
 
     // Start stage deadline timer for this lease
     startStageDeadline(pipeId, action.targetAssignee, projectId, storedPipe.stageTimeoutMs, storedPipe.timeoutPolicy);
+    provenance.recordProvenance(projectId, { pipeId, event: 'stage-granted', actor: 'system', actorKind: 'system', stage: action.type === 'handoff' ? action.stage : undefined, role: action.type, metadata: { assignee: action.targetAssignee } });
 
     // Track emission in pipe store (replaces appendMessage to chat history)
     pipeStore.markEmitted(pipeId, action.type, action.type === 'handoff' ? action.stage : action.targetAssignee, projectId);
 
-    // Store full payload for retrieval via pipe_read_output
-    pipeStore.storePayload(pipeId, action.targetAssignee, action.body, projectId);
+    // Materialize assignment + payload for lifecycle tracking
+    const materialized = materializer.materializeAssignment(pipeId, state.mode, action, projectId);
 
-    // Create delivery record for ack/fetch tracking and re-notify
+    // Transport-layer: create delivery record for re-notify tracking
     pipeDelivery.createDelivery(
       pipeId, action.targetAssignee, action.type, action.body, projectId, action.stage,
     );
@@ -1469,6 +1474,11 @@ async function runPipeReducer(pipeId: string, projectId: string | null): Promise
     const target = getParticipantExact(action.targetAssignee, projectId);
     if (target?.paneId && !target.detached) {
       await deliverToPty(action.targetAssignee, projectId, deliveryMsg);
+      // Transition assignment lifecycle: assigned → notified (after successful PTY delivery)
+      if (materialized) {
+        materializer.transitionAssignmentStatus(materialized.assignmentId, 'notified', projectId);
+      }
+      // Transport-layer: record notification attempt for re-notify tracking
       pipeDelivery.recordNotification(pipeId, action.targetAssignee, projectId);
       pipeDelivery.startRenotifyTimer(pipeId, action.targetAssignee, projectId, handleRenotify);
     }
@@ -1543,9 +1553,12 @@ function failPipesForParticipant(
     // Clear all deadline timers and delivery tracking for this pipe
     clearAllDeadlinesForPipe(pipeId);
     pipeDelivery.cancelAllDeliveries(pipeId, projectId);
+    materializer.cancelPipeAssignments(pipeId, projectId);
 
     // Update store — releases leases for this pipe's assignees
     const releasedAssignees = pipeStore.markPipeStatus(pipeId, 'failed', projectId);
+
+    provenance.recordProvenance(projectId, { pipeId, event: 'failed', actor: 'system', actorKind: 'system', metadata: { reason, unavailableParticipant: name } });
 
     // Post failure to chat history (public lifecycle event)
     const failMsg = appendMessage({
@@ -1576,6 +1589,7 @@ export async function cancelPipeRun(pipeId: string, projectId?: string | null): 
   // Clear all deadline timers and delivery tracking for this pipe
   clearAllDeadlinesForPipe(pipeId);
   pipeDelivery.cancelAllDeliveries(pipeId, pid);
+  materializer.cancelPipeAssignments(pipeId, pid);
 
   // Update store — releases leases for this pipe's assignees
   const releasedAssignees = pipeStore.markPipeStatus(pipeId, 'cancelled', pid);
@@ -1615,6 +1629,11 @@ export async function submitPipeStage(
 
   // Clear the stage deadline and delivery tracking — submit was successful
   pipeDelivery.recordSubmission(pipeId, from, projectId);
+  // Complete the active assignment for this participant on this pipe
+  const activeAssignments = materializer.getActiveAssignmentsForParticipant(from, pipeId, projectId);
+  for (const a of activeAssignments) {
+    materializer.completeAssignment(a.assignmentId, projectId);
+  }
   clearStageDeadline(pipeId, from);
   provenance.recordProvenance(projectId, { pipeId, event: 'stage-submitted', actor: from, actorKind: getParticipant(from, projectId)?.kind ?? 'llm', stage: result.slot?.stage, role: result.slot?.role });
 
@@ -1730,18 +1749,33 @@ export function readPipeOutput(
     return { ok: false, status: 403, error: `${callerName} is not an assignee of pipe #${pipeId}` };
   }
 
-  // Record fetch acknowledgment — assignee has pulled their assignment
-  pipeDelivery.recordFetch(pipeId, callerName, pid);
-
-  // Include stored assignment payload for compact delivery model
-  const stagePayload = pipeStore.getPayload(pipeId, callerName, pid) ?? null;
-
-
   // Lease-aware read guard: reject reads from assignees with expired leases.
+  // Must run BEFORE recordFetch so rejected reads don't suppress re-notify.
   const callerLease = pipeStore.getActiveLease(callerName, pid);
   if (callerLease?.pipeId === pipeId && pipeStore.isLeaseExpired(callerLease)) {
     return { ok: false, status: 403, error: `Lease for ${callerName} on pipe #${pipeId} has expired (deadline: ${callerLease.deadline}). Output read rejected.` };
   }
+
+  // Record fetch acknowledgment — only after authorization succeeds
+  pipeDelivery.recordFetch(pipeId, callerName, pid);
+
+  // Transition assignment lifecycle: notified → payload_fetched
+  const activeAssignments = materializer.getActiveAssignmentsForParticipant(callerName, pipeId, pid);
+  for (const a of activeAssignments) {
+    if (a.status === 'notified' || a.status === 'acknowledged') {
+      materializer.transitionAssignmentStatus(a.assignmentId, a.status === 'notified' ? 'acknowledged' : 'payload_fetched', pid);
+      // If we went notified→acknowledged, also advance to payload_fetched
+      if (a.status === 'notified') {
+        materializer.transitionAssignmentStatus(a.assignmentId, 'payload_fetched', pid);
+      }
+    }
+  }
+
+  // Read the authoritative assignment payload for this caller on this pipe.
+  const currentAssignment = activeAssignments.find(a => a.assignee === callerName) ?? null;
+  const stagePayload = currentAssignment
+    ? (payloadStore.getPayload(currentAssignment.payloadId, pid)?.content ?? null)
+    : null;
 
   if (pipe.mode === 'linear') {
     const callerStage = assigneeIndex + 1;
@@ -1771,6 +1805,16 @@ export function readPipeOutput(
   }
 
   // merge / merge-all / explain / summarize
+  if (currentAssignment?.role === 'fan-out') {
+    if (!stagePayload) {
+      return { ok: false, status: 409, error: 'No stage input available for your fan-out assignment' };
+    }
+    return {
+      ok: true,
+      data: { pipeId: pipe.pipeId, mode: pipe.mode, stagePayload, previousOutput: null },
+    };
+  }
+
   const synthesizer = pipe.assignees[pipe.assignees.length - 1];
   if (callerName !== synthesizer) {
     return { ok: false, status: 403, error: `Only the synthesizer (@${synthesizer}) can read fan-out outputs` };

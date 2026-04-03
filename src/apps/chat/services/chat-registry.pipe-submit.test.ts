@@ -480,7 +480,7 @@ describe('readPipeOutput entitlement', () => {
     if (!result.ok) expect(result.status).toBe(403);
   });
 
-  it('returns 409 for stage-1 caller (no previous input)', async () => {
+  it('returns prompt payload for stage-1 caller', async () => {
     addPanes('p1', 'p2');
     const alice = registry.join('alice', 'llm', 'p1', 'alice', '\r');
     const bob = registry.join('bob', 'llm', 'p2', 'bob', '\r');
@@ -493,8 +493,11 @@ describe('readPipeOutput entitlement', () => {
     expect(pipeId).toBeDefined();
 
     const result = registry.readPipeOutput(pipeId!, alice.name, 'project-read');
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.status).toBe(409);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.stagePayload).toContain('Prompt: do something');
+      expect(result.data.previousOutput).toBeNull();
+    }
   });
 
   it('returns previous stage output for linear downstream assignee', async () => {
@@ -574,10 +577,13 @@ describe('readPipeOutput entitlement', () => {
     expect(premature.ok).toBe(false);
     if (!premature.ok) expect(premature.status).toBe(409);
 
-    // Alice (fan-out) can't read — not the synthesizer
-    const notSynth = registry.readPipeOutput(pipeId!, alice.name, 'project-read');
-    expect(notSynth.ok).toBe(false);
-    if (!notSynth.ok) expect(notSynth.status).toBe(403);
+    // Alice (fan-out) can read her stage payload before submitting
+    const fanOutPrompt = registry.readPipeOutput(pipeId!, alice.name, 'project-read');
+    expect(fanOutPrompt.ok).toBe(true);
+    if (fanOutPrompt.ok) {
+      expect(fanOutPrompt.data.stagePayload).toContain('review this');
+      expect(fanOutPrompt.data.fanOutOutputs).toBeUndefined();
+    }
 
     // Submit fan-out outputs
     const s1 = registry.submitPipeStage(pipeId!, alice.name, 'alice analysis', 'project-read');
@@ -595,6 +601,49 @@ describe('readPipeOutput entitlement', () => {
       expect(result.data.fanOutOutputs).toHaveLength(2);
       const fromNames = result.data.fanOutOutputs!.map(o => o.from).sort();
       expect(fromNames).toEqual([alice.name, bob.name]);
+    }
+  });
+
+  it('returns fan-out prompt payload for non-synth participant in merge mode', async () => {
+    addPanes('p1', 'p2', 'p3');
+    const alice = registry.join('alice', 'llm', 'p1', 'alice', '\r');
+    const bob = registry.join('bob', 'llm', 'p2', 'bob', '\r');
+    const carol = registry.join('carol', 'llm', 'p3', 'carol', '\r');
+
+    const startPromise = registry.send('user', `/merge-pipe @${alice.name} @${bob.name} @${carol.name} review this`);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await startPromise;
+
+    const pipeId = registry.getActivePipes('project-read')[0]?.pipeId;
+    expect(pipeId).toBeDefined();
+
+    const result = registry.readPipeOutput(pipeId!, alice.name, 'project-read');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.stagePayload).toContain('review this');
+      expect(result.data.previousOutput).toBeNull();
+      expect(result.data.fanOutOutputs).toBeUndefined();
+    }
+  });
+
+  it('returns prompt payload for merge-all synthesizer during fan-out phase', async () => {
+    addPanes('p1', 'p2');
+    const alice = registry.join('alice', 'llm', 'p1', 'alice', '\r');
+    const bob = registry.join('bob', 'llm', 'p2', 'bob', '\r');
+
+    const startPromise = registry.send('user', `/explain @${alice.name} @${bob.name} explain this failure`);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await startPromise;
+
+    const pipeId = registry.getActivePipes('project-read')[0]?.pipeId;
+    expect(pipeId).toBeDefined();
+
+    const result = registry.readPipeOutput(pipeId!, bob.name, 'project-read');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.stagePayload).toContain('explain this failure');
+      expect(result.data.previousOutput).toBeNull();
+      expect(result.data.fanOutOutputs).toBeUndefined();
     }
   });
 

@@ -1,4 +1,11 @@
-import type { PipeMode, PipeStatus, PipeTimeoutPolicy } from '../types.js';
+import { createHash } from 'crypto';
+import type { PipeMode, PipeStatus, PipeTimeoutPolicy, StageTiming, PipeTimingSummary, DeadLetterEntry, RuntimeLeaseStatus } from '../types.js';
+import { systemClock, type Clock } from './clock.js';
+import { getExhaustedDeliveries } from './pipe-delivery.js';
+
+let _pipeClock: Clock = systemClock;
+export function _setObsClockForTest(c: Clock): void { _pipeClock = c; }
+
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -53,6 +60,27 @@ export interface SubmitResult {
   slot?: PipeSlot;
   pipe?: { pipeId: string; mode: PipeMode; status: PipeStatus };
 }
+
+export interface StageInputSource {
+  from: string;
+  content: string;
+}
+
+export interface StageInputPayload {
+  role: 'prompt' | 'upstream-output' | 'fan-out-prompt' | 'fan-out-outputs';
+  content: string | null;
+  contentHash: string | null;
+  contentVersion: number;
+  stage?: number;
+  totalStages?: number;
+  assignee: string;
+  prompt: string;
+  sources?: StageInputSource[];
+}
+
+export type StageInputResult =
+  | { ok: true; input: StageInputPayload }
+  | { ok: false; code: PipeErrorCode; error: string };
 
 // ── Storage ───────────────────────────────────────────────────────────────────
 
@@ -109,9 +137,13 @@ function getProjectStore(projectId: string | null): Map<string, StoredPipe> {
   return store;
 }
 
+function computeContentHash(content: string): string {
+  return createHash('sha256').update(content, 'utf8').digest('hex');
+}
+
 // ── Pipe lifecycle ────────────────────────────────────────────────────────────
 
-export const DEFAULT_STAGE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+export const DEFAULT_STAGE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
 
 /** Create a new pipe in the store with slots for each assignee. */
 export function createPipe(
@@ -524,6 +556,110 @@ export function getFanOutOutputs(
   return outputs;
 }
 
+export function computeStageInput(
+  pipeId: string,
+  stage: number | undefined,
+  assignee: string,
+  projectId: string | null,
+): StageInputResult {
+  const pipe = getPipe(pipeId, projectId);
+  if (!pipe) {
+    return { ok: false, code: 'PIPE_NOT_FOUND', error: `Pipe #${pipeId} not found` };
+  }
+  if (pipe.status !== 'running') {
+    return { ok: false, code: 'PIPE_CLOSED', error: `Pipe #${pipeId} is ${pipe.status}` };
+  }
+
+  const assigneeIndex = pipe.assignees.indexOf(assignee);
+  if (assigneeIndex === -1) {
+    return { ok: false, code: 'PIPE_NOT_ASSIGNED', error: `${assignee} is not an assignee of pipe #${pipeId}` };
+  }
+
+  const resolvedStage = stage ?? (pipe.mode === 'linear' ? assigneeIndex + 1 : undefined);
+
+  if (pipe.mode === 'linear') {
+    if (!resolvedStage || resolvedStage < 1 || resolvedStage > pipe.assignees.length) {
+      return { ok: false, code: 'PIPE_NOT_ASSIGNED', error: `Invalid stage ${String(stage)} for pipe #${pipeId}` };
+    }
+    if (pipe.assignees[resolvedStage - 1] !== assignee) {
+      return { ok: false, code: 'PIPE_NOT_ASSIGNED', error: `${assignee} is not assigned to stage ${resolvedStage} of pipe #${pipeId}` };
+    }
+    if (resolvedStage === 1) {
+      return {
+        ok: true,
+        input: {
+          role: 'prompt',
+          content: pipe.prompt,
+          contentHash: computeContentHash(pipe.prompt),
+          contentVersion: 1,
+          stage: 1,
+          totalStages: pipe.assignees.length,
+          assignee,
+          prompt: pipe.prompt,
+        },
+      };
+    }
+
+    const previous = getStageOutput(pipeId, resolvedStage - 1, projectId);
+    return {
+      ok: true,
+      input: {
+        role: 'upstream-output',
+        content: previous?.body ?? null,
+        contentHash: previous ? computeContentHash(previous.body) : null,
+        contentVersion: previous ? 1 : 0,
+        stage: resolvedStage,
+        totalStages: pipe.assignees.length,
+        assignee,
+        prompt: pipe.prompt,
+        sources: previous ? [{ from: previous.from, content: previous.body }] : [],
+      },
+    };
+  }
+
+  const isMergeAll = pipe.mode === 'merge-all' || pipe.mode === 'explain' || pipe.mode === 'summarize';
+  const synthesizer = pipe.assignees[pipe.assignees.length - 1];
+  const callerSlots = pipe.slots.get(assignee) ?? [];
+  const callerFanOutSlot = callerSlots.find(slot => slot.role === 'fan-out') ?? null;
+  const callerFinalSlot = callerSlots.find(slot => slot.role === 'final') ?? null;
+  const fanOutOutputs = [...getFanOutOutputs(pipeId, projectId).entries()]
+    .filter(([from]) => !(isMergeAll && from === synthesizer))
+    .map(([from, content]) => ({ from, content }));
+
+  // Dual-role synthesizers stay in fan-out mode until their own fan-out slot is submitted.
+  const isSynthPhase = assignee === synthesizer
+    && callerFinalSlot != null
+    && (!callerFanOutSlot || callerFanOutSlot.status === 'submitted');
+  if (!isSynthPhase) {
+    return {
+      ok: true,
+      input: {
+        role: 'fan-out-prompt',
+        content: pipe.prompt,
+        contentHash: computeContentHash(pipe.prompt),
+        contentVersion: 1,
+        assignee,
+        prompt: pipe.prompt,
+        sources: [],
+      },
+    };
+  }
+
+  const mergedContent = fanOutOutputs.map(({ from, content }) => `${from}: ${content}`).join('\n\n');
+  return {
+    ok: true,
+    input: {
+      role: 'fan-out-outputs',
+      content: fanOutOutputs.length > 0 ? mergedContent : null,
+      contentHash: fanOutOutputs.length > 0 ? computeContentHash(mergedContent) : null,
+      contentVersion: fanOutOutputs.length > 0 ? 1 : 0,
+      assignee,
+      prompt: pipe.prompt,
+      sources: fanOutOutputs,
+    },
+  };
+}
+
 /** Get pipe status summary for the pipe_status tool. */
 export function getPipeStatus(pipeId: string, projectId: string | null): {
   pipeId: string;
@@ -763,10 +899,95 @@ function rebuildEmissionState(pipeId: string, projectId: string | null): void {
   }
 }
 
+// ── Observability ────────────────────────────────────────────────────────────
+
+export function getPipeTimingSummary(pipeId: string, projectId: string | null): PipeTimingSummary | undefined {
+  const pipe = getPipe(pipeId, projectId);
+  if (!pipe) return undefined;
+  const stages: StageTiming[] = [];
+  let latestSubmission: string | null = null;
+  for (const [assignee, slotList] of pipe.slots) {
+    const lease = getActiveLease(assignee, projectId);
+    for (const slot of slotList) {
+      const isActive = lease?.pipeId === pipeId && lease.slotRole === slot.role && (lease.stage === slot.stage || (lease.stage === undefined && slot.stage === undefined));
+      const grantedAt = isActive ? lease!.grantedAt : null;
+      const deadline = isActive ? lease!.deadline : null;
+      let durationMs: number | null = null;
+      if (grantedAt && slot.submittedAt) durationMs = new Date(slot.submittedAt).getTime() - new Date(grantedAt).getTime();
+      stages.push({ stage: slot.stage, assignee: slot.assignee, role: slot.role, grantedAt, submittedAt: slot.submittedAt, deadline, durationMs });
+      if (slot.submittedAt && (!latestSubmission || slot.submittedAt > latestSubmission)) latestSubmission = slot.submittedAt;
+    }
+  }
+  const completedAt = pipe.status !== 'running' ? latestSubmission : null;
+  const totalDurationMs = completedAt ? new Date(completedAt).getTime() - new Date(pipe.createdAt).getTime() : null;
+  let criticalPathMs: number | null = null;
+  const durations = stages.filter(s => s.durationMs !== null).map(s => ({ role: s.role, ms: s.durationMs! }));
+  if (durations.length > 0) {
+    if (pipe.mode === 'linear') criticalPathMs = durations.reduce((sum, d) => sum + d.ms, 0);
+    else { const fm = Math.max(...durations.filter(d => d.role === 'fan-out').map(d => d.ms), 0); criticalPathMs = fm + (durations.find(d => d.role === 'final')?.ms ?? 0); }
+  }
+  return { pipeId: pipe.pipeId, mode: pipe.mode, status: pipe.status, createdAt: pipe.createdAt, completedAt, totalDurationMs, stages, criticalPathMs, stageTimeoutMs: pipe.stageTimeoutMs, timeoutPolicy: pipe.timeoutPolicy };
+}
+
+export function getRuntimeLeaseStatuses(projectId: string | null): RuntimeLeaseStatus[] {
+  const nowMs = _pipeClock.now();
+  const result: RuntimeLeaseStatus[] = [];
+  const prefix = (projectId ?? '__none__') + ':';
+  for (const [key, lease] of activeLeases) {
+    if (!key.startsWith(prefix)) continue;
+    const elapsedMs = nowMs - new Date(lease.grantedAt).getTime();
+    const deadlineMs = lease.deadline ? new Date(lease.deadline).getTime() : null;
+    result.push({ pipeId: lease.pipeId, assignee: lease.assignee, slotRole: lease.slotRole, stage: lease.stage, grantedAt: lease.grantedAt, deadline: lease.deadline, elapsedMs, remainingMs: deadlineMs !== null ? deadlineMs - nowMs : null, isOverdue: deadlineMs !== null && nowMs > deadlineMs });
+  }
+  return result;
+}
+
+export function getDeadLetterEntries(projectId: string | null): DeadLetterEntry[] {
+  const nowMs = _pipeClock.now();
+  const entries: DeadLetterEntry[] = [];
+  for (const pipe of getProjectStore(projectId).values()) {
+    if (pipe.status !== 'running') continue;
+    for (const [assignee, slotList] of pipe.slots) {
+      for (const slot of slotList) {
+        if (slot.status === 'submitted') continue;
+        const lease = getActiveLease(assignee, projectId);
+        const isLeased = lease?.pipeId === pipe.pipeId && lease.slotRole === slot.role;
+        if (isLeased && lease!.deadline) {
+          const deadlineMs = new Date(lease!.deadline!).getTime();
+          if (nowMs > deadlineMs) entries.push({ pipeId: pipe.pipeId, assignee, stage: slot.stage, role: slot.role, status: 'timeout-expired', reason: 'Lease expired ' + String(Math.round((nowMs - deadlineMs) / 1000)) + 's ago', grantedAt: lease!.grantedAt, deadline: lease!.deadline, elapsedMs: nowMs - new Date(lease!.grantedAt).getTime(), pipeMode: pipe.mode, pipeStatus: pipe.status });
+        }
+        if (slot.status === 'pending' && !isLeased) {
+          const pipeAge = nowMs - new Date(pipe.createdAt).getTime();
+          const threshold = pipe.stageTimeoutMs > 0 ? pipe.stageTimeoutMs * 2 : 10 * 60 * 1000;
+          if (pipeAge > threshold) entries.push({ pipeId: pipe.pipeId, assignee, stage: slot.stage, role: slot.role, status: 'stuck', reason: 'Pending for ' + String(Math.round(pipeAge / 1000)) + 's', grantedAt: null, deadline: null, elapsedMs: pipeAge, pipeMode: pipe.mode, pipeStatus: pipe.status });
+        }
+      }
+    }
+  }
+  // Delivery-failed: notification retries exhausted
+  for (const delivery of getExhaustedDeliveries(projectId)) {
+    const reason = `Notification exhausted after ${delivery.notifyAttempts} attempts (state: ${delivery.state})`;
+    entries.push({ pipeId: delivery.pipeId, assignee: delivery.assignee, stage: delivery.stage, role: delivery.role, status: 'delivery-failed', reason, grantedAt: delivery.assignedAt, deadline: null, elapsedMs: _pipeClock.now() - new Date(delivery.assignedAt).getTime(), pipeMode: getPipe(delivery.pipeId, projectId)?.mode ?? 'linear', pipeStatus: getPipe(delivery.pipeId, projectId)?.status ?? 'running' });
+  }
+
+  return entries;
+}
+
+export function listAllPipes(projectId: string | null): Array<{ pipeId: string; mode: PipeMode; status: PipeStatus; assignees: string[]; createdAt: string; stageTimeoutMs: number; timeoutPolicy: PipeTimeoutPolicy; slotSummary: { total: number; submitted: number; leased: number; pending: number } }> {
+  const result: Array<{ pipeId: string; mode: PipeMode; status: PipeStatus; assignees: string[]; createdAt: string; stageTimeoutMs: number; timeoutPolicy: PipeTimeoutPolicy; slotSummary: { total: number; submitted: number; leased: number; pending: number } }> = [];
+  for (const pipe of getProjectStore(projectId).values()) {
+    let total = 0, submitted = 0, leased = 0, pending = 0;
+    for (const slotList of pipe.slots.values()) { for (const slot of slotList) { total++; if (slot.status === 'submitted') submitted++; else if (slot.status === 'leased') leased++; else pending++; } }
+    result.push({ pipeId: pipe.pipeId, mode: pipe.mode, status: pipe.status, assignees: pipe.assignees, createdAt: pipe.createdAt, stageTimeoutMs: pipe.stageTimeoutMs, timeoutPolicy: pipe.timeoutPolicy, slotSummary: { total, submitted, leased, pending } });
+  }
+  return result;
+}
+
 // ── Test helper ───────────────────────────────────────────────────────────────
 
 /** Reset all in-memory state. For testing only. */
 export function _resetForTest(): void {
+  _pipeClock = systemClock;
   stores.clear();
   activeLeases.clear();
   pendingPipes.clear();

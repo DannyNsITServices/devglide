@@ -22,9 +22,33 @@ export function nextPaneId(): string {
 export const SCROLLBACK_LIMIT = 200_000;
 export const MAX_PANES = 9; // per project context
 
+export function getPaneInfo(paneId: string): PaneInfo | undefined {
+  return dashboardState.panes.find((p: PaneInfo) => p.id === paneId);
+}
+
+export function listPanesForProject(projectId: string | null): PaneInfo[] {
+  return dashboardState.panes.filter((p: PaneInfo) => p.projectId === projectId);
+}
+
 /** Count panes belonging to the given project (null = no project). */
 export function panesForProject(projectId: string | null): number {
-  return dashboardState.panes.filter((p: PaneInfo) => p.projectId === projectId).length;
+  return listPanesForProject(projectId).length;
+}
+
+export function isPaneOwnedByProject(pane: PaneInfo | undefined, projectId: string | null): pane is PaneInfo {
+  return !!pane && pane.projectId === projectId;
+}
+
+/**
+ * Pick the previous pane in the same project when possible, otherwise the next.
+ * The pane being removed must still be present in dashboardState.panes when called.
+ */
+export function getAdjacentPaneIdWithinProject(projectId: string | null, paneId: string): string | null {
+  const projectPanes = listPanesForProject(projectId);
+  const idx = projectPanes.findIndex((p: PaneInfo) => p.id === paneId);
+  if (idx === -1) return null;
+  if (idx > 0) return projectPanes[idx - 1]?.id ?? null;
+  return projectPanes[idx + 1]?.id ?? null;
 }
 
 /** Next sequential number for a pane within its project context. */

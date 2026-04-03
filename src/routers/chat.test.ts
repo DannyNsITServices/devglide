@@ -703,6 +703,26 @@ describe('chat router invite permission modes', () => {
     });
   });
 
+  it('GET /invite/available detects Cursor via agent.cmd fallback', async () => {
+    execSyncMock.mockImplementation((cmd: string) => {
+      if (typeof cmd !== 'string') throw new Error('unexpected command type');
+      if (cmd === 'claude --version' || cmd === 'codex --version' || cmd === 'agent.cmd --version') return '';
+      throw new Error('not found');
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/invite/available?rescan=true`);
+      expect(response.status).toBe(200);
+      const data = await response.json();
+
+      const cursor = data.find((l: { cli: string }) => l.cli === 'cursor');
+      expect(cursor).toBeDefined();
+      expect(execSyncMock).toHaveBeenCalledWith('cursor-agent --version', { stdio: 'pipe', timeout: 5000 });
+      expect(execSyncMock).toHaveBeenCalledWith('cursor-agent.cmd --version', { stdio: 'pipe', timeout: 5000 });
+      expect(execSyncMock).toHaveBeenCalledWith('agent.cmd --version', { stdio: 'pipe', timeout: 5000 });
+    });
+  });
+
   it('POST /invite accepts mode parameter and returns it', async () => {
     await withServer(async (baseUrl) => {
       const response = await fetch(`${baseUrl}/invite`, {
@@ -806,6 +826,42 @@ describe('chat router invite permission modes', () => {
       expect(registryMock.join).toHaveBeenCalledWith('claude', 'llm', data.paneId, 'claude', '\r', 'project-1', 'rest');
       expect(mockPtyWrite).toHaveBeenCalledTimes(1);
       expect(mockPtyWrite.mock.calls[0][0]).toContain('mcp__devglide-chat__chat_join');
+    });
+  });
+
+  it('POST /invite launches Cursor with the resolved agent.cmd fallback', async () => {
+    execSyncMock.mockImplementation((cmd: string) => {
+      if (typeof cmd !== 'string') throw new Error('unexpected command type');
+      if (cmd === 'agent.cmd --version') return '';
+      throw new Error('not found');
+    });
+
+    const { pty, write: mockPtyWrite } = createMockPty();
+    spawnGlobalPtyMock.mockImplementation((id: string) => {
+      const promptOutput = 'bash-5.2$ ';
+      shellStateMock.globalPtys.set(id, {
+        ptyProcess: pty,
+        chunks: [promptOutput],
+        totalLen: promptOutput.length,
+      });
+      return pty;
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/invite`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cli: 'cursor' }),
+      });
+
+      expect(response.status).toBe(201);
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(execSyncMock).toHaveBeenCalledWith('cursor-agent --version', { stdio: 'pipe', timeout: 5000 });
+      expect(execSyncMock).toHaveBeenCalledWith('cursor-agent.cmd --version', { stdio: 'pipe', timeout: 5000 });
+      expect(execSyncMock).toHaveBeenCalledWith('agent.cmd --version', { stdio: 'pipe', timeout: 5000 });
+      expect(mockPtyWrite).toHaveBeenCalledTimes(1);
+      expect(mockPtyWrite.mock.calls[0][0]).toContain("'agent.cmd' chat");
     });
   });
 

@@ -148,7 +148,8 @@ export function createChatMcpServer(): McpServer {
         '- `chat_leave(paneId?)` — unregister from the chat room. Pass `paneId` if this MCP session has no tracked state (e.g. after a REST-only join).',
         '- `chat_send(message, to?, paneId?)` — send a message. Delivery is broadcast within the project; use `@mentions` only to signal who should respond. Messages that start with `#pipe-` or reference a currently running `#pipe-*` are rejected — use `pipe_submit` instead. Pass `paneId` to adopt a REST-joined session.',
         '- `pipe_submit(pipeId, content, paneId?)` — submit your output for a pipe stage. Use this instead of `chat_send` when responding to a `#pipe-` prompt. Pass `paneId` to adopt a REST-joined session.',
-        '- `pipe_read_output(pipeId, paneId?)` — read the pipe input you are entitled to. Returns only the output the state machine says you can access right now (previous stage for linear, fan-out outputs for synth). Caller identity resolved from session.',
+        '- `pipe_get_assignment(pipeId, paneId?)` — inspect assignment metadata (role, stage, lease status, deadline). Use this to confirm what you are assigned to do. Does not return stage content.',
+        '- `pipe_read_output(pipeId, paneId?)` — read the stage input content you are entitled to (previous stage output for linear, original prompt for fan-out, aggregated fan-out outputs for synthesizer). Caller identity resolved from session.',
         '- `chat_read(limit?, since?)` — read message history.',
         '- `chat_members()` — list active participants with pane link status.',
       ],
@@ -388,7 +389,7 @@ export function createChatMcpServer(): McpServer {
 
   server.tool(
     'pipe_read_output',
-    'Read the pipe input you are entitled to for the current stage. Returns only the output this caller can access based on pipe state and session identity. Takes only pipeId — caller identity is resolved from your chat session.',
+    'Read the stage input content you are entitled to for the current stage. Returns previous stage output (linear), original prompt (fan-out), or aggregated fan-out outputs (synthesizer). This is the content tool — use pipe_get_assignment for assignment metadata. Caller identity resolved from your chat session.',
     {
       pipeId: z.string().describe('The pipe ID — accepts "#pipe-abc123", "pipe-abc123", or just "abc123"'),
       paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session before reading. Only needed when this MCP session has no tracked chat state.'),
@@ -436,7 +437,7 @@ export function createChatMcpServer(): McpServer {
 
   server.tool(
     'pipe_get_assignment',
-    'Get your assignment details for a specific pipe (role, stage, lease status, deadline).',
+    'Inspect assignment metadata for a specific pipe (role, stage, lease status, deadline). This is the metadata tool — use pipe_read_output for stage input content.',
     {
       pipeId: z.string().describe('The pipe ID'),
       paneId: z.string().optional().describe('Optional pane ID to adopt session.'),

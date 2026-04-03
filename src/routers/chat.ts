@@ -857,7 +857,7 @@ interface KnownLlm {
   /** Permission modes this CLI supports, in display order. 'supervised' is always implicit. */
   modes: PermissionMode[];
   /** Build the shell command to launch this CLI with a bootstrap prompt and permission mode. */
-  launchCmd: (prompt: string, mode?: PermissionMode) => string;
+  launchCmd: (prompt: string, mode?: PermissionMode, executable?: string) => string;
 }
 
 function shellEscape(s: string): string {
@@ -876,34 +876,34 @@ const KNOWN_LLMS: KnownLlm[] = [
   {
     cli: 'claude', name: 'Claude', icon: '🟣',
     modes: ['supervised', 'auto-accept'],
-    launchCmd: (p, mode) => {
+    launchCmd: (p, mode, executable = 'claude') => {
       const flags = (mode && CLI_MODE_FLAGS.claude?.[mode]) || [];
-      return `claude ${flags.join(' ')}${flags.length ? ' ' : ''}${shellEscape(p)}`;
+      return `${shellEscape(executable)} ${flags.join(' ')}${flags.length ? ' ' : ''}${shellEscape(p)}`;
     },
   },
   {
     cli: 'codex', name: 'Codex', icon: '🟢',
     modes: ['supervised', 'auto-accept'],
-    launchCmd: (p, mode) => {
+    launchCmd: (p, mode, executable = 'codex') => {
       const flags = (mode && CLI_MODE_FLAGS.codex?.[mode]) || [];
-      return `codex ${flags.join(' ')}${flags.length ? ' ' : ''}${shellEscape(p)}`;
+      return `${shellEscape(executable)} ${flags.join(' ')}${flags.length ? ' ' : ''}${shellEscape(p)}`;
     },
   },
   {
     cli: 'gemini', name: 'Gemini', icon: '🔵',
     modes: ['supervised'],
-    launchCmd: (p) => `gemini -i ${shellEscape(p)}`,
+    launchCmd: (p, _mode, executable = 'gemini') => `${shellEscape(executable)} -i ${shellEscape(p)}`,
   },
   {
     cli: 'cursor', name: 'Cursor', icon: '⚪',
     modes: ['supervised'],
-    launchCmd: (p) => `cursor-agent chat ${shellEscape(p)}`,
+    launchCmd: (p, _mode, executable = 'cursor-agent') => `${shellEscape(executable)} chat ${shellEscape(p)}`,
   },
 ];
 
-/** Binary to probe for each CLI (may differ from the display cli name). */
-const CLI_PROBE: Record<string, string> = {
-  cursor: 'cursor-agent',
+/** Probe candidates for each CLI, in order. */
+const CLI_PROBE_CANDIDATES: Record<string, string[]> = {
+  cursor: ['cursor-agent', 'cursor-agent.cmd', 'agent.cmd', 'cursor-agent.sh', 'agent.sh'],
 };
 
 let llmCache: { data: AvailableLlm[]; ts: number } | null = null;
@@ -914,6 +914,22 @@ interface AvailableLlm {
   name: string;
   icon: string;
   modes: PermissionMode[];
+}
+
+function getCliProbeCandidates(cli: string): string[] {
+  return CLI_PROBE_CANDIDATES[cli] ?? [cli];
+}
+
+function resolveCliCommand(cli: string): string | null {
+  for (const candidate of getCliProbeCandidates(cli)) {
+    try {
+      execSync(`${candidate} --version`, { stdio: 'pipe', timeout: 5000 });
+      return candidate;
+    } catch {
+      // not installed; try the next candidate
+    }
+  }
+  return null;
 }
 
 
@@ -933,12 +949,8 @@ function detectAvailableLlms(rescan = false): AvailableLlm[] {
   }
   const available: AvailableLlm[] = [];
   for (const llm of KNOWN_LLMS) {
-    const bin = CLI_PROBE[llm.cli] ?? llm.cli;
-    try {
-      execSync(`${bin} --version`, { stdio: 'pipe', timeout: 5000 });
+    if (resolveCliCommand(llm.cli)) {
       available.push({ cli: llm.cli, name: llm.name, icon: llm.icon, modes: llm.modes });
-    } catch {
-      // not installed
     }
   }
   llmCache = { data: available, ts: Date.now() };
@@ -1063,11 +1075,10 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Verify CLI is available
-  const bin = CLI_PROBE[cli] ?? cli;
-  try {
-    execSync(`${bin} --version`, { stdio: 'pipe', timeout: 5000 });
-  } catch {
-    return badRequest(res, `${bin} is not installed or not on PATH`);
+  const resolvedBin = resolveCliCommand(cli);
+  if (!resolvedBin) {
+    const candidates = getCliProbeCandidates(cli).join(', ');
+    return badRequest(res, `${llm.name} is not installed or not on PATH (tried: ${candidates})`);
   }
 
   const projectId = getActiveProject()?.id ?? null;
@@ -1127,7 +1138,7 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
   // the client starts with `chat_join` missing from the deferred tool list.
   const fallbackParticipant = registry.join(cli, 'llm', paneId, cli, '\r', projectId, 'rest');
   const bootstrap = buildChatJoinPrompt(cli, paneId, fallbackParticipant.name);
-  const inviteCmd = llm.launchCmd(bootstrap, mode);
+  const inviteCmd = llm.launchCmd(bootstrap, mode, resolvedBin);
 
   // Wait for the shell to be ready, then inject the LLM launch command.
   // This replaces the old `sleep 0.5` with proper readiness detection.
