@@ -120,8 +120,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--df-color-bg-base) 70%, transparent);
-  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--df-color-bg-base) 84%, transparent);
+  backdrop-filter: blur(4px);
   z-index: 40;
   animation: sui-fade-in var(--df-duration-fast) ease;
 }

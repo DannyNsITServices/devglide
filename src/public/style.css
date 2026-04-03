@@ -52,27 +52,27 @@ body {
 
 .aurora-blob:nth-child(1) {
   width: 600px; height: 600px;
-  background: rgba(125, 211, 252, 0.06);
+  background: rgba(125, 211, 252, 0.025);
   top: -10%; left: -5%;
   animation-duration: 25s;
 }
 .aurora-blob:nth-child(2) {
   width: 500px; height: 500px;
-  background: rgba(196, 181, 253, 0.05);
+  background: rgba(196, 181, 253, 0.018);
   top: 20%; right: -10%;
   animation-duration: 30s;
   animation-delay: -8s;
 }
 .aurora-blob:nth-child(3) {
   width: 450px; height: 450px;
-  background: rgba(253, 186, 154, 0.04);
+  background: rgba(253, 186, 154, 0.015);
   bottom: -5%; left: 30%;
   animation-duration: 22s;
   animation-delay: -14s;
 }
 .aurora-blob:nth-child(4) {
   width: 400px; height: 400px;
-  background: rgba(110, 231, 183, 0.04);
+  background: rgba(110, 231, 183, 0.015);
   bottom: 30%; right: 20%;
   animation-duration: 28s;
   animation-delay: -5s;
@@ -92,8 +92,8 @@ body::before {
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(rgba(125, 211, 252, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(125, 211, 252, 0.02) 1px, transparent 1px);
+    linear-gradient(rgba(125, 211, 252, 0.008) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.008) 1px, transparent 1px);
   background-size: 40px 40px;
   pointer-events: none;
   z-index: 0;
@@ -549,9 +549,9 @@ a:focus-visible,
   left: var(--df-space-3);
   right: var(--df-space-3);
   top: calc(100% + 4px);
-  background: color-mix(in srgb, var(--df-color-bg-overlay) 90%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--df-color-bg-overlay) 96%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   border: 1px solid var(--df-color-border-default);
   border-radius: var(--df-radius-lg);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
@@ -712,9 +712,9 @@ a:focus-visible,
 .project-modal-overlay {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, black 70%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: color-mix(in srgb, black 82%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: var(--df-z-index-modal);
   display: flex;
   align-items: center;
@@ -722,9 +722,9 @@ a:focus-visible,
 }
 
 .project-modal {
-  background: color-mix(in srgb, var(--df-color-bg-surface) 90%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 97%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   border: 1px solid var(--df-color-border-default);
   border-radius: var(--df-radius-xl);
   width: 400px;
@@ -822,7 +822,7 @@ a:focus-visible,
 
 .project-modal-btn.primary:hover {
   background: color-mix(in srgb, var(--df-color-accent-default) 22%, transparent);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--df-color-accent-default) 25%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--df-color-accent-default) 12%, transparent);
 }
 
 .project-modal-btn.danger {
@@ -832,7 +832,7 @@ a:focus-visible,
 
 .project-modal-btn.danger:hover {
   background: color-mix(in srgb, var(--df-color-state-error) 14%, transparent);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--df-color-state-error) 25%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--df-color-state-error) 12%, transparent);
 }
 
 /* ── Folder picker ──────────────────────────────────────────────────────── */
@@ -1002,9 +1002,9 @@ a:focus-visible,
   top: calc(100% + 6px);
   right: 0;
   width: calc(var(--sidebar-width) - var(--df-space-3) * 2);
-  background: color-mix(in srgb, var(--df-color-bg-surface) 90%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 97%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   border: 1px solid color-mix(in srgb, var(--df-color-state-error) 40%, transparent);
   border-radius: var(--df-radius-md);
   color: var(--df-color-state-error);
@@ -1067,9 +1067,9 @@ a:focus-visible,
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--df-color-bg-base) 70%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--df-color-bg-base) 84%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1080,9 +1080,9 @@ a:focus-visible,
 .modal-overlay.hidden { display: none; }
 
 .modal {
-  background: color-mix(in srgb, var(--df-color-bg-surface) 85%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 96%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   border: 1px solid var(--df-color-border-default);
   border-radius: var(--df-radius-xl);
   padding: var(--df-space-6);
@@ -1149,7 +1149,7 @@ a:focus-visible,
 .btn-primary:not(:disabled):hover {
   background: color-mix(in srgb, var(--df-color-accent-default) 22%, var(--df-color-bg-raised));
   border-color: var(--df-color-accent-default);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--df-color-accent-default) 25%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--df-color-accent-default) 12%, transparent);
   transform: translateY(-1px);
 }
 
@@ -1177,7 +1177,7 @@ a:focus-visible,
 
 .btn-danger:not(:disabled):hover {
   background: color-mix(in srgb, var(--df-color-state-error) 22%, var(--df-color-bg-raised));
-  box-shadow: 0 0 20px color-mix(in srgb, var(--df-color-state-error) 25%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--df-color-state-error) 12%, transparent);
   transform: translateY(-1px);
 }
 
@@ -1416,9 +1416,9 @@ a:focus-visible,
 
 .toast {
   padding: 10px 20px;
-  background: color-mix(in srgb, var(--df-color-bg-overlay) 85%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--df-color-bg-overlay) 96%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   color: var(--df-color-text-primary);
   border: 1px solid var(--df-color-border-default);
   border-radius: 999px;
@@ -1447,9 +1447,9 @@ a:focus-visible,
 .project-switcher-overlay {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--df-color-bg-base) 60%, transparent);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: color-mix(in srgb, var(--df-color-bg-base) 78%, transparent);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   z-index: var(--df-z-index-modal, 1000);
   display: flex;
   align-items: flex-start;
@@ -1464,9 +1464,9 @@ a:focus-visible,
 }
 
 .project-switcher {
-  background: color-mix(in srgb, var(--df-color-bg-surface) 92%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 98%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   border: 1px solid var(--df-color-border-default);
   border-radius: var(--df-radius-xl);
   width: 420px;

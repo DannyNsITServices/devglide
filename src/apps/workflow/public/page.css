@@ -42,8 +42,8 @@
   align-items: center;
   gap: var(--df-space-2);
   padding: var(--df-space-2) var(--df-space-4);
-  background: color-mix(in srgb, var(--df-color-bg-surface) 90%, transparent);
-  backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 97%, transparent);
+  backdrop-filter: blur(4px);
   border: 1px solid var(--df-color-border-default);
   border-radius: 999px;
   box-shadow: 0 4px 20px color-mix(in srgb, var(--df-color-bg-base) 50%, transparent);
@@ -160,7 +160,7 @@
   align-items: center;
   gap: var(--df-space-3);
   padding: var(--df-space-2) var(--df-space-4);
-  background: color-mix(in srgb, var(--df-color-bg-surface) 90%, transparent);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 97%, transparent);
   backdrop-filter: blur(8px);
   border-top: 1px solid var(--df-color-border-default);
   font-size: var(--df-font-size-xs);
@@ -187,8 +187,8 @@
   bottom: var(--df-space-3);
   width: 260px;
   z-index: 10;
-  background: color-mix(in srgb, var(--df-color-bg-surface) 90%, transparent);
-  backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 97%, transparent);
+  backdrop-filter: blur(4px);
   border: 1px solid var(--df-color-border-default);
   border-radius: 12px;
   overflow-y: auto;

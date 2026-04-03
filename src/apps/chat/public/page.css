@@ -553,9 +553,9 @@
   max-height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
-  background: color-mix(in srgb, var(--df-color-bg-surface) 85%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 96%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   border: 1px solid var(--df-color-border-default);
   border-radius: var(--df-radius-xl);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px color-mix(in srgb, var(--df-color-border-strong) 30%, transparent);
