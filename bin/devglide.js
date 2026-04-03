@@ -8,6 +8,7 @@ import { mkdirSync, writeFileSync, readFileSync, unlinkSync, existsSync, openSyn
 import { homedir } from "os";
 
 import { getClaudeMdContent, injectSection, removeSection } from "./claude-md-template.js";
+import { removeDevglideSectionsFromToml } from "./codex-config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -161,25 +162,6 @@ const codexConfigPath = resolve(homedir(), ".codex", "config.toml");
 
 function detectCodex() {
   return existsSync(resolve(homedir(), ".codex"));
-}
-
-/**
- * Remove all [mcp_servers.devglide-*] sections from TOML content.
- * Each section starts with a header and continues until the next [header] or EOF.
- */
-function removeDevglideSectionsFromToml(toml) {
-  const lines = toml.split('\n');
-  const result = [];
-  let skipping = false;
-  for (const line of lines) {
-    if (/^\[/.test(line)) {
-      skipping = /^\[mcp_servers\.devglide-/.test(line);
-    }
-    if (!skipping) {
-      result.push(line);
-    }
-  }
-  return result.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\n+$/, '\n');
 }
 
 /**

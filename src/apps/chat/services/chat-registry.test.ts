@@ -35,10 +35,9 @@ vi.mock('./chat-store.js', () => ({
 
 const registry = await import('./chat-registry.js');
 
-const R = registry.PTY_INTERACTION_REMINDER;
 /** Format a chat message as it would appear in PTY delivery to an LLM participant. */
 function pty(from: string, body: string): string {
-  return `[DevGlide Chat] @${from}: ${body}${R}`;
+  return `[DevGlide Chat] @${from}: ${body}`;
 }
 
 async function flushDeliveryQueue(): Promise<void> {
@@ -329,7 +328,7 @@ describe('chat-registry PTY delivery', () => {
     registry.leave(observer.name);
   });
 
-  it('appends interaction reminder only to LLM participants, not user participants', async () => {
+  it('does not append interaction reminder to any participant', async () => {
     const llmWrites: string[] = [];
     const userWrites: string[] = [];
 
@@ -366,12 +365,11 @@ describe('chat-registry PTY delivery', () => {
     await flushDeliveryQueue();
     await sendPromise;
 
-    // LLM participant gets the reminder
+    // Neither LLM nor user participant gets the reminder
     const llmMsg = llmWrites.find((w) => w.startsWith('[DevGlide Chat]'));
-    expect(llmMsg).toContain('<system-reminder>');
-    expect(llmMsg).toContain('chat_send');
+    expect(llmMsg).toBeDefined();
+    expect(llmMsg).not.toContain('<system-reminder>');
 
-    // User participant does NOT get the reminder
     const userMsg = userWrites.find((w) => w.startsWith('[DevGlide Chat]'));
     expect(userMsg).toBeDefined();
     expect(userMsg).not.toContain('<system-reminder>');

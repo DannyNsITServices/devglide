@@ -26,6 +26,7 @@ const registryMock = vi.hoisted(() => ({
   brainstormBackToIdeas: vi.fn(async () => false),
   persistParticipantsForProject: vi.fn(),
   deriveNameBase: vi.fn((hint: string, model: string | null) => (hint || model || 'agent').toLowerCase().replace(/[^a-z0-9-]/g, '')),
+  listAssignments: vi.fn(() => []),
 }));
 
 const storeMock = vi.hoisted(() => ({

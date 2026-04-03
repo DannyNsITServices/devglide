@@ -23,6 +23,7 @@ let _pipeTimingLoading = new Set();
 let _pipesCollapsed = false;
 let _expandedPipeId = null;
 let _showAllPipes = false;
+let _pipeDrawerOpen = false;
 let _pipesPollTimer = null;
 let _leaseTickTimer = null;
 let _autoScroll = true;
@@ -539,6 +540,25 @@ const BODY_HTML = `
         <button class="btn btn-primary btn-sm" id="chat-note-submit">Submit</button>
       </div>
     </div>
+  </div>
+
+  <button class="chat-pipe-fab" id="chat-pipe-fab" type="button" aria-label="Open pipe monitor">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    <span class="chat-pipe-fab-count hidden" id="chat-pipe-fab-count"></span>
+    <span class="chat-pipe-fab-alert hidden" id="chat-pipe-fab-alert"></span>
+  </button>
+
+  <div class="chat-pipe-drawer-overlay" id="chat-pipe-drawer-overlay"></div>
+  <div class="chat-pipe-drawer" id="chat-pipe-drawer" role="dialog" aria-label="Pipe monitor">
+    <div class="chat-pipe-drawer-handle" id="chat-pipe-drawer-handle"></div>
+    <div class="chat-pipe-drawer-header">
+      <div class="chat-pipe-drawer-title">
+        <span id="chat-pipe-drawer-title">Pipes (0)</span>
+        <span class="chat-pipes-alert hidden" id="chat-pipe-drawer-alert"></span>
+      </div>
+      <button class="chat-pipe-drawer-close" id="chat-pipe-drawer-close" type="button">Close</button>
+    </div>
+    <div class="chat-pipe-drawer-body" id="chat-pipe-drawer-list"></div>
   </div>
 `;
 
@@ -1137,6 +1157,9 @@ function renderPipes() {
   if (!listEl) return;
 
   renderPipeAlert();
+  // Mobile FAB and drawer render independently of desktop collapse state
+  renderMobilePipeFab();
+  renderMobilePipeDrawerContent();
 
   if (toggleEl) {
     toggleEl.textContent = _pipesCollapsed ? 'Show' : 'Hide';
@@ -1190,6 +1213,110 @@ function renderPipes() {
     });
     listEl.appendChild(historyToggle);
   }
+}
+
+// ── Mobile pipe FAB + drawer ──────────────────────────────────────
+
+function renderMobilePipeFab() {
+  const fab = _container?.querySelector('#chat-pipe-fab');
+  if (!fab) return;
+
+  const runningCount = _pipeSummaries.filter(p => p.status === 'running').length;
+  const deadCount = _pipeDeadLetters.length;
+
+  const countEl = fab.querySelector('#chat-pipe-fab-count');
+  if (countEl) {
+    countEl.textContent = String(runningCount);
+    countEl.classList.toggle('hidden', runningCount === 0);
+  }
+
+  const alertEl = fab.querySelector('#chat-pipe-fab-alert');
+  if (alertEl) {
+    alertEl.textContent = String(deadCount);
+    alertEl.classList.toggle('hidden', deadCount === 0);
+  }
+
+  fab.classList.toggle('has-running', runningCount > 0);
+  fab.classList.toggle('has-alert', deadCount > 0);
+}
+
+function renderMobilePipeDrawerContent() {
+  const drawerList = _container?.querySelector('#chat-pipe-drawer-list');
+  const drawerTitle = _container?.querySelector('#chat-pipe-drawer-title');
+  const drawerAlert = _container?.querySelector('#chat-pipe-drawer-alert');
+  if (!drawerList) return;
+
+  // Update drawer alert badge
+  if (drawerAlert) {
+    drawerAlert.classList.toggle('hidden', _pipeDeadLetters.length === 0);
+    drawerAlert.textContent = _pipeDeadLetters.length > 0
+      ? `! ${_pipeDeadLetters.length}` : '';
+  }
+
+  const {
+    visiblePipes,
+    hiddenTerminalCount,
+    totalCount,
+    totalTerminalCount,
+    canToggleTerminalHistory,
+  } = getVisiblePipeSummaries(_pipeSummaries, {
+    expandedPipeId: _expandedPipeId,
+    showAll: _showAllPipes,
+    terminalLimit: DEFAULT_VISIBLE_TERMINAL,
+  });
+
+  if (drawerTitle) {
+    drawerTitle.textContent = hiddenTerminalCount > 0
+      ? `Pipes (${visiblePipes.length} of ${totalCount})`
+      : `Pipes (${totalCount})`;
+  }
+
+  drawerList.innerHTML = '';
+
+  if (visiblePipes.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'chat-pipe-row-hint';
+    empty.textContent = 'No active or recent pipes.';
+    drawerList.appendChild(empty);
+    return;
+  }
+
+  for (const pipe of visiblePipes) {
+    drawerList.appendChild(buildPipeRowEl(pipe));
+  }
+
+  if (canToggleTerminalHistory) {
+    const historyToggle = document.createElement('button');
+    historyToggle.className = 'btn btn-ghost btn-sm chat-pipes-show-all';
+    historyToggle.type = 'button';
+    historyToggle.textContent = _showAllPipes
+      ? 'Show fewer'
+      : `Show all history (${totalTerminalCount})`;
+    historyToggle.addEventListener('click', () => {
+      _showAllPipes = !_showAllPipes;
+      renderPipes();
+    });
+    drawerList.appendChild(historyToggle);
+  }
+}
+
+function openPipeDrawer() {
+  _pipeDrawerOpen = true;
+  const overlay = _container?.querySelector('#chat-pipe-drawer-overlay');
+  const drawer = _container?.querySelector('#chat-pipe-drawer');
+  overlay?.classList.add('visible');
+  // Force reflow then open for CSS transition
+  drawer?.offsetHeight; // eslint-disable-line no-unused-expressions
+  drawer?.classList.add('open');
+  renderMobilePipeDrawerContent();
+}
+
+function closePipeDrawer() {
+  _pipeDrawerOpen = false;
+  const overlay = _container?.querySelector('#chat-pipe-drawer-overlay');
+  const drawer = _container?.querySelector('#chat-pipe-drawer');
+  overlay?.classList.remove('visible');
+  drawer?.classList.remove('open');
 }
 
 async function fetchPipes() {
@@ -1859,6 +1986,12 @@ function bindEvents() {
     _pipesCollapsed = !_pipesCollapsed;
     renderPipes();
   });
+
+  // Mobile pipe drawer
+  _container.querySelector('#chat-pipe-fab')?.addEventListener('click', openPipeDrawer);
+  _container.querySelector('#chat-pipe-drawer-overlay')?.addEventListener('click', closePipeDrawer);
+  _container.querySelector('#chat-pipe-drawer-close')?.addEventListener('click', closePipeDrawer);
+  _container.querySelector('#chat-pipe-drawer-handle')?.addEventListener('click', closePipeDrawer);
   _container.querySelector('#chat-rules-textarea')?.addEventListener('input', syncRulesDraftFromInput);
   _container.querySelector('#chat-rules-overlay')?.addEventListener('click', (e) => {
     if (e.target?.id === 'chat-rules-overlay') closeRulesEditor();
@@ -1899,6 +2032,7 @@ export function mount(container, ctx) {
   _pipesCollapsed = false;
   _expandedPipeId = null;
   _showAllPipes = false;
+  _pipeDrawerOpen = false;
   _autoScroll = true;
   _rulesDraft = '';
   _rulesLoaded = false;

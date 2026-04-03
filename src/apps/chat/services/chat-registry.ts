@@ -25,12 +25,6 @@ const panePromptWatchers = new Map<string, { dispose: () => void }>();
 
 const PTY_SUBMIT_DELAY_MS = 1000;
 
-/** Short reminder appended to PTY-delivered messages for LLM participants only. */
-export const PTY_INTERACTION_REMINDER =
-  '\n<system-reminder>\n' +
-  'Reply via `chat_send` (not shell output). For #pipe-* stages use `pipe_submit`. ' +
-  'Discussion only \u2014 execute only when explicitly assigned. Start user-directed replies with @user.\n' +
-  '</system-reminder>';
 const PARTICIPANT_IDLE_TIMEOUT_MS = 30_000;
 const PROMPT_QUIESCENCE_MS = 2000;
 const PANE_DISCONNECT_TIMEOUT_MS = 10_000; // 10 seconds before auto-removal
@@ -794,9 +788,6 @@ function deliverToPty(targetName: string, projectId: string | null, msg: ChatMes
       }
 
       let formatted = `[DevGlide Chat] @${msg.from}: ${msg.body}`;
-      if (liveTarget.kind === 'llm') {
-        formatted += PTY_INTERACTION_REMINDER;
-      }
 
       // Write with retry — if the initial write fails, retry once after a short delay
       let writeOk = false;
