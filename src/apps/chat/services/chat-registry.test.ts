@@ -310,15 +310,16 @@ describe('chat-registry PTY delivery', () => {
     const sendPromise = registry.send(sender.name, `@${target.name} please handle this`);
     await flushDeliveryQueue();
 
+    // Targeted delivery: only @mentioned target receives PTY, observer does not
     expect(writesSender).toEqual([]);
     expect(writesA).toEqual([pty(sender.name, `@${target.name} please handle this`)]);
-    expect(writesB).toEqual([]);
+    expect(writesB).toEqual([]); // observer not mentioned — no delivery
 
-    // First delivery completes (submit delay), second starts
     await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
-    expect(writesB).toEqual([pty(sender.name, `@${target.name} please handle this`)]);
+    // Observer still empty — targeted delivery means non-mentioned participants don't receive
+    expect(writesB).toEqual([]);
 
     await vi.advanceTimersByTimeAsync(1000);
     await sendPromise;
@@ -354,7 +355,8 @@ describe('chat-registry PTY delivery', () => {
     });
     const sender = registry.join('codex', 'llm', 'pane-sender', 'codex', '\r');
 
-    const sendPromise = registry.send(sender.name, 'hello everyone');
+    // Use @all so the LLM message is broadcast (LLMs without @mention get no delivery)
+    const sendPromise = registry.send(sender.name, '@all hello everyone');
 
     // Drain all deliveries
     await vi.advanceTimersByTimeAsync(1000);
@@ -376,7 +378,7 @@ describe('chat-registry PTY delivery', () => {
 
     // Stored message has no reminder
     const stored = chatStoreMock.appendMessage.mock.calls.find(
-      (c: unknown[]) => (c[0] as { body: string }).body === 'hello everyone',
+      (c: unknown[]) => (c[0] as { body: string }).body === '@all hello everyone',
     );
     expect(stored).toBeDefined();
     expect((stored![0] as { body: string }).body).not.toContain('<system-reminder>');

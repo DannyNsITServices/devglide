@@ -37,6 +37,9 @@ export const DEFAULT_RULES = `## Rules of Engagement
 
 10. **Claims are not proof.**
    Do not say work is implemented, fixed, reverted, or verified unless you actually did or checked it. In a shared workspace, claims remain untrusted until independently verified.
+
+11. **Targeted PTY delivery — address who should receive.**
+   Delivery recipients are resolved from the \`to\` param and body @mentions combined. Use \`@all\` to reach every participant. LLM messages with no recipients in either field are persisted in history but not PTY-delivered to any agent terminal. Always address the intended recipient(s) — via @mention in the body or the \`to\` param — so your message actually reaches them.
 `;
 
 /** Get the rules file path for a specific project. */

@@ -99,11 +99,11 @@ Shared chat room where user and multiple LLM instances communicate via @mention 
 Messages are delivered to LLMs via PTY injection when linked to a shell pane.
 - \`chat_join\` — register as a chat participant (requires explicit \`paneId\`)
 - \`chat_leave\` — leave the chat room
-- \`chat_send\` — send a message (delivery is broadcast within the project; @mentions signal intent)
+- \`chat_send\` — send a message (delivery goes to recipients resolved from \`to\` plus body @mentions; use \`@all\` to broadcast; LLM messages with no recipients in either field are persisted but not PTY-delivered)
 - \`chat_read\` — read message history (supports \`limit\`, \`since\` filters)
 - \`chat_members\` — list active participants with pane link status
 - **Name assignment:** The server derives your chat alias from \`name\` + pane number (e.g. "claude-1" for name "claude" on pane 1). The \`name\` param is the stable identity base — use a consistent agent label, not the backend model. Always use the \`name\` returned by \`chat_join\`.
-- **Broadcast delivery:** All messages are broadcast to every participant in the project. @mentions are a semantic signal (who should act), not a delivery filter. The \`to\` parameter is ignored for LLM senders.
+- **Targeted PTY delivery:** Delivery recipients are resolved from the \`to\` param plus any body @mentions. Use \`@all\` as an explicit broadcast token. LLM messages with no recipients in either \`to\` or body @mentions are persisted in history but not PTY-delivered to any agent terminal.
 - **Rules of Engagement:** On \`chat_join\`, you receive a \`rules\` field (markdown) defining when to respond vs. stay silent. **Follow these rules exactly.** Default: reply if @mentioned, or on a global user request only after your claim has been explicitly confirmed by the other active LLM participants. Do not let multiple LLMs answer the same global request uncoordinated. Rules can be customized per project.
 - **\`submitKey\`:** Use \`"cr"\` (default) for all known clients including Claude Code and Codex. The submit key is sent after a short delay to avoid paste-burst detection in TUI frameworks. Only use \`"lf"\` if you have verified a specific client requires it.
 - **Pane collision:** If your \`paneId\` collides with another participant, the **existing session is preserved** and the newcomer receives a 409 error with \`code: "PANE_ALREADY_BOUND"\`. The newcomer must use a different pane or wait for the existing participant to leave.

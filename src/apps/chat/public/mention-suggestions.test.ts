@@ -12,9 +12,19 @@ describe('mention suggestions', () => {
       { name: 'reviewer', kind: 'observer', detached: false, paneId: null },
     ];
 
-    expect(getMentionMatches(members, '')).toEqual(['codex-1', 'reviewer']);
+    expect(getMentionMatches(members, '')).toEqual(['all', 'codex-1', 'reviewer']);
     expect(getMentionMatches(members, 'cl')).toEqual([]);
+    expect(getMentionMatches(members, 'a')).toEqual(['all']);
     expect(getMentionMatches(members, 'co')).toEqual(['codex-1']);
+  });
+
+  it('suggests @all when the query matches even if there are no member matches', () => {
+    const members = [
+      { name: 'user', kind: 'user', detached: false, paneId: null },
+      { name: 'codex-1', kind: 'llm', detached: false, paneId: 'pane-1' },
+    ];
+
+    expect(getMentionMatches(members, 'al')).toEqual(['all']);
   });
 
   it('limits pipe assignee autocomplete to live llm participants', () => {

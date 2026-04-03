@@ -124,7 +124,7 @@ export function createChatMcpServer(): McpServer {
         '',
         '### Sending messages',
         '- Use `chat_send` to send a message. Use **@mentions in the message body** to address specific participants (e.g. `@user check this`).',
-        '- **All messages are broadcast** to every participant in the project. @mentions are a semantic signal (who should act), not a delivery filter.',
+        '- **Targeted PTY delivery:** Delivery recipients are resolved from the `to` param plus any `@mentions` in the message body. Use `@all` as an explicit broadcast token to reach all participants. LLM messages with no recipients in either `to` or body @mentions are persisted in history but not PTY-delivered to any agent terminal.',
         '- Never @mention yourself — messages are never delivered back to the sender.',
         '- Markdown is supported in message bodies.',
         '',
@@ -140,13 +140,13 @@ export function createChatMcpServer(): McpServer {
         '### Limitations',
         '- You cannot send messages to yourself (self-mentions are ignored).',
         '- Only participants in the same project see each other and can exchange messages.',
-        '- The `to` parameter on `chat_send` is only effective for user senders. LLMs should rely on the returned rules of engagement and message-body intent.',
+        '- The `to` param and body @mentions are both merged to build the delivery target set for all senders including LLMs. Leaving both empty means no PTY delivery for LLM senders.',
         '- Participants are in-memory only — if the server restarts, everyone must rejoin.',
         '',
         '### Quick reference — commonly confused parameters',
         '- `chat_join(name, model?, paneId, submitKey?)` — register. `paneId` is required and must come from `DEVGLIDE_PANE_ID` in your shell (never `"auto"`). Check returned `name` (server assigns it). `"user"`/`"system"` reserved. `submitKey`: `"cr"` (default, correct for all known clients including Claude Code and Codex).',
         '- `chat_leave(paneId?)` — unregister from the chat room. Pass `paneId` if this MCP session has no tracked state (e.g. after a REST-only join).',
-        '- `chat_send(message, to?, paneId?)` — send a message. Delivery is broadcast within the project; use `@mentions` only to signal who should respond. Messages that start with `#pipe-` or reference a currently running `#pipe-*` are rejected — use `pipe_submit` instead. Pass `paneId` to adopt a REST-joined session.',
+        '- `chat_send(message, to?, paneId?)` — send a message. Delivery goes to recipients resolved from `to` plus body @mentions; use `@all` to broadcast to all participants. LLM messages with no recipients in either field are persisted but not PTY-delivered. Messages that start with `#pipe-` or reference a currently running `#pipe-*` are rejected — use `pipe_submit` instead. Pass `paneId` to adopt a REST-joined session.',
         '- `pipe_submit(pipeId, content, paneId?)` — submit your output for a pipe stage. Use this instead of `chat_send` when responding to a `#pipe-` prompt. Pass `paneId` to adopt a REST-joined session.',
         '- `pipe_get_assignment(pipeId, paneId?)` — inspect assignment metadata (role, stage, lease status, deadline). Use this to confirm what you are assigned to do. Does not return stage content.',
         '- `pipe_read_output(pipeId, paneId?)` — read the stage input content you are entitled to (previous stage output for linear, original prompt for fan-out, aggregated fan-out outputs for synthesizer). Caller identity resolved from session.',
@@ -334,10 +334,10 @@ export function createChatMcpServer(): McpServer {
 
   server.tool(
     'chat_send',
-    'Send a message to the chat room. Omit "to" for broadcast, or specify a recipient name. Messages that start with #pipe- or reference a currently running #pipe-* are rejected — use pipe_submit for pipe stage output.',
+    'Send a message to the chat room. Delivery goes to recipients resolved from the `to` param plus body @mentions; use @all to broadcast to all participants. LLM messages with no recipients in either field are persisted but not PTY-delivered. Messages that start with #pipe- or reference a currently running #pipe-* are rejected — use pipe_submit for pipe stage output.',
     {
       message: z.string().describe('Message text (markdown supported)'),
-      to: z.string().optional().describe('Recipient name for direct message, or omit for broadcast'),
+      to: z.string().optional().describe('Recipient name for direct delivery. Merged with body @mentions to build the delivery target set. For LLM senders, leaving both empty means no PTY delivery.'),
       paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session before sending. Only needed when this MCP session has no tracked chat state.'),
     },
     async ({ message, to, paneId }) => {
@@ -459,7 +459,7 @@ export function createChatMcpServer(): McpServer {
 
   server.tool(
     'chat_read',
-    'Read recent chat message history.',
+    'Read recent chat message history. Returns all persisted messages regardless of PTY delivery — some messages may not have been injected into your terminal pane.',
     {
       limit: z.number().optional().describe('Max messages to return (default 50)'),
       since: z.string().optional().describe('ISO timestamp — only return messages after this time'),

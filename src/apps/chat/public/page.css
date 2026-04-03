@@ -475,6 +475,13 @@
   text-align: right;
 }
 
+.chat-msg-unresolved-warn {
+  font-size: 10px;
+  color: var(--df-color-warning, #f59e0b);
+  opacity: 0.85;
+  margin-top: 4px;
+  white-space: pre-line;
+}
 
 /* ── New messages indicator ─────────────────────────────────────── */
 .chat-new-indicator {
@@ -871,6 +878,7 @@
 .chat-pipe-row-hint {
   color: var(--df-color-text-muted);
   font-style: italic;
+  font-size: var(--df-font-size-xs);
   padding: 2px 0;
   word-break: break-word;
 }

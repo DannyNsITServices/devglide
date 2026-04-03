@@ -691,39 +691,75 @@ export async function send(from: string, body: string, to?: string, projectId?: 
     if (pipeMeta) body = ensurePipeAnchor(body, pipeMeta.pipeId);
   }
 
-  // Resolve targets:
-  // - User senders: explicit `to` takes priority, then body @mentions
-  // - LLM senders: always extract @mentions from body (ignore `to` param)
-  const targets = resolveTargets(from, body, to, senderKind, resolvedSenderProjectId);
+  // ─── Build delivery plan (targeted PTY delivery) ────────────────────
+  const plan = buildDeliveryPlan(from, body, to, senderKind, resolvedSenderProjectId);
 
   if (sender?.kind === 'llm' && sender.projectId === resolvedSenderProjectId && sender.status && sender.status !== 'idle') {
     setParticipantStatus(sender.name, resolvedSenderProjectId, sender.status);
   }
+  // Status side-effects use concreteAssignees only — NOT recipients.
+  // This prevents @all from setting every agent to "working".
   if (senderKind === 'user') {
-    for (const targetName of targets) {
+    for (const targetName of plan.concreteAssignees) {
       const status = markAssignedParticipantStatus(body, targetName);
       if (status) setParticipantStatus(targetName, resolvedSenderProjectId, status);
     }
   }
 
+  const displayTo = plan.targetLabels.length === 1
+    ? plan.targetLabels[0]
+    : plan.targetLabels.length > 1
+      ? plan.targetLabels.join(',')
+      : null;
+
+  // ─── Compute delivery count BEFORE persisting ──────────────────────
+  // So deliveredTo is included in the persisted message and socket emit.
+  let expectedDeliveryCount: number;
+  if (plan.recipients.length > 0) {
+    expectedDeliveryCount = plan.recipients.length;
+  } else if (plan.fallbackBroadcast) {
+    // Count broadcast targets (Option B fallback)
+    expectedDeliveryCount = 0;
+    for (const p of participants.values()) {
+      if (p.name !== from && p.paneId && p.projectId === resolvedSenderProjectId) {
+        expectedDeliveryCount++;
+      }
+    }
+  } else {
+    expectedDeliveryCount = 0;
+  }
+
   const msg = appendMessage({
     from,
-    to: targets.length === 1 ? targets[0] : targets.length > 1 ? targets.join(',') : null,
+    to: displayTo,
     body,
     type: 'message',
     ...(pipeMeta ? { pipe: pipeMeta } : {}),
+    ...(expectedDeliveryCount > 0 ? { deliveredTo: expectedDeliveryCount } : {}),
+    ...(plan.unresolvedTargets.length > 0 ? { unresolvedTargets: plan.unresolvedTargets } : {}),
   }, resolvedSenderProjectId);
 
   // Emit to dashboard clients viewing this project only
   emitToProject('chat:message', msg, resolvedSenderProjectId);
 
-  // PTY delivery — broadcast every message to all same-project participants except the sender.
-  // `targets` remain semantic metadata for intent and UI display.
-  for (const p of participants.values()) {
-    if (p.name !== from && p.paneId && p.projectId === resolvedSenderProjectId) {
-      await deliverToPty(p.name, resolvedSenderProjectId, msg);
+  // ─── Targeted PTY delivery ─────────────────────────────────────────
+  // Deliver only to resolved recipients. If no recipients and sender is
+  // user/system, fall back to broadcast (Option B backward compat).
+  // LLM messages with no @mention: NO PTY delivery (token savings).
+  if (plan.recipients.length > 0) {
+    for (const name of plan.recipients) {
+      await deliverToPty(name, resolvedSenderProjectId, msg);
+    }
+  } else if (plan.fallbackBroadcast) {
+    // Option B: unaddressed user/system messages still broadcast
+    for (const p of participants.values()) {
+      if (p.name !== from && p.paneId && p.projectId === resolvedSenderProjectId) {
+        await deliverToPty(p.name, resolvedSenderProjectId, msg);
+      }
     }
   }
+  // LLM with no @mention and no fallback: no PTY delivery.
+  // Message is persisted (above) and visible in dashboard — just not PTY-injected.
 
   // ─── Pipe reducer: check if this message triggers next step ────────
   // NOTE: pipeMeta is only set for legacy pipes NOT tracked in the store.
@@ -736,32 +772,117 @@ export async function send(from: string, body: string, to?: string, projectId?: 
   return msg;
 }
 
-/** Extract delivery targets from explicit `to` param or @mentions in message body.
- *  Only considers participants in the active project.
- *  For LLM senders: always extract @mentions from body (LLMs target via @mentions only).
- *  For user senders: explicit `to` takes priority, then body @mentions. */
-function resolveTargets(from: string, body: string, to?: string, senderKind?: 'user' | 'llm', projectId?: string | null): string[] {
-  const pid = resolveProjectId(projectId);
+// ─── Targeted PTY Delivery — Two-stage target resolution ────────────
 
-  // Explicit `to` takes priority — but only for user senders.
-  // LLM senders always resolve from body @mentions.
-  if (to && senderKind !== 'llm') {
-    const target = getParticipantExact(to, pid);
-    return target && target.projectId === pid ? [to] : [];
+/** Reserved pseudo-targets that are semantic only (no PTY delivery). */
+const SEMANTIC_ONLY_TARGETS = new Set(['user', 'system']);
+
+/** Extract raw @mention tokens from message body (pure string parsing, no state).
+ *  Returns tokens like ["all"], ["claude-7", "codex-14"], ["team-ui"], or [].
+ *  Handles explicit `to` param for non-LLM senders, merging with body @mentions. */
+export function parseTargetTokens(body: string, to?: string, senderKind?: 'user' | 'llm'): string[] {
+  const tokens: string[] = [];
+
+  // Explicit `to` param — merge into token list (union approach).
+  // Merged for ALL senders including LLMs so code matches docs.
+  if (to) {
+    const normalized = to.trim().toLowerCase();
+    if (normalized && !tokens.includes(normalized)) tokens.push(normalized);
   }
 
-  // Scan body for all @mentions that match known participants in this project
-  const mentions: string[] = [];
+  // Scan body for all @mentions
   const regex = /@(\S+)/g;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(body)) !== null) {
-    const name = match[1];
-    const p = getParticipantExact(name, pid);
-    if (p && p.projectId === pid && name !== from && !mentions.includes(name)) {
-      mentions.push(name);
+    // Strip trailing punctuation (handles "@claude-7," or "@all:")
+    const token = match[1].replace(/[,.:;!?]+$/, '');
+    if (token && !tokens.includes(token)) tokens.push(token);
+  }
+
+  return tokens;
+}
+
+/** Expand raw target tokens into concrete participant names for PTY delivery.
+ *  Returns { recipients, concreteAssignees } — recipients is the full delivery list,
+ *  concreteAssignees is direct @mentions only (no group expansions) for status side-effects. */
+export function expandToRecipients(
+  tokens: string[],
+  from: string,
+  projectId: string | null,
+): { recipients: string[]; concreteAssignees: string[]; unresolvedTargets: string[] } {
+  const recipientSet = new Set<string>();
+  const concreteSet = new Set<string>();
+  const unresolvedSet = new Set<string>();
+  const pid = resolveProjectId(projectId);
+
+  for (const token of tokens) {
+    if (token === 'all') {
+      // @all → every live, non-detached participant except sender
+      for (const p of participants.values()) {
+        if (p.name !== from && p.projectId === pid && !p.detached && p.paneId) {
+          recipientSet.add(p.name);
+        }
+      }
+      // @all does NOT add to concreteAssignees — it's a group expansion
+    } else if (token.startsWith('team-') || token.startsWith('team_')) {
+      // @team-{name} → Phase 2 placeholder. When team store lands, resolve roster here.
+      // Until then, treat as unresolved so the sender sees a warning.
+      unresolvedSet.add(token);
+    } else if (SEMANTIC_ONLY_TARGETS.has(token)) {
+      // @user, @system — semantic only, no PTY delivery target
+      continue;
+    } else {
+      // Individual participant name
+      const p = getParticipantExact(token, pid);
+      if (p && p.projectId === pid && p.name !== from) {
+        concreteSet.add(p.name);  // direct @mention → concrete assignee (always, for status)
+        // Only add to recipients if live and deliverable (not detached, has pane)
+        if (!p.detached && p.paneId) {
+          recipientSet.add(p.name);
+        }
+      } else if (!p || p.projectId !== pid) {
+        // Token doesn't match any known participant in this project
+        unresolvedSet.add(token);
+      }
     }
   }
-  return mentions;
+
+  return {
+    recipients: [...recipientSet],
+    concreteAssignees: [...concreteSet],
+    unresolvedTargets: [...unresolvedSet],
+  };
+}
+
+/** Build a complete delivery plan from message content and sender context.
+ *  Combines token parsing + recipient expansion + fallback logic. */
+export function buildDeliveryPlan(
+  from: string,
+  body: string,
+  to: string | undefined,
+  senderKind: 'user' | 'llm',
+  projectId: string | null,
+): import('../types.js').DeliveryPlan {
+  const tokens = parseTargetTokens(body, to, senderKind);
+  const { recipients, concreteAssignees, unresolvedTargets } = expandToRecipients(tokens, from, projectId);
+
+  // Determine fallback: ONLY truly unaddressed user/system messages broadcast (Option B).
+  // If the sender wrote @mentions that didn't resolve (typo, offline, semantic-only),
+  // that is NOT "unaddressed" — they intended a target, it just failed. No fallback.
+  const hadTargetIntent = tokens.length > 0;
+  const fallbackBroadcast = !hadTargetIntent && recipients.length === 0
+    && (senderKind === 'user' || from === 'system');
+
+  // Filter tokens for display (remove semantic-only targets from msg.to)
+  const targetLabels = tokens.filter(t => !SEMANTIC_ONLY_TARGETS.has(t));
+
+  return { targetLabels, recipients, concreteAssignees, fallbackBroadcast, unresolvedTargets };
+}
+
+/** @deprecated Use buildDeliveryPlan() instead. Kept for backward compatibility during migration. */
+function resolveTargets(from: string, body: string, to?: string, senderKind?: 'user' | 'llm', projectId?: string | null): string[] {
+  const plan = buildDeliveryPlan(from, body, to, senderKind ?? 'llm', projectId ?? null);
+  return plan.concreteAssignees;
 }
 
 function deliverToPty(targetName: string, projectId: string | null, msg: ChatMessage): Promise<void> {

@@ -1445,6 +1445,12 @@ function appendMessageEl(msg, doScroll = true) {
     time.textContent = formatTime(msg.ts);
     el.appendChild(body);
     el.appendChild(time);
+    if (msg.unresolvedTargets?.length > 0) {
+      const warn = document.createElement('div');
+      warn.className = 'chat-msg-unresolved-warn';
+      warn.textContent = msg.unresolvedTargets.map(t => `⚠ @${t} not found — message not delivered via PTY`).join('\n');
+      el.appendChild(warn);
+    }
   } else if (pipeRole && pipeRole !== 'final' && ['stage-output', 'fan-out'].includes(pipeRole)) {
     // ── Pipe intermediate: rendered separately via pipe-event channel ──
     return;
@@ -1716,7 +1722,11 @@ function showMentionPopup(names, atIndex) {
   for (let i = 0; i < names.length; i++) {
     const item = document.createElement('div');
     item.className = 'chat-mention-item' + (i === 0 ? ' selected' : '');
-    item.textContent = '@' + names[i];
+    if (names[i] === 'all') {
+      item.innerHTML = `<span style="font-weight:600">@all</span> <span style="opacity:0.5;font-size:11px">Broadcast to all participants</span>`;
+    } else {
+      item.textContent = '@' + names[i];
+    }
     item.dataset.name = names[i];
     item.addEventListener('click', () => insertMention(names[i], atIndex));
     popup.appendChild(item);

@@ -2,10 +2,26 @@ export interface ChatMessage {
   id: string;
   ts: string;           // ISO timestamp
   from: string;         // participant name
-  to: string | null;    // null = broadcast, "name" = direct
+  to: string | null;    // null = no target, "name" = direct, "all" = broadcast, comma-separated for multi
   body: string;         // markdown text
   type: 'message' | 'join' | 'leave' | 'system';
   pipe?: PipeMessageMeta; // present when message is part of a pipe run
+  deliveredTo?: number; // count of participants who received PTY delivery
+  unresolvedTargets?: string[]; // @mention tokens that didn't match any known participant
+}
+
+/** Result of target resolution for PTY delivery. */
+export interface DeliveryPlan {
+  /** Raw @mention tokens as written (e.g. "all", "claude-7", "team-ui") — for msg.to storage */
+  targetLabels: string[];
+  /** Concrete participant names for PTY delivery (expanded from labels) */
+  recipients: string[];
+  /** Direct @mentions only (no group expansions) — for status side-effects */
+  concreteAssignees: string[];
+  /** Whether to fall back to broadcast when recipients is empty */
+  fallbackBroadcast: boolean;
+  /** Individual @mention tokens that didn't resolve to any known participant */
+  unresolvedTargets: string[];
 }
 
 // ── Pipe types ───────────────────────────────────────────────────────
