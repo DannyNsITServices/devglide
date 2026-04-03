@@ -956,6 +956,35 @@ describe('chat router invite permission modes', () => {
 
   // ── Test: timeout probe path ───────────────────────────────────────────
 
+  it('POST /invite launches codex auto-accept with -a never', async () => {
+    const { pty, write: mockPtyWrite } = createMockPty();
+    spawnGlobalPtyMock.mockImplementation((id: string) => {
+      const promptOutput = 'bash-5.2$ ';
+      shellStateMock.globalPtys.set(id, {
+        ptyProcess: pty,
+        chunks: [promptOutput],
+        totalLen: promptOutput.length,
+      });
+      return pty;
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/invite`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cli: 'codex', mode: 'auto-accept' }),
+      });
+
+      expect(response.status).toBe(201);
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockPtyWrite).toHaveBeenCalledTimes(1);
+      expect(mockPtyWrite.mock.calls[0][0]).toContain("'codex' -a never");
+      expect(mockPtyWrite.mock.calls[0][0]).toContain('mcp__devglide-chat__chat_join');
+      expect(mockPtyWrite.mock.calls[0][0]).not.toContain('--dangerously-bypass-approvals-and-sandbox');
+    });
+  });
+
   it('POST /invite falls back to probe when no prompt appears within timeout', async () => {
     vi.useFakeTimers();
     const { pty, write: mockPtyWrite, onDataCallbacks } = createMockPty();
