@@ -957,7 +957,7 @@ describe('chat router invite permission modes', () => {
 
   // ── Test: timeout probe path ───────────────────────────────────────────
 
-  it('POST /invite launches codex auto-accept with -a never', async () => {
+  it('POST /invite launches codex auto-accept with --dangerously-bypass-approvals-and-sandbox', async () => {
     const { pty, write: mockPtyWrite } = createMockPty();
     spawnGlobalPtyMock.mockImplementation((id: string) => {
       const promptOutput = 'bash-5.2$ ';
@@ -980,9 +980,8 @@ describe('chat router invite permission modes', () => {
       await new Promise((r) => setTimeout(r, 50));
 
       expect(mockPtyWrite).toHaveBeenCalledTimes(1);
-      expect(mockPtyWrite.mock.calls[0][0]).toContain("'codex' -a never");
+      expect(mockPtyWrite.mock.calls[0][0]).toContain('--dangerously-bypass-approvals-and-sandbox');
       expect(mockPtyWrite.mock.calls[0][0]).toContain('mcp__devglide-chat__chat_join');
-      expect(mockPtyWrite.mock.calls[0][0]).not.toContain('--dangerously-bypass-approvals-and-sandbox');
     });
   });
 
