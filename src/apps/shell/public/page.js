@@ -8,6 +8,11 @@
 import { shellSocket as socket } from '/state.js';
 import { createHeader } from '/shared-ui/components/header.js';
 import { confirmModal } from '/shared-ui/components/modal.js';
+import {
+  getVisibleFallbackPaneId,
+  isPaneIdVisible,
+  isPaneVisibleForProject,
+} from './pane-visibility.js';
 
 // ── Module state ─────────────────────────────────────────────────────
 
@@ -518,6 +523,30 @@ function setActivePaneHighlight(id) {
   if (activePaneId) panes.get(activePaneId)?.element.classList.remove('active');
   activePaneId = id;
   if (id) panes.get(id)?.element.classList.add('active');
+}
+
+function _currentProjectId() {
+  return activeProject?.id || null;
+}
+
+function _isPaneVisible(id) {
+  return isPaneIdVisible(panes, _currentProjectId(), id);
+}
+
+function _syncVisibleActivePane(refs, broadcast = false) {
+  if (_isPaneVisible(activePaneId)) return activePaneId;
+
+  panes.get(activePaneId)?.element.querySelector('.xterm-helper-textarea')?.blur();
+  const nextPaneId = getVisibleFallbackPaneId(panes, _currentProjectId(), activePaneId);
+  setActivePaneHighlight(nextPaneId);
+
+  if (broadcast) socket.emit('state:set-active-pane', { paneId: nextPaneId });
+
+  if (nextPaneId && activeTab === 'grid') {
+    panes.get(nextPaneId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
+  }
+
+  return nextPaneId;
 }
 
 // ── Drag-to-reorder helpers ─────────────────────────────────────────
@@ -1347,16 +1376,14 @@ function _removePaneLocal(refs, id) {
   const pane = panes.get(id);
   if (!pane) return;
 
-  const keys = [...panes.keys()];
-  const closedIdx = keys.indexOf(id);
-  const prevKey = closedIdx > 0 ? keys[closedIdx - 1] : keys[closedIdx + 1] ?? null;
+  const fallbackPaneId = getVisibleFallbackPaneId(panes, _currentProjectId(), id);
 
   pane.cleanup();
   panes.delete(id);
   pendingData.delete(id);
   removeTab(refs, id);
 
-  if (activePaneId === id) setActivePaneHighlight(prevKey);
+  if (activePaneId === id) setActivePaneHighlight(fallbackPaneId);
   if (activeTab === id) activeTab = 'grid';
   relayout(refs);
 
@@ -1383,9 +1410,9 @@ function requestPane({ shellType, cwd }) {
 // ── Project filtering ───────────────────────────────────────────────
 
 function _applyProjectFilter(refs) {
-  const pid = activeProject?.id || null;
+  const pid = _currentProjectId();
   for (const [id, pane] of panes) {
-    const visible = !pid || !pane._projectId || pane._projectId === pid;
+    const visible = isPaneVisibleForProject(pane._projectId || null, pid);
     pane.element.classList.toggle('project-hidden', !visible);
     const tab = refs.tabBar.querySelector(`.shell-tab[data-tab="${id}"]`);
     if (tab) tab.classList.toggle('project-hidden', !visible);
@@ -1395,6 +1422,7 @@ function _applyProjectFilter(refs) {
 function _switchProject(refs, newProject) {
   activeProject = newProject;
   _applyProjectFilter(refs);
+  _syncVisibleActivePane(refs, true);
 
   if (activeTab !== 'grid') {
     const activePane = panes.get(activeTab);
@@ -1483,13 +1511,15 @@ function wireSocketEvents(refs) {
       }
     }, 300);
 
-    if (ap) {
+    if (ap && _isPaneVisible(ap)) {
       setActivePaneHighlight(ap);
       if ((at || 'grid') === 'grid') {
         setTimeout(() => {
           panes.get(ap)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
         }, 100);
       }
+    } else {
+      _syncVisibleActivePane(refs, false);
     }
   };
 
@@ -1521,6 +1551,10 @@ function wireSocketEvents(refs) {
   };
 
   _socketHandlers['state:active-pane'] = ({ paneId }) => {
+    if (paneId && !_isPaneVisible(paneId)) {
+      _syncVisibleActivePane(refs, false);
+      return;
+    }
     setActivePaneHighlight(paneId);
     if (paneId && activeTab === 'grid') {
       setTimeout(() => {
@@ -1776,7 +1810,7 @@ export async function mount(container, ctx) {
       }
       case 'shell:close-pane': {
         e.preventDefault();
-        if (activePaneId) panes.get(activePaneId)?.destroy();
+        if (activePaneId && _isPaneVisible(activePaneId)) panes.get(activePaneId)?.destroy();
         break;
       }
       case 'shell:dashboard': {
@@ -1876,18 +1910,7 @@ export function onProjectChange(project) {
   if (!_container) return;
   const refs = getRefs(_container);
   _applyProjectFilter(refs);
-
-  // If the focused pane is now hidden, blur it and focus first visible pane
-  const currentPane = activePaneId ? panes.get(activePaneId) : null;
-  if (currentPane?.element.classList.contains('project-hidden')) {
-    currentPane.element.querySelector('.xterm-helper-textarea')?.blur();
-    const firstVisible = [...panes.entries()].find(([, p]) => !p.element.classList.contains('project-hidden'));
-    if (firstVisible) {
-      setActivePaneHighlight(firstVisible[0]);
-      socket.emit('state:set-active-pane', { paneId: firstVisible[0] });
-      firstVisible[1].element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
-    }
-  }
+  _syncVisibleActivePane(refs, true);
 
   if (activeTab !== 'grid') {
     const activePane = panes.get(activeTab);

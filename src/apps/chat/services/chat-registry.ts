@@ -1,13 +1,18 @@
 import type { Namespace } from 'socket.io';
 import type { ChatParticipant, ChatMessage, PipeMessageMeta, PipeUiEvent } from '../types.js';
 import { globalPtys, dashboardState, getShellNsp } from '../../shell/src/runtime/shell-state.js';
-import { appendMessage, appendPipeEvent, readMessages, clearMessages, saveParticipants, loadParticipants } from './chat-store.js';
+import { appendMessage, appendPipeEvent, readMessages, clearMessages, saveParticipants, loadParticipants, discoverPersistedPipeIds, readAllPipeEvents, removePipeFiles } from './chat-store.js';
 import type { PersistedParticipant } from './chat-store.js';
 import { getActiveProject, onProjectChange } from '../../../project-context.js';
 import { isPipeCommand, parsePipeCommand, isPipeParseError, validatePipeAssigneeCount, isBrainstormCommand, parseBrainstormCommand } from './pipe-parser.js';
 import * as brainstormStore from './brainstorm-store.js';
 import * as pipeReducer from './pipe-reducer.js';
 import * as pipeStore from './pipe-store.js';
+import * as pipeDelivery from './pipe-delivery.js';
+import * as assignmentQueries from './pipe-assignment-queries.js';
+import * as provenance from './pipe-provenance.js';
+import * as materializer from './pipe-assignment-materializer.js';
+import * as payloadStore from './payload-store.js';
 import { stripAnsi } from './terminal-utils.js';
 
 // In-memory participant registry
@@ -30,7 +35,15 @@ const PARTICIPANT_IDLE_TIMEOUT_MS = 30_000;
 const PROMPT_QUIESCENCE_MS = 2000;
 const PANE_DISCONNECT_TIMEOUT_MS = 10_000; // 10 seconds before auto-removal
 
+// ── Pipe reliability constants ──────────────────────────────────────────────
+const PIPE_WATCHDOG_INTERVAL_MS = 5_000; // 5 seconds — pane liveness + deadline check
+
 const paneDisconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+// ── Pipe stage deadline timers ──────────────────────────────────────────────
+// Keyed by "pipeId:assignee" — one timer per active lease
+const stageDeadlineTimers = new Map<string, ReturnType<typeof setTimeout>>();
+let pipeWatchdogInterval: ReturnType<typeof setInterval> | null = null;
 
 function bumpParticipantSessionEpoch(name: string, projectId?: string | null): number {
   const key = participantKey(name, projectId);
@@ -494,6 +507,11 @@ export function join(
     if (paneId) startPanePromptWatcher(existing.name, existing.projectId, paneId);
     persistParticipantsForProject(existing.projectId);
 
+    // Reconcile any pending pipe assignments after reconnect
+    if (existing.kind === 'llm') {
+      reconcileOnReconnect(existing.name, existing.projectId);
+    }
+
     return existing;
   }
 
@@ -780,7 +798,30 @@ function deliverToPty(targetName: string, projectId: string | null, msg: ChatMes
         formatted += PTY_INTERACTION_REMINDER;
       }
 
-      entry.ptyProcess.write(formatted);
+      // Write with retry — if the initial write fails, retry once after a short delay
+      let writeOk = false;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const ptyEntry = attempt === 0 ? entry : globalPtys.get(paneId);
+          if (!ptyEntry) {
+            disconnectParticipant(targetName, projectId, 'pane disappeared during delivery retry');
+            return;
+          }
+          ptyEntry.ptyProcess.write(formatted);
+          writeOk = true;
+          break;
+        } catch (err) {
+          if (attempt === 0) {
+            console.warn(`[chat] PTY write failed for ${targetName}, retrying in 500ms:`, err);
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          } else {
+            console.error(`[chat] PTY write retry failed for ${targetName}, disconnecting:`, err);
+            disconnectParticipant(targetName, projectId, 'pane write failed');
+            return;
+          }
+        }
+      }
+      if (!writeOk) return;
 
       await new Promise((resolve) => setTimeout(resolve, PTY_SUBMIT_DELAY_MS));
 
@@ -874,6 +915,113 @@ export function clearHistory(projectId?: string | null): void {
   emitToProject('chat:cleared', {}, pid);
 }
 
+/** Clean up stale terminal pipes from both in-memory store and disk.
+ *  Removes completed/failed/cancelled pipes older than the TTL.
+ *  Returns the count of removed pipes. */
+export function cleanupStalePipes(projectId?: string | null, ttlMs?: number): number {
+  const pid = resolveProjectId(projectId);
+  const removed = pipeStore.cleanupTerminalPipes(pid, ttlMs);
+  if (removed.length > 0) {
+    removePipeFiles(removed, pid);
+    console.log(`[pipe] Cleaned up ${removed.length} stale pipe(s): ${removed.join(', ')}`);
+  }
+  return removed.length;
+}
+
+/** Recover active pipes from persisted event logs after server restart.
+ *  Rebuilds in-memory pipe state from per-pipe events files.
+ *  Pipes that were running at shutdown are rehydrated; the reducer is re-run
+ *  for each recovered pipe so leases can be re-granted when participants rejoin.
+ *  Returns the count of recovered running pipes. */
+export function recoverPipes(projectId?: string | null): number {
+  const pid = resolveProjectId(projectId);
+  const pipeIds = discoverPersistedPipeIds(pid);
+  if (pipeIds.length === 0) return 0;
+
+  // Collect all events across all pipe files
+  const allEvents: import('./pipe-store.js').PipeRecoveryEvent[] = [];
+  for (const pipeId of pipeIds) {
+    // Skip if already in memory (shouldn't happen after fresh start)
+    if (pipeStore.getPipe(pipeId, pid)) continue;
+
+    const events = readAllPipeEvents(pipeId, pid);
+    for (const event of events) {
+      allEvents.push({
+        type: event.type,
+        pipeId: event.pipeId,
+        mode: event.mode ?? undefined,
+        assignees: event.assignees,
+        prompt: event.prompt,
+        stageTimeoutMs: event.stageTimeoutMs,
+        timeoutPolicy: event.timeoutPolicy,
+        from: event.from,
+        role: event.role,
+        stage: event.stage,
+        content: event.content,
+      });
+    }
+  }
+
+  const runningPipeIds = pipeStore.rehydrateFromEvents(allEvents, pid);
+
+  if (runningPipeIds.length > 0) {
+    console.log(`[pipe] Recovered ${runningPipeIds.length} running pipe(s) from disk: ${runningPipeIds.join(', ')}`);
+    startPipeWatchdog();
+  }
+
+  return runningPipeIds.length;
+}
+
+// ── Reconnect assignment reconciliation ──────────────────────────────────────
+
+/** Reconcile pipe assignments when a participant reconnects (or joins for the
+ *  first time after server restart with recovered pipes).
+ *
+ *  For each running pipe where the participant has pending or leased slots,
+ *  re-run the reducer so that:
+ *  - Pending slots get a lease grant + PTY handoff delivery
+ *  - Leased slots whose deadline expired get released and reset to pending
+ *  - Leased slots still within deadline get re-delivered to the now-live pane
+ *
+ *  Returns the number of pipes that were reconciled. */
+export function reconcileOnReconnect(name: string, projectId: string | null): number {
+  const assignments = pipeStore.getAssignmentsForParticipant(name, projectId);
+  if (assignments.length === 0) return 0;
+
+  const pipeIds = new Set<string>();
+  for (const a of assignments) {
+    if (a.slotStatus === 'pending' || a.slotStatus === 'leased') {
+      pipeIds.add(a.pipeId);
+    }
+  }
+
+  if (pipeIds.size === 0) return 0;
+
+  for (const pipeId of pipeIds) {
+    const lease = pipeStore.getActiveLease(name, projectId);
+    if (lease && lease.pipeId === pipeId && pipeStore.isLeaseExpired(lease)) {
+      pipeStore.releaseLease(name, projectId);
+      const pipe = pipeStore.getPipe(pipeId, projectId);
+      if (pipe) {
+        const slots = pipe.slots.get(name);
+        if (slots) {
+          for (const slot of slots) {
+            if (slot.status === 'leased') slot.status = 'pending';
+          }
+        }
+      }
+    }
+
+    runPipeReducer(pipeId, projectId).catch((err) => {
+      console.error(`[pipe] reconcileOnReconnect reducer error for pipe #${pipeId}:`, err);
+    });
+  }
+
+  console.log(`[pipe] Reconciled ${pipeIds.size} pipe(s) for reconnected participant "${name}"`);
+  return pipeIds.size;
+}
+
+
 /** Handle pane closure — gracefully disconnect participants linked to this pane.
  *  Participants are detached (not removed) so they can reclaim within the timeout window.
  *  Scoped by projectId to avoid affecting participants from other projects. */
@@ -885,6 +1033,174 @@ export function onPaneClosed(paneId: string, projectId?: string | null): void {
   }
 }
 
+
+// ── Pipe stage deadline management ──────────────────────────────────────────
+
+function deadlineKey(pipeId: string, assignee: string): string {
+  return `${pipeId}:${assignee}`;
+}
+
+/** Start a deadline timer for a leased pipe stage.
+ *  When the timer fires, the timeout policy is applied. */
+function startStageDeadline(
+  pipeId: string,
+  assignee: string,
+  projectId: string | null,
+  timeoutMs: number,
+  policy: import('../types.js').PipeTimeoutPolicy,
+): void {
+  if (timeoutMs <= 0) return; // no timeout configured
+  const key = deadlineKey(pipeId, assignee);
+  const existing = stageDeadlineTimers.get(key);
+  if (existing) clearTimeout(existing);
+  stageDeadlineTimers.set(key, setTimeout(() => {
+    stageDeadlineTimers.delete(key);
+    handleStageTimeout(pipeId, assignee, projectId, policy);
+  }, timeoutMs));
+}
+
+/** Clear a specific stage deadline (e.g. after successful submit). */
+function clearStageDeadline(pipeId: string, assignee: string): void {
+  const key = deadlineKey(pipeId, assignee);
+  const timer = stageDeadlineTimers.get(key);
+  if (timer) {
+    clearTimeout(timer);
+    stageDeadlineTimers.delete(key);
+  }
+}
+
+/** Clear all deadline timers for a pipe (e.g. when pipe reaches terminal state). */
+function clearAllDeadlinesForPipe(pipeId: string): void {
+  for (const [key, timer] of stageDeadlineTimers) {
+    if (key.startsWith(`${pipeId}:`)) {
+      clearTimeout(timer);
+      stageDeadlineTimers.delete(key);
+    }
+  }
+}
+
+/** Handle a stage timeout by applying the configured policy. */
+function handleStageTimeout(
+  pipeId: string,
+  assignee: string,
+  projectId: string | null,
+  policy: import('../types.js').PipeTimeoutPolicy,
+): void {
+  const pipe = pipeStore.getPipe(pipeId, projectId);
+  if (!pipe || pipe.status !== 'running') return;
+
+  if (policy === 'escalate') {
+    // Notify user, keep pipe running — user decides what to do
+    const escalateMsg = appendMessage({
+      from: 'system', to: null,
+      body: `#pipe-${pipeId} Stage timeout: @${assignee} has not responded within the deadline ` +
+        `(${Math.round(pipe.stageTimeoutMs / 1000)}s). The pipe is still running. ` +
+        `Cancel with \`/cancel-pipe ${pipeId}\` or wait for the participant to respond.`,
+      type: 'system',
+    }, projectId);
+    emitToProject('chat:message', escalateMsg, projectId);
+    return;
+  }
+
+  // 'fail' (default) or 'reassign' (not yet implemented — falls through to fail)
+  clearAllDeadlinesForPipe(pipeId);
+  const releasedAssignees = pipeStore.markPipeStatus(pipeId, 'failed', projectId);
+  provenance.recordProvenance(projectId, { pipeId, event: 'failed', actor: 'system', actorKind: 'system', metadata: { reason: 'timeout', assignee, policy } });
+  const policyNote = policy === 'reassign'
+    ? ' (reassign policy not yet supported — pipe failed instead)'
+    : '';
+  const failMsg = appendMessage({
+    from: 'system', to: null,
+    body: `#pipe-${pipeId} Pipe timed out: @${assignee} did not submit within the deadline ` +
+      `(${Math.round(pipe.stageTimeoutMs / 1000)}s).${policyNote}`,
+    type: 'system',
+    pipe: { pipeId, mode: pipe.mode, role: 'failed', reason: 'timeout' },
+  }, projectId);
+  emitToProject('chat:message', failMsg, projectId);
+  emitPipeEvent({ type: 'failed', pipeId, reason: 'timeout' }, projectId);
+  drainPendingPipes(releasedAssignees, projectId);
+}
+
+// ── Pipe liveness watchdog ──────────────────────────────────────────────────
+
+const PIPE_CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+let lastCleanupAt = 0;
+
+/** Periodic watchdog that checks pane liveness for active pipe leaseholders
+ *  and enforces stage deadlines. Runs every PIPE_WATCHDOG_INTERVAL_MS. */
+function pipeWatchdogTick(): void {
+  // 1. Prune stale participants (detect disappeared panes)
+  pruneStaleParticipants();
+
+  // 2. Check stage deadlines for leases that passed their deadline but whose
+  //    timer hasn't fired yet (defensive — timers should handle this, but
+  //    the watchdog catches edge cases like clock drift or timer GC)
+  const now = Date.now();
+  for (const [, lease] of pipeStore.getAllActiveLeases()) {
+    if (!lease.deadline) continue;
+    const deadlineMs = new Date(lease.deadline).getTime();
+    if (now >= deadlineMs && !stageDeadlineTimers.has(deadlineKey(lease.pipeId, lease.assignee))) {
+      // Deadline passed and no active timer — resolve immediately
+      const pipe = pipeStore.getPipe(lease.pipeId, null) ??
+                   findPipeAcrossProjects(lease.pipeId);
+      if (pipe && pipe.status === 'running') {
+        handleStageTimeout(lease.pipeId, lease.assignee, findProjectForPipe(lease.pipeId), pipe.timeoutPolicy);
+      }
+    }
+  }
+
+  // 3. Periodic cleanup of terminal pipes (throttled to every 10 minutes)
+  //    Iterates all projects with pipe data, not just the active one.
+  if (now - lastCleanupAt >= PIPE_CLEANUP_INTERVAL_MS) {
+    lastCleanupAt = now;
+    for (const pid of pipeStore.getTrackedProjectIds()) {
+      const removed = pipeStore.cleanupTerminalPipes(pid);
+      if (removed.length > 0) {
+        removePipeFiles(removed, pid);
+      }
+    }
+  }
+}
+
+/** Find a pipe by scanning all project stores. */
+function findPipeAcrossProjects(pipeId: string): import('./pipe-store.js').StoredPipe | undefined {
+  // Try active project first, then scan all
+  const pid = activeProjectId();
+  const pipe = pipeStore.getPipe(pipeId, pid);
+  if (pipe) return pipe;
+  return undefined;
+}
+
+/** Find the projectId that owns a pipe by checking the active project. */
+function findProjectForPipe(pipeId: string): string | null {
+  const pid = activeProjectId();
+  if (pipeStore.getPipe(pipeId, pid)) return pid;
+  return null;
+}
+
+/** Start the pipe watchdog interval. Idempotent — safe to call multiple times. */
+export function startPipeWatchdog(): void {
+  if (pipeWatchdogInterval) return;
+  pipeWatchdogInterval = setInterval(pipeWatchdogTick, PIPE_WATCHDOG_INTERVAL_MS);
+  // Don't prevent Node from exiting
+  if (pipeWatchdogInterval.unref) pipeWatchdogInterval.unref();
+}
+
+/** Stop the pipe watchdog. Exported for test cleanup. */
+export function stopPipeWatchdog(): void {
+  if (pipeWatchdogInterval) {
+    clearInterval(pipeWatchdogInterval);
+    pipeWatchdogInterval = null;
+  }
+}
+
+/** Clear all deadline timers. Exported for test cleanup. */
+export function clearAllDeadlineTimers(): void {
+  for (const [key, timer] of stageDeadlineTimers) {
+    clearTimeout(timer);
+    stageDeadlineTimers.delete(key);
+  }
+}
 
 // ── Pipe orchestration (log-centric reducer model) ───────────────────────────
 
@@ -949,8 +1265,15 @@ async function handlePipeCommand(body: string, projectId: string | null): Promis
   const resolved = { ...parsed, assignees: resolvedAssignees };
   const desc = pipeReducer.getStartDescription(resolved);
 
-  // Create pipe in the isolated stage store
-  pipeStore.createPipe(pipeId, parsed.mode, resolvedAssignees, parsed.prompt, projectId);
+  // Create pipe in the isolated stage store (with timeout config)
+  pipeStore.createPipe(pipeId, parsed.mode, resolvedAssignees, parsed.prompt, projectId, {
+    stageTimeoutMs: parsed.stageTimeoutMs,
+    timeoutPolicy: parsed.timeoutPolicy,
+  });
+  provenance.recordProvenance(projectId, { pipeId, event: 'created', actor: 'user', actorKind: 'user', metadata: { mode: parsed.mode, assignees: resolvedAssignees } });
+
+  // Ensure the pipe watchdog is running
+  startPipeWatchdog();
 
   const startMsg = appendMessage({
     from: 'system', to: null,
@@ -965,7 +1288,13 @@ async function handlePipeCommand(body: string, projectId: string | null): Promis
     },
   }, projectId);
   emitToProject('chat:message', startMsg, projectId);
-  emitPipeEvent({ type: 'start', pipeId, mode: parsed.mode }, projectId);
+  emitPipeEvent({
+    type: 'start', pipeId, mode: parsed.mode,
+    assignees: resolvedAssignees,
+    prompt: parsed.prompt,
+    stageTimeoutMs: parsed.stageTimeoutMs ?? pipeStore.DEFAULT_STAGE_TIMEOUT_MS,
+    timeoutPolicy: parsed.timeoutPolicy ?? 'fail',
+  }, projectId);
 
   // Run reducer to emit initial handoff/fan-out
   await runPipeReducer(pipeId, projectId);
@@ -1051,7 +1380,11 @@ async function runPipeReducer(pipeId: string, projectId: string | null): Promise
 
   // Check for completion — broadcast final result as a public chat message
   if (state.hasFinal) {
+    clearAllDeadlinesForPipe(pipeId);
+    pipeDelivery.cancelAllDeliveries(pipeId, projectId);
+    materializer.cancelPipeAssignments(pipeId, projectId);
     pipeStore.markPipeStatus(pipeId, 'completed', projectId);
+    provenance.recordProvenance(projectId, { pipeId, event: 'completed', actor: 'system', actorKind: 'system' });
 
     // Read the final output from pipe state and broadcast it to all participants.
     // This is the ONLY pipe output that enters chat history and LLM context.
@@ -1096,17 +1429,34 @@ async function runPipeReducer(pipeId: string, projectId: string | null): Promise
       continue;
     }
 
+    // Start stage deadline timer for this lease
+    startStageDeadline(pipeId, action.targetAssignee, projectId, storedPipe.stageTimeoutMs, storedPipe.timeoutPolicy);
+    provenance.recordProvenance(projectId, { pipeId, event: 'stage-granted', actor: 'system', actorKind: 'system', stage: action.type === 'handoff' ? action.stage : undefined, role: action.type, metadata: { assignee: action.targetAssignee } });
+
     // Track emission in pipe store (replaces appendMessage to chat history)
     pipeStore.markEmitted(pipeId, action.type, action.type === 'handoff' ? action.stage : action.targetAssignee, projectId);
 
-    // Construct delivery message for PTY injection — NOT stored in chat history.
-    // Only the dashboard UI and the target LLM see this.
+    // Materialize assignment + payload for lifecycle tracking
+    const materialized = materializer.materializeAssignment(pipeId, state.mode, action, projectId);
+
+    // Transport-layer: create delivery record for re-notify tracking
+    pipeDelivery.createDelivery(
+      pipeId, action.targetAssignee, action.type, action.body, projectId, action.stage,
+    );
+
+    // Format compact notification — PTY gets a pointer, not the full payload
+    const notification = pipeDelivery.formatCompactNotification(
+      pipeId, state.mode, action.type, action.targetAssignee,
+      state.assignees.length, action.stage,
+    );
+
+    // Construct compact delivery message for PTY injection — NOT stored in chat history.
     const deliveryMsg: import('../types.js').ChatMessage = {
       id: `pipe-${pipeId}-${action.type}-${action.targetAssignee}`,
       ts: new Date().toISOString(),
       from: 'system',
       to: action.targetAssignee,
-      body: action.body,
+      body: notification.body,
       type: 'system',
       pipe: action.pipe,
     };
@@ -1124,8 +1474,40 @@ async function runPipeReducer(pipeId: string, projectId: string | null): Promise
     const target = getParticipantExact(action.targetAssignee, projectId);
     if (target?.paneId && !target.detached) {
       await deliverToPty(action.targetAssignee, projectId, deliveryMsg);
+      // Transition assignment lifecycle: assigned → notified (after successful PTY delivery)
+      if (materialized) {
+        materializer.transitionAssignmentStatus(materialized.assignmentId, 'notified', projectId);
+      }
+      // Transport-layer: record notification attempt for re-notify tracking
+      pipeDelivery.recordNotification(pipeId, action.targetAssignee, projectId);
+      pipeDelivery.startRenotifyTimer(pipeId, action.targetAssignee, projectId, handleRenotify);
     }
   }
+}
+
+/** Re-notify: re-delivers compact notification to a tardy assignee. */
+function handleRenotify(pipeId: string, assignee: string, projectId: string | null): void {
+  const record = pipeDelivery.getDelivery(pipeId, assignee, projectId);
+  if (!record || record.state !== 'notified') return;
+  const pipe = pipeStore.getPipe(pipeId, projectId);
+  if (!pipe || pipe.status !== 'running') return;
+  const target = getParticipantExact(assignee, projectId);
+  if (!target?.paneId || target.detached) return;
+  const notification = pipeDelivery.formatCompactNotification(
+    pipeId, pipe.mode, record.role as 'handoff' | 'fan-out-request' | 'synth-request',
+    assignee, pipe.assignees.length, record.stage,
+  );
+  const renotifyMsg: import('../types.js').ChatMessage = {
+    id: `pipe-${pipeId}-renotify-${assignee}-${record.notifyAttempts}`,
+    ts: new Date().toISOString(), from: 'system', to: assignee,
+    body: notification.body, type: 'system', pipe: notification.pipe,
+  };
+  deliverToPty(assignee, projectId, renotifyMsg)
+    .then(() => {
+      pipeDelivery.recordNotification(pipeId, assignee, projectId);
+      pipeDelivery.startRenotifyTimer(pipeId, assignee, projectId, handleRenotify);
+    })
+    .catch(err => console.error(`[pipe] re-notify failed for ${assignee}:`, err));
 }
 
 /** Read the final output content from pipe state. */
@@ -1168,8 +1550,15 @@ function failPipesForParticipant(
     const storedPipe = pipeStore.getPipe(pipeId, projectId);
     if (!storedPipe || storedPipe.status !== 'running') continue;
 
+    // Clear all deadline timers and delivery tracking for this pipe
+    clearAllDeadlinesForPipe(pipeId);
+    pipeDelivery.cancelAllDeliveries(pipeId, projectId);
+    materializer.cancelPipeAssignments(pipeId, projectId);
+
     // Update store — releases leases for this pipe's assignees
     const releasedAssignees = pipeStore.markPipeStatus(pipeId, 'failed', projectId);
+
+    provenance.recordProvenance(projectId, { pipeId, event: 'failed', actor: 'system', actorKind: 'system', metadata: { reason, unavailableParticipant: name } });
 
     // Post failure to chat history (public lifecycle event)
     const failMsg = appendMessage({
@@ -1197,8 +1586,14 @@ export async function cancelPipeRun(pipeId: string, projectId?: string | null): 
   const pipe = pipeStore.getPipe(pipeId, pid);
   if (!pipe || pipe.status !== 'running') return false;
 
+  // Clear all deadline timers and delivery tracking for this pipe
+  clearAllDeadlinesForPipe(pipeId);
+  pipeDelivery.cancelAllDeliveries(pipeId, pid);
+  materializer.cancelPipeAssignments(pipeId, pid);
+
   // Update store — releases leases for this pipe's assignees
   const releasedAssignees = pipeStore.markPipeStatus(pipeId, 'cancelled', pid);
+  provenance.recordProvenance(pid, { pipeId, event: 'cancelled', actor: 'user', actorKind: 'user' });
 
   const cancelMsg = appendMessage({
     from: 'system', to: null,
@@ -1231,6 +1626,16 @@ export async function submitPipeStage(
   // Validate and store in the pipe stage store
   const result = pipeStore.submitStage(pipeId, from, content, projectId, true);
   if (!result.ok) return { ok: false, error: result.error, code: result.code };
+
+  // Clear the stage deadline and delivery tracking — submit was successful
+  pipeDelivery.recordSubmission(pipeId, from, projectId);
+  // Complete the active assignment for this participant on this pipe
+  const activeAssignments = materializer.getActiveAssignmentsForParticipant(from, pipeId, projectId);
+  for (const a of activeAssignments) {
+    materializer.completeAssignment(a.assignmentId, projectId);
+  }
+  clearStageDeadline(pipeId, from);
+  provenance.recordProvenance(projectId, { pipeId, event: 'stage-submitted', actor: from, actorKind: getParticipant(from, projectId)?.kind ?? 'llm', stage: result.slot?.stage, role: result.slot?.role });
 
   // Determine pipe role for the chat message metadata
   const storedPipe = pipeStore.getPipe(pipeId, projectId);
@@ -1300,12 +1705,27 @@ export function getPipeRun(pipeId: string, projectId?: string | null): { pipeId:
   return { pipeId: pipe.pipeId, mode: pipe.mode, status: pipe.status, projectId: pid };
 }
 
+// ── Pipe assignment queries (caller-scoped) ──────────────────────────────────
+
+/** List all assignments for a participant. */
+export function listAssignments(callerName: string, projectId?: string | null) {
+  const pid = resolveProjectId(projectId);
+  return assignmentQueries.getAssignmentsForParticipant(callerName, pid);
+}
+
+/** Get assignment details for a participant on a specific pipe. */
+export function getAssignment(pipeId: string, callerName: string, projectId?: string | null) {
+  const pid = resolveProjectId(projectId);
+  return assignmentQueries.getAssignmentForPipe(pipeId, callerName, pid);
+}
+
 // ── Pipe output read (caller-scoped) ──────────────────────────────────────────
 
 export interface PipeReadOutputResult {
   pipeId: string;
   mode: string;
-  previousOutput?: { stage: number; from: string; content: string };
+  stagePayload?: string | null;
+  previousOutput?: { stage: number; from: string; content: string } | null;
   fanOutOutputs?: Array<{ from: string; content: string }>;
 }
 
@@ -1329,10 +1749,41 @@ export function readPipeOutput(
     return { ok: false, status: 403, error: `${callerName} is not an assignee of pipe #${pipeId}` };
   }
 
+  // Lease-aware read guard: reject reads from assignees with expired leases.
+  // Must run BEFORE recordFetch so rejected reads don't suppress re-notify.
+  const callerLease = pipeStore.getActiveLease(callerName, pid);
+  if (callerLease?.pipeId === pipeId && pipeStore.isLeaseExpired(callerLease)) {
+    return { ok: false, status: 403, error: `Lease for ${callerName} on pipe #${pipeId} has expired (deadline: ${callerLease.deadline}). Output read rejected.` };
+  }
+
+  // Record fetch acknowledgment — only after authorization succeeds
+  pipeDelivery.recordFetch(pipeId, callerName, pid);
+
+  // Transition assignment lifecycle: notified → payload_fetched
+  const activeAssignments = materializer.getActiveAssignmentsForParticipant(callerName, pipeId, pid);
+  for (const a of activeAssignments) {
+    if (a.status === 'notified' || a.status === 'acknowledged') {
+      materializer.transitionAssignmentStatus(a.assignmentId, a.status === 'notified' ? 'acknowledged' : 'payload_fetched', pid);
+      // If we went notified→acknowledged, also advance to payload_fetched
+      if (a.status === 'notified') {
+        materializer.transitionAssignmentStatus(a.assignmentId, 'payload_fetched', pid);
+      }
+    }
+  }
+
+  // Read the authoritative assignment payload for this caller on this pipe.
+  const currentAssignment = activeAssignments.find(a => a.assignee === callerName) ?? null;
+  const stagePayload = currentAssignment
+    ? (payloadStore.getPayload(currentAssignment.payloadId, pid)?.content ?? null)
+    : null;
+
   if (pipe.mode === 'linear') {
     const callerStage = assigneeIndex + 1;
     if (callerStage === 1) {
-      return { ok: false, status: 409, error: 'Stage 1 has no previous input to read' };
+      if (!stagePayload) {
+        return { ok: false, status: 409, error: 'Stage 1 has no previous input to read' };
+      }
+      return { ok: true, data: { pipeId: pipe.pipeId, mode: pipe.mode, stagePayload, previousOutput: null } };
     }
     if (!pipe.emittedHandoffs.has(callerStage)) {
       return { ok: false, status: 409, error: `Handoff for stage ${callerStage} has not been emitted yet` };
@@ -1347,12 +1798,23 @@ export function readPipeOutput(
       data: {
         pipeId: pipe.pipeId,
         mode: pipe.mode,
+        stagePayload,
         previousOutput: { stage: prevStage, from: output.from, content: output.body },
       },
     };
   }
 
   // merge / merge-all / explain / summarize
+  if (currentAssignment?.role === 'fan-out') {
+    if (!stagePayload) {
+      return { ok: false, status: 409, error: 'No stage input available for your fan-out assignment' };
+    }
+    return {
+      ok: true,
+      data: { pipeId: pipe.pipeId, mode: pipe.mode, stagePayload, previousOutput: null },
+    };
+  }
+
   const synthesizer = pipe.assignees[pipe.assignees.length - 1];
   if (callerName !== synthesizer) {
     return { ok: false, status: 403, error: `Only the synthesizer (@${synthesizer}) can read fan-out outputs` };
@@ -1369,7 +1831,7 @@ export function readPipeOutput(
   }
   return {
     ok: true,
-    data: { pipeId: pipe.pipeId, mode: pipe.mode, fanOutOutputs },
+    data: { pipeId: pipe.pipeId, mode: pipe.mode, stagePayload, fanOutOutputs },
   };
 }
 
@@ -1474,7 +1936,12 @@ async function launchBrainstormIdeaRound(brainstormId: string, projectId: string
     pipe: { pipeId: childPipeId, mode: 'merge-all' as const, role: 'start' as const, assignees: record.assignees, prompt },
   }, projectId);
   emitToProject('chat:message', pipeStartMsg, projectId);
-  emitPipeEvent({ type: 'start', pipeId: childPipeId, mode: 'merge-all' }, projectId);
+  emitPipeEvent({
+    type: 'start', pipeId: childPipeId, mode: 'merge-all',
+    assignees: record.assignees, prompt,
+    stageTimeoutMs: pipeStore.DEFAULT_STAGE_TIMEOUT_MS,
+    timeoutPolicy: 'fail',
+  }, projectId);
 
   await runPipeReducer(childPipeId, projectId);
 }
@@ -1594,7 +2061,12 @@ async function launchBrainstormDetailRound(brainstormId: string, projectId: stri
     pipe: { pipeId: childPipeId, mode: 'linear' as const, role: 'start' as const, assignees: record.assignees, prompt },
   }, projectId);
   emitToProject('chat:message', pipeStartMsg, projectId);
-  emitPipeEvent({ type: 'start', pipeId: childPipeId, mode: 'linear' }, projectId);
+  emitPipeEvent({
+    type: 'start', pipeId: childPipeId, mode: 'linear',
+    assignees: record.assignees, prompt,
+    stageTimeoutMs: pipeStore.DEFAULT_STAGE_TIMEOUT_MS,
+    timeoutPolicy: 'fail',
+  }, projectId);
 
   await runPipeReducer(childPipeId, projectId);
 }
@@ -1624,7 +2096,12 @@ async function launchBrainstormFinalizeRound(brainstormId: string, projectId: st
     pipe: { pipeId: childPipeId, mode: 'linear' as const, role: 'start' as const, assignees: finalAssignees, prompt },
   }, projectId);
   emitToProject('chat:message', pipeStartMsg, projectId);
-  emitPipeEvent({ type: 'start', pipeId: childPipeId, mode: 'linear' }, projectId);
+  emitPipeEvent({
+    type: 'start', pipeId: childPipeId, mode: 'linear',
+    assignees: finalAssignees, prompt,
+    stageTimeoutMs: pipeStore.DEFAULT_STAGE_TIMEOUT_MS,
+    timeoutPolicy: 'fail',
+  }, projectId);
 
   await runPipeReducer(childPipeId, projectId);
 }
@@ -1694,4 +2171,26 @@ export function getActiveBrainstorms(projectId?: string | null) {
   return brainstormStore.listActiveBrainstorms(resolveProjectId(projectId));
 }
 
+// ── Pipe observability ──────────────────────────────────────────────────────
 
+export function getPipeTimingSummary(pipeId: string, projectId?: string | null) {
+  return pipeStore.getPipeTimingSummary(pipeId, resolveProjectId(projectId));
+}
+export function getRuntimeLeaseStatuses(projectId?: string | null) {
+  return pipeStore.getRuntimeLeaseStatuses(resolveProjectId(projectId));
+}
+export function getDeadLetterEntries(projectId?: string | null) {
+  return pipeStore.getDeadLetterEntries(resolveProjectId(projectId));
+}
+export function listAllPipes(projectId?: string | null) {
+  return pipeStore.listAllPipes(resolveProjectId(projectId));
+}
+export function getPipeProvenance(pipeId: string, projectId?: string | null) {
+  return provenance.getProvenanceForPipe(pipeId, resolveProjectId(projectId));
+}
+export function queryPipeProvenance(
+  projectId?: string | null,
+  filters?: { pipeId?: string; actor?: string; event?: string; since?: string },
+) {
+  return provenance.queryProvenance(resolveProjectId(projectId), filters as Parameters<typeof provenance.queryProvenance>[1]);
+}

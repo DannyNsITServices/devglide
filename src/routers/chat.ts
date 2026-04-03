@@ -514,7 +514,9 @@ router.post('/join', (req: Request, res: Response) => {
     }
   }
   const rules = getEffectiveRules(participant.projectId);
-  res.status(201).json({ ...participant, rules });
+  const assignments = registry.listAssignments(participant.name, participant.projectId ?? null);
+  const pendingAssignments = assignments.filter(a => a.slotStatus === 'pending' || a.slotStatus === 'leased').length;
+  res.status(201).json({ ...participant, rules, pendingAssignments });
 });
 
 // POST /leave — unregister a participant (used by MCP bridge)
@@ -609,6 +611,51 @@ router.get('/pipes', (_req: Request, res: Response) => {
   res.json(registry.getActivePipes(projectId));
 });
 
+// GET /pipes/all — list all pipes (running + terminal) with slot summaries
+router.get('/pipes/all', (_req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  res.json(registry.listAllPipes(projectId));
+});
+
+// GET /pipes/leases — runtime lease statuses with elapsed/remaining
+router.get('/pipes/leases', (_req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  res.json(registry.getRuntimeLeaseStatuses(projectId));
+});
+
+// GET /pipes/dead-letters — stuck and expired assignments
+router.get('/pipes/dead-letters', (_req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  res.json(registry.getDeadLetterEntries(projectId));
+});
+
+// GET /pipes/provenance — query provenance records across all pipes
+router.get('/pipes/provenance', (req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  const { pipeId, actor, event, since } = req.query as Record<string, string | undefined>;
+  res.json(registry.queryPipeProvenance(projectId, { pipeId, actor, event, since }));
+});
+
+// GET /pipes/assignments — list assignments for a participant
+router.get('/pipes/assignments', (req: Request, res: Response) => {
+  const assignee = req.query.assignee as string | undefined;
+  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+  if (!assignee) { res.status(400).json({ error: 'assignee query parameter is required' }); return; }
+  res.json(registry.listAssignments(assignee, projectId));
+});
+
+// GET /pipes/:id/assignment — get assignment for calling participant
+router.get('/pipes/:id/assignment', (req: Request, res: Response) => {
+  const paneId = req.headers['x-pane-id'] as string | undefined;
+  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+  if (!paneId) { res.status(401).json({ error: 'X-Pane-Id header is required' }); return; }
+  const participant = registry.getParticipantByPaneId(paneId, projectId);
+  if (!participant) { res.status(403).json({ error: 'No registered participant for the supplied pane' }); return; }
+  const assignment = registry.getAssignment(req.params.id, participant.name, projectId);
+  if (!assignment) { res.status(404).json({ error: 'No assignment found' }); return; }
+  res.json(assignment);
+});
+
 // GET /pipes/:id — get a specific pipe run (scoped to active project)
 router.get('/pipes/:id', (req: Request, res: Response) => {
   const projectId = getActiveProject()?.id ?? null;
@@ -649,6 +696,7 @@ router.get('/pipes/:id/output', (req: Request, res: Response) => {
 const pipeSubmitSchema = z.object({
   from: z.string().min(1),
   content: z.string().min(1),
+  assignmentId: z.string().optional(),
   projectId: z.string().nullable().optional(),
 });
 
@@ -705,6 +753,19 @@ router.post('/pipes/:id/cancel', asyncHandler(async (req: Request, res: Response
   res.json({ ok: true, cancelled: req.params.id });
 }));
 
+// GET /pipes/:id/timing — timing summary with per-stage breakdown
+router.get('/pipes/:id/timing', (req: Request, res: Response) => {
+  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+  const timing = registry.getPipeTimingSummary(req.params.id, projectId);
+  if (!timing) { res.status(404).json({ error: 'Pipe not found' }); return; }
+  res.json(timing);
+});
+
+// GET /pipes/:id/provenance — provenance audit trail for a pipe
+router.get('/pipes/:id/provenance', (req: Request, res: Response) => {
+  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+  res.json(registry.getPipeProvenance(req.params.id, projectId));
+});
 // ── Brainstorm endpoints ─────────────────────────────────────────────────────
 
 // GET /brainstorms — list active brainstorms
@@ -1125,7 +1186,18 @@ export function initChat(nsp: Namespace): void {
       projectResults.push({ projectId: proj.id, restored, failed });
     }
   }
-  if (projectResults.length > 0) {
+  // Recover active pipes from persisted event logs — per-project
+  let totalRecoveredPipes = 0;
+  for (const proj of allProjects) {
+    totalRecoveredPipes += registry.recoverPipes(proj.id);
+  }
+
+  // Run stale pipe cleanup on startup (removes terminal pipes older than 24h)
+  for (const proj of allProjects) {
+    registry.cleanupStalePipes(proj.id);
+  }
+
+  if (projectResults.length > 0 || totalRecoveredPipes > 0) {
     // Emit per-project notifications after nsp is set so dashboard clients see them
     setTimeout(() => {
       for (const { projectId, restored, failed } of projectResults) {
