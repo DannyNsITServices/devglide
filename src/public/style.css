@@ -25,11 +25,92 @@ html, body {
 }
 
 body {
-  font-family: var(--df-font-mono);
+  font-family: var(--df-font-ui);
   background: var(--df-color-bg-base);
   color: var(--df-color-text-primary);
   -webkit-font-smoothing: antialiased;
   font-size: var(--df-font-size-md);
+}
+
+/* ── Aurora ambient background ──────────────────────────────────────────── */
+
+.aurora {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  animation: aurora-drift linear infinite;
+  will-change: transform;
+}
+
+.aurora-blob:nth-child(1) {
+  width: 600px; height: 600px;
+  background: rgba(125, 211, 252, 0.06);
+  top: -10%; left: -5%;
+  animation-duration: 25s;
+}
+.aurora-blob:nth-child(2) {
+  width: 500px; height: 500px;
+  background: rgba(196, 181, 253, 0.05);
+  top: 20%; right: -10%;
+  animation-duration: 30s;
+  animation-delay: -8s;
+}
+.aurora-blob:nth-child(3) {
+  width: 450px; height: 450px;
+  background: rgba(253, 186, 154, 0.04);
+  bottom: -5%; left: 30%;
+  animation-duration: 22s;
+  animation-delay: -14s;
+}
+.aurora-blob:nth-child(4) {
+  width: 400px; height: 400px;
+  background: rgba(110, 231, 183, 0.04);
+  bottom: 30%; right: 20%;
+  animation-duration: 28s;
+  animation-delay: -5s;
+}
+
+@keyframes aurora-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(80px, -60px) scale(1.1); }
+  50% { transform: translate(-40px, 80px) scale(0.9); }
+  75% { transform: translate(60px, 40px) scale(1.05); }
+}
+
+/* ── Grid overlay ─────────────────────────────────────────────────────── */
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(125, 211, 252, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Scan-line overlay ────────────────────────────────────────────────── */
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 3px,
+    rgba(0, 0, 0, 0.008) 3px, rgba(0, 0, 0, 0.008) 6px
+  );
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* ── Mobile top bar ──────────────────────────────────────────────────────── */
@@ -86,6 +167,8 @@ body {
 .layout {
   display: flex;
   height: 100vh;
+  position: relative;
+  z-index: 2;
 }
 
 /* ── Overlay ─────────────────────────────────────────────────────────────── */
