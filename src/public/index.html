@@ -6,6 +6,8 @@
   <title>Devglide</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5/index.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5/300.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-mono@5/600.min.css">
   <link rel="stylesheet" href="/df/tokens.css">
   <link rel="stylesheet" href="/df/components.css">
   <link rel="stylesheet" href="style.css">
@@ -27,6 +29,7 @@
   <script src="/__devtools.js"></script>
 </head>
 <body>
+  <a href="#app-content" class="skip-link">Skip to content</a>
   <!-- Mobile top bar -->
   <div class="mobile-topbar">
     <button id="hamburger" class="hamburger" aria-label="Toggle menu">
@@ -39,7 +42,7 @@
     <!-- Overlay for closing drawer on mobile -->
     <div id="overlay" class="overlay"></div>
 
-    <aside id="sidebar" class="sidebar">
+    <aside id="sidebar" class="sidebar" role="navigation" aria-label="Main navigation">
       <div class="sidebar-brand">
         <svg width="22" height="22" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" class="brand-icon">
           <rect width="32" height="32" fill="var(--df-color-bg-base)"/>
@@ -65,7 +68,7 @@
       <nav id="service-nav" class="service-nav" aria-label="Services"></nav>
     </aside>
 
-    <main class="content">
+    <main class="content" aria-label="App content">
       <div id="app-content" class="app-content"></div>
     </main>
   </div>

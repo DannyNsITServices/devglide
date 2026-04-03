@@ -40,7 +40,8 @@
       align-items: center;
       gap: var(--df-space-2);
       font-size: var(--df-font-size-md);
-      font-weight: normal;
+      font-family: var(--df-font-display);
+      font-weight: 300;
       letter-spacing: var(--df-letter-spacing-wider);
       text-transform: uppercase;
       color: var(--df-color-accent-default);
@@ -332,6 +333,7 @@
     transition: opacity var(--df-duration-base), transform var(--df-duration-slow) var(--df-easing-spring);
 
     & .df-modal__header h2 {
+      font-family: var(--df-font-display);
       font-size: var(--df-font-size-sm);
       font-weight: 600;
       text-transform: uppercase;
@@ -477,6 +479,65 @@
       background: color-mix(in srgb, var(--df-color-accent-default) 10%, transparent);
       font-weight: 500;
     }
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     .df-skeleton — Shimmer loading placeholder
+     ══════════════════════════════════════════════════════════════════════ */
+  .df-skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--df-color-bg-raised) 25%,
+      var(--df-color-bg-overlay) 50%,
+      var(--df-color-bg-raised) 75%
+    );
+    background-size: 200% 100%;
+    animation: df-shimmer 1.5s ease-in-out infinite;
+    border-radius: var(--df-radius-sm);
+  }
+
+  .df-skeleton--text {
+    height: 1em;
+    width: 100%;
+    margin-bottom: var(--df-space-2);
+  }
+
+  .df-skeleton--text:last-child {
+    width: 60%;
+  }
+
+  .df-skeleton--circle {
+    border-radius: var(--df-radius-full);
+  }
+
+  .df-skeleton--card {
+    height: 80px;
+    border-radius: var(--df-radius-lg);
+    margin-bottom: var(--df-space-3);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════
+     .df-stagger — Staggered list entrance animation
+     ══════════════════════════════════════════════════════════════════════ */
+  .df-stagger > * {
+    animation: df-stagger-in var(--df-duration-base) var(--df-easing-spring) both;
+  }
+
+  .df-stagger > :nth-child(1)  { animation-delay: 0ms; }
+  .df-stagger > :nth-child(2)  { animation-delay: 40ms; }
+  .df-stagger > :nth-child(3)  { animation-delay: 80ms; }
+  .df-stagger > :nth-child(4)  { animation-delay: 120ms; }
+  .df-stagger > :nth-child(5)  { animation-delay: 160ms; }
+  .df-stagger > :nth-child(6)  { animation-delay: 200ms; }
+  .df-stagger > :nth-child(7)  { animation-delay: 240ms; }
+  .df-stagger > :nth-child(8)  { animation-delay: 280ms; }
+  .df-stagger > :nth-child(9)  { animation-delay: 320ms; }
+  .df-stagger > :nth-child(10) { animation-delay: 360ms; }
+  .df-stagger > :nth-child(n+11) { animation-delay: 400ms; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .df-skeleton { animation: none; }
+    .df-stagger > * { animation: none; }
   }
 
 }
