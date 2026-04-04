@@ -32,9 +32,61 @@ let _rulesDraft = '';
 let _rulesLoaded = false;
 let _tooltipTarget = null;
 let _brainstorms = {}; // brainstormId -> { phase, ... }
+let _teamState = null;
+let _teamLoading = false;
+let _teamDraft = null;
+let _teamRoles = [];
+let _teamRefreshTimer = null;
+let _teamFormMode = 'edit';
+let _teamActiveDialog = null;
+let _teamDialogReturnFocus = null;
+
+const TEAM_ROLE_TEMPLATES = [
+  {
+    key: 'tech-lead',
+    name: 'Tech Lead',
+    summary: 'Coordinates scope, owns sequencing, and delegates decisions.',
+    instructions: 'Keep the plan coherent, break work into slices, and hand off to independent reviewers/tests.',
+    handoffTargets: ['Implementer', 'Reviewer', 'Tester', 'Kanban'],
+    constraints: ['No self-approval', 'No self-review'],
+  },
+  {
+    key: 'implementer',
+    name: 'Implementer',
+    summary: 'Builds the code changes and reports concrete file-level progress.',
+    instructions: 'Stay implementation-focused, surface assumptions, and pass the result to reviewer/tester before closing.',
+    handoffTargets: ['Reviewer', 'Tester', 'Kanban'],
+    constraints: ['Do not approve your own work'],
+  },
+  {
+    key: 'reviewer',
+    name: 'Reviewer',
+    summary: 'Checks correctness, regressions, and missing edge cases.',
+    instructions: 'Look for behavioral issues, missing coverage, and contract mismatches. Escalate if the implementation needs another pass.',
+    handoffTargets: ['Tester', 'Kanban'],
+    constraints: ['Independent review required'],
+  },
+  {
+    key: 'tester',
+    name: 'Tester',
+    summary: 'Verifies the user-visible behavior and regression surface.',
+    instructions: 'Run focused checks, confirm the visible outcome, and report any gaps with concrete reproduction steps.',
+    handoffTargets: ['Reviewer', 'Kanban'],
+    constraints: ['Test the delivered behavior, not just the code diff'],
+  },
+  {
+    key: 'kanban',
+    name: 'Kanban',
+    summary: 'Keeps task state and handoffs current.',
+    instructions: 'Update issue state, preserve review history, and pass the next concrete task back to the room.',
+    handoffTargets: ['Tech Lead', 'Implementer', 'Reviewer', 'Tester'],
+    constraints: ['Do not self-approve work'],
+  },
+];
 
 // Pipe slash-command state
 const PIPE_COMMANDS = [
+  { name: '/team', hint: 'run|create|status|add|remove|pause|resume|disband|roles', description: 'Team orchestration' },
   { name: '/linear-pipe', hint: 'min 2 assignees', description: 'Sequential processing chain' },
   { name: '/merge-pipe', hint: 'min 3 assignees', description: 'Parallel fan-out + synthesizer' },
   { name: '/merge-all-pipe', hint: 'min 2 assignees', description: 'Parallel fan-out (all) + synthesizer' },
@@ -54,6 +106,117 @@ const PIPE_POLL_INTERVAL_MS = 8_000;
 
 function draftKey(projectId) {
   return projectId ? `${DRAFT_KEY_PREFIX}:${projectId}` : DRAFT_KEY_PREFIX;
+}
+
+function slugifyTeamKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function getTeamRoleTemplates() {
+  return _teamRoles.length > 0 ? _teamRoles : TEAM_ROLE_TEMPLATES;
+}
+
+function getTeamRoster() {
+  const roster = Array.isArray(_teamState?.roster) ? _teamState.roster : Array.isArray(_teamState?.members) ? _teamState.members : [];
+  return roster.filter(Boolean);
+}
+
+function getTeamProposals() {
+  const proposals = Array.isArray(_teamState?.proposals) ? _teamState.proposals : [];
+  return proposals.filter(Boolean);
+}
+
+function getTeamMemberContext(name) {
+  return getTeamRoster().find(member => member.participantName === name || member.name === name || member.participant === name || member.member === name) ?? null;
+}
+
+function getTeamModeLabel(mode) {
+  const normalized = String(mode || '').toLowerCase();
+  if (!normalized) return 'manual';
+  if (normalized === 'assist' || normalized === 'assisted') return 'assist';
+  if (normalized === 'auto' || normalized === 'automated' || normalized === 'automatic') return 'auto';
+  return normalized;
+}
+
+function getTeamStatusLabel(team) {
+  const status = String(team?.status || '').toLowerCase();
+  if (!team) return 'No active team';
+  if (status === 'paused') return 'Paused';
+  if (status === 'disbanded') return 'Disbanded';
+  return status || 'Active';
+}
+
+function isTeamRunSummary(pipe) {
+  if (!pipe) return false;
+  const source = pipe.source ?? pipe.origin ?? pipe.runSource ?? pipe.provenance ?? null;
+  if (source === 'team') return true;
+  if (source && typeof source === 'object' && (source.kind === 'team' || source.type === 'team')) return true;
+  return Boolean(
+    pipe.teamRunId
+    || pipe.teamId
+    || pipe.teamName
+    || pipe.teamGenerated
+    || pipe.teamRun
+    || pipe.generatedByTeam
+    || pipe.createdByTeam
+    || pipe.runKind === 'team'
+  );
+}
+
+function getTeamRunLabel(pipe) {
+  if (!isTeamRunSummary(pipe)) return null;
+  const teamName = pipe.teamName || pipe.team?.name || pipe.teamLabel || pipe.teamId || pipe.teamRunId || '';
+  return teamName ? `Team: ${teamName}` : 'Team run';
+}
+
+function isTeamProposalPending(proposal) {
+  const state = String(proposal?.status || proposal?.state || proposal?.phase || 'pending').toLowerCase();
+  return state === 'pending' || state === 'queued' || state === 'open';
+}
+
+function normalizeTeamSnapshot(payload) {
+  if (!payload) return null;
+  if (Array.isArray(payload)) return payload[0] ?? null;
+  if (payload.team && typeof payload.team === 'object') return payload.team;
+  if (payload.data && typeof payload.data === 'object' && payload.data.team) return payload.data.team;
+  return payload;
+}
+
+function setTeamSnapshot(snapshot) {
+  _teamState = snapshot ? {
+    ...snapshot,
+    roster: Array.isArray(snapshot.roster) ? snapshot.roster : Array.isArray(snapshot.members) ? snapshot.members : [],
+    proposals: Array.isArray(snapshot.proposals) ? snapshot.proposals : [],
+  } : null;
+  renderTeam();
+  renderMembers();
+  renderPipes();
+}
+
+function setTeamRoles(roles) {
+  _teamRoles = Array.isArray(roles) ? roles.filter(Boolean) : [];
+  renderTeam();
+  renderMembers();
+}
+
+function getTeamActionBody(extra = {}) {
+  return JSON.stringify({
+    projectId: _projectId,
+    teamId: _teamState?.id ?? _teamState?.teamId ?? null,
+    ...extra,
+  });
+}
+
+function queueTeamRefresh(delayMs = 1500) {
+  if (_teamRefreshTimer) clearTimeout(_teamRefreshTimer);
+  _teamRefreshTimer = setTimeout(() => {
+    _teamRefreshTimer = null;
+    refreshTeamData().catch(() => {});
+  }, delayMs);
 }
 
 function loadScript(src, globalName) {
@@ -478,6 +641,40 @@ const BODY_HTML = `
         <div class="chat-members-title" id="chat-members-title">Members (0)</div>
       </div>
       <div id="chat-members-list"></div>
+      <div class="chat-team-section" id="chat-team-section">
+        <div class="chat-team-toolbar">
+          <div class="chat-team-toolbar-left">
+            <div class="chat-team-title" id="chat-team-title">Team</div>
+            <div class="chat-team-identity">
+              <span class="chat-team-summary" id="chat-team-summary">No active team for this project.</span>
+              <span class="chat-team-badge inactive hidden" id="chat-team-status-badge">Inactive</span>
+            </div>
+            <div class="chat-team-meta hidden" id="chat-team-meta">
+              <span class="chat-team-chip" id="chat-team-mode-chip">manual</span>
+              <span class="chat-team-chip" id="chat-team-run-chip">No run</span>
+            </div>
+          </div>
+          <div class="chat-team-actions">
+            <button class="btn btn-ghost btn-sm" id="chat-team-roles-trigger" type="button" aria-haspopup="dialog" aria-controls="chat-team-roles-overlay">Roles</button>
+            <button class="btn btn-ghost btn-sm hidden" id="chat-team-members-btn" type="button">Members</button>
+            <button class="btn btn-ghost btn-sm" id="chat-team-create" type="button">Create</button>
+            <button class="btn btn-ghost btn-sm chat-team-icon-btn" id="chat-team-refresh" type="button" aria-label="Refresh team" title="Refresh">↺</button>
+          </div>
+        </div>
+        <div class="chat-team-card hidden" id="chat-team-card">
+          <div class="chat-team-roster" id="chat-team-roster"></div>
+          <div class="chat-team-card-actions">
+            <button class="btn btn-primary btn-sm" id="chat-team-run" type="button">Run</button>
+            <button class="btn btn-secondary btn-sm" id="chat-team-edit" type="button">Edit</button>
+            <button class="btn btn-ghost btn-sm" id="chat-team-pause" type="button">Pause</button>
+            <button class="btn btn-ghost btn-sm" id="chat-team-disband" type="button">Disband</button>
+          </div>
+        </div>
+        <div class="chat-team-proposals">
+          <div class="chat-team-subtitle">Proposals</div>
+          <div id="chat-team-proposals-list"></div>
+        </div>
+      </div>
       <div class="chat-pipes-section" id="chat-pipes-section">
         <div class="chat-pipes-toolbar">
           <div class="chat-pipes-title">
@@ -541,6 +738,88 @@ const BODY_HTML = `
     </div>
   </div>
 
+  <div class="chat-rules-overlay hidden" id="chat-team-overlay" role="dialog" aria-modal="true" aria-labelledby="chat-team-editor-title" tabindex="-1">
+    <div class="chat-rules-modal chat-team-modal">
+      <div class="chat-rules-header">
+        <div>
+          <h2 id="chat-team-editor-title">Edit Team</h2>
+          <p class="chat-rules-desc" id="chat-team-editor-desc">Adjust the current team definition and dispatch settings.</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="chat-team-editor-close" aria-label="Close team editor">Close</button>
+      </div>
+      <div class="chat-rules-body chat-team-editor-body">
+        <label class="chat-team-field">
+          <span>Team name</span>
+          <input class="chat-team-input" id="chat-team-name-input" type="text" placeholder="Platform Crew">
+        </label>
+        <label class="chat-team-field">
+          <span>Dispatch mode</span>
+          <select class="chat-team-input" id="chat-team-dispatch-input">
+            <option value="manual">Manual</option>
+            <option value="assist">Assist</option>
+          </select>
+        </label>
+      </div>
+      <div class="chat-rules-actions">
+        <button class="btn btn-secondary btn-sm" id="chat-team-editor-cancel">Cancel</button>
+        <button class="btn btn-primary btn-sm" id="chat-team-editor-save">Save Team</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-rules-overlay hidden" id="chat-team-roles-overlay" role="dialog" aria-modal="true" aria-labelledby="chat-team-roles-title" tabindex="-1">
+    <div class="chat-rules-modal chat-team-modal chat-team-roles-modal">
+      <div class="chat-rules-header">
+        <div>
+          <h2 id="chat-team-roles-title">Built-In Roles</h2>
+          <p class="chat-rules-desc">Reference the built-in team role templates without expanding the sidebar.</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="chat-team-roles-close" aria-label="Close built-in roles">Close</button>
+      </div>
+      <div class="chat-rules-body chat-team-dialog-body">
+        <div class="chat-team-roles-list" id="chat-team-roles-modal-list"></div>
+      </div>
+      <div class="chat-rules-actions">
+        <button class="btn btn-secondary btn-sm" id="chat-team-roles-done">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-rules-overlay hidden" id="chat-team-disband-overlay" role="dialog" aria-modal="true" aria-labelledby="chat-team-disband-title" tabindex="-1">
+    <div class="chat-rules-modal chat-team-modal">
+      <div class="chat-rules-header">
+        <div>
+          <h2 id="chat-team-disband-title">Disband Team</h2>
+          <p class="chat-rules-desc">Confirm the team shutdown before the active record is retired.</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="chat-team-disband-close" aria-label="Close disband confirmation">Close</button>
+      </div>
+      <div class="chat-rules-body chat-team-dialog-body">
+        <div class="chat-team-danger-note" id="chat-team-disband-name">Disband this team?</div>
+        <div class="chat-team-dialog-copy" id="chat-team-disband-copy">This will make the current team inactive for this project. You can create a new team later, but the current team configuration will no longer be active.</div>
+      </div>
+      <div class="chat-rules-actions">
+        <button class="btn btn-secondary btn-sm" id="chat-team-disband-cancel">Cancel</button>
+        <button class="btn btn-primary btn-sm chat-team-danger-btn" id="chat-team-disband-confirm">Disband Team</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-rules-overlay hidden" id="chat-team-members-overlay" role="dialog" aria-modal="true" aria-labelledby="chat-team-members-title" tabindex="-1">
+    <div class="chat-rules-modal chat-team-modal chat-team-members-modal">
+      <div class="chat-rules-header">
+        <div>
+          <h2 id="chat-team-members-title">Manage Members</h2>
+          <p class="chat-rules-desc">Assign chat participants to roles in the active team.</p>
+        </div>
+      </div>
+      <div class="chat-rules-body chat-team-members-body" id="chat-team-members-list"></div>
+      <div class="chat-rules-actions" style="justify-content:flex-end">
+        <button class="btn btn-secondary btn-sm" id="chat-team-members-close" aria-label="Close member manager">Close</button>
+      </div>
+    </div>
+  </div>
+
 `;
 
 // ── Socket setup ────────────────────────────────────────────────────
@@ -558,6 +837,8 @@ function connectSocket() {
   _socket.on('chat:cleared', onCleared);
   _socket.on('chat:pipe', handlePipeEvent);
   _socket.on('chat:error', onError);
+  // Optional: live team state push (REST-first; socket is additive)
+  _socket.on('chat:team', onTeamUpdate);
 }
 
 function disconnectSocket() {
@@ -569,6 +850,7 @@ function disconnectSocket() {
     _socket.off('chat:cleared', onCleared);
     _socket.off('chat:pipe', handlePipeEvent);
     _socket.off('chat:error', onError);
+    _socket.off('chat:team', onTeamUpdate);
     // Don't disconnect — shared socket, other pages need it
     _socket = null;
   }
@@ -641,6 +923,48 @@ function openNoteModal() {
     cancelBtn?.addEventListener('click', onCancel);
     overlay.addEventListener('click', onBackdrop);
   });
+}
+
+function openTeamDialog(overlaySelector, focusSelector = null) {
+  const overlay = _container?.querySelector(overlaySelector);
+  if (!overlay) return null;
+  if (_teamActiveDialog && _teamActiveDialog !== overlaySelector) closeTeamDialog(_teamActiveDialog, false);
+
+  const activeEl = document.activeElement;
+  _teamDialogReturnFocus = activeEl instanceof HTMLElement ? activeEl : null;
+  _teamActiveDialog = overlaySelector;
+  overlay.classList.remove('hidden');
+
+  const focusTarget = focusSelector ? overlay.querySelector(focusSelector) : null;
+  queueMicrotask(() => {
+    if (focusTarget instanceof HTMLElement) focusTarget.focus();
+    else overlay.focus();
+  });
+  return overlay;
+}
+
+function closeTeamDialog(overlaySelector, restoreFocus = true) {
+  const overlay = _container?.querySelector(overlaySelector);
+  if (!overlay) return;
+  overlay.classList.add('hidden');
+
+  if (_teamActiveDialog === overlaySelector) {
+    const returnFocus = restoreFocus ? _teamDialogReturnFocus : null;
+    _teamActiveDialog = null;
+    _teamDialogReturnFocus = null;
+    if (returnFocus instanceof HTMLElement) returnFocus.focus();
+  }
+}
+
+function closeActiveTeamDialog() {
+  if (_teamActiveDialog) closeTeamDialog(_teamActiveDialog);
+}
+
+function onTeamDialogKeyDown(event) {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeActiveTeamDialog();
+  }
 }
 
 async function brainstormActionWithNote(brainstormId, action) {
@@ -1097,6 +1421,15 @@ function buildPipeRowEl(pipe) {
 
   left.appendChild(chevron);
   left.appendChild(badge);
+
+  const teamRunLabel = getTeamRunLabel(pipe);
+  if (teamRunLabel) {
+    const teamBadge = document.createElement('span');
+    teamBadge.className = 'chat-pipe-team-badge';
+    teamBadge.textContent = teamRunLabel;
+    left.appendChild(teamBadge);
+  }
+
   left.appendChild(mode);
 
   const right = document.createElement('span');
@@ -1302,6 +1635,278 @@ function stopLeaseCountdown() {
 }
 
 
+// ── Team API helpers ────────────────────────────────────────────────
+
+async function refreshTeamData() {
+  if (_teamLoading) return;
+  _teamLoading = true;
+  renderTeam();
+  try {
+    const [teamRes, rolesRes, proposalsRes] = await Promise.all([
+      api('/team'),
+      api('/team/roles'),
+      api('/team/proposals'),
+    ]);
+    const [teamData, rolesData, proposalsData] = await Promise.all([
+      teamRes.ok ? parseJsonSafely(teamRes) : Promise.resolve(null),
+      rolesRes.ok ? parseJsonSafely(rolesRes) : Promise.resolve(null),
+      proposalsRes.ok ? parseJsonSafely(proposalsRes) : Promise.resolve(null),
+    ]);
+    if (teamRes.ok) {
+      const snapshot = normalizeTeamSnapshot(teamData);
+      // Proposals live at /team/proposals — merge into snapshot so getTeamProposals() works
+      if (snapshot) {
+        // Backend returns { proposals: Proposal[] }; tolerate bare array as fallback
+        snapshot.proposals = Array.isArray(proposalsData?.proposals)
+          ? proposalsData.proposals
+          : Array.isArray(proposalsData) ? proposalsData : [];
+      }
+      setTeamSnapshot(snapshot);
+    } else {
+      setTeamSnapshot(null);
+    }
+    if (Array.isArray(rolesData)) setTeamRoles(rolesData);
+  } catch (err) {
+    console.error('[chat] Failed to load team data:', err);
+    setTeamSnapshot(null);
+  } finally {
+    _teamLoading = false;
+    renderTeam();
+  }
+}
+
+function onTeamUpdate(payload) {
+  setTeamSnapshot(normalizeTeamSnapshot(payload));
+}
+
+async function teamProposalAction(proposalId, action) {
+  const res = await api(`/team/proposals/${proposalId}/${action}`, {
+    method: 'POST',
+    body: getTeamActionBody(),
+  });
+  if (!res.ok) {
+    const data = await parseJsonSafely(res);
+    throw new Error(data?.error || `Failed to ${action} proposal`);
+  }
+}
+
+async function teamAction(action) {
+  // Disband is DELETE /team; all other actions are POST /team/:action
+  const isDisband = action === 'disband';
+  const res = await api(isDisband ? '/team' : `/team/${action}`, {
+    method: isDisband ? 'DELETE' : 'POST',
+    body: isDisband ? undefined : getTeamActionBody(),
+  });
+  if (!res.ok) {
+    const data = await parseJsonSafely(res);
+    throw new Error(data?.error || `Failed to ${action} team`);
+  }
+  queueTeamRefresh();
+}
+
+function openTeamEditor() {
+  const titleEl = _container?.querySelector('#chat-team-editor-title');
+  const descEl = _container?.querySelector('#chat-team-editor-desc');
+
+  const isDisbandedState = _teamState && String(_teamState.status || '').toLowerCase() === 'disbanded';
+  _teamFormMode = (_teamState && !isDisbandedState) ? 'edit' : 'create';
+  if (titleEl) titleEl.textContent = _teamFormMode === 'create' ? 'Create Team' : 'Edit Team';
+  if (descEl) {
+    descEl.textContent = _teamFormMode === 'create'
+      ? 'Create a new team for this project and choose its dispatch mode.'
+      : 'Adjust the current team definition and dispatch settings.';
+  }
+
+  const nameInput = _container.querySelector('#chat-team-name-input');
+  const dispatchInput = _container.querySelector('#chat-team-dispatch-input');
+
+  if (nameInput) nameInput.value = _teamFormMode === 'create' ? '' : (_teamState?.name || _teamState?.teamName || '');
+  if (dispatchInput) dispatchInput.value = _teamFormMode === 'create' ? 'manual' : (getTeamModeLabel(_teamState?.dispatchMode || _teamState?.mode) || 'manual');
+
+  openTeamDialog('#chat-team-overlay', '#chat-team-name-input');
+}
+
+function closeTeamEditor() {
+  closeTeamDialog('#chat-team-overlay');
+}
+
+function openTeamRolesDialog() {
+  renderTeamRoles();
+  openTeamDialog('#chat-team-roles-overlay', '#chat-team-roles-close');
+}
+
+function closeTeamRolesDialog() {
+  closeTeamDialog('#chat-team-roles-overlay');
+}
+
+function openTeamDisbandDialog() {
+  if (!_teamState) return;
+
+  const teamName = _teamState.name || _teamState.teamName || 'this team';
+  const nameEl = _container?.querySelector('#chat-team-disband-name');
+  const copyEl = _container?.querySelector('#chat-team-disband-copy');
+  if (nameEl) nameEl.textContent = `Disband ${teamName}?`;
+  if (copyEl) {
+    copyEl.textContent = 'This will retire the current team record for this project. You can create a new team later, but the current role assignments and team state will no longer be active.';
+  }
+
+  openTeamDialog('#chat-team-disband-overlay', '#chat-team-disband-cancel');
+}
+
+function closeTeamDisbandDialog() {
+  closeTeamDialog('#chat-team-disband-overlay');
+}
+
+function openTeamMembersDialog() {
+  renderTeamMembersDialog();
+  openTeamDialog('#chat-team-members-overlay', '#chat-team-members-close');
+}
+
+function closeTeamMembersDialog() {
+  closeTeamDialog('#chat-team-members-overlay');
+}
+
+function renderTeamMembersDialog() {
+  const listEl = _container?.querySelector('#chat-team-members-list');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+
+  const llmMembers = _members.filter(m => m.name !== 'user');
+  if (llmMembers.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'chat-team-proposal-empty';
+    empty.textContent = 'No LLM participants currently in chat.';
+    listEl.appendChild(empty);
+    return;
+  }
+
+  const roster = getTeamRoster();
+  const roles = getTeamRoleTemplates();
+
+  for (const member of llmMembers) {
+    const assigned = roster.find(r => (r.participantName || r.name || r.participant || r.member || '') === member.name);
+    const currentSlug = assigned?.roleSlug || assigned?.role || '';
+
+    const row = document.createElement('div');
+    row.className = 'chat-team-member-row';
+
+    const isDetached = member.detached;
+    const isOnline = Boolean(member.paneId) && !isDetached;
+    const dot = document.createElement('span');
+    dot.className = 'chat-team-online-dot' + (isDetached ? ' detached' : !isOnline ? ' offline' : '');
+    if (!isDetached && isOnline) dot.style.background = getParticipantColor(member);
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'chat-team-member-dialog-name';
+    nameEl.textContent = member.name;
+
+    const select = document.createElement('select');
+    select.className = 'chat-team-input chat-team-role-select';
+    select.title = `Role for ${member.name}`;
+    select.setAttribute('aria-label', `Role for ${member.name}`);
+
+    const blankOpt = document.createElement('option');
+    blankOpt.value = '';
+    blankOpt.textContent = '— no role —';
+    select.appendChild(blankOpt);
+
+    for (const role of roles) {
+      const slug = role.slug || slugifyTeamKey(role.displayName || role.name || '');
+      const label = role.displayName || role.name || slug;
+      const opt = document.createElement('option');
+      opt.value = slug;
+      opt.textContent = label;
+      if (slug === currentSlug) opt.selected = true;
+      select.appendChild(opt);
+    }
+
+    select.addEventListener('change', async () => {
+      const slug = select.value;
+      select.disabled = true;
+      try {
+        if (slug) {
+          await assignMemberRole(member.name, slug);
+        } else {
+          await removeMemberFromTeam(member.name);
+        }
+        await refreshTeamData();
+        renderTeamMembersDialog();
+      } catch (err) {
+        console.error('[chat] Member role update failed:', err);
+        select.disabled = false;
+      }
+    });
+
+    row.appendChild(dot);
+    row.appendChild(nameEl);
+    row.appendChild(select);
+    listEl.appendChild(row);
+  }
+}
+
+async function assignMemberRole(participantName, roleSlug) {
+  const res = await api('/team/members', {
+    method: 'POST',
+    body: JSON.stringify({ projectId: _projectId, participantName, roleSlug }),
+  });
+  if (!res.ok) {
+    const data = await parseJsonSafely(res);
+    throw new Error(data?.error || 'Failed to assign role');
+  }
+}
+
+async function removeMemberFromTeam(participantName) {
+  const res = await api(`/team/members/${encodeURIComponent(participantName)}`, {
+    method: 'DELETE',
+    body: getTeamActionBody(),
+  });
+  if (!res.ok) {
+    const data = await parseJsonSafely(res);
+    throw new Error(data?.error || 'Failed to remove member');
+  }
+}
+
+async function confirmTeamDisband() {
+  const btn = _container?.querySelector('#chat-team-disband-confirm');
+  if (btn) btn.disabled = true;
+  try {
+    await teamAction('disband');
+    closeTeamDisbandDialog();
+  } catch (err) {
+    console.error('[chat] Failed to disband team:', err);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function saveTeamFromEditor() {
+  const nameInput = _container?.querySelector('#chat-team-name-input');
+  const dispatchInput = _container?.querySelector('#chat-team-dispatch-input');
+  const saveBtn = _container?.querySelector('#chat-team-editor-save');
+
+  if (saveBtn) saveBtn.disabled = true;
+  try {
+    const method = _teamFormMode === 'create' ? 'POST' : 'PUT';
+    const res = await api('/team', {
+      method,
+      body: getTeamActionBody({
+        name: nameInput?.value?.trim() || '',
+        dispatchMode: dispatchInput?.value || 'manual',
+      }),
+    });
+    if (!res.ok) {
+      const data = await parseJsonSafely(res);
+      throw new Error(data?.error || 'Failed to save team');
+    }
+    closeTeamEditor();
+    await refreshTeamData();
+  } catch (err) {
+    console.error('[chat] Failed to save team:', err);
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
 // ── Rendering: Members ──────────────────────────────────────────────
 
 function renderMembers() {
@@ -1367,6 +1972,266 @@ function renderMembers() {
     item.appendChild(dot);
     item.appendChild(body);
     listEl.appendChild(item);
+  }
+}
+
+function getRoleDisplayName(member) {
+  const slug = member.roleSlug || member.role || member.roleName || '';
+  if (!slug) return '';
+  const templates = getTeamRoleTemplates();
+  const match = templates.find(t => {
+    // Backend templates use `slug`; local fallback templates use `key`
+    const tSlug = t.slug || t.key || '';
+    const tDisplay = t.displayName || t.name || '';
+    return tSlug === slug ||
+      slugifyTeamKey(tDisplay) === slug ||
+      tDisplay.toLowerCase() === slug.toLowerCase();
+  });
+  // Backend uses `displayName`; local fallback uses `name`
+  return match?.displayName || match?.name || slug;
+}
+
+// ── Rendering: Team ─────────────────────────────────────────────────
+
+function renderTeam() {
+  const section = _container?.querySelector('#chat-team-section');
+  if (!section) return;
+
+  const titleEl = _container.querySelector('#chat-team-title');
+  const summaryEl = _container.querySelector('#chat-team-summary');
+  const cardEl = _container.querySelector('#chat-team-card');
+  const statusBadge = _container.querySelector('#chat-team-status-badge');
+  const modeChip = _container.querySelector('#chat-team-mode-chip');
+  const runChip = _container.querySelector('#chat-team-run-chip');
+  const metaRow = _container.querySelector('#chat-team-meta');
+  const createBtn = _container.querySelector('#chat-team-create');
+  const membersBtn = _container.querySelector('#chat-team-members-btn');
+  const runBtn = _container.querySelector('#chat-team-run');
+  const editBtn = _container.querySelector('#chat-team-edit');
+  const pauseBtn = _container.querySelector('#chat-team-pause');
+  const disbandBtn = _container.querySelector('#chat-team-disband');
+
+  const hasTeam = Boolean(_teamState);
+  const isDisbanded = hasTeam && String(_teamState.status || '').toLowerCase() === 'disbanded';
+
+  if (cardEl) cardEl.classList.toggle('hidden', !hasTeam);
+  if (statusBadge) statusBadge.classList.toggle('hidden', !hasTeam);
+  if (metaRow) metaRow.classList.toggle('hidden', !hasTeam);
+  if (createBtn) createBtn.classList.toggle('hidden', (hasTeam && !isDisbanded) || _teamLoading);
+  if (membersBtn) membersBtn.classList.toggle('hidden', !hasTeam || isDisbanded);
+
+  if (!hasTeam) {
+    if (titleEl) titleEl.textContent = 'Team';
+    if (summaryEl) summaryEl.textContent = _teamLoading ? 'Loading…' : 'No active team for this project.';
+    renderTeamProposals();
+    renderTeamRoles();
+    return;
+  }
+
+  const teamName = _teamState.name || _teamState.teamName || '';
+  if (titleEl) titleEl.textContent = 'Team';
+  if (summaryEl) summaryEl.textContent = teamName;
+
+  const statusLabel = getTeamStatusLabel(_teamState);
+  if (statusBadge) {
+    const s = statusLabel.toLowerCase();
+    statusBadge.textContent = statusLabel;
+    statusBadge.className = 'chat-team-badge ' +
+      (s === 'paused' ? 'paused' : s === 'disbanded' ? 'disbanded' : s === 'active' ? '' : 'inactive');
+  }
+
+  if (modeChip) {
+    modeChip.textContent = getTeamModeLabel(_teamState.dispatchMode || _teamState.mode);
+  }
+
+  if (runChip) {
+    const activeRun = _teamState.activeRun || _teamState.currentRun;
+    runChip.textContent = activeRun
+      ? `Run ${String(activeRun.id || '').slice(0, 6)}`
+      : 'No run';
+  }
+
+  const status = String(_teamState.status || '').toLowerCase();
+  const isPaused = status === 'paused';
+  if (runBtn) runBtn.disabled = isDisbanded || isPaused;
+  if (editBtn) editBtn.disabled = isDisbanded;
+  if (pauseBtn) {
+    pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
+    pauseBtn.disabled = isDisbanded;
+  }
+  if (disbandBtn) disbandBtn.disabled = isDisbanded;
+
+  renderTeamRoster();
+  renderTeamProposals();
+  renderTeamRoles();
+}
+
+function renderTeamRoster() {
+  const el = _container?.querySelector('#chat-team-roster');
+  if (!el) return;
+  el.innerHTML = '';
+
+  const roster = getTeamRoster();
+  if (roster.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'chat-team-proposal-empty';
+    empty.textContent = 'No members assigned.';
+    el.appendChild(empty);
+    return;
+  }
+
+  for (const member of roster) {
+    const memberName = member.participantName || member.name || member.participant || member.member || '';
+    const row = document.createElement('div');
+    row.className = 'chat-team-member';
+
+    const participant = findParticipant(memberName);
+    const isDetached = participant?.detached;
+    const isOnline = Boolean(participant?.paneId) && !isDetached;
+    const dot = document.createElement('span');
+    dot.className = 'chat-team-online-dot' + (isDetached ? ' detached' : !isOnline ? ' offline' : '');
+
+    const name = document.createElement('span');
+    name.className = 'chat-team-member-name';
+    name.textContent = memberName || '?';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'chat-team-member-remove-btn';
+    removeBtn.title = `Remove ${memberName} from team`;
+    removeBtn.setAttribute('aria-label', `Remove ${memberName} from team`);
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', async () => {
+      removeBtn.disabled = true;
+      try {
+        await removeMemberFromTeam(memberName);
+        await refreshTeamData();
+      } catch (err) {
+        console.error('[chat] Member remove failed:', err);
+        removeBtn.disabled = false;
+      }
+    });
+
+    row.appendChild(dot);
+    row.appendChild(name);
+
+    const roleLabel = getRoleDisplayName(member);
+    if (roleLabel) {
+      const chip = document.createElement('span');
+      chip.className = 'chat-team-role-chip';
+      chip.textContent = roleLabel;
+      row.appendChild(chip);
+    }
+
+    row.appendChild(removeBtn);
+    el.appendChild(row);
+  }
+}
+
+function renderTeamProposals() {
+  const el = _container?.querySelector('#chat-team-proposals-list');
+  if (!el) return;
+  el.innerHTML = '';
+
+  const proposals = getTeamProposals();
+  if (proposals.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'chat-team-proposal-empty';
+    empty.textContent = 'No pending proposals.';
+    el.appendChild(empty);
+    return;
+  }
+
+  for (const proposal of proposals) {
+    const item = document.createElement('div');
+    item.className = 'chat-team-proposal';
+
+    const title = document.createElement('div');
+    title.className = 'chat-team-proposal-title';
+    title.textContent = proposal.title || proposal.name
+      || `Proposal ${String(proposal.id || '').slice(0, 6)}`;
+    item.appendChild(title);
+
+    if (proposal.description && (proposal.title || proposal.name)) {
+      const desc = document.createElement('div');
+      desc.className = 'chat-team-proposal-desc';
+      desc.textContent = proposal.description;
+      item.appendChild(desc);
+    }
+
+    if (isTeamProposalPending(proposal)) {
+      const actions = document.createElement('div');
+      actions.className = 'chat-team-proposal-actions';
+
+      for (const [label, action, variant] of [
+        ['Approve', 'approve', 'btn-primary'],
+        ['Reject', 'reject', 'btn-ghost'],
+        ['Dismiss', 'dismiss', 'btn-ghost'],
+      ]) {
+        const btn = document.createElement('button');
+        btn.className = `btn ${variant} btn-sm`;
+        btn.type = 'button';
+        btn.textContent = label;
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          btn.disabled = true;
+          try {
+            await teamProposalAction(proposal.id, action);
+            queueTeamRefresh(500);
+          } catch {
+            btn.disabled = false;
+          }
+        });
+        actions.appendChild(btn);
+      }
+
+      item.appendChild(actions);
+    }
+
+    el.appendChild(item);
+  }
+}
+
+function renderTeamRoles() {
+  const el = _container?.querySelector('#chat-team-roles-modal-list');
+  if (!el) return;
+  el.innerHTML = '';
+
+  const roles = getTeamRoleTemplates();
+  if (roles.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'chat-team-proposal-empty';
+    empty.textContent = 'No role templates available.';
+    el.appendChild(empty);
+    return;
+  }
+
+  for (const role of roles) {
+    const item = document.createElement('div');
+    item.className = 'chat-team-role-item';
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'chat-team-role-name';
+    // Backend uses `displayName`; local fallback templates use `name`
+    nameEl.textContent = role.displayName || role.name;
+
+    const summaryEl = document.createElement('div');
+    summaryEl.className = 'chat-team-role-summary';
+    // Backend uses `description`; local fallback templates use `summary`
+    summaryEl.textContent = role.description || role.summary;
+
+    item.appendChild(nameEl);
+    item.appendChild(summaryEl);
+
+    const handoffs = Array.isArray(role.handoffTargets) ? role.handoffTargets : [];
+    if (handoffs.length > 0) {
+      const metaEl = document.createElement('div');
+      metaEl.className = 'chat-team-role-meta';
+      metaEl.textContent = `Handoffs: ${handoffs.join(', ')}`;
+      item.appendChild(metaEl);
+    }
+
+    el.appendChild(item);
   }
 }
 
@@ -1833,6 +2698,7 @@ async function loadInitialData() {
     renderMembers();
     await fetchPipes();
     renderAllMessages();
+    refreshTeamData().catch(() => {});
   } catch (err) {
     console.error('[chat] Failed to load initial data:', err);
   }
@@ -1887,6 +2753,85 @@ function bindEvents() {
 
   // New messages indicator click
   _container.querySelector('#chat-new-indicator')?.addEventListener('click', scrollToBottom);
+
+  // ── Team bindings ──
+  _container.querySelector('#chat-team-roles-trigger')?.addEventListener('click', openTeamRolesDialog);
+  _container.querySelector('#chat-team-members-btn')?.addEventListener('click', openTeamMembersDialog);
+  _container.querySelector('#chat-team-create')?.addEventListener('click', openTeamEditor);
+  _container.querySelector('#chat-team-refresh')?.addEventListener('click', () => refreshTeamData().catch(() => {}));
+
+  _container.querySelector('#chat-team-run')?.addEventListener('click', async () => {
+    // Capture run prompt via the note modal (backend requires non-empty prompt)
+    const titleEl = _container.querySelector('#chat-note-title');
+    const textareaEl = _container.querySelector('#chat-note-textarea');
+    const prevTitle = titleEl?.textContent;
+    const prevPlaceholder = textareaEl?.placeholder;
+    if (titleEl) titleEl.textContent = 'Start Team Run';
+    if (textareaEl) textareaEl.placeholder = 'Describe the run goal (required)…';
+
+    const prompt = await openNoteModal();
+
+    if (titleEl) titleEl.textContent = prevTitle ?? 'Add a Note';
+    if (textareaEl) textareaEl.placeholder = prevPlaceholder ?? 'Optional note...';
+
+    if (prompt === undefined) return; // user cancelled
+    if (!prompt?.trim()) return;      // empty — backend requires non-empty prompt
+
+    const btn = _container.querySelector('#chat-team-run');
+    if (btn) btn.disabled = true;
+    try {
+      const res = await api('/team/run', {
+        method: 'POST',
+        body: getTeamActionBody({ prompt: prompt.trim() }),
+      });
+      if (!res.ok) {
+        const data = await parseJsonSafely(res);
+        console.error('[chat] Team run failed:', data?.error);
+      }
+      queueTeamRefresh();
+    } catch (err) {
+      console.error('[chat] Team run error:', err);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  });
+
+  _container.querySelector('#chat-team-edit')?.addEventListener('click', openTeamEditor);
+
+  _container.querySelector('#chat-team-pause')?.addEventListener('click', async () => {
+    const action = String(_teamState?.status || '').toLowerCase() === 'paused' ? 'resume' : 'pause';
+    const btn = _container.querySelector('#chat-team-pause');
+    if (btn) btn.disabled = true;
+    try { await teamAction(action); } catch { /* no-op */ } finally {
+      if (btn) btn.disabled = false;
+    }
+  });
+
+  _container.querySelector('#chat-team-disband')?.addEventListener('click', openTeamDisbandDialog);
+
+  _container.querySelector('#chat-team-editor-close')?.addEventListener('click', closeTeamEditor);
+  _container.querySelector('#chat-team-editor-cancel')?.addEventListener('click', closeTeamEditor);
+  _container.querySelector('#chat-team-editor-save')?.addEventListener('click', saveTeamFromEditor);
+  _container.querySelector('#chat-team-roles-close')?.addEventListener('click', closeTeamRolesDialog);
+  _container.querySelector('#chat-team-roles-done')?.addEventListener('click', closeTeamRolesDialog);
+  _container.querySelector('#chat-team-disband-close')?.addEventListener('click', closeTeamDisbandDialog);
+  _container.querySelector('#chat-team-disband-cancel')?.addEventListener('click', closeTeamDisbandDialog);
+  _container.querySelector('#chat-team-disband-confirm')?.addEventListener('click', confirmTeamDisband);
+  _container.querySelector('#chat-team-members-close')?.addEventListener('click', closeTeamMembersDialog);
+  _container.querySelector('#chat-team-members-done')?.addEventListener('click', closeTeamMembersDialog);
+
+  for (const [overlayId, closeHandler] of [
+    ['chat-team-overlay', closeTeamEditor],
+    ['chat-team-roles-overlay', closeTeamRolesDialog],
+    ['chat-team-disband-overlay', closeTeamDisbandDialog],
+    ['chat-team-members-overlay', closeTeamMembersDialog],
+  ]) {
+    const overlay = _container.querySelector(`#${overlayId}`);
+    overlay?.addEventListener('click', (event) => {
+      if (event.target?.id === overlayId) closeHandler();
+    });
+    overlay?.addEventListener('keydown', onTeamDialogKeyDown);
+  }
 }
 
 // ── Exports ─────────────────────────────────────────────────────────
@@ -1910,7 +2855,14 @@ export function mount(container, ctx) {
   _autoScroll = true;
   _rulesDraft = '';
   _rulesLoaded = false;
-
+  _teamState = null;
+  _teamLoading = false;
+  _teamDraft = null;
+  _teamRoles = [];
+  if (_teamRefreshTimer) { clearTimeout(_teamRefreshTimer); _teamRefreshTimer = null; }
+  _teamFormMode = 'edit';
+  _teamActiveDialog = null;
+  _teamDialogReturnFocus = null;
 
   container.classList.add('page-chat', 'app-page');
   container.innerHTML = BODY_HTML;
@@ -1998,6 +2950,14 @@ export function unmount(container) {
   _brainstorms = {};
   _rulesDraft = '';
   _rulesLoaded = false;
+  _teamState = null;
+  _teamLoading = false;
+  _teamDraft = null;
+  _teamRoles = [];
+  if (_teamRefreshTimer) { clearTimeout(_teamRefreshTimer); _teamRefreshTimer = null; }
+  _teamFormMode = 'edit';
+  _teamActiveDialog = null;
+  _teamDialogReturnFocus = null;
 
   _mermaidIdCounter = 0;
   _mermaidFailed = false;
@@ -2030,6 +2990,14 @@ export function onProjectChange(project) {
   _brainstorms = {};
   _rulesDraft = '';
   _rulesLoaded = false;
+  _teamState = null;
+  _teamLoading = false;
+  _teamDraft = null;
+  _teamRoles = [];
+  if (_teamRefreshTimer) { clearTimeout(_teamRefreshTimer); _teamRefreshTimer = null; }
+  _teamFormMode = 'edit';
+  _teamActiveDialog = null;
+  _teamDialogReturnFocus = null;
 
   if (_container) {
     // Restore the new project's draft (or clear)

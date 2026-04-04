@@ -331,6 +331,12 @@ function runSetup() {
 
   console.log("  Registering MCP servers in Claude Code...\n");
 
+  // Remove legacy bare "devglide" HTTP server if present
+  try {
+    execSync("claude mcp remove devglide --scope user", { stdio: "pipe" });
+    console.log("  ✓ devglide (legacy) removed\n");
+  } catch { /* not registered — nothing to do */ }
+
   let failed = false;
   for (const name of Object.keys(mcpServers)) {
     const mcpName = `devglide-${name}`;
@@ -462,10 +468,10 @@ function runTeardown() {
     }
   }
 
-  // Remove any stale devglide-* servers not in the current map
+  // Remove any stale devglide or devglide-* servers not in the current map
   try {
     const out = execSync("claude mcp list --scope user", { stdio: "pipe", encoding: "utf8" });
-    const registered = out.match(/devglide-[\w-]+/g) || [];
+    const registered = out.match(/devglide(?:-[\w-]+)?/g) || [];
     for (const name of registered) {
       if (!validNames.has(name)) {
         try {

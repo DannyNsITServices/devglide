@@ -153,6 +153,13 @@ export function isPipeParseError(result: PipeParseResult): result is PipeParseEr
   return 'error' in result;
 }
 
+// ── Team command detection ────────────────────────────────────────────────────
+
+/** Returns true if the message is a /team slash command. */
+export function isTeamCommand(body: string): boolean {
+  return /^\/team(\s|$)/.test(body.trim());
+}
+
 // ── Brainstorm command parsing ────────────────────────────────────────────────
 
 const BRAINSTORM_CMD_RE = /^\/brainstorm\s+/;

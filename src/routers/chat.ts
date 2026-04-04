@@ -8,6 +8,8 @@ import { asyncHandler, badRequest } from '../packages/error-middleware.js';
 import * as registry from '../apps/chat/services/chat-registry.js';
 import * as store from '../apps/chat/services/chat-store.js';
 import { getEffectiveRules, getDefaultRules, saveProjectRules, deleteProjectRules, hasProjectRules } from '../apps/chat/services/chat-rules.js';
+import * as teamStore from '../apps/chat/services/team-store.js';
+import { listRoles, isValidRoleSlug } from '../apps/chat/services/team-roles.js';
 import { getActiveProject, onProjectChange } from '../project-context.js';
 import { listProjects } from '../packages/project-store.js';
 import { globalPtys, dashboardState, nextPaneId, nextNumForProject, getShellNsp, MAX_PANES, panesForProject } from '../apps/shell/src/runtime/shell-state.js';
@@ -516,7 +518,8 @@ router.post('/join', (req: Request, res: Response) => {
   const rules = getEffectiveRules(participant.projectId);
   const assignments = registry.listAssignments(participant.name, participant.projectId ?? null);
   const pendingAssignments = assignments.filter(a => a.slotStatus === 'pending' || a.slotStatus === 'leased').length;
-  res.status(201).json({ ...participant, rules, pendingAssignments });
+  const team = teamStore.getParticipantTeamContext(participant.projectId, participant.name);
+  res.status(201).json({ ...participant, rules, pendingAssignments, team: team ?? null });
 });
 
 // POST /leave — unregister a participant (used by MCP bridge)
@@ -845,6 +848,243 @@ router.post('/brainstorms/:id/back-to-ideas', asyncHandler(async (req: Request, 
   }
   res.json({ ok: true });
 }));
+
+// ── Team endpoints ───────────────────────────────────────────────────────────
+
+const createTeamSchema = z.object({
+  name: z.string().min(1, 'name is required'),
+  members: z.array(z.object({
+    participantName: z.string().min(1),
+    roleSlug: z.string().min(1),
+  })).optional(),
+  dispatchMode: z.enum(['manual', 'assist']).optional(),
+});
+
+const updateTeamSchema = z.object({
+  name: z.string().min(1).optional(),
+  status: z.enum(['active', 'paused']).optional(),
+  dispatchMode: z.enum(['manual', 'assist']).optional(),
+});
+
+const assignMemberSchema = z.object({
+  participantName: z.string().min(1, 'participantName is required'),
+  roleSlug: z.string().min(1, 'roleSlug is required'),
+});
+
+// GET /team/roles — list all built-in role templates
+router.get('/team/roles', (_req: Request, res: Response) => {
+  res.json(listRoles());
+});
+
+// GET /team — get team for the current project (200 with null when no team exists)
+router.get('/team', (req: Request, res: Response) => {
+  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+  if (!projectId) { badRequest(res, 'No active project'); return; }
+  res.json(registry.getTeamSnapshot(projectId) ?? null);
+});
+
+// POST /team — create a new team for the active project
+router.post('/team', (req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  if (!projectId) { badRequest(res, 'No active project'); return; }
+
+  const parsed = createTeamSchema.safeParse(req.body);
+  if (!parsed.success) { badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input'); return; }
+
+  const { name, members, dispatchMode } = parsed.data;
+
+  // Validate role slugs up front
+  if (members) {
+    for (const m of members) {
+      if (!isValidRoleSlug(m.roleSlug)) {
+        badRequest(res, `"${m.roleSlug}" is not a valid role slug`);
+        return;
+      }
+    }
+  }
+
+  try {
+    const now = new Date().toISOString();
+    const team = teamStore.createTeam(projectId, {
+      name,
+      members: members?.map((m) => ({ ...m, assignedAt: now })),
+    });
+    if (dispatchMode !== undefined) {
+      registry.setTeamAssistMode(dispatchMode === 'assist', projectId);
+    }
+    res.status(201).json(team);
+  } catch (err) {
+    res.status(409).json({ error: (err as Error).message });
+  }
+});
+
+// PUT /team — update team name or status (active ↔ paused)
+router.put('/team', (req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  if (!projectId) { badRequest(res, 'No active project'); return; }
+
+  const parsed = updateTeamSchema.safeParse(req.body);
+  if (!parsed.success) { badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input'); return; }
+
+  try {
+    const { dispatchMode, ...teamOpts } = parsed.data;
+    const team = teamStore.updateTeam(projectId, teamOpts);
+    if (dispatchMode !== undefined) {
+      registry.setTeamAssistMode(dispatchMode === 'assist', projectId);
+    }
+    res.json(team);
+  } catch (err) {
+    res.status(404).json({ error: (err as Error).message });
+  }
+});
+
+// DELETE /team — disband the active team
+router.delete('/team', (req: Request, res: Response) => {
+  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+  if (!projectId) { badRequest(res, 'No active project'); return; }
+
+  try {
+    const team = teamStore.disbandTeam(projectId);
+    res.json({ ok: true, team });
+  } catch (err) {
+    res.status(404).json({ error: (err as Error).message });
+  }
+});
+
+// POST /team/members — assign a participant to a role
+router.post('/team/members', (req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  if (!projectId) { badRequest(res, 'No active project'); return; }
+
+  const parsed = assignMemberSchema.safeParse(req.body);
+  if (!parsed.success) { badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input'); return; }
+
+  try {
+    const team = teamStore.assignMember(projectId, parsed.data.participantName, parsed.data.roleSlug);
+    res.status(201).json(team);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// DELETE /team/members/:name — remove a participant from the team
+router.delete('/team/members/:name', (req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  if (!projectId) { badRequest(res, 'No active project'); return; }
+
+  try {
+    const team = teamStore.removeMember(projectId, req.params.name);
+    res.json(team);
+  } catch (err) {
+    res.status(404).json({ error: (err as Error).message });
+  }
+});
+
+// POST /team/pause — convenience action to pause the active team
+router.post('/team/pause', (req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  if (!projectId) { badRequest(res, 'No active project'); return; }
+  try {
+    const team = teamStore.updateTeam(projectId, { status: 'paused' });
+    res.json(team);
+  } catch (err) {
+    res.status(404).json({ error: (err as Error).message });
+  }
+});
+
+// POST /team/resume — convenience action to resume a paused team
+router.post('/team/resume', (req: Request, res: Response) => {
+  const projectId = getActiveProject()?.id ?? null;
+  if (!projectId) { badRequest(res, 'No active project'); return; }
+  try {
+    const team = teamStore.updateTeam(projectId, { status: 'active' });
+    res.json(team);
+  } catch (err) {
+    res.status(404).json({ error: (err as Error).message });
+  }
+});
+
+// POST /team/run — dispatch a team run via registry
+const teamRunSchema = z.object({
+  prompt: z.string().min(1, 'prompt is required'),
+  mode: z.enum(['manual', 'assist']).optional(),
+  projectId: z.string().nullable().optional(),
+});
+
+router.post('/team/run', asyncHandler(async (req: Request, res: Response) => {
+  const parsed = teamRunSchema.safeParse(req.body);
+  if (!parsed.success) { badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input'); return; }
+
+  // Honor caller-supplied projectId (MCP pane-adoption pattern) before falling back.
+  const { prompt, mode, projectId: bodyProjectId } = parsed.data;
+  const projectId = bodyProjectId ?? getActiveProject()?.id ?? null;
+  if (!projectId) { badRequest(res, 'No active project'); return; }
+
+  // Sync assist mode toggle before dispatch so the run picks up the correct setting.
+  if (mode === 'assist') registry.setTeamAssistMode(true, projectId);
+  else if (mode === 'manual') registry.setTeamAssistMode(false, projectId);
+
+  const result = await registry.dispatchTeamRun({ prompt, mode, projectId });
+  if (!result.ok) {
+    res.status(409).json({ error: result.message });
+    return;
+  }
+  res.status(201).json(result);
+}));
+
+// ── Team proposal endpoints ───────────────────────────────────────────────────
+// Proposals are steps/plans surfaced during a team run that require human approval.
+// Backing implementation is owned by the team-run slice. These stubs own the REST
+// surface in the router so the UI can target stable URLs before the service is wired.
+
+// GET /team/proposals — list all proposals for the active project (all statuses, newest first)
+router.get('/team/proposals', (req: Request, res: Response) => {
+  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+  if (!projectId) { badRequest(res, 'No active project'); return; }
+  res.json(registry.getTeamProposals(projectId));
+});
+
+// Shared helper: resolve projectId for proposal action endpoints.
+// Accepts optional ?projectId= query param so MCP callers can scope correctly.
+function resolveProposalProjectId(req: Request): string | null {
+  return (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+}
+
+// POST /team/proposals/:id/approve — approve a pending proposal
+router.post('/team/proposals/:id/approve', (req: Request, res: Response) => {
+  const projectId = resolveProposalProjectId(req);
+  const result = registry.resolveProposal(req.params.id, 'approve', projectId);
+  if (!result.ok) {
+    const status = result.message.includes('not found') ? 404 : 409;
+    res.status(status).json({ error: result.message });
+    return;
+  }
+  res.json(result);
+});
+
+// POST /team/proposals/:id/reject — reject a pending proposal
+router.post('/team/proposals/:id/reject', (req: Request, res: Response) => {
+  const projectId = resolveProposalProjectId(req);
+  const result = registry.resolveProposal(req.params.id, 'reject', projectId);
+  if (!result.ok) {
+    const status = result.message.includes('not found') ? 404 : 409;
+    res.status(status).json({ error: result.message });
+    return;
+  }
+  res.json(result);
+});
+
+// POST /team/proposals/:id/dismiss — dismiss a proposal without approving or rejecting
+router.post('/team/proposals/:id/dismiss', (req: Request, res: Response) => {
+  const projectId = resolveProposalProjectId(req);
+  const result = registry.resolveProposal(req.params.id, 'dismiss', projectId);
+  if (!result.ok) {
+    const status = result.message.includes('not found') ? 404 : 409;
+    res.status(status).json({ error: result.message });
+    return;
+  }
+  res.json(result);
+});
 
 // ── LLM invite endpoints ─────────────────────────────────────────────────────
 
