@@ -4,17 +4,9 @@ import { globalPtys, dashboardState, getShellNsp } from '../../shell/src/runtime
 import { appendMessage, appendPipeEvent, readMessages, clearMessages, saveParticipants, loadParticipants, discoverPersistedPipeIds, readAllPipeEvents, removePipeFiles } from './chat-store.js';
 import type { PersistedParticipant } from './chat-store.js';
 import { getActiveProject, onProjectChange } from '../../../project-context.js';
-import { isPipeCommand, parsePipeCommand, isPipeParseError, validatePipeAssigneeCount, isBrainstormCommand, parseBrainstormCommand, isTeamCommand } from './pipe-parser.js';
+import { isPipeCommand, parsePipeCommand, isPipeParseError, validatePipeAssigneeCount, isBrainstormCommand, parseBrainstormCommand } from './pipe-parser.js';
 import * as brainstormStore from './brainstorm-store.js';
-import { parseTeamCommand, isTeamParseError } from './team-command-parser.js';
-import * as teamStore from './team-store.js';
-import * as teamRunStore from './team-run-store.js';
-import type { PlaybookId } from './team-run-store.js';
-import * as teamPlaybook from './team-run-playbook.js';
-import * as teamSafeguards from './team-safeguards.js';
-import * as teamAssistRouter from './team-assist-router.js';
-import * as teamPtyBriefings from './team-pty-briefings.js';
-import { getRole, listRoles as listBuiltInRoles } from './team-roles.js';
+import { getRole } from './roles.js';
 import * as pipeReducer from './pipe-reducer.js';
 import * as pipeStore from './pipe-store.js';
 import * as pipeDelivery from './pipe-delivery.js';
@@ -43,10 +35,48 @@ const PIPE_WATCHDOG_INTERVAL_MS = 5_000; // 5 seconds — pane liveness + deadli
 
 const paneDisconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-// ── Team assist mode state (per-project, in-memory) ──────────────────────────
-// Tracks whether the active team for a project operates in 'assist' mode.
-// Defaults to false (manual). Reset when a team is disbanded.
-const assistModeByProject = new Map<string | null, boolean>();
+// ── Role assignment (per-project, in-memory) ──────────────────────────────────
+// projectId -> (participantName -> roleSlug)
+const rolesByProject = new Map<string | null, Map<string, string>>();
+
+function getProjectRoles(projectId: string | null): Map<string, string> {
+  let map = rolesByProject.get(projectId);
+  if (!map) { map = new Map(); rolesByProject.set(projectId, map); }
+  return map;
+}
+
+export function assignRole(projectId: string | null, participantName: string, roleSlug: string): void {
+  const template = getRole(roleSlug);
+  if (!template) throw new Error(`"${roleSlug}" is not a valid role slug.`);
+  // Roles may only be assigned to connected LLM participants
+  const participant = getParticipantExact(participantName, projectId);
+  if (!participant) throw new Error(`Participant "${participantName}" is not connected to this project.`);
+  if (participant.kind !== 'llm') throw new Error(`Roles can only be assigned to LLM participants, not "${participant.kind}".`);
+  const roles = getProjectRoles(projectId);
+  // One participant → one role
+  roles.delete(participantName);
+  // Exclusive roles → one participant per role
+  if (template.cardinality === 'exclusive') {
+    for (const [name, slug] of roles) {
+      if (slug === roleSlug) roles.delete(name);
+    }
+  }
+  roles.set(participantName, roleSlug);
+  emitMembers(projectId);
+}
+
+export function unassignRole(projectId: string | null, participantName: string): void {
+  rolesByProject.get(projectId)?.delete(participantName);
+  emitMembers(projectId);
+}
+
+function getParticipantRoleSlug(projectId: string | null, participantName: string): string | null {
+  return rolesByProject.get(projectId)?.get(participantName) ?? null;
+}
+
+export function listProjectRoleAssignments(projectId: string | null): Record<string, string> {
+  return Object.fromEntries(rolesByProject.get(projectId) ?? []);
+}
 
 // ── Pipe stage deadline timers ──────────────────────────────────────────────
 // Keyed by "pipeId:assignee" — one timer per active lease
@@ -520,7 +550,12 @@ export function join(
       reconcileOnReconnect(existing.name, existing.projectId);
     }
 
-    return existing;
+    const reclaimRoleSlug = getParticipantRoleSlug(existing.projectId, existing.name);
+    const reclaimRoleTemplate = reclaimRoleSlug ? getRole(reclaimRoleSlug) : null;
+    return {
+      ...existing,
+      role: reclaimRoleTemplate ? { slug: reclaimRoleTemplate.slug, displayName: reclaimRoleTemplate.displayName } : null,
+    };
   }
 
   // No reclaim candidate — derive name from model/identity
@@ -560,7 +595,12 @@ export function join(
   if (paneId) startPanePromptWatcher(uniqueName, participant.projectId, paneId);
   persistParticipantsForProject(participant.projectId);
 
-  return participant;
+  const newRoleSlug = getParticipantRoleSlug(participant.projectId, participant.name);
+  const newRoleTemplate = newRoleSlug ? getRole(newRoleSlug) : null;
+  return {
+    ...participant,
+    role: newRoleTemplate ? { slug: newRoleTemplate.slug, displayName: newRoleTemplate.displayName } : null,
+  };
 }
 
 export function leave(name: string, projectId?: string | null): boolean {
@@ -585,6 +625,8 @@ export function leave(name: string, projectId?: string | null): boolean {
     }, pid);
     emitToProject('chat:leave', { name }, pid);
     emitToProject('chat:message', msg, pid);
+    // Clear role assignment when participant leaves
+    unassignRole(pid, name);
     emitMembers(pid);
     persistParticipantsForProject(pid);
 
@@ -685,26 +727,9 @@ export async function send(from: string, body: string, to?: string, projectId?: 
     return handleBrainstormCommand(body, resolvedSenderProjectId);
   }
 
-  // ─── Team command detection (user-only) ────────────────────────────
-  if (from === 'user' && isTeamCommand(body)) {
-    return handleTeamCommand(body, resolvedSenderProjectId);
-  }
-
   // ─── Pipe command detection (user-only) ────────────────────────────
   if (from === 'user' && isPipeCommand(body)) {
     return handlePipeCommand(body, resolvedSenderProjectId);
-  }
-
-  // ─── Assist-mode interception (user-only, no explicit targets) ─────
-  // When the active team is in assist mode, unaddressed user imperatives
-  // are intercepted before PTY broadcast and turned into proposals.
-  if (from === 'user') {
-    const targetTokens = parseTargetTokens(body, to, 'user');
-    const activeTeam = teamStore.getActiveTeam(resolvedSenderProjectId);
-    const assistEnabled = assistModeByProject.get(resolvedSenderProjectId) ?? false;
-    if (teamAssistRouter.shouldIntercept({ from, targetTokens, body, team: activeTeam, assistModeEnabled: assistEnabled })) {
-      return handleAssistIntercept(body, activeTeam!, resolvedSenderProjectId);
-    }
   }
 
   // ─── Pipe response detection (LLM-only, log-centric) ──────────────
@@ -855,10 +880,6 @@ export function expandToRecipients(
         }
       }
       // @all does NOT add to concreteAssignees — it's a group expansion
-    } else if (token.startsWith('team-') || token.startsWith('team_')) {
-      // @team-{name} → Phase 2 placeholder. When team store lands, resolve roster here.
-      // Until then, treat as unresolved so the sender sees a warning.
-      unresolvedSet.add(token);
     } else if (SEMANTIC_ONLY_TARGETS.has(token)) {
       // @user, @system — semantic only, no PTY delivery target
       continue;
@@ -999,7 +1020,12 @@ export function listParticipants(projectId?: string | null): ChatParticipant[] {
   for (const p of participants.values()) {
     // Only return participants that belong to the active project
     if (p.projectId === pid) {
-      result.push(p);
+      const roleSlug = getParticipantRoleSlug(p.projectId, p.name);
+      const roleTemplate = roleSlug ? getRole(roleSlug) : null;
+      result.push({
+        ...p,
+        role: roleTemplate ? { slug: roleTemplate.slug, displayName: roleTemplate.displayName } : null,
+      });
     }
   }
   result.sort((a, b) => a.name.localeCompare(b.name));
@@ -1343,434 +1369,6 @@ export function clearAllDeadlineTimers(): void {
     clearTimeout(timer);
     stageDeadlineTimers.delete(key);
   }
-}
-
-// ── Team orchestration ────────────────────────────────────────────────────────
-
-/** Deliver a briefing text to a participant's pane without PTY submit. Used for
- *  informational role notifications — the agent sees the text but takes no action. */
-async function deliverBriefingToPty(
-  targetName: string,
-  projectId: string | null,
-  briefingText: string,
-): Promise<void> {
-  const briefingMsg = appendMessage(
-    { from: 'system', to: targetName, body: briefingText, type: 'system' },
-    projectId,
-  );
-  await deliverToPty(targetName, projectId, briefingMsg);
-}
-
-async function handleTeamCommand(body: string, projectId: string | null): Promise<ChatMessage> {
-  const parsed = parseTeamCommand(body);
-
-  const userMsg = appendMessage({ from: 'user', to: null, body, type: 'message' }, projectId);
-  emitToProject('chat:message', userMsg, projectId);
-
-  if (isTeamParseError(parsed)) {
-    const errMsg = appendMessage(
-      { from: 'system', to: null, body: `Team error: ${parsed.error}`, type: 'system' },
-      projectId,
-    );
-    emitToProject('chat:message', errMsg, projectId);
-    return userMsg;
-  }
-
-  try {
-    let responseBody: string;
-
-    switch (parsed.sub) {
-      case 'create': {
-        const team = teamStore.createTeam(projectId!, { name: parsed.name });
-        if (parsed.mode === 'assist') {
-          assistModeByProject.set(projectId, true);
-        }
-        const modeNote = parsed.mode === 'assist' ? ' Assist mode enabled — user imperatives will be intercepted as proposals.' : '';
-        responseBody = `Team "${team.name}" created.${modeNote} Use /team add <role> @<agent> to assign members, then /team run <playbook> to start.`;
-        break;
-      }
-
-      case 'status': {
-        const team = teamStore.getTeam(projectId);
-        if (!team) {
-          responseBody = 'No team for this project. Use /team create <name> to start one.';
-          break;
-        }
-        const activeRun = teamRunStore.getActiveTeamRun(team.id, projectId);
-        const memberLines = team.members.length > 0
-          ? team.members.map(m => `  @${m.participantName} → ${m.roleSlug}`).join('\n')
-          : '  (no members assigned)';
-        const runLine = activeRun
-          ? `\nActive run: ${activeRun.playbook} (${activeRun.status})`
-          : '';
-        const assistLine = (assistModeByProject.get(projectId) ?? false)
-          ? '\nMode: assist (intercepting user imperatives)'
-          : '\nMode: manual';
-        responseBody = `Team: ${team.name} [${team.status}]\nMembers:\n${memberLines}${runLine}${assistLine}`;
-        break;
-      }
-
-      case 'edit': {
-        const editOpts: Parameters<typeof teamStore.updateTeam>[1] = {};
-        if (parsed.name) editOpts.name = parsed.name;
-        const updated = teamStore.updateTeam(projectId!, editOpts);
-        const parts: string[] = [];
-        if (parsed.name) parts.push(`renamed to "${updated.name}"`);
-        if (parsed.mode !== undefined) {
-          assistModeByProject.set(projectId, parsed.mode === 'assist');
-          parts.push(`mode set to ${parsed.mode}`);
-        }
-        responseBody = `Team ${parts.join(', ')}.`;
-        break;
-      }
-
-      case 'add': {
-        const team = teamStore.assignMember(projectId!, parsed.assignee, parsed.roleSlug);
-        const role = getRole(parsed.roleSlug);
-        responseBody = `@${parsed.assignee} assigned as ${role?.displayName ?? parsed.roleSlug}.`;
-        // Inject informational PTY briefing
-        await deliverBriefingToPty(
-          parsed.assignee,
-          projectId,
-          teamPtyBriefings.formatRoleBriefing(parsed.assignee, team.name, role!),
-        );
-        break;
-      }
-
-      case 'remove': {
-        const team = teamStore.getActiveTeam(projectId);
-        if (!team) throw new Error('No active team.');
-        const existing = team.members.find((m) => m.participantName === parsed.assignee);
-        teamStore.removeMember(projectId!, parsed.assignee);
-        responseBody = `@${parsed.assignee} removed from the team.`;
-        if (existing) {
-          const prevRole = getRole(existing.roleSlug);
-          await deliverBriefingToPty(
-            parsed.assignee,
-            projectId,
-            teamPtyBriefings.formatRemovalBriefing(
-              parsed.assignee,
-              team.name,
-              prevRole?.displayName ?? existing.roleSlug,
-            ),
-          );
-        }
-        break;
-      }
-
-      case 'pause': {
-        teamStore.updateTeam(projectId!, { status: 'paused' });
-        responseBody = 'Team paused. Use /team resume to reactivate.';
-        break;
-      }
-
-      case 'resume': {
-        teamStore.updateTeam(projectId!, { status: 'active' });
-        responseBody = 'Team resumed.';
-        break;
-      }
-
-      case 'disband': {
-        const team = teamStore.getActiveTeam(projectId);
-        if (!team) throw new Error('No active team to disband.');
-        const activeRun = teamRunStore.getActiveTeamRun(team.id, projectId);
-        const warning = teamSafeguards.getDisbandWarning(team, activeRun?.id ?? null);
-        if (activeRun) {
-          teamRunStore.updateTeamRun(activeRun.id, projectId, { status: 'cancelled' });
-        }
-        teamStore.disbandTeam(projectId!);
-        assistModeByProject.delete(projectId);
-        // Notify all members
-        for (const member of team.members) {
-          await deliverBriefingToPty(
-            member.participantName,
-            projectId,
-            teamPtyBriefings.formatDisbandBriefing(team.name),
-          );
-        }
-        responseBody = warning
-          ? `Team "${team.name}" disbanded. Note: ${warning}`
-          : `Team "${team.name}" disbanded.`;
-        break;
-      }
-
-      case 'run': {
-        responseBody = await dispatchTeamRunInternal(parsed.playbook, parsed.prompt, projectId);
-        break;
-      }
-
-      case 'proposal': {
-        const result = resolveProposal(parsed.proposalId, parsed.action, projectId);
-        responseBody = result.message;
-        break;
-      }
-
-      case 'roles': {
-        const roles = listBuiltInRoles();
-        const lines = roles.map((r) => `  ${r.slug} — ${r.description}`).join('\n');
-        responseBody = `Built-in roles:\n${lines}`;
-        break;
-      }
-
-      default:
-        responseBody = 'Unknown /team subcommand.';
-    }
-
-    const sysMsg = appendMessage(
-      { from: 'system', to: null, body: responseBody, type: 'system' },
-      projectId,
-    );
-    emitToProject('chat:message', sysMsg, projectId);
-    return userMsg;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const errMsg = appendMessage(
-      { from: 'system', to: null, body: `Team error: ${msg}`, type: 'system' },
-      projectId,
-    );
-    emitToProject('chat:message', errMsg, projectId);
-    return userMsg;
-  }
-}
-
-/** Core team run dispatcher — shared by /team run command and REST route. */
-async function dispatchTeamRunInternal(
-  playbook: PlaybookId,
-  prompt: string,
-  projectId: string | null,
-): Promise<string> {
-  const team = teamStore.getActiveTeam(projectId);
-  if (!team) return 'No active team. Use /team create <name> first.';
-  if (team.status === 'paused') return 'Team is paused. Use /team resume first.';
-
-  const existingRun = teamRunStore.getActiveTeamRun(team.id, projectId);
-  if (existingRun) {
-    return `Team already has an active run (${existingRun.id}). Wait for it to complete or cancel it.`;
-  }
-
-  const compiledStages = playbook === 'custom'
-    ? []
-    : teamPlaybook.compilePlaybook(playbook as Exclude<PlaybookId, 'custom'>, team.members);
-
-  // Build a map of current project participants for safeguard checks
-  const participantMap = new Map<string, ChatParticipant>();
-  for (const p of participants.values()) {
-    if (p.projectId === projectId) participantMap.set(p.name, p);
-  }
-
-  const stripped = teamSafeguards.stripNonBlockingUnassignedStages(compiledStages);
-  const guardError = teamSafeguards.validateRunSafeguards(stripped, participantMap);
-  if (guardError) return `Run blocked: ${guardError.message}`;
-
-  if (stripped.length < 2) {
-    return 'Run requires at least 2 assigned stages. Assign team members first.';
-  }
-
-  const teamContext: Record<string, unknown> = {
-    teamId: team.id, teamName: team.name,
-    members: team.members.map((m) => ({ name: m.participantName, role: m.roleSlug })),
-  };
-  const roleContext: Record<string, unknown> = Object.fromEntries(
-    stripped.map((s) => [s.index, { roleSlug: s.roleSlug, assignee: s.assignee }]),
-  );
-  const workContext: Record<string, unknown> = { prompt };
-
-  const run = teamRunStore.createTeamRun(team.id, projectId, {
-    playbook, prompt, stages: stripped, teamContext, roleContext, workContext,
-  });
-
-  // Compile to a linear pipe
-  const assignees = teamPlaybook.extractAssigneesFromStages(stripped);
-  const pipePrompt = teamPlaybook.buildPipePrompt(stripped, prompt);
-  const pipeId = pipeReducer.generatePipeId();
-
-  pipeStore.createPipe(pipeId, 'linear', assignees, pipePrompt, projectId, {});
-  provenance.recordProvenance(projectId, {
-    pipeId, event: 'created', actor: 'user', actorKind: 'user',
-    metadata: { mode: 'linear', assignees, teamRunId: run.id },
-  });
-  startPipeWatchdog();
-  teamRunStore.updateTeamRun(run.id, projectId, { status: 'running', pipeId });
-
-  // Emit pipe start message
-  const desc = pipeReducer.getStartDescription({ mode: 'linear', assignees, prompt: pipePrompt });
-  const startMsg = appendMessage({
-    from: 'system', to: null,
-    body: `#pipe-${pipeId} Team run started (${playbook}): ${desc}`,
-    type: 'system',
-    pipe: { pipeId, mode: 'linear', role: 'start', assignees, prompt: pipePrompt },
-  }, projectId);
-  emitToProject('chat:message', startMsg, projectId);
-
-  // Run-start briefings (informational, non-blocking)
-  for (const stage of stripped) {
-    if (!stage.assignee) continue;
-    await deliverBriefingToPty(
-      stage.assignee,
-      projectId,
-      teamPtyBriefings.formatRunStartBriefing(
-        team.name, playbook, prompt, stage.roleSlug, stage.index, stripped.length,
-      ),
-    );
-  }
-
-  // Trigger the pipe reducer to emit the first handoff
-  runPipeReducer(pipeId, projectId).catch((err) =>
-    console.error('[team] pipe reducer failed:', err),
-  );
-
-  return `Team run started (run: ${run.id}, pipe: ${pipeId}). ${stripped.length} stages queued.`;
-}
-
-/** Handle assist-mode interception: turn an unaddressed user imperative into a proposal. */
-async function handleAssistIntercept(
-  body: string,
-  team: teamStore.ActiveTeam,
-  projectId: string | null,
-): Promise<ChatMessage> {
-  const playbook = teamAssistRouter.classifyIntent(body);
-  const compiledStages = playbook === 'custom'
-    ? []
-    : teamPlaybook.compilePlaybook(playbook as Exclude<PlaybookId, 'custom'>, team.members);
-  const stripped = teamSafeguards.stripNonBlockingUnassignedStages(compiledStages);
-  const stageDescriptions = stripped.map(
-    (s) => `${s.roleSlug}${s.assignee ? ` (@${s.assignee})` : ''} — ${s.description}`,
-  );
-
-  const proposal = teamRunStore.createProposal(team.id, projectId, {
-    triggerMessage: body, playbook, prompt: body, stages: stripped,
-  });
-
-  const previewText = teamAssistRouter.formatProposalPreview(
-    team, playbook, body, stageDescriptions,
-  );
-
-  // Persist user message
-  const userMsg = appendMessage({ from: 'user', to: null, body, type: 'message' }, projectId);
-  emitToProject('chat:message', userMsg, projectId);
-
-  // Emit proposal notice as a system message
-  const proposalMsg = appendMessage(
-    { from: 'system', to: null, body: `${previewText}\n\n_Proposal ID: ${proposal.id}_`, type: 'system' },
-    projectId,
-  );
-  emitToProject('chat:message', proposalMsg, projectId);
-
-  return userMsg;
-}
-
-// ── Team orchestration public exports ─────────────────────────────────────────
-
-/**
- * Return the enriched team snapshot consumed by GET /team.
- * Returns the team record fields merged with runtime-derived fields so the
- * UI can read snapshot.dispatchMode, snapshot.activeRun, snapshot.members, etc.
- * Returns null when no team exists for the project.
- */
-export function getTeamSnapshot(projectId?: string | null): (teamStore.ActiveTeam & {
-  dispatchMode: 'manual' | 'assist';
-  activeRun: { id: string; playbook: string; status: string; pipeId: string | null } | null;
-  pendingProposalCount: number;
-}) | null {
-  const pid = resolveProjectId(projectId);
-  const team = teamStore.getTeam(pid);
-  if (!team) return null;
-  const dispatchMode: 'manual' | 'assist' =
-    (assistModeByProject.get(pid) ?? false) ? 'assist' : 'manual';
-  const run = teamRunStore.getActiveTeamRun(team.id, pid) ?? null;
-  const activeRun = run
-    ? { id: run.id, playbook: run.playbook, status: run.status, pipeId: run.pipeId }
-    : null;
-  const pendingProposalCount = teamRunStore.getPendingProposals(team.id, pid).length;
-  return { ...team, dispatchMode, activeRun, pendingProposalCount };
-}
-
-/**
- * Dispatch a team run — called by POST /team/run.
- *
- * REST surface: { prompt: string, mode?: string, projectId?: string }
- *   - `mode` maps to PlaybookId (change-request | bug-fix | custom).
- *   - Defaults to 'change-request' when omitted.
- */
-export async function dispatchTeamRun(
-  opts: { prompt: string; mode?: string; projectId?: string | null } | PlaybookId,
-  promptArg?: string,
-  projectIdArg?: string | null,
-): Promise<{ ok: boolean; message: string }> {
-  let playbook: PlaybookId;
-  let prompt: string;
-  let pid: string | null;
-
-  if (typeof opts === 'string') {
-    // Legacy positional call: dispatchTeamRun(playbook, prompt, projectId)
-    playbook = opts as PlaybookId;
-    prompt = promptArg ?? '';
-    pid = resolveProjectId(projectIdArg);
-  } else {
-    // REST-compatible object call: dispatchTeamRun({ prompt, mode?, projectId? })
-    const rawMode = opts.mode ?? 'change-request';
-    playbook = (['change-request', 'bug-fix', 'custom'] as PlaybookId[]).includes(rawMode as PlaybookId)
-      ? (rawMode as PlaybookId)
-      : 'change-request';
-    prompt = opts.prompt;
-    pid = resolveProjectId(opts.projectId);
-  }
-
-  const msg = await dispatchTeamRunInternal(playbook, prompt, pid);
-  const ok = !msg.startsWith('Run blocked') && !msg.startsWith('No active') && !msg.startsWith('Team already');
-  return { ok, message: msg };
-}
-
-/** Return proposals — called by GET /team/proposals.
- *  Canonical shape: { proposals: Proposal[] } (all statuses, newest first).
- *  Additive: also exposes { pending: Proposal[] } for convenience. */
-export function getTeamProposals(projectId?: string | null): {
-  proposals: teamRunStore.TeamProposal[];
-  pending: teamRunStore.TeamProposal[];
-} {
-  const pid = resolveProjectId(projectId);
-  const team = teamStore.getActiveTeam(pid);
-  if (!team) return { proposals: [], pending: [] };
-  const all = teamRunStore.listProposals(team.id, pid)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const pending = all.filter((p) => p.status === 'pending');
-  return { proposals: all, pending };
-}
-
-/** Approve, reject, or dismiss a proposal — called by POST /team/proposals/:id/approve|reject|dismiss. */
-export function resolveProposal(
-  proposalId: string,
-  action: 'approve' | 'reject' | 'dismiss',
-  projectId?: string | null,
-): { ok: boolean; message: string; runId?: string } {
-  const pid = resolveProjectId(projectId);
-  const proposal = teamRunStore.getProposal(proposalId, pid);
-  if (!proposal) return { ok: false, message: `Proposal ${proposalId} not found.` };
-  if (proposal.status !== 'pending') {
-    return { ok: false, message: `Proposal is already ${proposal.status}.` };
-  }
-
-  if (action === 'approve') {
-    teamRunStore.updateProposalStatus(proposalId, pid, 'approved');
-    // Fire off the run asynchronously — caller gets a response immediately
-    dispatchTeamRunInternal(proposal.playbook, proposal.prompt, pid)
-      .catch((err) => console.error('[team] proposal run failed:', err));
-    return { ok: true, message: 'Proposal approved. Run dispatched.' };
-  }
-
-  const status = action === 'reject' ? 'rejected' : 'dismissed';
-  teamRunStore.updateProposalStatus(proposalId, pid, status);
-  return { ok: true, message: `Proposal ${status}.` };
-}
-
-/** Enable or disable assist mode for the active team. */
-export function setTeamAssistMode(enabled: boolean, projectId?: string | null): void {
-  assistModeByProject.set(resolveProjectId(projectId), enabled);
-}
-
-/** Check whether assist mode is enabled for the current project. */
-export function getTeamAssistMode(projectId?: string | null): boolean {
-  return assistModeByProject.get(resolveProjectId(projectId)) ?? false;
 }
 
 // ── Pipe orchestration (log-centric reducer model) ───────────────────────────

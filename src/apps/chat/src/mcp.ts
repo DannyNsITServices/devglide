@@ -3,8 +3,7 @@ import { z } from 'zod';
 import { jsonResult, errorResult, createDevglideMcpServer } from '../../../packages/mcp-utils/src/index.js';
 import * as store from '../services/chat-store.js';
 import { getEffectiveRules } from '../services/chat-rules.js';
-import * as teamStore from '../services/team-store.js';
-import { listRoles, isValidRoleSlug } from '../services/team-roles.js';
+import { listRoles } from '../services/roles.js';
 
 const UNIFIED_BASE = `http://localhost:${process.env.PORT ?? 7000}`;
 
@@ -154,6 +153,9 @@ export function createChatMcpServer(): McpServer {
         '- `pipe_read_output(pipeId, paneId?)` — read the stage input content you are entitled to (previous stage output for linear, original prompt for fan-out, aggregated fan-out outputs for synthesizer). Caller identity resolved from session.',
         '- `chat_read(limit?, since?)` — read message history.',
         '- `chat_members()` — list active participants with pane link status.',
+        '- `role_list_roles()` — list all predefined role templates.',
+        '- `role_assign(participantName, roleSlug)` — assign a role to a participant.',
+        '- `role_unassign(participantName)` — remove a role from a participant.',
       ],
     },
   );
@@ -528,201 +530,50 @@ export function createChatMcpServer(): McpServer {
     },
   );
 
-  // ── 7. team_list ──────────────────────────────────────────────────────────
-
+  // ── role_list_roles ──────────────────────────────────────────────────────
   server.tool(
-    'team_list',
-'Get the team record for the current project. Returns the full record regardless of status (active, paused, or disbanded), or null if no team has ever been created. Use the status field to distinguish states.',
-    {
-      paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session.'),
-    },
-    async ({ paneId }) => {
-      const adopted = await tryAdoptSessionByPaneId(paneId);
-      const sessionProjectId = adopted?.projectId ?? getSessionProjectId();
-      if (!sessionProjectId) return errorResult('Not joined — call chat_join first');
-      // Delegate to REST so UI and MCP always see the same payload
-      const res = await chatApi(`/team?projectId=${encodeURIComponent(sessionProjectId)}`);
-      if (!res.ok) return errorResult((res.data as { error?: string })?.error ?? 'Failed to fetch team');
-      return jsonResult(res.data);
-    },
-  );
-
-  // ── 8. team_list_roles ────────────────────────────────────────────────────
-
-  server.tool(
-    'team_list_roles',
-    'List all built-in /team role templates (Tech Lead, Implementer, Reviewer, Tester, Kanban). Returns slugs, display names, descriptions, allowed actions, and handoff targets.',
+    'role_list_roles',
+    'List all predefined role templates (tech-lead, implementer, reviewer, tester, kanban) with slugs, display names, descriptions, and cardinality.',
     {},
-    async () => jsonResult(listRoles()),
-  );
-
-  // ── 8. team_get ───────────────────────────────────────────────────────────
-
-  server.tool(
-    'team_get',
-    'Get the team record for this project, including disbanded teams. Returns the full record (id, name, status, members) regardless of status, or null if no team has ever been created. Use status field to distinguish active/paused/disbanded.',
-    {
-      paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session. Only needed when this MCP session has no tracked chat state.'),
-    },
-    async ({ paneId }) => {
-      const adopted = await tryAdoptSessionByPaneId(paneId);
-      const sessionProjectId = adopted?.projectId ?? getSessionProjectId();
-      if (!sessionProjectId) return errorResult('Not joined — call chat_join first');
-      const team = teamStore.getTeam(sessionProjectId);
-      return jsonResult(team ?? null);
+    async () => {
+      return jsonResult({ roles: listRoles() });
     },
   );
 
-  // ── 9. team_create ────────────────────────────────────────────────────────
-
+  // ── role_assign ──────────────────────────────────────────────────────────
   server.tool(
-    'team_create',
-    'Create a new team for the current project. Fails if a non-disbanded team already exists — disband it first. Use team_list_roles to see valid role slugs.',
+    'role_assign',
+    'Assign a predefined role to a connected chat participant. Exclusive roles auto-evict the previous holder. Multiple participants can hold the "implementer" role simultaneously.',
     {
-      name: z.string().min(1).describe('Team name (e.g. "Feature X Team")'),
-      members: z.array(z.object({
-        participantName: z.string().min(1).describe('Chat participant name (e.g. "claude-1")'),
-        roleSlug: z.string().min(1).describe('Role slug from team_list_roles (e.g. "implementer")'),
-      })).optional().describe('Initial member role assignments'),
-      paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session.'),
-    },
-    async ({ name, members, paneId }) => {
-      const adopted = await tryAdoptSessionByPaneId(paneId);
-      const sessionProjectId = adopted?.projectId ?? getSessionProjectId();
-      if (!sessionProjectId) return errorResult('Not joined — call chat_join first');
-
-      if (members) {
-        for (const m of members) {
-          if (!isValidRoleSlug(m.roleSlug)) {
-            return errorResult(`"${m.roleSlug}" is not a valid role slug. Use team_list_roles to see available roles.`);
-          }
-        }
-      }
-
-      try {
-        const now = new Date().toISOString();
-        const team = teamStore.createTeam(sessionProjectId, {
-          name,
-          members: members?.map((m) => ({ ...m, assignedAt: now })),
-        });
-        return jsonResult(team);
-      } catch (err) {
-        return errorResult((err as Error).message);
-      }
-    },
-  );
-
-  // ── 10. team_edit ─────────────────────────────────────────────────────────
-
-  server.tool(
-    'team_edit',
-    'Update the active team name or status (active ↔ paused). Cannot edit a disbanded team.',
-    {
-      name: z.string().min(1).optional().describe('New team name'),
-      status: z.enum(['active', 'paused']).optional().describe('New status: "active" or "paused"'),
-      paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session.'),
-    },
-    async ({ name, status, paneId }) => {
-      const adopted = await tryAdoptSessionByPaneId(paneId);
-      const sessionProjectId = adopted?.projectId ?? getSessionProjectId();
-      if (!sessionProjectId) return errorResult('Not joined — call chat_join first');
-
-      try {
-        const team = teamStore.updateTeam(sessionProjectId, { name, status });
-        return jsonResult(team);
-      } catch (err) {
-        return errorResult((err as Error).message);
-      }
-    },
-  );
-
-  // ── 11. team_disband ──────────────────────────────────────────────────────
-
-  server.tool(
-    'team_disband',
-    'Disband the active team. The team record is preserved for history but marked as disbanded. A new team can be created afterwards.',
-    {
-      paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session.'),
-    },
-    async ({ paneId }) => {
-      const adopted = await tryAdoptSessionByPaneId(paneId);
-      const sessionProjectId = adopted?.projectId ?? getSessionProjectId();
-      if (!sessionProjectId) return errorResult('Not joined — call chat_join first');
-
-      try {
-        const team = teamStore.disbandTeam(sessionProjectId);
-        return jsonResult({ ok: true, team });
-      } catch (err) {
-        return errorResult((err as Error).message);
-      }
-    },
-  );
-
-  // ── 12. team_assign_member ────────────────────────────────────────────────
-
-  server.tool(
-    'team_assign_member',
-    'Assign a chat participant to a role in the active team. Replaces any existing role for that participant. Use team_list_roles to see valid role slugs.',
-    {
-      participantName: z.string().min(1).describe('Chat participant name to assign (e.g. "claude-1")'),
-      roleSlug: z.string().min(1).describe('Role slug to assign (e.g. "implementer"). Use team_list_roles to see options.'),
+      participantName: z.string().min(1).describe('Chat participant name to assign the role to (e.g. "claude-8")'),
+      roleSlug: z.string().min(1).describe('Role slug to assign. Use role_list_roles to see valid options (e.g. "implementer", "reviewer").'),
       paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session.'),
     },
     async ({ participantName, roleSlug, paneId }) => {
-      const adopted = await tryAdoptSessionByPaneId(paneId);
-      const sessionProjectId = adopted?.projectId ?? getSessionProjectId();
+      await tryAdoptSessionByPaneId(paneId);
+      const sessionProjectId = getSessionProjectId();
       if (!sessionProjectId) return errorResult('Not joined — call chat_join first');
-
-      try {
-        const team = teamStore.assignMember(sessionProjectId, participantName, roleSlug);
-        return jsonResult(team);
-      } catch (err) {
-        return errorResult((err as Error).message);
-      }
+      const r = await chatApi('/roles/assign', { participantName, roleSlug });
+      return r.ok ? jsonResult(r.data) : errorResult((r.data as { error?: string })?.error ?? 'Failed to assign role');
     },
   );
 
-  // ── 13. team_remove_member ────────────────────────────────────────────────
-
+  // ── role_unassign ────────────────────────────────────────────────────────
   server.tool(
-    'team_remove_member',
-    'Remove a participant from the active team. No-ops if the participant was not assigned.',
+    'role_unassign',
+    'Remove the role assignment from a connected participant.',
     {
-      participantName: z.string().min(1).describe('Chat participant name to remove'),
+      participantName: z.string().min(1).describe('Chat participant name to unassign (e.g. "claude-8")'),
       paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session.'),
     },
     async ({ participantName, paneId }) => {
-      const adopted = await tryAdoptSessionByPaneId(paneId);
-      const sessionProjectId = adopted?.projectId ?? getSessionProjectId();
+      await tryAdoptSessionByPaneId(paneId);
+      const sessionProjectId = getSessionProjectId();
       if (!sessionProjectId) return errorResult('Not joined — call chat_join first');
-
-      try {
-        const team = teamStore.removeMember(sessionProjectId, participantName);
-        return jsonResult(team);
-      } catch (err) {
-        return errorResult((err as Error).message);
-      }
-    },
-  );
-
-  // ── 14. team_run ──────────────────────────────────────────────────────────
-
-  server.tool(
-    'team_run',
-    'Initiate a team run for the active team. The team-run backing implementation is owned by the team-run slice — this tool exposes the stable surface and delegates to POST /team/run. Returns a NOT_IMPLEMENTED payload until the team-run service is wired.',
-    {
-      prompt: z.string().min(1).describe('The task or goal for the team to execute'),
-      mode: z.enum(['manual', 'assist']).optional().describe('"manual" (default) or "assist" — controls how autonomously the team executes steps'),
-      paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session.'),
-    },
-    async ({ prompt, mode, paneId }) => {
-      const adopted = await tryAdoptSessionByPaneId(paneId);
-      const sessionProjectId = adopted?.projectId ?? getSessionProjectId();
-      if (!sessionProjectId) return errorResult('Not joined — call chat_join first');
-
-      const res = await chatApi('/team/run', { prompt, mode: mode ?? 'manual', projectId: sessionProjectId });
-      // 501 is expected until team-run slice is wired — surface the payload as-is
-      return jsonResult(res.data);
+      const url = `${UNIFIED_BASE}/api/chat/roles/${encodeURIComponent(participantName)}`;
+      const res = await fetch(url, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
+      const data = await res.json() as { ok?: boolean; error?: string };
+      return res.ok ? jsonResult(data) : errorResult(data?.error ?? 'Failed to unassign role');
     },
   );
 
