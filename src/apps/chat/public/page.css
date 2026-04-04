@@ -62,15 +62,15 @@
 #chat-members-list {
   display: flex;
   flex-direction: column;
+  gap: 2px;
 }
 
 .chat-member-item {
   display: flex;
   align-items: flex-start;
   gap: var(--df-space-2);
-  padding: var(--df-space-2) 0;
+  padding: 3px 0;
   font-size: var(--df-font-size-sm);
-  border-bottom: 1px solid color-mix(in srgb, var(--df-color-border-default) 65%, transparent);
 }
 
 .chat-member-item:first-child {
@@ -78,7 +78,6 @@
 }
 
 .chat-member-item:last-child {
-  border-bottom: none;
   padding-bottom: 0;
 }
 
@@ -242,7 +241,7 @@
 .chat-messages-list {
   flex: 1;
   overflow-y: auto;
-  padding: var(--df-space-3);
+  padding: var(--df-space-2);
   display: flex;
   flex-direction: column;
   gap: var(--df-space-2);
@@ -710,7 +709,7 @@
   display: inline-block;
   padding: 1px 6px;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: var(--df-font-size-xs);
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -1144,9 +1143,9 @@
   align-items: center;
   gap: var(--df-space-1);
   flex-wrap: wrap;
-  margin-top: var(--df-space-2);
-  padding-top: var(--df-space-2);
-  border-top: 1px solid var(--df-color-border-default);
+  margin-top: var(--df-space-1);
+  padding-top: var(--df-space-1);
+  border-top: 1px solid color-mix(in srgb, var(--df-color-border-default) 70%, transparent);
 }
 
 /* ── Team status badge ─────────────────────────────────────────── */
@@ -1188,18 +1187,19 @@
   align-items: center;
   padding: 1px var(--df-space-2);
   border-radius: var(--df-radius-full);
-  font-size: 10px;
+  font-size: var(--df-font-size-xs);
   letter-spacing: 0.03em;
-  color: var(--df-color-text-secondary);
-  border: 1px solid color-mix(in srgb, var(--df-color-border-default) 85%, transparent);
-  background: var(--df-color-bg-raised);
+  color: var(--df-color-text-muted);
+  border: 1px solid color-mix(in srgb, var(--df-color-border-default) 70%, transparent);
+  background: transparent;
 }
 
 /* ── Team roster ───────────────────────────────────────────────── */
 .chat-team-roster {
   display: flex;
   flex-direction: column;
-  gap: var(--df-space-1);
+  gap: 2px;
+  margin-bottom: var(--df-space-1);
 }
 
 .chat-team-member {
@@ -1229,14 +1229,14 @@
 .chat-team-role-chip {
   display: inline-flex;
   align-items: center;
-  padding: 1px var(--df-space-2);
-  border-radius: var(--df-radius-full);
-  font-size: 10px;
+  padding: 0 var(--df-space-1);
+  border-radius: var(--df-radius-sm);
+  font-size: var(--df-font-size-xs);
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  background: color-mix(in srgb, var(--df-color-accent-default) 12%, var(--df-color-bg-raised));
-  color: var(--df-color-accent-default);
-  border: 1px solid color-mix(in srgb, var(--df-color-accent-default) 25%, transparent);
+  color: var(--df-color-text-secondary);
+  border: 1px solid color-mix(in srgb, var(--df-color-border-default) 70%, transparent);
+  background: transparent;
   flex-shrink: 0;
 }
 
@@ -1273,12 +1273,14 @@
 }
 
 .chat-team-proposal {
-  background: var(--df-color-bg-raised);
-  border: 1px solid var(--df-color-border-default);
-  border-radius: var(--df-radius-sm);
-  padding: var(--df-space-2);
-  margin-bottom: var(--df-space-1);
+  padding: var(--df-space-1) 0 var(--df-space-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--df-color-border-default) 55%, transparent);
   font-size: var(--df-font-size-xs);
+}
+
+.chat-team-proposal:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .chat-team-proposal-title {

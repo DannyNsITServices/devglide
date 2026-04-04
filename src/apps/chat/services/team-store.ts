@@ -158,7 +158,7 @@ export function disbandTeam(projectId: string): ActiveTeam {
   if (!team) throw new Error('No team found for this project.');
   if (team.status === 'disbanded') throw new Error('Team is already disbanded.');
 
-  const disbanded: ActiveTeam = { ...team, status: 'disbanded', updatedAt: new Date().toISOString() };
+  const disbanded: ActiveTeam = { ...team, status: 'disbanded', members: [], updatedAt: new Date().toISOString() };
   saveTeam(disbanded);
   return disbanded;
 }

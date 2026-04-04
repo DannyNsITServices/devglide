@@ -774,13 +774,12 @@ const BODY_HTML = `
           <h2 id="chat-team-roles-title">Built-In Roles</h2>
           <p class="chat-rules-desc">Reference the built-in team role templates without expanding the sidebar.</p>
         </div>
-        <button class="btn btn-secondary btn-sm" id="chat-team-roles-close" aria-label="Close built-in roles">Close</button>
       </div>
       <div class="chat-rules-body chat-team-dialog-body">
         <div class="chat-team-roles-list" id="chat-team-roles-modal-list"></div>
       </div>
-      <div class="chat-rules-actions">
-        <button class="btn btn-secondary btn-sm" id="chat-team-roles-done">Done</button>
+      <div class="chat-rules-actions" style="justify-content:flex-end">
+        <button class="btn btn-secondary btn-sm" id="chat-team-roles-close" aria-label="Close built-in roles">Close</button>
       </div>
     </div>
   </div>
@@ -2013,14 +2012,15 @@ function renderTeam() {
 
   const hasTeam = Boolean(_teamState);
   const isDisbanded = hasTeam && String(_teamState.status || '').toLowerCase() === 'disbanded';
+  const showTeam = hasTeam && !isDisbanded;
 
-  if (cardEl) cardEl.classList.toggle('hidden', !hasTeam);
-  if (statusBadge) statusBadge.classList.toggle('hidden', !hasTeam);
-  if (metaRow) metaRow.classList.toggle('hidden', !hasTeam);
-  if (createBtn) createBtn.classList.toggle('hidden', (hasTeam && !isDisbanded) || _teamLoading);
-  if (membersBtn) membersBtn.classList.toggle('hidden', !hasTeam || isDisbanded);
+  if (cardEl) cardEl.classList.toggle('hidden', !showTeam);
+  if (statusBadge) statusBadge.classList.toggle('hidden', !showTeam);
+  if (metaRow) metaRow.classList.toggle('hidden', !showTeam);
+  if (createBtn) createBtn.classList.toggle('hidden', showTeam || _teamLoading);
+  if (membersBtn) membersBtn.classList.toggle('hidden', !showTeam);
 
-  if (!hasTeam) {
+  if (!showTeam) {
     if (titleEl) titleEl.textContent = 'Team';
     if (summaryEl) summaryEl.textContent = _teamLoading ? 'Loading…' : 'No active team for this project.';
     renderTeamProposals();
