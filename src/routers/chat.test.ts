@@ -32,8 +32,6 @@ const registryMock = vi.hoisted(() => ({
   brainstormAdjustDetails: vi.fn(async () => false),
   brainstormFinalize: vi.fn(async () => false),
   brainstormBackToIdeas: vi.fn(async () => false),
-  assignRole: vi.fn(),
-  unassignRole: vi.fn(),
   persistParticipantsForProject: vi.fn(),
   deriveNameBase: vi.fn((hint: string, model: string | null) => (hint || model || 'agent').toLowerCase().replace(/[^a-z0-9-]/g, '')),
   listAssignments: vi.fn(() => []),
@@ -134,7 +132,6 @@ vi.mock('../apps/chat/src/mcp.js', () => ({
   createChatMcpServer: vi.fn(),
   chatServerSessions: new WeakMap(),
   bindChatSessionToMcpHttpSession: vi.fn(),
-  getChatMcpHttpSessionEntry: vi.fn(() => null),
   hasChatMcpHttpSession: vi.fn(() => false),
   registerChatMcpHttpSession: vi.fn(),
   unregisterChatMcpHttpSession: vi.fn(),
@@ -211,13 +208,11 @@ function createFakeSocketHarness() {
 describe('chat router rules of engagement', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
-    const mcpModule = await import('../apps/chat/src/mcp.js');
     storeMock.readMessages.mockReturnValue([]);
     registryMock.listParticipants.mockReturnValue([]);
     registryMock.getParticipantByPaneId.mockReturnValue(null);
     registryMock.getPipeStoreStatus.mockReturnValue(null);
     registryMock.getPipeRun.mockReturnValue(null);
-    vi.mocked(mcpModule.getChatMcpHttpSessionEntry).mockReturnValue(null);
     registryMock.join.mockImplementation((name: string, kind: string, paneId: string, model: string, submitKey: string, projectId: string | null, joinedVia: string) => ({
       name: `${name}-1`,
       kind,
@@ -796,32 +791,6 @@ describe('chat router rules of engagement', () => {
         error: 'Unknown projectId "project-missing"',
       });
       expect(registryMock.send).not.toHaveBeenCalledWith('user', '@codex-9 investigate', undefined, 'project-missing');
-    });
-  });
-
-  it('rejects self role-assignment from an MCP-bound participant', async () => {
-    const mcpModule = await import('../apps/chat/src/mcp.js');
-    vi.mocked(mcpModule.getChatMcpHttpSessionEntry).mockReturnValue({
-      name: 'codex-1',
-      projectId: 'project-1',
-      paneId: 'pane-1',
-    });
-
-    await withServer(async (baseUrl) => {
-      const response = await fetch(`${baseUrl}/roles/assign`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'mcp-session-id': 'session-123',
-        },
-        body: JSON.stringify({ participantName: 'codex-1', roleSlug: 'implementer' }),
-      });
-
-      expect(response.status).toBe(403);
-      await expect(response.json()).resolves.toMatchObject({
-        error: 'Participants cannot assign roles to themselves.',
-      });
-      expect(registryMock.assignRole).not.toHaveBeenCalled();
     });
   });
 

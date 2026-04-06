@@ -36,14 +36,6 @@ describe('chat-rules', () => {
     expect(DEFAULT_RULES).toContain('User-directed replies should start with `@user`.');
   });
 
-  it('keeps Rule 12 aligned with the role-boundary contract', () => {
-    expect(DEFAULT_RULES).toContain('12. **Stay in role scope.**');
-    expect(DEFAULT_RULES).toContain('An explicit assignment does not override role boundaries.');
-    expect(DEFAULT_RULES).toContain('If the requested work is outside your role, do not execute it.');
-    expect(DEFAULT_RULES).toContain('If a task mixes in-scope and off-scope work, do only the in-scope part and call out the rest.');
-    expect(DEFAULT_RULES).toContain('If the correct role is unavailable, escalate that mismatch to the user instead of silently taking over.');
-  });
-
   it('saves and resolves a project-specific override', () => {
     const override = '## Project Rules\n\nOnly reply when asked.';
 

@@ -32,7 +32,6 @@ let _rulesDraft = '';
 let _rulesLoaded = false;
 let _tooltipTarget = null;
 let _brainstorms = {}; // brainstormId -> { phase, ... }
-let _roleTemplates = [];
 
 // Pipe slash-command state
 const PIPE_COMMANDS = [
@@ -1376,32 +1375,8 @@ function renderMembers() {
       meta.appendChild(createMemberModeIndicator(m.permissionMode || 'supervised'));
     }
 
-    let roleSelect = null;
-    if (!m.isUser && !m.detached) {
-      roleSelect = document.createElement('select');
-      roleSelect.className = 'chat-member-role-select';
-      roleSelect.dataset.participantName = m.name;
-      roleSelect.title = 'Assign role';
-
-      const noRoleOpt = document.createElement('option');
-      noRoleOpt.value = '';
-      noRoleOpt.textContent = 'No role';
-      roleSelect.appendChild(noRoleOpt);
-
-      for (const tpl of _roleTemplates) {
-        const opt = document.createElement('option');
-        opt.value = tpl.slug;
-        opt.textContent = tpl.displayName;
-        if (m.role?.slug === tpl.slug) opt.selected = true;
-        roleSelect.appendChild(opt);
-      }
-    }
-
     body.appendChild(meta);
 
-    if (roleSelect) {
-      body.appendChild(roleSelect);
-    }
     item.appendChild(dot);
     item.appendChild(body);
     listEl.appendChild(item);
@@ -1871,10 +1846,6 @@ async function loadInitialData() {
     renderMembers();
     await fetchPipes();
     renderAllMessages();
-    api('/roles/templates').then(r => r.json()).then(d => {
-      _roleTemplates = Array.isArray(d.roles) ? d.roles : [];
-      renderMembers();
-    }).catch(() => {});
   } catch (err) {
     console.error('[chat] Failed to load initial data:', err);
   }
@@ -1929,22 +1900,6 @@ function bindEvents() {
 
   // New messages indicator click
   _container.querySelector('#chat-new-indicator')?.addEventListener('click', scrollToBottom);
-
-  // ── Role assignment ──
-  _container.querySelector('#chat-members-list')?.addEventListener('change', e => {
-    const sel = e.target.closest('.chat-member-role-select');
-    if (!sel) return;
-    const participantName = sel.dataset.participantName;
-    const roleSlug = sel.value;
-    if (roleSlug) {
-      api('/roles/assign', {
-        method: 'POST',
-        body: JSON.stringify({ participantName, roleSlug }),
-      }).catch(() => {});
-    } else {
-      api(`/roles/${encodeURIComponent(participantName)}`, { method: 'DELETE' }).catch(() => {});
-    }
-  });
 }
 
 // ── Exports ─────────────────────────────────────────────────────────
@@ -1968,7 +1923,6 @@ export function mount(container, ctx) {
   _autoScroll = true;
   _rulesDraft = '';
   _rulesLoaded = false;
-  _roleTemplates = [];
 
   container.classList.add('page-chat', 'app-page');
   container.innerHTML = BODY_HTML;
@@ -2056,7 +2010,6 @@ export function unmount(container) {
   _brainstorms = {};
   _rulesDraft = '';
   _rulesLoaded = false;
-  _roleTemplates = [];
 
   _mermaidIdCounter = 0;
   _mermaidFailed = false;
@@ -2089,7 +2042,6 @@ export function onProjectChange(project) {
   _brainstorms = {};
   _rulesDraft = '';
   _rulesLoaded = false;
-  _roleTemplates = [];
 
   if (_container) {
     // Restore the new project's draft (or clear)

@@ -6,7 +6,6 @@ import type { PersistedParticipant } from './chat-store.js';
 import { getActiveProject, onProjectChange } from '../../../project-context.js';
 import { isPipeCommand, parsePipeCommand, isPipeParseError, validatePipeAssigneeCount, isBrainstormCommand, parseBrainstormCommand } from './pipe-parser.js';
 import * as brainstormStore from './brainstorm-store.js';
-import { getRole } from './roles.js';
 import * as pipeReducer from './pipe-reducer.js';
 import * as pipeStore from './pipe-store.js';
 import * as pipeDelivery from './pipe-delivery.js';
@@ -23,69 +22,17 @@ const paneDeliveryQueues = new Map<string, Promise<void>>();
 const participantSessionEpochs = new Map<string, number>();
 const participantStatusTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const panePromptWatchers = new Map<string, { dispose: () => void }>();
-const lastRoleBriefingAt = new Map<string, number>();
 
 const PTY_SUBMIT_DELAY_MS = 1000;
 
 const PARTICIPANT_IDLE_TIMEOUT_MS = 30_000;
 const PROMPT_QUIESCENCE_MS = 2000;
 const PANE_DISCONNECT_TIMEOUT_MS = 10_000; // 10 seconds before auto-removal
-const ROLE_BRIEFING_REMINDER_THROTTLE_MS = 60_000;
 
 // ── Pipe reliability constants ──────────────────────────────────────────────
 const PIPE_WATCHDOG_INTERVAL_MS = 5_000; // 5 seconds — pane liveness + deadline check
 
 const paneDisconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-// ── Role assignment (per-project, in-memory) ──────────────────────────────────
-// projectId -> (participantName -> roleSlug)
-const rolesByProject = new Map<string | null, Map<string, string>>();
-
-function getProjectRoles(projectId: string | null): Map<string, string> {
-  let map = rolesByProject.get(projectId);
-  if (!map) { map = new Map(); rolesByProject.set(projectId, map); }
-  return map;
-}
-
-export function assignRole(projectId: string | null, participantName: string, roleSlug: string): void {
-  const template = getRole(roleSlug);
-  if (!template) throw new Error(`"${roleSlug}" is not a valid role slug.`);
-  // Roles may only be assigned to connected LLM participants
-  const participant = getParticipantExact(participantName, projectId);
-  if (!participant) throw new Error(`Participant "${participantName}" is not connected to this project.`);
-  if (participant.kind !== 'llm') throw new Error(`Roles can only be assigned to LLM participants, not "${participant.kind}".`);
-  const roles = getProjectRoles(projectId);
-  // One participant → one role
-  roles.delete(participantName);
-  // Exclusive roles → one participant per role
-  if (template.cardinality === 'exclusive') {
-    for (const [name, slug] of roles) {
-      if (slug === roleSlug) roles.delete(name);
-    }
-  }
-  roles.set(participantName, roleSlug);
-  emitMembers(projectId);
-  queueRoleBriefing(participant.name, participant.projectId, 'assigned');
-}
-
-export function unassignRole(projectId: string | null, participantName: string): void {
-  rolesByProject.get(projectId)?.delete(participantName);
-  lastRoleBriefingAt.delete(participantKey(participantName, projectId));
-  emitMembers(projectId);
-}
-
-function getParticipantRoleSlug(projectId: string | null, participantName: string): string | null {
-  return rolesByProject.get(projectId)?.get(participantName) ?? null;
-}
-
-function getParticipantRoleTemplate(projectId: string | null, participantName: string) {
-  const roleSlug = getParticipantRoleSlug(projectId, participantName);
-  return roleSlug ? getRole(roleSlug) ?? null : null;
-}
-
-export function listProjectRoleAssignments(projectId: string | null): Record<string, string> {
-  return Object.fromEntries(rolesByProject.get(projectId) ?? []);
-}
 
 // ── Pipe stage deadline timers ──────────────────────────────────────────────
 // Keyed by "pipeId:assignee" — one timer per active lease
@@ -162,51 +109,10 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const ASSIGNMENT_VERB_PATTERN = '(implement|fix|review|verify|inspect|validate|test|debug|investigate|handle|update|refactor|patch|resolve|analy[sz]e|explain|summari[sz]e|write|create|move|log|work\\s+on|look\\s+into|take|pick\\s+up|run)';
-
-function splitLeadingMentions(body: string): { mentions: string[]; remainder: string } {
-  let remainder = body.trimStart();
-  const mentions: string[] = [];
-
-  while (true) {
-    const match = remainder.match(/^@([\w-]+)\b[,:-]?\s*/i);
-    if (!match) break;
-    mentions.push(match[1].toLowerCase());
-    remainder = remainder.slice(match[0].length).trimStart();
-  }
-
-  return { mentions, remainder };
-}
-
-function messageTargetsParticipant(msg: ChatMessage, targetName: string): boolean {
-  const target = targetName.toLowerCase();
-  const explicitTargets = msg.to
-    ? msg.to.split(',').map((value) => value.trim().toLowerCase()).filter(Boolean)
-    : [];
-  if (explicitTargets.includes(target)) return true;
-  return msg.body.toLowerCase().includes(`@${target}`);
-}
-
-function isTargetedAssignmentMessage(msg: ChatMessage, targetName: string): boolean {
-  if (!messageTargetsParticipant(msg, targetName)) return false;
-
-  const target = targetName.toLowerCase();
-  const { mentions, remainder } = splitLeadingMentions(msg.body);
-  const leadingMentions = mentions.filter(name => name !== 'user');
-  const verbPattern = new RegExp(`^(?:please\\s+)?${ASSIGNMENT_VERB_PATTERN}\\b`, 'i');
-  const explicitTargets = msg.to
-    ? msg.to.split(',').map((value) => value.trim().toLowerCase()).filter(Boolean)
-    : [];
-
-  if (leadingMentions.includes(target) && verbPattern.test(remainder)) return true;
-  return explicitTargets.includes(target) && verbPattern.test(remainder);
-}
-
 function getMessageAuthority(
   targetName: string,
-  projectId: string | null,
   msg: ChatMessage,
-): 'user' | 'tech-lead' | 'pipe' | null {
+): 'pipe' | null {
   if (
     msg.from === 'system'
     && msg.pipe?.targetAssignee === targetName
@@ -215,86 +121,24 @@ function getMessageAuthority(
     return 'pipe';
   }
 
-  if (!isTargetedAssignmentMessage(msg, targetName)) return null;
-  if (msg.from === 'user') return 'user';
-
-  const sender = getParticipantExact(msg.from, projectId);
-  if (!sender || sender.name === targetName) return null;
-  return getParticipantRoleSlug(projectId, sender.name) === 'tech-lead' ? 'tech-lead' : null;
+  return null;
 }
 
 export function _getMessageAuthorityForTest(
   targetName: string,
-  projectId: string | null,
+  _projectId: string | null,
   msg: ChatMessage,
-): 'user' | 'tech-lead' | 'pipe' | null {
-  return getMessageAuthority(targetName, projectId, msg);
+): 'pipe' | null {
+  return getMessageAuthority(targetName, msg);
 }
 
-function formatPtyHeader(targetName: string, projectId: string | null, msg: ChatMessage): string {
+function formatPtyHeader(targetName: string, msg: ChatMessage): string {
   const tags = ['DevGlide Chat'];
-  const roleSlug = getParticipantRoleSlug(projectId, targetName);
-  if (roleSlug) tags.push(`Your role: ${roleSlug}`);
 
-  const authority = getMessageAuthority(targetName, projectId, msg);
+  const authority = getMessageAuthority(targetName, msg);
   if (authority) tags.push(`Assigned by: ${authority}`);
 
   return `[${tags.join(' | ')}]`;
-}
-
-function buildRoleBriefingBody(
-  participantName: string,
-  projectId: string | null,
-  reason: 'assigned' | 'reminder',
-): string | null {
-  const template = getParticipantRoleTemplate(projectId, participantName);
-  if (!template) return null;
-  const intro = reason === 'assigned'
-    ? `Role assigned: ${template.displayName}`
-    : `Role reminder: You are still the ${template.displayName}.`;
-  return `${intro}\n\n${template.instructions}`;
-}
-
-function deliverRoleBriefing(
-  participantName: string,
-  projectId: string | null,
-  reason: 'assigned' | 'reminder',
-): Promise<void> {
-  const participant = getParticipantExact(participantName, projectId);
-  if (!participant || participant.kind !== 'llm' || !participant.paneId || participant.detached) {
-    return Promise.resolve();
-  }
-
-  const body = buildRoleBriefingBody(participantName, projectId, reason);
-  if (!body) return Promise.resolve();
-  const key = participantKey(participantName, projectId);
-  const now = Date.now();
-  const lastSentAt = lastRoleBriefingAt.get(key) ?? 0;
-  if (reason === 'reminder' && now - lastSentAt < ROLE_BRIEFING_REMINDER_THROTTLE_MS) {
-    return Promise.resolve();
-  }
-  lastRoleBriefingAt.set(key, now);
-
-  return deliverToPty(participantName, projectId, {
-    id: `role-${participantName}-${reason}-${Date.now()}`,
-    ts: new Date().toISOString(),
-    from: 'system',
-    to: participantName,
-    body,
-    type: 'system',
-  }).catch((err) => {
-    lastRoleBriefingAt.delete(key);
-    throw err;
-  });
-}
-
-function queueRoleBriefing(
-  participantName: string,
-  projectId: string | null,
-  reason: 'assigned' | 'reminder',
-): void {
-  void deliverRoleBriefing(participantName, projectId, reason)
-    .catch(err => console.error(`[chat] Failed to deliver role briefing to ${participantName}:`, err));
 }
 
 function markAssignedParticipantStatus(body: string, targetName: string): ChatParticipant['status'] | null {
@@ -331,7 +175,7 @@ function hasNontrivialText(text: string): boolean {
 }
 
 function isChatInjectedOutput(text: string): boolean {
-  return /^\[DevGlide Chat(?: \| (?:(?:Your role|Assigned by): [a-z-]+))*\] @\S+:/m.test(text.trim());
+  return /^\[DevGlide Chat(?: \| Assigned by: [a-z-]+)*\] @\S+:/m.test(text.trim());
 }
 
 const AWAITING_USER_PATTERNS: RegExp[] = [
@@ -689,20 +533,12 @@ export function join(
     if (paneId) startPanePromptWatcher(existing.name, existing.projectId, paneId);
     persistParticipantsForProject(existing.projectId);
 
-    const reclaimRoleTemplate = getParticipantRoleTemplate(existing.projectId, existing.name);
-    if (reclaimRoleTemplate) {
-      queueRoleBriefing(existing.name, existing.projectId, 'reminder');
-    }
-
     // Reconcile any pending pipe assignments after reconnect
     if (existing.kind === 'llm') {
       reconcileOnReconnect(existing.name, existing.projectId);
     }
 
-    return {
-      ...existing,
-      role: reclaimRoleTemplate ? { slug: reclaimRoleTemplate.slug, displayName: reclaimRoleTemplate.displayName } : null,
-    };
+    return { ...existing };
   }
 
   // No reclaim candidate — derive name from model/identity
@@ -742,14 +578,7 @@ export function join(
   if (paneId) startPanePromptWatcher(uniqueName, participant.projectId, paneId);
   persistParticipantsForProject(participant.projectId);
 
-  const newRoleTemplate = getParticipantRoleTemplate(participant.projectId, participant.name);
-  if (newRoleTemplate) {
-    queueRoleBriefing(participant.name, participant.projectId, 'reminder');
-  }
-  return {
-    ...participant,
-    role: newRoleTemplate ? { slug: newRoleTemplate.slug, displayName: newRoleTemplate.displayName } : null,
-  };
+  return { ...participant };
 }
 
 export function leave(name: string, projectId?: string | null): boolean {
@@ -764,7 +593,6 @@ export function leave(name: string, projectId?: string | null): boolean {
     clearParticipantStatusTimer(name, pid);
     stopPanePromptWatcher(key);
     participantSessionEpochs.delete(key);
-    lastRoleBriefingAt.delete(key);
     const disconnectTimer = paneDisconnectTimers.get(key);
     if (disconnectTimer) { clearTimeout(disconnectTimer); paneDisconnectTimers.delete(key); }
     const msg = appendMessage({
@@ -775,8 +603,6 @@ export function leave(name: string, projectId?: string | null): boolean {
     }, pid);
     emitToProject('chat:leave', { name }, pid);
     emitToProject('chat:message', msg, pid);
-    // Clear role assignment when participant leaves
-    unassignRole(pid, name);
     emitMembers(pid);
     persistParticipantsForProject(pid);
 
@@ -1110,7 +936,7 @@ function deliverToPty(targetName: string, projectId: string | null, msg: ChatMes
         return;
       }
 
-      const header = formatPtyHeader(targetName, projectId, msg);
+      const header = formatPtyHeader(targetName, msg);
       let formatted = `${header} @${msg.from}: ${msg.body}`;
 
       // Write with retry — if the initial write fails, retry once after a short delay
@@ -1171,12 +997,7 @@ export function listParticipants(projectId?: string | null): ChatParticipant[] {
   for (const p of participants.values()) {
     // Only return participants that belong to the active project
     if (p.projectId === pid) {
-      const roleSlug = getParticipantRoleSlug(p.projectId, p.name);
-      const roleTemplate = roleSlug ? getRole(roleSlug) : null;
-      result.push({
-        ...p,
-        role: roleTemplate ? { slug: roleTemplate.slug, displayName: roleTemplate.displayName } : null,
-      });
+      result.push({ ...p });
     }
   }
   result.sort((a, b) => a.name.localeCompare(b.name));
@@ -1767,7 +1588,6 @@ async function runPipeReducer(pipeId: string, projectId: string | null): Promise
       action.targetAssignee,
       state.assignees.length,
       action.stage,
-      getParticipantRoleSlug(projectId, action.targetAssignee),
     );
 
     // Construct compact delivery message for PTY injection — NOT stored in chat history.
@@ -1820,7 +1640,6 @@ function handleRenotify(pipeId: string, assignee: string, projectId: string | nu
     assignee,
     pipe.assignees.length,
     record.stage,
-    getParticipantRoleSlug(projectId, assignee),
   );
   const renotifyMsg: import('../types.js').ChatMessage = {
     id: `pipe-${pipeId}-renotify-${assignee}-${record.notifyAttempts}`,

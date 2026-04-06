@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { jsonResult, errorResult, createDevglideMcpServer } from '../../../packages/mcp-utils/src/index.js';
 import * as store from '../services/chat-store.js';
 import { getEffectiveRules } from '../services/chat-rules.js';
-import { listRoles } from '../services/roles.js';
 
 const UNIFIED_BASE = `http://localhost:${process.env.PORT ?? 7000}`;
 
@@ -94,13 +93,6 @@ export function hasChatMcpHttpSession(sessionId: string): boolean {
   return chatMcpServersBySessionId.has(sessionId);
 }
 
-export function getChatMcpHttpSessionEntry(sessionId: string): ChatSessionEntry | null {
-  const server = chatMcpServersBySessionId.get(sessionId);
-  if (!server) return null;
-  const entry = getServerState(server).sessionEntry;
-  return entry ? { ...entry } : null;
-}
-
 export function createChatMcpServer(): McpServer {
   const server = createDevglideMcpServer(
     'devglide-chat',
@@ -160,9 +152,6 @@ export function createChatMcpServer(): McpServer {
         '- `pipe_read_output(pipeId, paneId?)` — read the stage input content you are entitled to (previous stage output for linear, original prompt for fan-out, aggregated fan-out outputs for synthesizer). Caller identity resolved from session.',
         '- `chat_read(limit?, since?)` — read message history.',
         '- `chat_members()` — list active participants with pane link status.',
-        '- `role_list_roles()` — list all predefined role templates.',
-        '- `role_assign(participantName, roleSlug)` — assign a role to a participant.',
-        '- `role_unassign(participantName)` — remove a role from a participant.',
       ],
     },
   );
@@ -534,55 +523,6 @@ export function createChatMcpServer(): McpServer {
         projectId: pid,
         error: 'Could not fetch status from REST API',
       });
-    },
-  );
-
-  // ── role_list_roles ──────────────────────────────────────────────────────
-  server.tool(
-    'role_list_roles',
-    'List all predefined role templates (tech-lead, implementer, reviewer, tester) with slugs, display names, descriptions, and cardinality.',
-    {},
-    async () => {
-      return jsonResult({ roles: listRoles() });
-    },
-  );
-
-  // ── role_assign ──────────────────────────────────────────────────────────
-  server.tool(
-    'role_assign',
-    'Assign a predefined role to a connected chat participant. Exclusive roles auto-evict the previous holder. Multiple participants can hold the "implementer" role simultaneously.',
-    {
-      participantName: z.string().min(1).describe('Chat participant name to assign the role to (e.g. "claude-8")'),
-      roleSlug: z.string().min(1).describe('Role slug to assign. Use role_list_roles to see valid options (e.g. "implementer", "reviewer").'),
-      paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session.'),
-    },
-    async ({ participantName, roleSlug, paneId }) => {
-      await tryAdoptSessionByPaneId(paneId);
-      const sessionProjectId = getSessionProjectId();
-      if (!sessionProjectId) return errorResult('Not joined — call chat_join first');
-      const mcpSessionId = getMcpSessionId(server);
-      const headers = mcpSessionId ? { 'mcp-session-id': mcpSessionId } : undefined;
-      const r = await chatApi('/roles/assign', { participantName, roleSlug }, headers);
-      return r.ok ? jsonResult(r.data) : errorResult((r.data as { error?: string })?.error ?? 'Failed to assign role');
-    },
-  );
-
-  // ── role_unassign ────────────────────────────────────────────────────────
-  server.tool(
-    'role_unassign',
-    'Remove the role assignment from a connected participant.',
-    {
-      participantName: z.string().min(1).describe('Chat participant name to unassign (e.g. "claude-8")'),
-      paneId: z.string().optional().describe('Optional pane ID to adopt an existing REST-joined participant into this MCP session.'),
-    },
-    async ({ participantName, paneId }) => {
-      await tryAdoptSessionByPaneId(paneId);
-      const sessionProjectId = getSessionProjectId();
-      if (!sessionProjectId) return errorResult('Not joined — call chat_join first');
-      const url = `${UNIFIED_BASE}/api/chat/roles/${encodeURIComponent(participantName)}`;
-      const res = await fetch(url, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
-      const data = await res.json() as { ok?: boolean; error?: string };
-      return res.ok ? jsonResult(data) : errorResult(data?.error ?? 'Failed to unassign role');
     },
   );
 

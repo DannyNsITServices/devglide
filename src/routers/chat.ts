@@ -8,7 +8,6 @@ import { asyncHandler, badRequest } from '../packages/error-middleware.js';
 import * as registry from '../apps/chat/services/chat-registry.js';
 import * as store from '../apps/chat/services/chat-store.js';
 import { getEffectiveRules, getDefaultRules, saveProjectRules, deleteProjectRules, hasProjectRules } from '../apps/chat/services/chat-rules.js';
-import { listRoles, isValidRoleSlug } from '../apps/chat/services/roles.js';
 import { getActiveProject, onProjectChange } from '../project-context.js';
 import { listProjects } from '../packages/project-store.js';
 import { globalPtys, dashboardState, nextPaneId, nextNumForProject, getShellNsp, MAX_PANES, panesForProject } from '../apps/shell/src/runtime/shell-state.js';
@@ -19,7 +18,6 @@ import {
   createChatMcpServer,
   chatServerSessions,
   bindChatSessionToMcpHttpSession,
-  getChatMcpHttpSessionEntry,
   hasChatMcpHttpSession,
   registerChatMcpHttpSession,
   unregisterChatMcpHttpSession,
@@ -29,7 +27,6 @@ export {
   createChatMcpServer,
   chatServerSessions,
   bindChatSessionToMcpHttpSession,
-  getChatMcpHttpSessionEntry,
   hasChatMcpHttpSession,
   registerChatMcpHttpSession,
   unregisterChatMcpHttpSession,
@@ -907,48 +904,6 @@ router.post('/brainstorms/:id/back-to-ideas', asyncHandler(async (req: Request, 
   }
   res.json({ ok: true });
 }));
-
-// ── Role endpoints ───────────────────────────────────────────────────────────
-
-// GET /roles/templates — list all predefined role templates
-router.get('/roles/templates', (_req: Request, res: Response) => {
-  res.json({ roles: listRoles() });
-});
-
-// POST /roles/assign — assign a role to a connected participant
-router.post('/roles/assign', (req: Request, res: Response) => {
-  const { participantName, roleSlug } = req.body as { participantName?: string; roleSlug?: string };
-  if (!participantName || !roleSlug) { badRequest(res, 'participantName and roleSlug are required'); return; }
-  if (!isValidRoleSlug(roleSlug)) { res.status(400).json({ error: `"${roleSlug}" is not a valid role slug` }); return; }
-  const pid = getRequestedProjectId(req, res);
-  if (pid === undefined) return;
-  const mcpSessionId = req.headers['mcp-session-id'];
-  const actorSession = typeof mcpSessionId === 'string' && mcpSessionId
-    ? getChatMcpHttpSessionEntry(mcpSessionId)
-    : null;
-  if (actorSession && actorSession.projectId !== pid) {
-    res.status(403).json({ error: 'Role assignment must stay within the MCP session project.' });
-    return;
-  }
-  if (actorSession && actorSession.name === participantName) {
-    res.status(403).json({ error: 'Participants cannot assign roles to themselves.' });
-    return;
-  }
-  try {
-    registry.assignRole(pid, participantName, roleSlug);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(400).json({ error: (err as Error).message });
-  }
-});
-
-// DELETE /roles/:participantName — unassign a participant's role
-router.delete('/roles/:participantName', (req: Request, res: Response) => {
-  const pid = getRequestedProjectId(req, res);
-  if (pid === undefined) return;
-  registry.unassignRole(pid, req.params.participantName);
-  res.json({ ok: true });
-});
 
 // ── LLM invite endpoints ─────────────────────────────────────────────────────
 

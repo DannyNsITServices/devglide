@@ -101,7 +101,6 @@ export interface ChatParticipant {
   joinedVia?: 'rest' | 'mcp' | null; // how the participant joined — 'rest' for direct REST call, 'mcp' for MCP tool
   clientId?: string;     // optional stable identity for future strong-reclaim support
   permissionMode?: 'supervised' | 'auto-accept' | 'unrestricted' | null; // permission mode the LLM was launched with
-  role?: { slug: string; displayName: string } | null;
 }
 
 export interface ChatJoinResponse extends ChatParticipant {
