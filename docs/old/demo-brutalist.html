@@ -1,0 +1,1718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brutalist Concrete — DevGlide Design System</title>
+
+<!-- Font: Space Mono — one font, brutalist = no choice -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/space-mono@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/space-mono@latest/latin-700-normal.css">
+
+<style>
+/* ============================================================
+   SVG FILTERS — concrete noise texture
+   (defined inline in body, referenced here)
+   ============================================================ */
+svg.filters { position: absolute; width: 0; height: 0; }
+
+/* ============================================================
+   RESET — raw, no decoration
+   ============================================================ */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  border-radius: 0 !important;
+  transition: none !important;
+  animation: none !important;
+}
+
+/* ============================================================
+   CSS CUSTOM PROPERTIES
+   Grays + one accent. That's it.
+   ============================================================ */
+:root {
+  --concrete:       #1a1a1a;
+  --concrete-light: #242424;
+  --concrete-mid:   #333333;
+  --concrete-pale:  #444444;
+  --concrete-wash:  #555555;
+  --concrete-fog:   #777777;
+  --concrete-dust:  #999999;
+  --concrete-chalk: #bbbbbb;
+  --concrete-white: #dddddd;
+  --concrete-bright:#eeeeee;
+
+  --orange:         #ff6600;
+  --orange-dim:     #cc5200;
+
+  --black:          #000000;
+  --white:          #ffffff;
+
+  --border-w:       3px;
+  --border-w-thick: 4px;
+  --grid:           8px;
+
+  --font: 'Space Mono', 'Courier New', 'Consolas', monospace;
+}
+
+/* ============================================================
+   BASE
+   ============================================================ */
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: var(--font);
+  font-weight: 400;
+  color: var(--concrete-chalk);
+  background: var(--concrete);
+  line-height: 1.5;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Concrete texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  filter: url(#concrete-noise);
+  opacity: 0.08;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Exposed grid overlay */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: var(--grid) var(--grid);
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* ============================================================
+   TYPOGRAPHY — extreme size contrast
+   ============================================================ */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font);
+  font-weight: 700;
+  color: var(--concrete-bright);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+h1 { font-size: 56px; line-height: 1.0; }
+h2 { font-size: 36px; line-height: 1.1; }
+h3 { font-size: 20px; line-height: 1.2; }
+h4 { font-size: 14px; line-height: 1.3; }
+
+p { font-size: 14px; color: var(--concrete-dust); }
+
+.meta {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--concrete-fog);
+}
+
+.massive {
+  font-size: 80px;
+  font-weight: 700;
+  line-height: 0.9;
+  color: var(--concrete-bright);
+  text-transform: uppercase;
+}
+
+code, pre {
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--concrete-chalk);
+  background: var(--concrete-light);
+  border: var(--border-w) solid var(--concrete-mid);
+  padding: 2px 6px;
+}
+
+pre {
+  padding: 24px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* ============================================================
+   LINKS
+   ============================================================ */
+a {
+  color: var(--orange);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ============================================================
+   SECTION DIVIDERS — thick black horizontal rules
+   ============================================================ */
+hr {
+  border: none;
+  border-top: var(--border-w-thick) solid var(--concrete-pale);
+  margin: 48px 0;
+}
+
+hr.double {
+  border-top: var(--border-w-thick) solid var(--concrete-pale);
+  border-bottom: var(--border-w-thick) solid var(--concrete-pale);
+  height: 12px;
+  margin: 48px 0;
+}
+
+hr.orange {
+  border-top-color: var(--orange);
+}
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 64px 48px;
+}
+
+.section {
+  margin-bottom: 64px;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+}
+
+.grid-4 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 0;
+}
+
+.grid-2 > *, .grid-3 > *, .grid-4 > * {
+  border: var(--border-w) solid var(--concrete-mid);
+  padding: 32px;
+  margin: -1.5px; /* overlap borders */
+}
+
+/* ============================================================
+   HEADER / HERO
+   ============================================================ */
+.hero {
+  padding: 80px 0 64px 0;
+  border-bottom: var(--border-w-thick) solid var(--concrete-pale);
+}
+
+.hero-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  color: var(--orange);
+  margin-bottom: 16px;
+  display: block;
+}
+
+.hero h1 {
+  font-size: 72px;
+  line-height: 0.95;
+  margin-bottom: 32px;
+  color: var(--concrete-bright);
+}
+
+.hero h1 span {
+  color: var(--orange);
+}
+
+.hero-desc {
+  font-size: 16px;
+  color: var(--concrete-dust);
+  max-width: 600px;
+  line-height: 1.6;
+}
+
+.hero-meta {
+  margin-top: 40px;
+  display: flex;
+  gap: 48px;
+}
+
+.hero-meta-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.hero-meta-item .meta {
+  margin-bottom: 4px;
+}
+
+.hero-meta-item .value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--concrete-bright);
+}
+
+/* ============================================================
+   COLOR PALETTE
+   ============================================================ */
+.swatch-row {
+  display: flex;
+  gap: 0;
+}
+
+.swatch {
+  flex: 1;
+  border: var(--border-w) solid var(--concrete-mid);
+  margin: -1.5px;
+}
+
+.swatch-color {
+  height: 80px;
+}
+
+.swatch-info {
+  padding: 12px 16px;
+  border-top: var(--border-w) solid var(--concrete-mid);
+}
+
+.swatch-name {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--concrete-chalk);
+  font-weight: 700;
+}
+
+.swatch-hex {
+  font-size: 10px;
+  color: var(--concrete-fog);
+  margin-top: 2px;
+}
+
+/* ============================================================
+   BUTTONS — raw, slab-like
+   ============================================================ */
+.btn {
+  display: inline-block;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 16px 32px;
+  border: var(--border-w-thick) solid var(--concrete-chalk);
+  background: transparent;
+  color: var(--concrete-chalk);
+  cursor: pointer;
+  text-decoration: none;
+  line-height: 1;
+}
+
+.btn-primary {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: var(--black);
+}
+
+.btn-ghost {
+  border-color: var(--concrete-pale);
+  color: var(--concrete-dust);
+}
+
+.btn-small {
+  font-size: 10px;
+  padding: 10px 20px;
+}
+
+.btn-large {
+  font-size: 14px;
+  padding: 20px 48px;
+}
+
+.btn[disabled] {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ============================================================
+   INPUTS — raw html vibes
+   ============================================================ */
+.input-field {
+  font-family: var(--font);
+  font-size: 14px;
+  padding: 14px 16px;
+  border: var(--border-w) solid var(--concrete-pale);
+  background: var(--concrete-light);
+  color: var(--concrete-bright);
+  width: 100%;
+  outline: none;
+}
+
+.input-field:focus {
+  border-color: var(--orange);
+}
+
+.input-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--concrete-fog);
+  display: block;
+  margin-bottom: 8px;
+}
+
+textarea.input-field {
+  resize: vertical;
+  min-height: 100px;
+}
+
+select.input-field {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: none;
+}
+
+/* Raw HTML checkboxes — intentionally unstyled */
+.raw-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--concrete-chalk);
+  padding: 8px 0;
+}
+
+.raw-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--orange);
+}
+
+/* ============================================================
+   BADGES
+   ============================================================ */
+.badge {
+  display: inline-block;
+  font-family: var(--font);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  padding: 6px 12px;
+  border: var(--border-w) solid var(--concrete-pale);
+  color: var(--concrete-dust);
+  line-height: 1;
+}
+
+.badge-active {
+  border-color: var(--orange);
+  color: var(--orange);
+}
+
+.badge-solid {
+  background: var(--concrete-mid);
+  border-color: var(--concrete-mid);
+  color: var(--concrete-chalk);
+}
+
+.badge-warning {
+  background: var(--orange);
+  border-color: var(--orange);
+  color: var(--black);
+}
+
+/* ============================================================
+   TABLES — raw borders, exposed
+   ============================================================ */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  color: var(--concrete-fog);
+  text-align: left;
+  padding: 16px;
+  border: var(--border-w) solid var(--concrete-mid);
+  background: var(--concrete-light);
+}
+
+td {
+  padding: 14px 16px;
+  border: var(--border-w) solid var(--concrete-mid);
+  color: var(--concrete-chalk);
+}
+
+tr:nth-child(even) td {
+  background: rgba(255,255,255,0.015);
+}
+
+/* ============================================================
+   CARDS — bordered rectangles, nothing more
+   ============================================================ */
+.card {
+  border: var(--border-w) solid var(--concrete-mid);
+  padding: 32px;
+}
+
+.card + .card {
+  border-top: none;
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--concrete-bright);
+  margin-bottom: 12px;
+}
+
+.card-meta {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--concrete-fog);
+  margin-bottom: 16px;
+}
+
+.card-body {
+  font-size: 13px;
+  color: var(--concrete-dust);
+  line-height: 1.6;
+}
+
+/* ============================================================
+   DASHBOARD MOCKUP
+   ============================================================ */
+.dashboard {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  border: var(--border-w-thick) solid var(--concrete-pale);
+  min-height: 500px;
+}
+
+.sidebar {
+  border-right: var(--border-w-thick) solid var(--concrete-pale);
+  background: var(--concrete-light);
+  padding: 0;
+}
+
+.sidebar-brand {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--orange);
+  padding: 24px 20px;
+  border-bottom: var(--border-w) solid var(--concrete-mid);
+}
+
+.sidebar-nav {
+  list-style: none;
+}
+
+.sidebar-nav li {
+  border-bottom: 1px solid var(--concrete-mid);
+}
+
+.sidebar-nav a {
+  display: block;
+  padding: 14px 20px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--concrete-dust);
+  text-decoration: none;
+}
+
+.sidebar-nav a.active {
+  color: var(--orange);
+  background: var(--concrete);
+  border-left: var(--border-w-thick) solid var(--orange);
+  padding-left: 16px;
+}
+
+.main-content {
+  padding: 32px;
+  background: var(--concrete);
+}
+
+.main-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 24px;
+  border-bottom: var(--border-w) solid var(--concrete-mid);
+  margin-bottom: 32px;
+}
+
+.main-header h2 {
+  font-size: 24px;
+  margin: 0;
+}
+
+/* ============================================================
+   KANBAN BOARD — raw grid, no frills
+   ============================================================ */
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+}
+
+.kanban-col {
+  border: var(--border-w) solid var(--concrete-mid);
+  margin: -1.5px;
+  min-height: 300px;
+}
+
+.kanban-col-header {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--concrete-fog);
+  padding: 16px;
+  border-bottom: var(--border-w) solid var(--concrete-mid);
+  background: var(--concrete-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.kanban-col-count {
+  font-size: 10px;
+  color: var(--concrete-pale);
+}
+
+.kanban-item {
+  padding: 16px;
+  border-bottom: 1px solid var(--concrete-mid);
+  font-size: 12px;
+  color: var(--concrete-chalk);
+}
+
+.kanban-item-id {
+  font-size: 9px;
+  color: var(--concrete-fog);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 6px;
+}
+
+.kanban-item-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--concrete-bright);
+  margin-bottom: 8px;
+}
+
+.kanban-item-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 9px;
+  color: var(--concrete-fog);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.kanban-item.priority-high .kanban-item-id {
+  color: var(--orange);
+}
+
+/* ============================================================
+   EXPOSED GRID DEMO
+   ============================================================ */
+.grid-demo {
+  position: relative;
+  height: 320px;
+  border: var(--border-w) solid var(--concrete-mid);
+  background:
+    linear-gradient(rgba(255,102,0,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,102,0,0.06) 1px, transparent 1px);
+  background-size: var(--grid) var(--grid);
+  overflow: hidden;
+}
+
+.grid-demo-major {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background:
+    linear-gradient(rgba(255,102,0,0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,102,0,0.12) 1px, transparent 1px);
+  background-size: calc(var(--grid) * 8) calc(var(--grid) * 8);
+  pointer-events: none;
+}
+
+.grid-demo-label {
+  position: absolute;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--orange);
+  opacity: 0.6;
+}
+
+.grid-demo-block {
+  position: absolute;
+  border: var(--border-w) solid var(--orange);
+  opacity: 0.4;
+}
+
+.grid-demo-block-filled {
+  background: var(--orange);
+  opacity: 0.15;
+}
+
+/* ============================================================
+   CONCRETE TEXTURE DEMO
+   ============================================================ */
+.texture-demo {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+}
+
+.texture-panel {
+  height: 160px;
+  border: var(--border-w) solid var(--concrete-mid);
+  margin: -1.5px;
+  display: flex;
+  align-items: flex-end;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.texture-panel::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  filter: url(#concrete-noise);
+  pointer-events: none;
+}
+
+.texture-panel-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--concrete-fog);
+  position: relative;
+  z-index: 1;
+}
+
+/* ============================================================
+   STATS ROW
+   ============================================================ */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+}
+
+.stat {
+  border: var(--border-w) solid var(--concrete-mid);
+  margin: -1.5px;
+  padding: 32px;
+}
+
+.stat-value {
+  font-size: 48px;
+  font-weight: 700;
+  color: var(--concrete-bright);
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.stat-value.orange {
+  color: var(--orange);
+}
+
+.stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--concrete-fog);
+}
+
+/* ============================================================
+   TERMINAL / CODE BLOCK
+   ============================================================ */
+.terminal {
+  border: var(--border-w-thick) solid var(--concrete-pale);
+  background: var(--black);
+}
+
+.terminal-header {
+  background: var(--concrete-light);
+  padding: 10px 16px;
+  border-bottom: var(--border-w) solid var(--concrete-pale);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--concrete-fog);
+  display: flex;
+  justify-content: space-between;
+}
+
+.terminal-body {
+  padding: 24px;
+  font-size: 13px;
+  color: var(--concrete-chalk);
+  line-height: 1.7;
+  overflow-x: auto;
+}
+
+.terminal-body .prompt {
+  color: var(--orange);
+}
+
+.terminal-body .comment {
+  color: var(--concrete-pale);
+}
+
+.terminal-body .output {
+  color: var(--concrete-dust);
+}
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+.mt-0  { margin-top: 0; }
+.mt-8  { margin-top: 8px; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
+.mt-32 { margin-top: 32px; }
+.mt-48 { margin-top: 48px; }
+.mb-0  { margin-bottom: 0; }
+.mb-8  { margin-bottom: 8px; }
+.mb-16 { margin-bottom: 16px; }
+.mb-24 { margin-bottom: 24px; }
+.mb-32 { margin-bottom: 32px; }
+.mb-48 { margin-bottom: 48px; }
+.p-0   { padding: 0; }
+.p-16  { padding: 16px; }
+.p-24  { padding: 24px; }
+.p-32  { padding: 32px; }
+
+.text-orange { color: var(--orange); }
+.text-bright { color: var(--concrete-bright); }
+.text-dust   { color: var(--concrete-dust); }
+.text-fog    { color: var(--concrete-fog); }
+
+.bg-light { background: var(--concrete-light); }
+.bg-mid   { background: var(--concrete-mid); }
+
+.flex { display: flex; }
+.flex-gap-16 { gap: 16px; }
+.flex-gap-8 { gap: 8px; }
+.flex-wrap { flex-wrap: wrap; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+
+.w-full { width: 100%; }
+
+.border-b { border-bottom: var(--border-w) solid var(--concrete-mid); }
+.border-t { border-top: var(--border-w) solid var(--concrete-mid); }
+
+.block { display: block; }
+
+/* ============================================================
+   RESPONSIVE — brutalist doesn't care much, but let's not break
+   ============================================================ */
+@media (max-width: 900px) {
+  .page { padding: 32px 24px; }
+  .hero h1 { font-size: 48px; }
+  .massive { font-size: 48px; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .stats-row { grid-template-columns: 1fr 1fr; }
+  .kanban { grid-template-columns: 1fr 1fr; }
+  .dashboard { grid-template-columns: 1fr; }
+  .sidebar { border-right: none; border-bottom: var(--border-w-thick) solid var(--concrete-pale); }
+  .hero-meta { flex-direction: column; gap: 16px; }
+  .swatch-row { flex-wrap: wrap; }
+  .swatch { min-width: 120px; }
+  .texture-demo { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- SVG Filters for concrete texture -->
+<svg class="filters" aria-hidden="true">
+  <defs>
+    <filter id="concrete-noise" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="4" stitchTiles="stitch" result="noise" />
+      <feColorMatrix type="saturate" values="0" in="noise" result="gray-noise" />
+      <feBlend in="SourceGraphic" in2="gray-noise" mode="multiply" />
+    </filter>
+  </defs>
+</svg>
+
+
+<div class="page">
+
+  <!-- ============================================================
+       HERO / HEADER
+       ============================================================ -->
+  <header class="hero">
+    <span class="hero-label">Design System v1.0 // DevGlide</span>
+    <h1>BRUTALIST<br><span>CONCRETE</span></h1>
+    <p class="hero-desc">
+      Raw, exposed, monolithic. Like a concrete building &mdash; massive gray slabs,
+      no decoration, harsh grid, industrial. Almost hostile but weirdly beautiful
+      in its honesty. Nothing fights for your attention. Nothing moves.
+    </p>
+    <div class="hero-meta">
+      <div class="hero-meta-item">
+        <span class="meta">Border Radius</span>
+        <span class="value">0px everywhere</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="meta">Shadows</span>
+        <span class="value">None</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="meta">Animations</span>
+        <span class="value">None</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="meta">Fonts</span>
+        <span class="value">Space Mono only</span>
+      </div>
+      <div class="hero-meta-item">
+        <span class="meta">Accent Color</span>
+        <span class="value text-orange">#FF6600</span>
+      </div>
+    </div>
+  </header>
+
+  <hr class="double">
+
+  <!-- ============================================================
+       PRINCIPLES
+       ============================================================ -->
+  <section class="section">
+    <span class="meta block mb-16">01 // Principles</span>
+    <h2 class="mb-32">NOTHING IS HIDDEN</h2>
+
+    <div class="grid-3">
+      <div>
+        <h4 class="mb-8 text-orange">STRUCTURAL HONESTY</h4>
+        <p>Every element is exactly what it looks like. Borders are borders, not shadows pretending to be depth. The grid is visible because it is real.</p>
+      </div>
+      <div>
+        <h4 class="mb-8 text-orange">EXTREME CONTRAST</h4>
+        <p>Headers are massive. Metadata is tiny. There is no medium. Hierarchy is established through brutal size difference, not subtle weight changes.</p>
+      </div>
+      <div>
+        <h4 class="mb-8 text-orange">ZERO DECORATION</h4>
+        <p>No gradients. No shadows. No rounded corners. No animations. No hover effects. If it doesn't serve structure, it doesn't exist.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- ============================================================
+       COLOR PALETTE
+       ============================================================ -->
+  <section class="section">
+    <span class="meta block mb-16">02 // Color Palette</span>
+    <h2 class="mb-32">GRAYS + ORANGE</h2>
+
+    <p class="mb-32">The palette is concrete. Ten shades of gray for structure, one construction-orange for everything that demands attention. That's all you get.</p>
+
+    <!-- Primary grays -->
+    <span class="meta block mb-8">Concrete Scale</span>
+    <div class="swatch-row mb-32">
+      <div class="swatch">
+        <div class="swatch-color" style="background: #1a1a1a;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Concrete</div>
+          <div class="swatch-hex">#1a1a1a</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #242424;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Light</div>
+          <div class="swatch-hex">#242424</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #333333;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Mid</div>
+          <div class="swatch-hex">#333333</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #444444;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Pale</div>
+          <div class="swatch-hex">#444444</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #555555;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Wash</div>
+          <div class="swatch-hex">#555555</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #777777;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Fog</div>
+          <div class="swatch-hex">#777777</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #999999;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Dust</div>
+          <div class="swatch-hex">#999999</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #bbbbbb;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Chalk</div>
+          <div class="swatch-hex">#bbbbbb</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #dddddd;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">White</div>
+          <div class="swatch-hex">#dddddd</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #eeeeee;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Bright</div>
+          <div class="swatch-hex">#eeeeee</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Accent -->
+    <span class="meta block mb-8">Accent &mdash; Construction Orange</span>
+    <div class="swatch-row">
+      <div class="swatch">
+        <div class="swatch-color" style="background: #ff6600;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Orange</div>
+          <div class="swatch-hex">#ff6600</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #cc5200;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Orange Dim</div>
+          <div class="swatch-hex">#cc5200</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #000000;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Black</div>
+          <div class="swatch-hex">#000000</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #ffffff; border-bottom: 1px solid #333;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">White</div>
+          <div class="swatch-hex">#ffffff</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="double orange">
+
+  <!-- ============================================================
+       TYPOGRAPHY
+       ============================================================ -->
+  <section class="section">
+    <span class="meta block mb-16">03 // Typography</span>
+    <h2 class="mb-32">ONE FONT. NO CHOICE.</h2>
+
+    <p class="mb-48">Space Mono at every scale. Brutalism means one typeface, used honestly. Size and weight create hierarchy, not font variety.</p>
+
+    <div class="mb-48">
+      <span class="meta block mb-8">Display / 80px / Bold</span>
+      <div class="massive">DEVGLIDE</div>
+    </div>
+
+    <hr>
+
+    <div class="mb-32 mt-32">
+      <span class="meta block mb-8">H1 / 56px / Bold</span>
+      <h1>TASK BOARD</h1>
+    </div>
+
+    <div class="mb-32">
+      <span class="meta block mb-8">H2 / 36px / Bold</span>
+      <h2>SHELL MANAGER</h2>
+    </div>
+
+    <div class="mb-32">
+      <span class="meta block mb-8">H3 / 20px / Bold</span>
+      <h3>VOICE TRANSCRIPTION</h3>
+    </div>
+
+    <div class="mb-32">
+      <span class="meta block mb-8">H4 / 14px / Bold</span>
+      <h4>WORKFLOW AUTOMATION</h4>
+    </div>
+
+    <hr>
+
+    <div class="grid-2 mt-32">
+      <div>
+        <span class="meta block mb-8">Body / 14px / Regular</span>
+        <p style="color: var(--concrete-chalk);">DevGlide provides MCP tools for kanban boards, shell automation, test runners, workflows, vocabulary, voice, prompts, and logging. These tools are available to any LLM that supports MCP tool calling.</p>
+      </div>
+      <div>
+        <span class="meta block mb-8">Metadata / 10px / Regular / Uppercase</span>
+        <span class="meta" style="display: block; line-height: 2.0;">
+          Updated 2026-04-03 // Project DevGlide // Version 1.0.0 //
+          Status Active // Build Passing // Coverage 94% //
+          License MIT // Contributors 3 // Stars 847
+        </span>
+      </div>
+    </div>
+
+    <div class="mt-32">
+      <span class="meta block mb-8">Code / 13px / Monospace (same font)</span>
+      <pre>devglide start --port 7000
+devglide mcp kanban
+devglide setup --force</pre>
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- ============================================================
+       BUTTONS & INPUTS
+       ============================================================ -->
+  <section class="section">
+    <span class="meta block mb-16">04 // Controls</span>
+    <h2 class="mb-32">BUTTONS / INPUTS / BADGES</h2>
+
+    <!-- Buttons -->
+    <span class="meta block mb-16">Buttons</span>
+    <div class="flex flex-gap-16 flex-wrap mb-32">
+      <button class="btn btn-primary">CREATE TASK</button>
+      <button class="btn">RUN TESTS</button>
+      <button class="btn btn-ghost">CANCEL</button>
+      <button class="btn btn-primary btn-small">SMALL</button>
+      <button class="btn btn-large">LARGE ACTION</button>
+      <button class="btn" disabled>DISABLED</button>
+    </div>
+
+    <hr>
+
+    <!-- Inputs -->
+    <span class="meta block mb-16 mt-32">Input Fields</span>
+    <div class="grid-2">
+      <div>
+        <label class="input-label">Task Title</label>
+        <input type="text" class="input-field" value="Fix authentication timeout" />
+        <div class="mt-16">
+          <label class="input-label">Priority</label>
+          <select class="input-field">
+            <option>LOW</option>
+            <option>MEDIUM</option>
+            <option selected>HIGH</option>
+            <option>URGENT</option>
+          </select>
+        </div>
+        <div class="mt-16">
+          <label class="input-label">Assignee</label>
+          <input type="text" class="input-field" placeholder="Enter name..." />
+        </div>
+      </div>
+      <div>
+        <label class="input-label">Description</label>
+        <textarea class="input-field" style="min-height: 150px;">The authentication flow times out after 30 seconds on slow connections. Need to increase the timeout and add retry logic.</textarea>
+        <div class="mt-16">
+          <label class="input-label">Options</label>
+          <div class="raw-checkbox"><input type="checkbox" checked /> <span>Block deployment</span></div>
+          <div class="raw-checkbox"><input type="checkbox" /> <span>Requires migration</span></div>
+          <div class="raw-checkbox"><input type="checkbox" checked /> <span>Needs test coverage</span></div>
+          <div class="raw-checkbox"><input type="checkbox" /> <span>Breaking change</span></div>
+        </div>
+      </div>
+    </div>
+
+    <hr>
+
+    <!-- Badges -->
+    <span class="meta block mb-16 mt-32">Badges</span>
+    <div class="flex flex-gap-8 flex-wrap mb-16">
+      <span class="badge">BACKLOG</span>
+      <span class="badge">TODO</span>
+      <span class="badge badge-active">IN PROGRESS</span>
+      <span class="badge">IN REVIEW</span>
+      <span class="badge">TESTING</span>
+      <span class="badge badge-solid">DONE</span>
+    </div>
+    <div class="flex flex-gap-8 flex-wrap mb-16">
+      <span class="badge">TASK</span>
+      <span class="badge badge-warning">BUG</span>
+      <span class="badge">LOW</span>
+      <span class="badge">MEDIUM</span>
+      <span class="badge badge-active">HIGH</span>
+      <span class="badge badge-warning">URGENT</span>
+    </div>
+    <div class="flex flex-gap-8 flex-wrap">
+      <span class="badge badge-solid">UI</span>
+      <span class="badge badge-solid">API</span>
+      <span class="badge badge-solid">SHELL</span>
+      <span class="badge badge-solid">VOICE</span>
+      <span class="badge badge-solid">KANBAN</span>
+      <span class="badge badge-solid">MCP</span>
+    </div>
+  </section>
+
+  <hr class="double">
+
+  <!-- ============================================================
+       TABLE
+       ============================================================ -->
+  <section class="section">
+    <span class="meta block mb-16">05 // Data Table</span>
+    <h2 class="mb-32">RAW TABLE BORDERS</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Title</th>
+          <th>Status</th>
+          <th>Priority</th>
+          <th>Type</th>
+          <th>Updated</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="meta">TSK-001</td>
+          <td>Implement MCP kanban server</td>
+          <td><span class="badge badge-solid" style="font-size:8px;">DONE</span></td>
+          <td>HIGH</td>
+          <td>TASK</td>
+          <td class="meta">2026-04-01</td>
+        </tr>
+        <tr>
+          <td class="meta">TSK-002</td>
+          <td>Shell pane scrollback buffer</td>
+          <td><span class="badge badge-active" style="font-size:8px;">IN PROGRESS</span></td>
+          <td>MEDIUM</td>
+          <td>TASK</td>
+          <td class="meta">2026-04-02</td>
+        </tr>
+        <tr>
+          <td class="meta">BUG-003</td>
+          <td style="color: var(--orange);">Voice transcription drops first word</td>
+          <td><span class="badge badge-warning" style="font-size:8px;">BUG</span></td>
+          <td class="text-orange">URGENT</td>
+          <td>BUG</td>
+          <td class="meta">2026-04-03</td>
+        </tr>
+        <tr>
+          <td class="meta">TSK-004</td>
+          <td>Workflow DAG visualization</td>
+          <td><span class="badge" style="font-size:8px;">TODO</span></td>
+          <td>LOW</td>
+          <td>TASK</td>
+          <td class="meta">2026-03-28</td>
+        </tr>
+        <tr>
+          <td class="meta">TSK-005</td>
+          <td>Chat multi-LLM coordination</td>
+          <td><span class="badge" style="font-size:8px;">IN REVIEW</span></td>
+          <td>HIGH</td>
+          <td>TASK</td>
+          <td class="meta">2026-04-03</td>
+        </tr>
+        <tr>
+          <td class="meta">BUG-006</td>
+          <td>Test runner timeout on CI</td>
+          <td><span class="badge" style="font-size:8px;">BACKLOG</span></td>
+          <td>MEDIUM</td>
+          <td>BUG</td>
+          <td class="meta">2026-03-25</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <hr>
+
+  <!-- ============================================================
+       STATS
+       ============================================================ -->
+  <section class="section">
+    <span class="meta block mb-16">06 // Statistics</span>
+    <h2 class="mb-32">RAW NUMBERS</h2>
+
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat-value">47</div>
+        <div class="stat-label">Total Tasks</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value orange">12</div>
+        <div class="stat-label">In Progress</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">94%</div>
+        <div class="stat-label">Test Coverage</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">7</div>
+        <div class="stat-label">MCP Servers</div>
+      </div>
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- ============================================================
+       EXPOSED GRID
+       ============================================================ -->
+  <section class="section">
+    <span class="meta block mb-16">07 // Exposed Grid</span>
+    <h2 class="mb-32">8PX CONSTRUCTION GRID</h2>
+
+    <p class="mb-32">The grid is always visible. Like a construction blueprint, alignment is exposed, not hidden. Every element snaps to the 8px grid. Major lines at 64px intervals.</p>
+
+    <div class="grid-demo">
+      <div class="grid-demo-major"></div>
+      <!-- Grid labels -->
+      <span class="grid-demo-label" style="top: 8px; left: 8px;">0,0</span>
+      <span class="grid-demo-label" style="top: 8px; left: 64px;">64</span>
+      <span class="grid-demo-label" style="top: 8px; left: 128px;">128</span>
+      <span class="grid-demo-label" style="top: 8px; left: 192px;">192</span>
+      <span class="grid-demo-label" style="top: 8px; left: 256px;">256</span>
+      <span class="grid-demo-label" style="top: 8px; left: 320px;">320</span>
+      <span class="grid-demo-label" style="top: 8px; left: 384px;">384</span>
+      <span class="grid-demo-label" style="top: 8px; left: 448px;">448</span>
+      <span class="grid-demo-label" style="top: 72px; left: 8px;">64</span>
+      <span class="grid-demo-label" style="top: 136px; left: 8px;">128</span>
+      <span class="grid-demo-label" style="top: 200px; left: 8px;">192</span>
+      <span class="grid-demo-label" style="top: 264px; left: 8px;">256</span>
+
+      <!-- Demo blocks aligned to grid -->
+      <div class="grid-demo-block" style="top: 64px; left: 64px; width: 192px; height: 64px;"></div>
+      <div class="grid-demo-block grid-demo-block-filled" style="top: 64px; left: 320px; width: 128px; height: 128px;"></div>
+      <div class="grid-demo-block" style="top: 160px; left: 64px; width: 64px; height: 128px;"></div>
+      <div class="grid-demo-block grid-demo-block-filled" style="top: 192px; left: 192px; width: 64px; height: 64px;"></div>
+      <div class="grid-demo-block" style="top: 224px; left: 512px; width: 192px; height: 64px;"></div>
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- ============================================================
+       CONCRETE TEXTURE
+       ============================================================ -->
+  <section class="section">
+    <span class="meta block mb-16">08 // Texture</span>
+    <h2 class="mb-32">CONCRETE SURFACES</h2>
+
+    <p class="mb-32">SVG noise filter applied to surfaces. Barely visible but adds the tactile roughness of real concrete. Three densities shown below.</p>
+
+    <div class="texture-demo">
+      <div class="texture-panel" style="background: #1a1a1a;">
+        <span class="texture-panel-label">Dark Concrete // #1a1a1a</span>
+      </div>
+      <div class="texture-panel" style="background: #242424;">
+        <span class="texture-panel-label">Light Concrete // #242424</span>
+      </div>
+      <div class="texture-panel" style="background: #333333;">
+        <span class="texture-panel-label">Mid Concrete // #333333</span>
+      </div>
+    </div>
+  </section>
+
+  <hr class="double">
+
+  <!-- ============================================================
+       CARDS
+       ============================================================ -->
+  <section class="section">
+    <span class="meta block mb-16">09 // Cards</span>
+    <h2 class="mb-32">STACKED SLABS</h2>
+
+    <p class="mb-32">Cards are just bordered rectangles stacked vertically. Shared borders between adjacent cards. No shadows, no roundness, no frills.</p>
+
+    <div class="card">
+      <div class="card-meta">TSK-012 // TASK // HIGH // 2026-04-03</div>
+      <div class="card-title">Implement voice cleanup pipeline</div>
+      <div class="card-body">
+        Add AI post-processing to transcription results. Support configurable LLM provider
+        and model selection. Handle filler word removal and grammar correction.
+      </div>
+      <div class="flex flex-gap-8 mt-16">
+        <span class="badge badge-active">IN PROGRESS</span>
+        <span class="badge badge-solid">VOICE</span>
+        <span class="badge badge-solid">API</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-meta">BUG-013 // BUG // URGENT // 2026-04-03</div>
+      <div class="card-title text-orange">Shell pane crashes on resize during command execution</div>
+      <div class="card-body">
+        When a user resizes the terminal pane while a long-running command is active,
+        the PTY emulator throws an unhandled exception and the pane becomes unresponsive.
+      </div>
+      <div class="flex flex-gap-8 mt-16">
+        <span class="badge badge-warning">BUG</span>
+        <span class="badge badge-solid">SHELL</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-meta">TSK-014 // TASK // MEDIUM // 2026-04-02</div>
+      <div class="card-title">Workflow DAG validation and cycle detection</div>
+      <div class="card-body">
+        Validate workflow graphs on save. Detect cycles in DAG edges and provide
+        clear error messages pointing to the conflicting nodes.
+      </div>
+      <div class="flex flex-gap-8 mt-16">
+        <span class="badge">TODO</span>
+        <span class="badge badge-solid">WORKFLOW</span>
+      </div>
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- ============================================================
+       TERMINAL
+       ============================================================ -->
+  <section class="section">
+    <span class="meta block mb-16">10 // Terminal</span>
+    <h2 class="mb-32">SHELL OUTPUT</h2>
+
+    <div class="terminal">
+      <div class="terminal-header">
+        <span>PANE-1 // BASH</span>
+        <span>PID 48291</span>
+      </div>
+      <div class="terminal-body">
+<span class="comment"># Start DevGlide server</span>
+<span class="prompt">$</span> devglide start --port 7000
+<span class="output">Starting DevGlide server...</span>
+<span class="output">  Kanban server .......... <span style="color: var(--concrete-bright);">OK</span></span>
+<span class="output">  Shell server ........... <span style="color: var(--concrete-bright);">OK</span></span>
+<span class="output">  Voice server ........... <span style="color: var(--concrete-bright);">OK</span></span>
+<span class="output">  Test server ............ <span style="color: var(--concrete-bright);">OK</span></span>
+<span class="output">  Workflow server ........ <span style="color: var(--concrete-bright);">OK</span></span>
+<span class="output">  Chat server ............ <span style="color: var(--concrete-bright);">OK</span></span>
+<span class="output">  Log server ............. <span style="color: var(--concrete-bright);">OK</span></span>
+<span class="output">Server running on <span class="text-orange">http://localhost:7000</span></span>
+<span class="output"></span>
+<span class="comment"># Register MCP servers</span>
+<span class="prompt">$</span> devglide setup
+<span class="output">Registered 7 MCP servers</span>
+<span class="output">Installed CLAUDE.md instructions</span>
+<span class="output"><span style="color: var(--orange);">Setup complete.</span></span>
+      </div>
+    </div>
+  </section>
+
+  <hr class="double">
+
+  <!-- ============================================================
+       DASHBOARD MOCKUP
+       ============================================================ -->
+  <section class="section">
+    <span class="meta block mb-16">11 // Dashboard</span>
+    <h2 class="mb-32">FULL MOCKUP</h2>
+
+    <p class="mb-32">The dashboard is a sidebar + content area. Sidebar is a plain text list in caps. No icons. The kanban board is a raw bordered grid. Counter-intuitively comfortable for long sessions because nothing is fighting for your attention.</p>
+
+    <div class="dashboard">
+      <!-- Sidebar -->
+      <nav class="sidebar">
+        <div class="sidebar-brand">DEVGLIDE</div>
+        <ul class="sidebar-nav">
+          <li><a href="#" class="active">KANBAN</a></li>
+          <li><a href="#">SHELL</a></li>
+          <li><a href="#">VOICE</a></li>
+          <li><a href="#">TESTS</a></li>
+          <li><a href="#">WORKFLOWS</a></li>
+          <li><a href="#">CHAT</a></li>
+          <li><a href="#">VOCABULARY</a></li>
+          <li><a href="#">PROMPTS</a></li>
+          <li><a href="#">LOGS</a></li>
+          <li><a href="#">DOCS</a></li>
+        </ul>
+      </nav>
+
+      <!-- Main content area -->
+      <div class="main-content">
+        <div class="main-header">
+          <h2 style="font-size: 20px;">KANBAN // AUTH OVERHAUL</h2>
+          <div class="flex flex-gap-8">
+            <button class="btn btn-primary btn-small">NEW TASK</button>
+            <button class="btn btn-small">FILTER</button>
+          </div>
+        </div>
+
+        <!-- Stats bar -->
+        <div class="flex flex-gap-16 mb-24" style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--concrete-fog);">
+          <span>8 TOTAL</span>
+          <span>//</span>
+          <span>2 TODO</span>
+          <span>//</span>
+          <span class="text-orange">3 IN PROGRESS</span>
+          <span>//</span>
+          <span>1 IN REVIEW</span>
+          <span>//</span>
+          <span>2 DONE</span>
+        </div>
+
+        <!-- Kanban board -->
+        <div class="kanban">
+          <!-- TODO column -->
+          <div class="kanban-col">
+            <div class="kanban-col-header">
+              <span>TODO</span>
+              <span class="kanban-col-count">2</span>
+            </div>
+            <div class="kanban-item">
+              <div class="kanban-item-id">TSK-101</div>
+              <div class="kanban-item-title">Add rate limiting to API</div>
+              <div class="kanban-item-meta">
+                <span>MEDIUM</span>
+                <span>TASK</span>
+              </div>
+            </div>
+            <div class="kanban-item">
+              <div class="kanban-item-id">TSK-102</div>
+              <div class="kanban-item-title">Write migration scripts</div>
+              <div class="kanban-item-meta">
+                <span>LOW</span>
+                <span>TASK</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- IN PROGRESS column -->
+          <div class="kanban-col">
+            <div class="kanban-col-header">
+              <span>IN PROGRESS</span>
+              <span class="kanban-col-count">3</span>
+            </div>
+            <div class="kanban-item priority-high">
+              <div class="kanban-item-id">TSK-103</div>
+              <div class="kanban-item-title">Implement JWT refresh flow</div>
+              <div class="kanban-item-meta">
+                <span class="text-orange">HIGH</span>
+                <span>TASK</span>
+              </div>
+            </div>
+            <div class="kanban-item priority-high">
+              <div class="kanban-item-id">BUG-104</div>
+              <div class="kanban-item-title" style="color: var(--orange);">Session fixation vulnerability</div>
+              <div class="kanban-item-meta">
+                <span class="text-orange">URGENT</span>
+                <span>BUG</span>
+              </div>
+            </div>
+            <div class="kanban-item">
+              <div class="kanban-item-id">TSK-105</div>
+              <div class="kanban-item-title">OAuth2 provider integration</div>
+              <div class="kanban-item-meta">
+                <span>MEDIUM</span>
+                <span>TASK</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- IN REVIEW column -->
+          <div class="kanban-col">
+            <div class="kanban-col-header">
+              <span>IN REVIEW</span>
+              <span class="kanban-col-count">1</span>
+            </div>
+            <div class="kanban-item">
+              <div class="kanban-item-id">TSK-106</div>
+              <div class="kanban-item-title">Password policy enforcement</div>
+              <div class="kanban-item-meta">
+                <span>MEDIUM</span>
+                <span>TASK</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- DONE column -->
+          <div class="kanban-col">
+            <div class="kanban-col-header">
+              <span>DONE</span>
+              <span class="kanban-col-count">2</span>
+            </div>
+            <div class="kanban-item">
+              <div class="kanban-item-id">TSK-107</div>
+              <div class="kanban-item-title">Audit existing auth endpoints</div>
+              <div class="kanban-item-meta">
+                <span>HIGH</span>
+                <span>TASK</span>
+              </div>
+            </div>
+            <div class="kanban-item">
+              <div class="kanban-item-id">TSK-108</div>
+              <div class="kanban-item-title">Set up auth test fixtures</div>
+              <div class="kanban-item-meta">
+                <span>LOW</span>
+                <span>TASK</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- ============================================================
+       DESIGN TOKENS REFERENCE
+       ============================================================ -->
+  <section class="section">
+    <span class="meta block mb-16">12 // Design Tokens</span>
+    <h2 class="mb-32">REFERENCE TABLE</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Token</th>
+          <th>Value</th>
+          <th>Usage</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>--concrete</code></td>
+          <td>#1a1a1a</td>
+          <td>Page background</td>
+        </tr>
+        <tr>
+          <td><code>--concrete-light</code></td>
+          <td>#242424</td>
+          <td>Sidebar, raised surfaces</td>
+        </tr>
+        <tr>
+          <td><code>--concrete-mid</code></td>
+          <td>#333333</td>
+          <td>Borders, dividers</td>
+        </tr>
+        <tr>
+          <td><code>--concrete-pale</code></td>
+          <td>#444444</td>
+          <td>Heavy borders, thick rules</td>
+        </tr>
+        <tr>
+          <td><code>--concrete-fog</code></td>
+          <td>#777777</td>
+          <td>Metadata, labels, tertiary text</td>
+        </tr>
+        <tr>
+          <td><code>--concrete-dust</code></td>
+          <td>#999999</td>
+          <td>Body text, descriptions</td>
+        </tr>
+        <tr>
+          <td><code>--concrete-chalk</code></td>
+          <td>#bbbbbb</td>
+          <td>Primary text, card content</td>
+        </tr>
+        <tr>
+          <td><code>--concrete-bright</code></td>
+          <td>#eeeeee</td>
+          <td>Headings, emphasis</td>
+        </tr>
+        <tr>
+          <td><code>--orange</code></td>
+          <td>#ff6600</td>
+          <td>Accent, active states, alerts</td>
+        </tr>
+        <tr>
+          <td><code>--border-w</code></td>
+          <td>3px</td>
+          <td>Standard border width</td>
+        </tr>
+        <tr>
+          <td><code>--border-w-thick</code></td>
+          <td>4px</td>
+          <td>Section dividers, dashboard frame</td>
+        </tr>
+        <tr>
+          <td><code>--grid</code></td>
+          <td>8px</td>
+          <td>Base grid unit</td>
+        </tr>
+        <tr>
+          <td><code>--font</code></td>
+          <td>Space Mono</td>
+          <td>Everything. One font. No choice.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <hr class="double orange">
+
+  <!-- ============================================================
+       FOOTER
+       ============================================================ -->
+  <footer class="section" style="padding-bottom: 0;">
+    <div class="flex justify-between items-center" style="flex-wrap: wrap; gap: 16px;">
+      <div>
+        <span class="meta block mb-8">Brutalist Concrete // DevGlide Design System</span>
+        <p style="font-size: 12px; color: var(--concrete-fog);">
+          Raw. Exposed. Monolithic. Nothing is hidden. Nothing moves.
+        </p>
+      </div>
+      <div class="text-orange" style="font-size: 36px; font-weight: 700;">
+        &#x2588;&#x2588;&#x2588;
+      </div>
+    </div>
+  </footer>
+
+</div>
+
+</body>
+</html>

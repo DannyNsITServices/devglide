@@ -86,6 +86,7 @@
   flex: 1;
   min-width: 0;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: var(--df-space-1);
 }
 
@@ -128,9 +129,9 @@
   flex: 1;
   min-width: 0;
   line-height: 1.35;
-  overflow: visible;
-  white-space: normal;
-  word-break: break-word;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .chat-member-tag {
@@ -1064,16 +1065,41 @@
 
 /* ── Inline role select in member list ─────────────────────────── */
 .chat-member-role-select {
-  font-size: 11px;
-  padding: 1px 4px;
-  border-radius: 4px;
-  border: 1px solid var(--border-subtle, #333);
-  background: var(--bg-surface, #1a1a1a);
-  color: var(--text-muted, #888);
+  appearance: none;
+  width: 100%;
+  min-height: 24px;
+  padding: 3px 26px 3px 8px;
+  border-radius: var(--df-radius-md);
+  border: 1px solid var(--df-color-border-default);
+  background-color: var(--df-color-bg-raised);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236f7b8c'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  color: var(--df-color-text-primary);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-xs);
+  line-height: 1.2;
+  outline: none;
+  transition:
+    border-color var(--df-duration-fast),
+    background-color var(--df-duration-fast),
+    box-shadow var(--df-duration-fast),
+    color var(--df-duration-fast);
   cursor: pointer;
-  max-width: 90px;
 }
+
 .chat-member-role-select:hover {
-  border-color: var(--border-default, #555);
-  color: var(--text-primary, #ccc);
+  border-color: color-mix(in srgb, var(--df-color-accent-default) 36%, transparent);
+  background-color: color-mix(in srgb, var(--df-color-accent-default) 5%, var(--df-color-bg-raised));
+  color: var(--df-color-accent-default);
+}
+
+.chat-member-role-select:focus-visible {
+  border-color: var(--df-color-accent-default);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--df-color-accent-default) 15%, transparent);
+}
+
+.chat-member-role-select option {
+  background: var(--df-color-bg-raised);
+  color: var(--df-color-text-primary);
 }

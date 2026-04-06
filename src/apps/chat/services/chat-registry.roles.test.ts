@@ -24,6 +24,7 @@ vi.mock('./chat-store.js', () => ({
 }));
 
 const registry = await import('./chat-registry.js');
+const roles = await import('./roles.js');
 
 // Helper: generate a unique project ID to avoid cross-test pollution
 let projectCounter = 0;
@@ -62,6 +63,19 @@ describe('role assignment helpers', () => {
   });
 
   // ── assignRole ─────────────────────────────────────────────────
+
+  describe('role catalog', () => {
+    it('lists only the four supported built-in roles', () => {
+      const listed = roles.listRoles();
+      expect(listed.map(role => role.slug)).toEqual([
+        'tech-lead',
+        'implementer',
+        'reviewer',
+        'tester',
+      ]);
+      expect(roles.isValidRoleSlug('kanban')).toBe(false);
+    });
+  });
 
   describe('assignRole', () => {
     it('assigns a role to a connected LLM participant', () => {
@@ -120,12 +134,12 @@ describe('role assignment helpers', () => {
       const p = joinLlm('claude-1', pid);
 
       registry.assignRole(pid, p.name, 'tester');
-      registry.assignRole(pid, p.name, 'kanban');
+      registry.assignRole(pid, p.name, 'reviewer');
 
       const assignments = registry.listProjectRoleAssignments(pid);
       const entries = Object.entries(assignments).filter(([name]) => name === p.name);
       expect(entries).toHaveLength(1);
-      expect(entries[0][1]).toBe('kanban');
+      expect(entries[0][1]).toBe('reviewer');
     });
 
     it('throws an error for an invalid role slug', () => {

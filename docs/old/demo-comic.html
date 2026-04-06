@@ -1,0 +1,1925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevGlide — Comic Book Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:ital,wght@0,300;0,400;0,700;1,400&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================
+   COMIC BOOK DESIGN SYSTEM — DevGlide
+   ============================================ */
+
+/* === RESET & BASE === */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* Comic CMYK Primaries */
+  --comic-yellow: #FFE135;
+  --comic-red: #ED1C24;
+  --comic-blue: #0072BC;
+  --comic-green: #00A651;
+  --comic-black: #000000;
+  --comic-white: #FFFFFF;
+  --comic-offwhite: #F5F0E1;
+  --comic-orange: #FF6B2B;
+  --comic-pink: #FF69B4;
+  --comic-purple: #7B2FBE;
+
+  /* Borders */
+  --border-thick: 3.5px solid var(--comic-black);
+  --border-panel: 4px solid var(--comic-black);
+
+  /* Shadows */
+  --shadow-hard: 4px 4px 0px var(--comic-black);
+  --shadow-hard-sm: 3px 3px 0px var(--comic-black);
+  --shadow-hard-lg: 6px 6px 0px var(--comic-black);
+
+  /* Fonts */
+  --font-display: 'Bangers', cursive;
+  --font-body: 'Comic Neue', cursive;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Gutters */
+  --gutter: 12px;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--comic-black);
+  background-color: var(--comic-offwhite);
+  /* Halftone dot pattern — subtle CMYK simulation */
+  background-image:
+    radial-gradient(circle, rgba(0,0,0,0.06) 1px, transparent 1px),
+    radial-gradient(circle, rgba(237,28,36,0.03) 1px, transparent 1px),
+    radial-gradient(circle, rgba(0,114,188,0.03) 1px, transparent 1px);
+  background-size: 12px 12px, 16px 16px, 20px 20px;
+  background-position: 0 0, 4px 4px, 8px 8px;
+  overflow-x: hidden;
+}
+
+/* === HALFTONE PATTERNS (reusable) === */
+.halftone-yellow {
+  background-color: var(--comic-yellow);
+  background-image: radial-gradient(circle, rgba(0,0,0,0.12) 1.2px, transparent 1.2px);
+  background-size: 6px 6px;
+}
+.halftone-red {
+  background-color: var(--comic-red);
+  background-image: radial-gradient(circle, rgba(0,0,0,0.15) 1.2px, transparent 1.2px);
+  background-size: 6px 6px;
+}
+.halftone-blue {
+  background-color: var(--comic-blue);
+  background-image: radial-gradient(circle, rgba(255,255,255,0.15) 1.2px, transparent 1.2px);
+  background-size: 6px 6px;
+  color: var(--comic-white);
+}
+.halftone-green {
+  background-color: var(--comic-green);
+  background-image: radial-gradient(circle, rgba(0,0,0,0.12) 1.2px, transparent 1.2px);
+  background-size: 6px 6px;
+}
+.halftone-pink {
+  background-color: var(--comic-pink);
+  background-image: radial-gradient(circle, rgba(255,255,255,0.2) 1.2px, transparent 1.2px);
+  background-size: 6px 6px;
+}
+
+/* === COMIC PANEL BASE === */
+.panel {
+  background: var(--comic-white);
+  border: var(--border-panel);
+  box-shadow: var(--shadow-hard);
+  position: relative;
+  overflow: hidden;
+}
+
+.panel-number {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2.5px solid var(--comic-black);
+  background: var(--comic-yellow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 15px;
+  z-index: 10;
+  line-height: 1;
+}
+
+/* === CAPTION BOXES === */
+.caption-box {
+  display: inline-block;
+  background: var(--comic-yellow);
+  border: 2.5px solid var(--comic-black);
+  padding: 6px 14px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.4;
+  box-shadow: var(--shadow-hard-sm);
+}
+
+/* === SPEECH BUBBLES === */
+.speech-bubble {
+  position: relative;
+  background: var(--comic-white);
+  border: 3px solid var(--comic-black);
+  border-radius: 20px;
+  padding: 14px 18px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  box-shadow: var(--shadow-hard-sm);
+  max-width: 340px;
+}
+
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -20px;
+  left: 30px;
+  width: 0;
+  height: 0;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-top: 20px solid var(--comic-black);
+}
+.speech-bubble::before {
+  content: '';
+  position: absolute;
+  bottom: -15px;
+  left: 33px;
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-top: 15px solid var(--comic-white);
+  z-index: 1;
+}
+
+/* Right-pointing speech bubble */
+.speech-bubble--right::after {
+  bottom: auto;
+  left: auto;
+  right: -18px;
+  top: 20px;
+  border-left: 18px solid var(--comic-black);
+  border-right: 0;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+}
+.speech-bubble--right::before {
+  bottom: auto;
+  left: auto;
+  right: -12px;
+  top: 23px;
+  border-left: 13px solid var(--comic-white);
+  border-right: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+}
+
+/* === THOUGHT BUBBLES === */
+.thought-bubble {
+  position: relative;
+  background: var(--comic-white);
+  border: 3px solid var(--comic-black);
+  border-radius: 50% / 40%;
+  padding: 18px 24px;
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 14px;
+  box-shadow: var(--shadow-hard-sm);
+  max-width: 300px;
+}
+.thought-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -24px;
+  left: 35px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2.5px solid var(--comic-black);
+  background: var(--comic-white);
+}
+.thought-bubble .thought-dot {
+  position: absolute;
+  bottom: -38px;
+  left: 25px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--comic-black);
+  background: var(--comic-white);
+}
+
+/* === SOUND EFFECTS === */
+.sfx {
+  font-family: var(--font-display);
+  font-size: 64px;
+  letter-spacing: 3px;
+  -webkit-text-stroke: 3px var(--comic-black);
+  text-stroke: 3px var(--comic-black);
+  paint-order: stroke fill;
+  text-shadow:
+    4px 4px 0 var(--comic-black),
+    -1px -1px 0 var(--comic-black),
+    1px -1px 0 var(--comic-black),
+    -1px 1px 0 var(--comic-black);
+  display: inline-block;
+  position: relative;
+  z-index: 5;
+  user-select: none;
+}
+.sfx--pow { color: var(--comic-red); transform: rotate(-8deg) scale(1.1); }
+.sfx--wham { color: var(--comic-yellow); transform: rotate(5deg); }
+.sfx--deploy { color: var(--comic-green); transform: rotate(-3deg); }
+.sfx--merge { color: var(--comic-blue); transform: rotate(4deg); }
+.sfx--bam { color: var(--comic-orange); transform: rotate(-6deg) scale(1.05); }
+.sfx--zap { color: var(--comic-purple); transform: rotate(7deg); font-size: 48px; }
+
+/* Starburst behind SFX */
+.sfx-burst {
+  position: relative;
+  display: inline-block;
+}
+.sfx-burst::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 160%;
+  height: 160%;
+  transform: translate(-50%, -50%);
+  background: conic-gradient(
+    var(--comic-yellow) 0deg, transparent 15deg,
+    transparent 30deg, var(--comic-yellow) 30deg,
+    var(--comic-yellow) 45deg, transparent 45deg,
+    transparent 60deg, var(--comic-yellow) 60deg,
+    var(--comic-yellow) 75deg, transparent 75deg,
+    transparent 90deg, var(--comic-yellow) 90deg,
+    var(--comic-yellow) 105deg, transparent 105deg,
+    transparent 120deg, var(--comic-yellow) 120deg,
+    var(--comic-yellow) 135deg, transparent 135deg,
+    transparent 150deg, var(--comic-yellow) 150deg,
+    var(--comic-yellow) 165deg, transparent 165deg,
+    transparent 180deg, var(--comic-yellow) 180deg,
+    var(--comic-yellow) 195deg, transparent 195deg,
+    transparent 210deg, var(--comic-yellow) 210deg,
+    var(--comic-yellow) 225deg, transparent 225deg,
+    transparent 240deg, var(--comic-yellow) 240deg,
+    var(--comic-yellow) 255deg, transparent 255deg,
+    transparent 270deg, var(--comic-yellow) 270deg,
+    var(--comic-yellow) 285deg, transparent 285deg,
+    transparent 300deg, var(--comic-yellow) 300deg,
+    var(--comic-yellow) 315deg, transparent 315deg,
+    transparent 330deg, var(--comic-yellow) 330deg,
+    var(--comic-yellow) 345deg, transparent 345deg,
+    transparent 360deg
+  );
+  z-index: -1;
+  border-radius: 50%;
+  opacity: 0.7;
+}
+
+/* Action lines */
+.action-lines {
+  position: relative;
+}
+.action-lines::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 300%;
+  height: 300%;
+  transform: translate(-50%, -50%);
+  background: conic-gradient(
+    transparent 0deg, transparent 3deg, var(--comic-black) 3deg, var(--comic-black) 4deg,
+    transparent 4deg, transparent 18deg, var(--comic-black) 18deg, var(--comic-black) 19deg,
+    transparent 19deg, transparent 33deg, var(--comic-black) 33deg, var(--comic-black) 34deg,
+    transparent 34deg, transparent 48deg, var(--comic-black) 48deg, var(--comic-black) 49deg,
+    transparent 49deg, transparent 63deg, var(--comic-black) 63deg, var(--comic-black) 64deg,
+    transparent 64deg, transparent 78deg, var(--comic-black) 78deg, var(--comic-black) 79deg,
+    transparent 79deg, transparent 93deg, var(--comic-black) 93deg, var(--comic-black) 94deg,
+    transparent 94deg, transparent 108deg, var(--comic-black) 108deg, var(--comic-black) 109deg,
+    transparent 109deg, transparent 123deg, var(--comic-black) 123deg, var(--comic-black) 124deg,
+    transparent 124deg, transparent 138deg, var(--comic-black) 138deg, var(--comic-black) 139deg,
+    transparent 139deg, transparent 153deg, var(--comic-black) 153deg, var(--comic-black) 154deg,
+    transparent 154deg, transparent 168deg, var(--comic-black) 168deg, var(--comic-black) 169deg,
+    transparent 169deg, transparent 183deg, var(--comic-black) 183deg, var(--comic-black) 184deg,
+    transparent 184deg, transparent 198deg, var(--comic-black) 198deg, var(--comic-black) 199deg,
+    transparent 199deg, transparent 213deg, var(--comic-black) 213deg, var(--comic-black) 214deg,
+    transparent 214deg, transparent 228deg, var(--comic-black) 228deg, var(--comic-black) 229deg,
+    transparent 229deg, transparent 243deg, var(--comic-black) 243deg, var(--comic-black) 244deg,
+    transparent 244deg, transparent 258deg, var(--comic-black) 258deg, var(--comic-black) 259deg,
+    transparent 259deg, transparent 273deg, var(--comic-black) 273deg, var(--comic-black) 274deg,
+    transparent 274deg, transparent 288deg, var(--comic-black) 288deg, var(--comic-black) 289deg,
+    transparent 289deg, transparent 303deg, var(--comic-black) 303deg, var(--comic-black) 304deg,
+    transparent 304deg, transparent 318deg, var(--comic-black) 318deg, var(--comic-black) 319deg,
+    transparent 319deg, transparent 333deg, var(--comic-black) 333deg, var(--comic-black) 334deg,
+    transparent 334deg, transparent 348deg, var(--comic-black) 348deg, var(--comic-black) 349deg,
+    transparent 349deg, transparent 360deg
+  );
+  opacity: 0.06;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 50%;
+  mask-image: radial-gradient(circle, transparent 15%, black 40%);
+  -webkit-mask-image: radial-gradient(circle, transparent 15%, black 40%);
+}
+
+/* === CHARACTER EXPRESSIONS === */
+.char-face {
+  font-size: 40px;
+  line-height: 1;
+  display: inline-block;
+}
+.char-face--success::after { content: '\1F60E'; }
+.char-face--error::after { content: '\1F621'; }
+.char-face--thinking::after { content: '\1F914'; }
+.char-face--celebrate::after { content: '\1F389'; }
+.char-face--warning::after { content: '\26A0\FE0F'; }
+
+/* === BUTTONS === */
+.btn {
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 1px;
+  padding: 10px 24px;
+  border: 3px solid var(--comic-black);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: var(--shadow-hard);
+  transition: transform 0.1s, box-shadow 0.1s;
+  text-decoration: none;
+  color: var(--comic-black);
+  position: relative;
+  user-select: none;
+}
+.btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0px var(--comic-black);
+}
+.btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0px var(--comic-black);
+}
+.btn--primary { background: var(--comic-yellow); }
+.btn--danger { background: var(--comic-red); color: var(--comic-white); }
+.btn--info { background: var(--comic-blue); color: var(--comic-white); }
+.btn--success { background: var(--comic-green); color: var(--comic-white); }
+.btn--ghost { background: var(--comic-white); }
+
+/* === INPUTS === */
+.comic-input {
+  font-family: var(--font-body);
+  font-size: 16px;
+  padding: 10px 14px;
+  border: 3px solid var(--comic-black);
+  background: var(--comic-white);
+  box-shadow: var(--shadow-hard-sm);
+  outline: none;
+  transition: box-shadow 0.15s;
+  width: 100%;
+}
+.comic-input:focus {
+  box-shadow: 5px 5px 0px var(--comic-blue);
+  border-color: var(--comic-blue);
+}
+.comic-input::placeholder {
+  color: #999;
+  font-style: italic;
+}
+
+/* === BADGES === */
+.badge {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 1px;
+  padding: 3px 10px;
+  border: 2.5px solid var(--comic-black);
+  display: inline-block;
+  box-shadow: 2px 2px 0px var(--comic-black);
+}
+.badge--yellow { background: var(--comic-yellow); }
+.badge--red { background: var(--comic-red); color: var(--comic-white); }
+.badge--blue { background: var(--comic-blue); color: var(--comic-white); }
+.badge--green { background: var(--comic-green); color: var(--comic-white); }
+.badge--purple { background: var(--comic-purple); color: var(--comic-white); }
+
+/* === CODE BLOCKS === */
+.comic-code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: #1a1a2e;
+  color: #00ff41;
+  border: 3px solid var(--comic-black);
+  box-shadow: var(--shadow-hard);
+  padding: 16px 20px;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+.comic-code .kw { color: var(--comic-yellow); }
+.comic-code .fn { color: #69b4ff; }
+.comic-code .str { color: #ff6b9d; }
+.comic-code .cmt { color: #666; font-style: italic; }
+
+/* === LAYOUT === */
+.page-wrapper {
+  max-width: 1260px;
+  margin: 0 auto;
+  padding: 20px var(--gutter);
+}
+
+.panel-grid {
+  display: grid;
+  gap: var(--gutter);
+}
+.panel-grid--2 { grid-template-columns: 1fr 1fr; }
+.panel-grid--3 { grid-template-columns: 1fr 1fr 1fr; }
+.panel-grid--4 { grid-template-columns: repeat(4, 1fr); }
+.panel-grid--sidebar { grid-template-columns: 220px 1fr; }
+
+.panel-content {
+  padding: 24px;
+}
+.panel-content--tight {
+  padding: 16px;
+}
+
+/* === SPLASH HEADER === */
+.splash {
+  position: relative;
+  border: 5px solid var(--comic-black);
+  box-shadow: 8px 8px 0 var(--comic-black);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.splash-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, var(--comic-yellow) 0%, var(--comic-yellow) 35%, var(--comic-red) 35%, var(--comic-red) 55%, var(--comic-blue) 55%, var(--comic-blue) 75%, var(--comic-green) 75%);
+  z-index: 0;
+}
+.splash-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(0,0,0,0.18) 1.5px, transparent 1.5px);
+  background-size: 8px 8px;
+}
+
+.splash-content {
+  position: relative;
+  z-index: 2;
+  padding: 50px 40px 40px;
+  text-align: center;
+}
+
+.splash-title {
+  font-family: var(--font-display);
+  font-size: 96px;
+  letter-spacing: 6px;
+  color: var(--comic-white);
+  -webkit-text-stroke: 4px var(--comic-black);
+  text-stroke: 4px var(--comic-black);
+  paint-order: stroke fill;
+  text-shadow: 6px 6px 0 var(--comic-black);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.splash-subtitle {
+  font-family: var(--font-display);
+  font-size: 28px;
+  letter-spacing: 4px;
+  color: var(--comic-white);
+  -webkit-text-stroke: 1.5px var(--comic-black);
+  text-stroke: 1.5px var(--comic-black);
+  paint-order: stroke fill;
+  text-shadow: 3px 3px 0 var(--comic-black);
+  margin-bottom: 20px;
+}
+
+.splash-tagline {
+  display: inline-block;
+  background: var(--comic-white);
+  border: 3px solid var(--comic-black);
+  padding: 8px 28px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 18px;
+  box-shadow: var(--shadow-hard);
+}
+
+.splash-sfx-left {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 3;
+}
+.splash-sfx-right {
+  position: absolute;
+  bottom: 15px;
+  right: 25px;
+  z-index: 3;
+}
+.splash-sfx-mid {
+  position: absolute;
+  top: 10px;
+  right: 180px;
+  z-index: 3;
+}
+
+/* Issue number badge */
+.issue-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: var(--comic-white);
+  border: 3px solid var(--comic-black);
+  border-radius: 50%;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  box-shadow: var(--shadow-hard);
+}
+.issue-badge-num {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1;
+}
+.issue-badge-label {
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* === SECTION HEADERS === */
+.section-header {
+  font-family: var(--font-display);
+  font-size: 36px;
+  letter-spacing: 2px;
+  margin-bottom: 16px;
+  position: relative;
+  display: inline-block;
+}
+.section-header::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--comic-black);
+}
+
+/* === SIDEBAR NAV === */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 2.5px solid var(--comic-black);
+  background: var(--comic-white);
+  font-family: var(--font-display);
+  font-size: 16px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s, background 0.1s;
+  box-shadow: 2px 2px 0 var(--comic-black);
+  user-select: none;
+}
+.sidebar-nav-item:hover {
+  background: var(--comic-yellow);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--comic-black);
+}
+.sidebar-nav-item.active {
+  background: var(--comic-yellow);
+  box-shadow: var(--shadow-hard-sm);
+}
+.sidebar-nav-item .nav-icon {
+  font-size: 20px;
+  width: 28px;
+  text-align: center;
+}
+
+/* === KANBAN BOARD === */
+.kanban-column-header {
+  font-family: var(--font-display);
+  font-size: 20px;
+  letter-spacing: 2px;
+  text-align: center;
+  padding: 10px 8px;
+  border-bottom: 3px solid var(--comic-black);
+}
+.kanban-cards {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 120px;
+}
+.kanban-card {
+  border: 2.5px solid var(--comic-black);
+  padding: 10px 12px;
+  background: var(--comic-white);
+  box-shadow: 2px 2px 0 var(--comic-black);
+  cursor: grab;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.kanban-card:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--comic-black);
+}
+.kanban-card-title {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+.kanban-card-desc {
+  font-size: 12px;
+  color: #444;
+  margin-bottom: 8px;
+}
+.kanban-card-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* === TOAST (speech bubble style) === */
+.toast {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  z-index: 1000;
+  animation: toastIn 0.3s ease-out;
+}
+.toast .speech-bubble {
+  max-width: 280px;
+}
+.toast .speech-bubble::after,
+.toast .speech-bubble::before {
+  display: none;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* === DASHBOARD MOCKUP === */
+.dashboard-frame {
+  border: 4px solid var(--comic-black);
+  box-shadow: var(--shadow-hard-lg);
+  background: var(--comic-offwhite);
+  overflow: hidden;
+  border-radius: 4px;
+}
+.dashboard-titlebar {
+  background: var(--comic-black);
+  color: var(--comic-white);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.titlebar-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.3);
+}
+.titlebar-dot--red { background: var(--comic-red); }
+.titlebar-dot--yellow { background: var(--comic-yellow); }
+.titlebar-dot--green { background: var(--comic-green); }
+
+/* === PROGRESS BAR === */
+.progress-bar {
+  height: 24px;
+  border: 3px solid var(--comic-black);
+  background: var(--comic-white);
+  box-shadow: var(--shadow-hard-sm);
+  position: relative;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  transition: width 0.5s;
+}
+.progress-bar-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(0,0,0,0.12) 1px, transparent 1px);
+  background-size: 5px 5px;
+}
+.progress-bar-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: 1px;
+  z-index: 2;
+}
+
+/* === TABLE === */
+.comic-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 3px solid var(--comic-black);
+  box-shadow: var(--shadow-hard);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+.comic-table th {
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: 1px;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 3px solid var(--comic-black);
+  background: var(--comic-yellow);
+}
+.comic-table td {
+  padding: 10px 14px;
+  border-bottom: 2px solid var(--comic-black);
+  background: var(--comic-white);
+}
+.comic-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* === STATUS DOT === */
+.status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--comic-black);
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.status-dot--green { background: var(--comic-green); }
+.status-dot--red { background: var(--comic-red); }
+.status-dot--yellow { background: var(--comic-yellow); }
+.status-dot--blue { background: var(--comic-blue); }
+
+/* === TOGGLE === */
+.comic-toggle {
+  width: 52px;
+  height: 28px;
+  border: 3px solid var(--comic-black);
+  border-radius: 14px;
+  background: #ccc;
+  cursor: pointer;
+  position: relative;
+  box-shadow: 2px 2px 0 var(--comic-black);
+  transition: background 0.2s;
+}
+.comic-toggle.active {
+  background: var(--comic-green);
+}
+.comic-toggle-knob {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2.5px solid var(--comic-black);
+  background: var(--comic-white);
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  transition: left 0.2s;
+}
+.comic-toggle.active .comic-toggle-knob {
+  left: 25px;
+}
+
+/* === AVATAR === */
+.comic-avatar {
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--comic-black);
+  border-radius: 50%;
+  background: var(--comic-yellow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  box-shadow: 2px 2px 0 var(--comic-black);
+  flex-shrink: 0;
+}
+
+/* === ALERT BOXES === */
+.comic-alert {
+  border: 3px solid var(--comic-black);
+  padding: 14px 18px;
+  box-shadow: var(--shadow-hard-sm);
+  font-family: var(--font-body);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.comic-alert--success { background: #d4edda; }
+.comic-alert--error { background: #f8d7da; }
+.comic-alert--warning { background: #fff3cd; }
+.comic-alert--info { background: #d1ecf1; }
+.comic-alert-icon { font-size: 24px; flex-shrink: 0; }
+
+/* === DROPDOWN === */
+.comic-dropdown {
+  border: 3px solid var(--comic-black);
+  background: var(--comic-white);
+  box-shadow: var(--shadow-hard);
+  min-width: 200px;
+  font-family: var(--font-body);
+}
+.comic-dropdown-item {
+  padding: 10px 16px;
+  border-bottom: 2px solid var(--comic-black);
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 15px;
+}
+.comic-dropdown-item:last-child { border-bottom: none; }
+.comic-dropdown-item:hover { background: var(--comic-yellow); }
+
+/* === ANIMATED SHIMMER (loading) === */
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+.loading-shimmer {
+  background: linear-gradient(90deg, #eee 25%, #ddd 50%, #eee 75%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+  border: 3px solid var(--comic-black);
+  height: 20px;
+  margin-bottom: 8px;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 900px) {
+  .panel-grid--4 { grid-template-columns: 1fr 1fr; }
+  .panel-grid--sidebar { grid-template-columns: 1fr; }
+  .splash-title { font-size: 56px; }
+  .splash-subtitle { font-size: 20px; }
+  .splash-sfx-left, .splash-sfx-right, .splash-sfx-mid { display: none; }
+  .issue-badge { width: 60px; height: 60px; }
+  .issue-badge-num { font-size: 20px; }
+}
+@media (max-width: 600px) {
+  .panel-grid--2, .panel-grid--3 { grid-template-columns: 1fr; }
+  .splash-title { font-size: 40px; letter-spacing: 2px; }
+}
+
+/* === ANIMATION UTILITIES === */
+@keyframes popIn {
+  0% { transform: scale(0.3) rotate(-10deg); opacity: 0; }
+  60% { transform: scale(1.1) rotate(3deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px) rotate(-1deg); }
+  75% { transform: translateX(4px) rotate(1deg); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-pop { animation: popIn 0.5s ease-out both; }
+.animate-shake { animation: shake 0.4s ease-in-out; }
+.animate-float { animation: float 2s ease-in-out infinite; }
+
+/* Stagger delay utility */
+.delay-1 { animation-delay: 0.1s; }
+.delay-2 { animation-delay: 0.2s; }
+.delay-3 { animation-delay: 0.3s; }
+.delay-4 { animation-delay: 0.4s; }
+.delay-5 { animation-delay: 0.5s; }
+
+/* === MISC === */
+.text-display { font-family: var(--font-display); }
+.text-body { font-family: var(--font-body); }
+.text-mono { font-family: var(--font-mono); }
+.mt-2 { margin-top: 8px; }
+.mt-4 { margin-top: 16px; }
+.mt-6 { margin-top: 24px; }
+.mb-2 { margin-bottom: 8px; }
+.mb-4 { margin-bottom: 16px; }
+.mb-6 { margin-bottom: 24px; }
+.flex { display: flex; }
+.flex-wrap { flex-wrap: wrap; }
+.items-center { align-items: center; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
+.text-center { text-align: center; }
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: var(--comic-offwhite); border-left: 2px solid var(--comic-black); }
+::-webkit-scrollbar-thumb { background: var(--comic-yellow); border: 2px solid var(--comic-black); }
+</style>
+</head>
+<body>
+
+<div class="page-wrapper">
+
+  <!-- ============================================
+       SPLASH HEADER
+       ============================================ -->
+  <header class="splash">
+    <div class="splash-bg"></div>
+    <div class="splash-content">
+      <div class="splash-sfx-left">
+        <span class="sfx sfx--pow animate-pop delay-2">POW!</span>
+      </div>
+      <div class="splash-sfx-mid">
+        <span class="sfx sfx--zap animate-pop delay-4" style="font-size:42px;">ZAP!</span>
+      </div>
+      <div class="splash-sfx-right">
+        <span class="sfx sfx--wham animate-pop delay-3">WHAM!</span>
+      </div>
+      <div class="issue-badge">
+        <span class="issue-badge-label">Issue</span>
+        <span class="issue-badge-num">#1</span>
+      </div>
+      <div class="splash-title">DEVGLIDE</div>
+      <div class="splash-subtitle">COMIC BOOK DESIGN SYSTEM</div>
+      <div class="splash-tagline">Your AI Workflow Toolkit &mdash; Now in Full Color!</div>
+    </div>
+  </header>
+
+  <!-- ============================================
+       CAPTION: INTRO
+       ============================================ -->
+  <div class="mb-6" style="display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+    <div class="caption-box" style="max-width:500px;">
+      Meanwhile, at DevGlide HQ... a new design system emerges from the pages of a comic book. Every panel, every bubble, every KA-POW is a UI component.
+    </div>
+    <div style="flex:1; min-width:200px;"></div>
+    <div class="thought-bubble">
+      I wonder what would happen if we made an entire developer dashboard look like a comic book...
+      <div class="thought-dot"></div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       SECTION 1: TYPOGRAPHY & SOUND EFFECTS
+       ============================================ -->
+  <div class="section-header">Chapter 1: Typography &amp; Sound Effects</div>
+  <div class="panel-grid panel-grid--2 mb-6 mt-4">
+    <!-- Panel 1: Fonts -->
+    <div class="panel">
+      <div class="panel-number">1</div>
+      <div class="panel-content">
+        <div class="caption-box mb-4">The heroes of type...</div>
+        <div style="margin-bottom:16px;">
+          <div style="font-family:var(--font-display); font-size:42px; letter-spacing:2px; margin-bottom:4px;">Bangers Display</div>
+          <div style="font-size:13px; color:#666; font-family:var(--font-mono);">font-family: 'Bangers' &mdash; Titles, SFX, Headings</div>
+        </div>
+        <div style="margin-bottom:16px;">
+          <div style="font-family:var(--font-body); font-size:24px; margin-bottom:4px;">
+            <span style="font-weight:300;">Light</span> &middot;
+            <span style="font-weight:400;">Regular</span> &middot;
+            <span style="font-weight:700;">Bold</span> &middot;
+            <em>Italic</em>
+          </div>
+          <div style="font-size:13px; color:#666; font-family:var(--font-mono);">font-family: 'Comic Neue' &mdash; Body text</div>
+        </div>
+        <div>
+          <div style="font-family:var(--font-mono); font-size:16px; margin-bottom:4px;">
+            const hero = await deploy();<br>
+            <span style="color:var(--comic-green);">// JetBrains Mono for code</span>
+          </div>
+          <div style="font-size:13px; color:#666; font-family:var(--font-mono);">font-family: 'JetBrains Mono' &mdash; Code blocks</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 2: Sound Effects -->
+    <div class="panel" style="overflow:visible;">
+      <div class="panel-number">2</div>
+      <div class="panel-content" style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:20px; min-height:280px;">
+        <div class="sfx-burst"><span class="sfx sfx--pow">POW!</span></div>
+        <span class="sfx sfx--deploy">DEPLOY!</span>
+        <span class="sfx sfx--merge">MERGE!</span>
+        <span class="sfx sfx--bam" style="font-size:52px;">BAM!</span>
+        <span class="sfx sfx--zap">ZAP!</span>
+        <span class="sfx" style="color:var(--comic-red); font-size:44px; transform:rotate(-10deg);">PUSH!</span>
+        <span class="sfx" style="color:var(--comic-green); font-size:38px; transform:rotate(8deg);">BUILD!</span>
+        <span class="sfx" style="color:var(--comic-pink); font-size:50px; transform:rotate(-4deg);">SHIP!</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       SECTION 2: COLOR PALETTE & HALFTONES
+       ============================================ -->
+  <div class="section-header">Chapter 2: Color Palette &amp; Halftones</div>
+  <div class="mt-4 mb-6">
+    <div class="caption-box mb-4">Our heroes wield the mighty CMYK primaries!</div>
+    <div class="panel-grid" style="grid-template-columns:repeat(6, 1fr); gap:8px;">
+      <div class="panel halftone-yellow" style="aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+        <div class="text-display" style="font-size:18px;">Yellow</div>
+        <div class="text-mono" style="font-size:11px;">#FFE135</div>
+      </div>
+      <div class="panel halftone-red" style="aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff;">
+        <div class="text-display" style="font-size:18px;">Red</div>
+        <div class="text-mono" style="font-size:11px;">#ED1C24</div>
+      </div>
+      <div class="panel halftone-blue" style="aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+        <div class="text-display" style="font-size:18px;">Blue</div>
+        <div class="text-mono" style="font-size:11px;">#0072BC</div>
+      </div>
+      <div class="panel halftone-green" style="aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff;">
+        <div class="text-display" style="font-size:18px;">Green</div>
+        <div class="text-mono" style="font-size:11px;">#00A651</div>
+      </div>
+      <div class="panel" style="aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--comic-black); color:#fff;">
+        <div class="text-display" style="font-size:18px;">Black</div>
+        <div class="text-mono" style="font-size:11px;">#000000</div>
+      </div>
+      <div class="panel" style="aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+        <div class="text-display" style="font-size:18px;">White</div>
+        <div class="text-mono" style="font-size:11px;">#F5F0E1</div>
+      </div>
+    </div>
+    <div class="panel-grid mt-4" style="grid-template-columns:repeat(3, 1fr); gap:8px;">
+      <div class="panel" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:4px; background:var(--comic-orange);">
+        <span class="text-display" style="font-size:15px;">Orange #FF6B2B</span>
+        <span class="text-mono" style="font-size:10px;">Extended palette</span>
+      </div>
+      <div class="panel halftone-pink" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:4px;">
+        <span class="text-display" style="font-size:15px;">Pink #FF69B4</span>
+        <span class="text-mono" style="font-size:10px;">Halftone shading</span>
+      </div>
+      <div class="panel" style="padding:16px; display:flex; flex-direction:column; align-items:center; gap:4px; background:var(--comic-purple); color:#fff;">
+        <span class="text-display" style="font-size:15px;">Purple #7B2FBE</span>
+        <span class="text-mono" style="font-size:10px;">Extended palette</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       SECTION 3: SPEECH & THOUGHT BUBBLES
+       ============================================ -->
+  <div class="section-header">Chapter 3: Speech &amp; Thought Bubbles</div>
+  <div class="panel-grid panel-grid--3 mt-4 mb-6">
+    <!-- Speech Bubble -->
+    <div class="panel">
+      <div class="panel-number">3</div>
+      <div class="panel-content" style="padding-bottom:40px;">
+        <div class="caption-box mb-4">Speech Bubble</div>
+        <div class="speech-bubble">
+          <strong>Deploy complete!</strong> Your app is now live at <span class="text-mono" style="font-size:13px;">devglide.app</span> with zero downtime.
+        </div>
+        <div style="margin-top:28px; display:flex; gap:8px; align-items:center;">
+          <div class="comic-avatar">
+            <span aria-hidden="true">&#x1F916;</span>
+          </div>
+          <span class="text-body" style="font-weight:700; font-size:14px;">DevGlide Bot</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Speech Bubble (Right) -->
+    <div class="panel">
+      <div class="panel-number">4</div>
+      <div class="panel-content">
+        <div class="caption-box mb-4">Right Pointer</div>
+        <div style="display:flex; align-items:flex-start; gap:14px;">
+          <div class="speech-bubble speech-bubble--right" style="flex:1;">
+            Can you run the test suite? I pushed a fix for the kanban drag bug.
+          </div>
+          <div class="comic-avatar" style="background:var(--comic-blue); color:#fff; margin-top:4px;">
+            <span aria-hidden="true">&#x1F468;&#x200D;&#x1F4BB;</span>
+          </div>
+        </div>
+        <div style="margin-top:20px;">
+          <div class="badge badge--green">ONLINE</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Thought Bubble -->
+    <div class="panel">
+      <div class="panel-number">5</div>
+      <div class="panel-content" style="padding-bottom:50px;">
+        <div class="caption-box mb-4">Thought Bubble</div>
+        <div class="thought-bubble">
+          Maybe I should refactor the voice module before adding new features...
+          <div class="thought-dot"></div>
+        </div>
+        <div style="margin-top:44px; text-align:center;">
+          <span class="char-face char-face--thinking"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       SECTION 4: COMPONENT SHOWCASE
+       ============================================ -->
+  <div class="section-header">Chapter 4: Component Arsenal</div>
+  <div class="panel-grid panel-grid--2 mt-4 mb-6">
+
+    <!-- Buttons Panel -->
+    <div class="panel">
+      <div class="panel-number">6</div>
+      <div class="panel-content">
+        <div class="caption-box mb-4">Buttons</div>
+        <div class="flex flex-wrap gap-3 mb-4">
+          <button class="btn btn--primary" onclick="showToast('KAPOW! Action triggered!')">
+            <span aria-hidden="true">&#x26A1;</span> PRIMARY
+          </button>
+          <button class="btn btn--danger">
+            <span aria-hidden="true">&#x1F4A5;</span> DANGER
+          </button>
+          <button class="btn btn--info">
+            <span aria-hidden="true">&#x1F4A1;</span> INFO
+          </button>
+        </div>
+        <div class="flex flex-wrap gap-3">
+          <button class="btn btn--success">
+            <span aria-hidden="true">&#x2705;</span> SUCCESS
+          </button>
+          <button class="btn btn--ghost">
+            <span aria-hidden="true">&#x1F47B;</span> GHOST
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inputs Panel -->
+    <div class="panel">
+      <div class="panel-number">7</div>
+      <div class="panel-content">
+        <div class="caption-box mb-4">Form Controls</div>
+        <div class="mb-4">
+          <label style="font-weight:700; display:block; margin-bottom:4px;">Search Kanban</label>
+          <input class="comic-input" type="text" placeholder="Type your quest here...">
+        </div>
+        <div class="mb-4">
+          <label style="font-weight:700; display:block; margin-bottom:4px;">Command Input</label>
+          <input class="comic-input" type="text" value="devglide deploy --prod" style="font-family:var(--font-mono); font-size:14px;">
+        </div>
+        <div class="flex items-center gap-4">
+          <label style="font-weight:700;">Auto-deploy</label>
+          <div class="comic-toggle active" id="toggle1" onclick="this.classList.toggle('active')">
+            <div class="comic-toggle-knob"></div>
+          </div>
+          <label style="font-weight:700; margin-left:16px;">Dark Mode</label>
+          <div class="comic-toggle" id="toggle2" onclick="this.classList.toggle('active')">
+            <div class="comic-toggle-knob"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Badges & Labels Panel -->
+    <div class="panel">
+      <div class="panel-number">8</div>
+      <div class="panel-content">
+        <div class="caption-box mb-4">Badges &amp; Labels</div>
+        <div class="flex flex-wrap gap-2 mb-4">
+          <span class="badge badge--yellow">FEATURE</span>
+          <span class="badge badge--red">BUG</span>
+          <span class="badge badge--blue">TASK</span>
+          <span class="badge badge--green">DONE</span>
+          <span class="badge badge--purple">URGENT</span>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-4">
+          <span class="badge" style="background:var(--comic-orange); color:#fff;">v2.1.0</span>
+          <span class="badge" style="background:var(--comic-white);">DRAFT</span>
+          <span class="badge" style="background:var(--comic-pink); color:#fff;">AI</span>
+        </div>
+        <div class="flex items-center gap-3 mt-2">
+          <span class="status-dot status-dot--green"></span><span>Running</span>
+          <span class="status-dot status-dot--red"></span><span>Down</span>
+          <span class="status-dot status-dot--yellow"></span><span>Warning</span>
+          <span class="status-dot status-dot--blue"></span><span>Building</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress & Loading Panel -->
+    <div class="panel">
+      <div class="panel-number">9</div>
+      <div class="panel-content">
+        <div class="caption-box mb-4">Progress &amp; Loading</div>
+        <div class="mb-4">
+          <label style="font-weight:700; font-size:14px; display:block; margin-bottom:4px;">Test Suite</label>
+          <div class="progress-bar">
+            <div class="progress-bar-fill halftone-green" style="width:87%;"></div>
+            <span class="progress-bar-label">87%</span>
+          </div>
+        </div>
+        <div class="mb-4">
+          <label style="font-weight:700; font-size:14px; display:block; margin-bottom:4px;">Deployment</label>
+          <div class="progress-bar">
+            <div class="progress-bar-fill halftone-blue" style="width:45%;"></div>
+            <span class="progress-bar-label" style="color:#fff;">45%</span>
+          </div>
+        </div>
+        <div>
+          <label style="font-weight:700; font-size:14px; display:block; margin-bottom:4px;">Loading Skeleton</label>
+          <div class="loading-shimmer" style="width:80%;"></div>
+          <div class="loading-shimmer" style="width:60%;"></div>
+          <div class="loading-shimmer" style="width:90%;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       SECTION 5: ALERTS, DROPDOWN, TABLE
+       ============================================ -->
+  <div class="section-header">Chapter 5: Alerts, Menus &amp; Data</div>
+  <div class="panel-grid panel-grid--3 mt-4 mb-6">
+
+    <!-- Alerts Panel -->
+    <div class="panel">
+      <div class="panel-number">10</div>
+      <div class="panel-content">
+        <div class="caption-box mb-4">Alert Boxes</div>
+        <div class="comic-alert comic-alert--success mb-3">
+          <span class="comic-alert-icon char-face char-face--success" style="font-size:24px;"></span>
+          <div><strong>Build passed!</strong><br>All 142 tests green.</div>
+        </div>
+        <div class="comic-alert comic-alert--error mb-3">
+          <span class="comic-alert-icon char-face char-face--error" style="font-size:24px;"></span>
+          <div><strong>Deploy failed!</strong><br>Port 7000 in use.</div>
+        </div>
+        <div class="comic-alert comic-alert--warning mb-3">
+          <span class="comic-alert-icon char-face char-face--warning" style="font-size:24px;"></span>
+          <div><strong>Caution!</strong><br>3 deprecated APIs.</div>
+        </div>
+        <div class="comic-alert comic-alert--info">
+          <span class="comic-alert-icon char-face char-face--thinking" style="font-size:24px;"></span>
+          <div><strong>Processing...</strong><br>AI is analyzing your code.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dropdown + Code Panel -->
+    <div class="panel">
+      <div class="panel-number">11</div>
+      <div class="panel-content">
+        <div class="caption-box mb-4">Dropdown Menu</div>
+        <div class="comic-dropdown mb-4">
+          <div class="comic-dropdown-item" style="background:var(--comic-yellow);">
+            <span aria-hidden="true">&#x1F4CB;</span>&ensp;Kanban Board
+          </div>
+          <div class="comic-dropdown-item">
+            <span aria-hidden="true">&#x1F4BB;</span>&ensp;Shell Terminal
+          </div>
+          <div class="comic-dropdown-item">
+            <span aria-hidden="true">&#x1F9EA;</span>&ensp;Test Runner
+          </div>
+          <div class="comic-dropdown-item">
+            <span aria-hidden="true">&#x1F3A4;</span>&ensp;Voice Control
+          </div>
+          <div class="comic-dropdown-item">
+            <span aria-hidden="true">&#x1F4AC;</span>&ensp;Chat Room
+          </div>
+        </div>
+        <div class="caption-box">Code Snippet</div>
+        <div class="comic-code mt-2">
+<span class="kw">const</span> <span class="fn">glide</span> = <span class="kw">await</span> <span class="fn">connect</span>(<span class="str">'mcp'</span>);
+<span class="kw">await</span> glide.<span class="fn">kanban</span>.<span class="fn">move</span>({
+  id: <span class="str">'task-42'</span>,
+  to: <span class="str">'In Progress'</span>
+});
+<span class="cmt">// KAPOW! Task moved.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table Panel -->
+    <div class="panel">
+      <div class="panel-number">12</div>
+      <div class="panel-content--tight">
+        <div class="caption-box mb-2" style="margin:12px 12px 0;">Data Table</div>
+        <div style="padding:8px 12px 12px; overflow-x:auto;">
+          <table class="comic-table">
+            <thead>
+              <tr>
+                <th>Server</th>
+                <th>Status</th>
+                <th>Tools</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="font-weight:700;">Kanban</td>
+                <td><span class="status-dot status-dot--green"></span>Active</td>
+                <td><span class="badge badge--blue" style="font-size:11px;">14</span></td>
+              </tr>
+              <tr>
+                <td style="font-weight:700;">Shell</td>
+                <td><span class="status-dot status-dot--green"></span>Active</td>
+                <td><span class="badge badge--blue" style="font-size:11px;">5</span></td>
+              </tr>
+              <tr>
+                <td style="font-weight:700;">Voice</td>
+                <td><span class="status-dot status-dot--yellow"></span>Idle</td>
+                <td><span class="badge badge--blue" style="font-size:11px;">6</span></td>
+              </tr>
+              <tr>
+                <td style="font-weight:700;">Chat</td>
+                <td><span class="status-dot status-dot--green"></span>Active</td>
+                <td><span class="badge badge--blue" style="font-size:11px;">5</span></td>
+              </tr>
+              <tr>
+                <td style="font-weight:700;">Test</td>
+                <td><span class="status-dot status-dot--red"></span>Error</td>
+                <td><span class="badge badge--blue" style="font-size:11px;">6</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       SECTION 6: ACTION LINES & EXPRESSIONS
+       ============================================ -->
+  <div class="section-header">Chapter 6: Action Lines &amp; Characters</div>
+  <div class="panel-grid panel-grid--2 mt-4 mb-6">
+    <!-- Action Lines -->
+    <div class="panel" style="min-height:260px;">
+      <div class="panel-number">13</div>
+      <div class="panel-content action-lines" style="display:flex; align-items:center; justify-content:center; min-height:230px; position:relative; z-index:1;">
+        <div style="text-align:center; position:relative; z-index:2;">
+          <div class="sfx-burst">
+            <span class="sfx" style="color:var(--comic-red); font-size:72px;">DEPLOY!</span>
+          </div>
+          <div class="mt-2">
+            <div class="caption-box">Action lines radiate from the center for emphasis</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Character Expressions -->
+    <div class="panel">
+      <div class="panel-number">14</div>
+      <div class="panel-content">
+        <div class="caption-box mb-4">Status Characters</div>
+        <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:16px;">
+          <div class="flex items-center gap-3">
+            <div class="comic-avatar" style="background:var(--comic-green);">
+              <span class="char-face char-face--success" style="font-size:24px;"></span>
+            </div>
+            <div>
+              <div style="font-weight:700;">Success</div>
+              <div style="font-size:12px; color:#666;">All systems go!</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="comic-avatar" style="background:var(--comic-red);">
+              <span class="char-face char-face--error" style="font-size:24px;"></span>
+            </div>
+            <div>
+              <div style="font-weight:700;">Error</div>
+              <div style="font-size:12px; color:#666;">Something broke!</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="comic-avatar" style="background:var(--comic-blue);">
+              <span class="char-face char-face--thinking" style="font-size:24px;"></span>
+            </div>
+            <div>
+              <div style="font-weight:700;">Processing</div>
+              <div style="font-size:12px; color:#666;">AI is thinking...</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="comic-avatar" style="background:var(--comic-yellow);">
+              <span class="char-face char-face--celebrate" style="font-size:24px;"></span>
+            </div>
+            <div>
+              <div style="font-weight:700;">Celebrate</div>
+              <div style="font-size:12px; color:#666;">Feature shipped!</div>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4">
+          <div class="speech-bubble" style="max-width:100%;">
+            Characters give instant visual feedback &mdash; no need to read status text. Use them in toasts, alerts, and empty states!
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       SECTION 7: DASHBOARD MOCKUP
+       ============================================ -->
+  <div class="section-header">Chapter 7: Dashboard Mockup</div>
+  <div class="caption-box mt-2 mb-4">The hero reveals their true form &mdash; a complete developer dashboard!</div>
+
+  <div class="dashboard-frame mb-6">
+    <!-- Title bar -->
+    <div class="dashboard-titlebar">
+      <span class="titlebar-dot titlebar-dot--red"></span>
+      <span class="titlebar-dot titlebar-dot--yellow"></span>
+      <span class="titlebar-dot titlebar-dot--green"></span>
+      <span style="margin-left:12px;">DevGlide &mdash; Comic Dashboard</span>
+      <span style="margin-left:auto; opacity:0.6;">localhost:7000</span>
+    </div>
+
+    <!-- Dashboard body -->
+    <div style="display:grid; grid-template-columns:200px 1fr; min-height:520px;">
+      <!-- Sidebar -->
+      <div style="border-right:4px solid var(--comic-black); padding:12px; background:var(--comic-white);">
+        <div style="text-align:center; margin-bottom:16px; padding-bottom:12px; border-bottom:3px solid var(--comic-black);">
+          <div class="text-display" style="font-size:22px; letter-spacing:1px;">DEVGLIDE</div>
+          <div style="font-size:11px; color:#666;">AI Workflow Toolkit</div>
+        </div>
+        <div class="sidebar-nav">
+          <div class="sidebar-nav-item active">
+            <span class="nav-icon" aria-hidden="true">&#x1F4CB;</span> Kanban
+          </div>
+          <div class="sidebar-nav-item">
+            <span class="nav-icon" aria-hidden="true">&#x1F4BB;</span> Shell
+          </div>
+          <div class="sidebar-nav-item">
+            <span class="nav-icon" aria-hidden="true">&#x1F9EA;</span> Tests
+          </div>
+          <div class="sidebar-nav-item">
+            <span class="nav-icon" aria-hidden="true">&#x1F3A4;</span> Voice
+          </div>
+          <div class="sidebar-nav-item">
+            <span class="nav-icon" aria-hidden="true">&#x1F4AC;</span> Chat
+          </div>
+          <div class="sidebar-nav-item">
+            <span class="nav-icon" aria-hidden="true">&#x1F504;</span> Workflow
+          </div>
+          <div class="sidebar-nav-item">
+            <span class="nav-icon" aria-hidden="true">&#x1F4D6;</span> Vocab
+          </div>
+          <div class="sidebar-nav-item">
+            <span class="nav-icon" aria-hidden="true">&#x1F4DD;</span> Prompts
+          </div>
+          <div class="sidebar-nav-item">
+            <span class="nav-icon" aria-hidden="true">&#x1F4DA;</span> Docs
+          </div>
+        </div>
+        <div style="margin-top:auto; padding-top:16px; border-top:2px solid var(--comic-black); margin-top:16px;">
+          <div class="flex items-center gap-2" style="font-size:13px;">
+            <span class="status-dot status-dot--green" style="width:10px; height:10px;"></span>
+            <span>9 servers online</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main content: Kanban board -->
+      <div style="padding:16px; overflow:hidden;">
+        <!-- Top bar -->
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+          <div>
+            <span class="text-display" style="font-size:26px; letter-spacing:1px;">KANBAN BOARD</span>
+            <span class="badge badge--yellow" style="margin-left:8px; font-size:11px;">Sprint 7</span>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn--primary" style="font-size:14px; padding:6px 14px;" onclick="showToast('New task created! KAPOW!')">+ NEW TASK</button>
+            <button class="btn btn--ghost" style="font-size:14px; padding:6px 14px;">FILTER</button>
+          </div>
+        </div>
+
+        <!-- Kanban columns -->
+        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
+          <!-- Backlog -->
+          <div class="panel" style="box-shadow:3px 3px 0 var(--comic-black);">
+            <div class="kanban-column-header halftone-blue" style="font-size:16px;">
+              <span aria-hidden="true">&#x1F4E5;</span> BACKLOG
+            </div>
+            <div class="kanban-cards">
+              <div class="kanban-card">
+                <div class="kanban-card-title">Add voice biasing</div>
+                <div class="kanban-card-desc">Support custom vocab in STT prompts</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge--blue" style="font-size:10px; padding:1px 6px;">TASK</span>
+                  <span class="badge badge--purple" style="font-size:10px; padding:1px 6px;">HIGH</span>
+                </div>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Fix pane collision</div>
+                <div class="kanban-card-desc">409 not handled in UI</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge--red" style="font-size:10px; padding:1px 6px;">BUG</span>
+                  <span class="badge" style="font-size:10px; padding:1px 6px; background:#ddd;">MED</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Todo -->
+          <div class="panel" style="box-shadow:3px 3px 0 var(--comic-black);">
+            <div class="kanban-column-header halftone-yellow" style="font-size:16px;">
+              <span aria-hidden="true">&#x1F4DD;</span> TODO
+            </div>
+            <div class="kanban-cards">
+              <div class="kanban-card" style="border-left:4px solid var(--comic-red);">
+                <div class="kanban-card-title">Workflow DAG editor</div>
+                <div class="kanban-card-desc">Visual node editor for workflows</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge--blue" style="font-size:10px; padding:1px 6px;">TASK</span>
+                  <span class="badge badge--purple" style="font-size:10px; padding:1px 6px;">URGENT</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- In Progress -->
+          <div class="panel" style="box-shadow:3px 3px 0 var(--comic-black);">
+            <div class="kanban-column-header halftone-green" style="font-size:16px; color:#fff;">
+              <span aria-hidden="true">&#x1F3C3;</span> IN PROGRESS
+            </div>
+            <div class="kanban-cards">
+              <div class="kanban-card" style="border-left:4px solid var(--comic-green);">
+                <div class="kanban-card-title">Comic design system</div>
+                <div class="kanban-card-desc">Build the comic book UI theme</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge--blue" style="font-size:10px; padding:1px 6px;">TASK</span>
+                  <span class="badge badge--green" style="font-size:10px; padding:1px 6px;">HIGH</span>
+                </div>
+              </div>
+              <div class="kanban-card" style="border-left:4px solid var(--comic-green);">
+                <div class="kanban-card-title">Chat broadcast fix</div>
+                <div class="kanban-card-desc">Messages not reaching all panes</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge--red" style="font-size:10px; padding:1px 6px;">BUG</span>
+                  <span class="badge badge--purple" style="font-size:10px; padding:1px 6px;">HIGH</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Done -->
+          <div class="panel" style="box-shadow:3px 3px 0 var(--comic-black);">
+            <div class="kanban-column-header halftone-red" style="font-size:16px; color:#fff;">
+              <span aria-hidden="true">&#x2705;</span> DONE
+            </div>
+            <div class="kanban-cards">
+              <div class="kanban-card" style="opacity:0.75;">
+                <div class="kanban-card-title" style="text-decoration:line-through;">Setup MCP bundles</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge--green" style="font-size:10px; padding:1px 6px;">DONE</span>
+                </div>
+              </div>
+              <div class="kanban-card" style="opacity:0.75;">
+                <div class="kanban-card-title" style="text-decoration:line-through;">TTS fallback chain</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge--green" style="font-size:10px; padding:1px 6px;">DONE</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom bar in dashboard -->
+        <div style="margin-top:16px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+          <div class="speech-bubble" style="max-width:260px; font-size:13px; padding:8px 14px; box-shadow:2px 2px 0 var(--comic-black);">
+            <strong>Tip:</strong> Drag cards between columns to update task status!
+          </div>
+          <div style="margin-left:auto;">
+            <span class="sfx" style="font-size:28px; color:var(--comic-green); transform:rotate(-3deg);">SHIP IT!</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       SECTION 8: CAPTION BOXES & NARRATION
+       ============================================ -->
+  <div class="section-header">Chapter 8: Caption Boxes &amp; Narration</div>
+  <div class="panel mt-4 mb-6">
+    <div class="panel-number">15</div>
+    <div class="panel-content">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+        <div>
+          <div class="caption-box mb-2">Meanwhile, at the DevGlide server...</div>
+          <p class="mb-4">Caption boxes provide narrative context, guiding the reader through the interface story. They use italic bold text on a yellow background.</p>
+
+          <div class="caption-box mb-2" style="background:var(--comic-white);">Editor's Note</div>
+          <p class="mb-4">White captions work for meta-information and editor's notes. Use them sparingly for supplementary details.</p>
+
+          <div class="caption-box" style="background:var(--comic-red); color:#fff;">DANGER ZONE</div>
+          <p class="mt-2">Red captions signal destructive operations. Deploy with caution!</p>
+        </div>
+        <div>
+          <div class="comic-code" style="font-size:12px;">
+<span class="cmt">/* Caption Box Usage */</span>
+
+<span class="kw">&lt;div</span> <span class="fn">class</span>=<span class="str">"caption-box"</span><span class="kw">&gt;</span>
+  Meanwhile, at the server...
+<span class="kw">&lt;/div&gt;</span>
+
+<span class="cmt">/* Variants */</span>
+<span class="kw">&lt;div</span> <span class="fn">class</span>=<span class="str">"caption-box"</span>
+  <span class="fn">style</span>=<span class="str">"background: #ED1C24;
+         color: #fff;"</span><span class="kw">&gt;</span>
+  DANGER ZONE
+<span class="kw">&lt;/div&gt;</span>
+
+<span class="cmt">/* Sound Effect */</span>
+<span class="kw">&lt;span</span> <span class="fn">class</span>=<span class="str">"sfx sfx--pow"</span><span class="kw">&gt;</span>
+  POW!
+<span class="kw">&lt;/span&gt;</span>
+
+<span class="cmt">/* Speech Bubble */</span>
+<span class="kw">&lt;div</span> <span class="fn">class</span>=<span class="str">"speech-bubble"</span><span class="kw">&gt;</span>
+  Deploy complete!
+<span class="kw">&lt;/div&gt;</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       SECTION 9: FULL PANEL SHOWCASE
+       ============================================ -->
+  <div class="section-header">Chapter 9: Panel Layouts</div>
+  <div class="caption-box mt-2 mb-4">Panels are the backbone of comic layout. Use them for every content section.</div>
+
+  <!-- 3-panel strip -->
+  <div class="panel-grid panel-grid--3 mb-4">
+    <div class="panel halftone-yellow" style="min-height:140px;">
+      <div class="panel-number">16</div>
+      <div class="panel-content text-center">
+        <div class="text-display" style="font-size:22px; margin-bottom:8px;">THE SETUP</div>
+        <div>A developer opens their terminal...</div>
+      </div>
+    </div>
+    <div class="panel" style="min-height:140px;">
+      <div class="panel-number">17</div>
+      <div class="panel-content text-center" style="display:flex; flex-direction:column; align-items:center; justify-content:center;">
+        <div class="comic-code" style="font-size:12px; display:inline-block; padding:8px 16px; margin-bottom:8px;">
+          $ devglide start<br>
+          <span style="color:var(--comic-green);">Server running on :7000</span>
+        </div>
+        <span class="sfx" style="font-size:32px; color:var(--comic-green);">BOOT!</span>
+      </div>
+    </div>
+    <div class="panel halftone-green" style="min-height:140px; color:#fff;">
+      <div class="panel-number" style="background:#fff;">18</div>
+      <div class="panel-content text-center">
+        <div class="text-display" style="font-size:22px; margin-bottom:8px;">THE PAYOFF</div>
+        <div>All 9 MCP servers come online!</div>
+        <div style="margin-top:8px;">
+          <span class="char-face char-face--celebrate" style="font-size:32px;"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wide panel -->
+  <div class="panel mb-6" style="min-height:100px;">
+    <div class="panel-number">19</div>
+    <div class="panel-content" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px;">
+      <div>
+        <div class="caption-box mb-2">Meanwhile, in production...</div>
+        <p style="max-width:500px;">Wide panels span the full page width. Use them for dramatic reveals, important information, or when you need breathing room between dense panel grids.</p>
+      </div>
+      <div style="display:flex; gap:12px; align-items:center;">
+        <span class="sfx sfx--deploy" style="font-size:42px;">DEPLOY!</span>
+        <span class="sfx sfx--merge" style="font-size:36px;">MERGE!</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================
+       SECTION 10: TOKEN REFERENCE
+       ============================================ -->
+  <div class="section-header">Chapter 10: Design Tokens</div>
+  <div class="panel mt-4 mb-6">
+    <div class="panel-number">20</div>
+    <div class="panel-content--tight" style="padding:12px; overflow-x:auto;">
+      <table class="comic-table" style="font-size:13px;">
+        <thead>
+          <tr>
+            <th>Token</th>
+            <th>Value</th>
+            <th>Usage</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="text-mono">--comic-yellow</td>
+            <td><span style="display:inline-block; width:16px; height:16px; background:#FFE135; border:2px solid #000; vertical-align:middle;"></span> #FFE135</td>
+            <td>Primary actions, highlights, captions</td>
+          </tr>
+          <tr>
+            <td class="text-mono">--comic-red</td>
+            <td><span style="display:inline-block; width:16px; height:16px; background:#ED1C24; border:2px solid #000; vertical-align:middle;"></span> #ED1C24</td>
+            <td>Danger, errors, destructive actions</td>
+          </tr>
+          <tr>
+            <td class="text-mono">--comic-blue</td>
+            <td><span style="display:inline-block; width:16px; height:16px; background:#0072BC; border:2px solid #000; vertical-align:middle;"></span> #0072BC</td>
+            <td>Info, links, secondary actions</td>
+          </tr>
+          <tr>
+            <td class="text-mono">--comic-green</td>
+            <td><span style="display:inline-block; width:16px; height:16px; background:#00A651; border:2px solid #000; vertical-align:middle;"></span> #00A651</td>
+            <td>Success, active, confirmations</td>
+          </tr>
+          <tr>
+            <td class="text-mono">--border-panel</td>
+            <td class="text-mono">4px solid #000</td>
+            <td>Panel borders (the comic book look)</td>
+          </tr>
+          <tr>
+            <td class="text-mono">--shadow-hard</td>
+            <td class="text-mono">4px 4px 0 #000</td>
+            <td>Hard offset shadows (no blur!)</td>
+          </tr>
+          <tr>
+            <td class="text-mono">--font-display</td>
+            <td class="text-mono">'Bangers'</td>
+            <td>Headlines, SFX, nav labels</td>
+          </tr>
+          <tr>
+            <td class="text-mono">--font-body</td>
+            <td class="text-mono">'Comic Neue'</td>
+            <td>Body text, descriptions, forms</td>
+          </tr>
+          <tr>
+            <td class="text-mono">--font-mono</td>
+            <td class="text-mono">'JetBrains Mono'</td>
+            <td>Code blocks, terminal output</td>
+          </tr>
+          <tr>
+            <td class="text-mono">--gutter</td>
+            <td class="text-mono">12px</td>
+            <td>Gap between comic panels</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============================================
+       FOOTER
+       ============================================ -->
+  <footer style="text-align:center; padding:24px 0 40px;">
+    <div class="sfx-burst" style="display:inline-block;">
+      <span class="sfx" style="color:var(--comic-yellow); font-size:48px; transform:rotate(-2deg);">THE END!</span>
+    </div>
+    <div class="mt-4">
+      <div class="caption-box">DevGlide Comic Book Design System &mdash; Issue #1 &mdash; All Rights Reserved</div>
+    </div>
+    <div class="mt-4" style="font-size:13px; color:#888;">
+      Fonts: Bangers, Comic Neue, JetBrains Mono via Google Fonts &middot;
+      All CSS inline &middot; No dependencies
+    </div>
+  </footer>
+
+</div><!-- end .page-wrapper -->
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<script>
+// ============================================
+// INTERACTIVE BEHAVIORS
+// ============================================
+
+// Toast notification (speech-bubble style)
+function showToast(message) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `
+    <div class="speech-bubble" style="display:flex; align-items:center; gap:10px;">
+      <span style="font-size:28px;" aria-hidden="true">&#x1F4A5;</span>
+      <span>${message}</span>
+    </div>
+  `;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.transition = 'opacity 0.3s, transform 0.3s';
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(10px)';
+    setTimeout(() => toast.remove(), 300);
+  }, 2800);
+}
+
+// Kanban card drag simulation (click to shake)
+document.querySelectorAll('.kanban-card').forEach(card => {
+  card.addEventListener('click', () => {
+    card.classList.add('animate-shake');
+    setTimeout(() => card.classList.remove('animate-shake'), 400);
+  });
+});
+
+// Sidebar nav active state
+document.querySelectorAll('.sidebar-nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.sidebar-nav-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+  });
+});
+
+// SFX pop animation on hover
+document.querySelectorAll('.sfx').forEach(sfx => {
+  sfx.addEventListener('mouseenter', () => {
+    sfx.style.transition = 'transform 0.15s';
+    sfx.style.transform = sfx.style.transform
+      ? sfx.style.transform.replace(/scale\([^)]+\)/, '') + ' scale(1.15)'
+      : 'scale(1.15)';
+  });
+  sfx.addEventListener('mouseleave', () => {
+    sfx.style.transform = sfx.style.transform
+      ? sfx.style.transform.replace(/scale\([^)]+\)/, '').trim()
+      : '';
+  });
+});
+
+// Dropdown hover state
+document.querySelectorAll('.comic-dropdown-item').forEach(item => {
+  item.addEventListener('click', () => {
+    item.parentElement.querySelectorAll('.comic-dropdown-item').forEach(i => {
+      i.style.background = '';
+    });
+    item.style.background = 'var(--comic-yellow)';
+  });
+});
+
+// Intersection observer for scroll animations
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.style.opacity = '1';
+      entry.target.style.transform = 'translateY(0)';
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.panel').forEach(panel => {
+  panel.style.opacity = '0';
+  panel.style.transform = 'translateY(20px)';
+  panel.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-out';
+  observer.observe(panel);
+});
+
+// Make the splash immediately visible (no scroll animation)
+document.querySelector('.splash').style.opacity = '1';
+document.querySelector('.splash').style.transform = 'none';
+</script>
+
+</body>
+</html>

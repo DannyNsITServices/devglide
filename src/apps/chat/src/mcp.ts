@@ -94,6 +94,13 @@ export function hasChatMcpHttpSession(sessionId: string): boolean {
   return chatMcpServersBySessionId.has(sessionId);
 }
 
+export function getChatMcpHttpSessionEntry(sessionId: string): ChatSessionEntry | null {
+  const server = chatMcpServersBySessionId.get(sessionId);
+  if (!server) return null;
+  const entry = getServerState(server).sessionEntry;
+  return entry ? { ...entry } : null;
+}
+
 export function createChatMcpServer(): McpServer {
   const server = createDevglideMcpServer(
     'devglide-chat',
@@ -533,7 +540,7 @@ export function createChatMcpServer(): McpServer {
   // ── role_list_roles ──────────────────────────────────────────────────────
   server.tool(
     'role_list_roles',
-    'List all predefined role templates (tech-lead, implementer, reviewer, tester, kanban) with slugs, display names, descriptions, and cardinality.',
+    'List all predefined role templates (tech-lead, implementer, reviewer, tester) with slugs, display names, descriptions, and cardinality.',
     {},
     async () => {
       return jsonResult({ roles: listRoles() });
@@ -553,7 +560,9 @@ export function createChatMcpServer(): McpServer {
       await tryAdoptSessionByPaneId(paneId);
       const sessionProjectId = getSessionProjectId();
       if (!sessionProjectId) return errorResult('Not joined — call chat_join first');
-      const r = await chatApi('/roles/assign', { participantName, roleSlug });
+      const mcpSessionId = getMcpSessionId(server);
+      const headers = mcpSessionId ? { 'mcp-session-id': mcpSessionId } : undefined;
+      const r = await chatApi('/roles/assign', { participantName, roleSlug }, headers);
       return r.ok ? jsonResult(r.data) : errorResult((r.data as { error?: string })?.error ?? 'Failed to assign role');
     },
   );

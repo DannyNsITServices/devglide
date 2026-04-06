@@ -28,8 +28,11 @@ Monorepo managed with **pnpm workspaces** and **Turborepo**.
   and MCP joins share session state — a REST join with `mcp-session-id`
   header binds to the MCP session, and MCP tools can adopt REST-joined
   participants by `paneId`. Pane collisions preserve the existing session
-  (409 `PANE_ALREADY_BOUND`). The effective chat rules of engagement are
-  returned on join and can be overridden per project.
+  (409 `PANE_ALREADY_BOUND`). Chat REST endpoints accept scoped `projectId`
+  overrides, and `POST /api/chat/messages` accepts `projectId` in the body
+  so the dashboard can target a non-active project explicitly. The effective
+  chat rules of engagement are returned on join and can be overridden per
+  project.
 - **Documentation** — the MCP server for operational guidance on DevGlide
   tools (`docs_list`, `docs_match`, `docs_context`, etc.). Provides tool
   guides, workflows, examples, troubleshooting entries, and project

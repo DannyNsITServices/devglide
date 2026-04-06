@@ -1,0 +1,2332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Obsidian Cave — DevGlide Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&family=Nunito+Sans:ital,opsz,wght@0,6..12,300;0,6..12,400;0,6..12,500;0,6..12,600;0,6..12,700;1,6..12,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ========================================
+   OBSIDIAN CAVE — Design System Tokens
+   ======================================== */
+:root {
+  /* Core palette */
+  --obsidian-void:       #0c0c14;
+  --obsidian-deep:       #101018;
+  --obsidian-surface:    #14141e;
+  --obsidian-elevated:   #181824;
+  --obsidian-raised:     #1c1c2a;
+  --obsidian-overlay:    #202030;
+  --obsidian-float:      #242436;
+  --obsidian-peak:       #28283c;
+
+  /* Text */
+  --text-primary:        #d0ccc4;
+  --text-secondary:      #8a8680;
+  --text-tertiary:       #5e5a56;
+  --text-ghost:          #3a3836;
+
+  /* Accents — jewel tones */
+  --amethyst:            #9070c0;
+  --amethyst-dim:        #6a50a0;
+  --amethyst-glow:       #b090e0;
+  --teal-jade:           #508880;
+  --teal-jade-dim:       #3a6860;
+  --teal-jade-glow:      #70a8a0;
+  --rose-copper:         #b07068;
+  --rose-copper-dim:     #905850;
+  --rose-copper-glow:    #d09088;
+
+  /* Status — jewel tones */
+  --emerald:             #508868;
+  --ruby:                #b05858;
+  --topaz:               #b89050;
+  --sapphire:            #5070a0;
+
+  /* Iridescent border colors */
+  --iris-1:              #9070c0;
+  --iris-2:              #607898;
+  --iris-3:              #508880;
+  --iris-4:              #b07068;
+
+  /* Fonts */
+  --font-display:        'Cormorant Garamond', 'Georgia', serif;
+  --font-body:           'Nunito Sans', 'Segoe UI', sans-serif;
+  --font-code:           'JetBrains Mono', 'Consolas', monospace;
+
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+}
+
+/* ========================================
+   Reset & Base
+   ======================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-primary);
+  background-color: var(--obsidian-void);
+  /* Obsidian sheen — subtle diagonal gradient suggesting polished glass */
+  background-image:
+    linear-gradient(135deg,
+      rgba(16, 14, 28, 0) 0%,
+      rgba(24, 20, 40, 0.3) 25%,
+      rgba(16, 14, 28, 0) 50%,
+      rgba(20, 28, 36, 0.2) 75%,
+      rgba(16, 14, 28, 0) 100%
+    );
+  background-attachment: fixed;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ========================================
+   Background Particles — Mineral Inclusions
+   ======================================== */
+.particles {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.particle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  opacity: 0;
+  animation: particle-drift linear infinite;
+}
+
+@keyframes particle-drift {
+  0% {
+    opacity: 0;
+    transform: translateY(0) translateX(0);
+  }
+  10% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.15;
+  }
+  90% {
+    opacity: 0.25;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-120vh) translateX(40px);
+  }
+}
+
+/* ========================================
+   Layout
+   ======================================== */
+.page-wrapper {
+  position: relative;
+  z-index: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: var(--space-2xl) var(--space-lg);
+}
+
+/* ========================================
+   Hero
+   ======================================== */
+.hero {
+  text-align: center;
+  padding: var(--space-3xl) 0 var(--space-2xl);
+}
+
+.hero-icon {
+  display: inline-block;
+  width: 80px;
+  height: 80px;
+  margin-bottom: var(--space-lg);
+  position: relative;
+}
+
+.hero-icon svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 20px rgba(144, 112, 192, 0.3));
+}
+
+.hero h1 {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 3.5rem;
+  letter-spacing: 0.08em;
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+  text-transform: uppercase;
+}
+
+.hero h1 span {
+  font-weight: 600;
+  background: linear-gradient(135deg, var(--amethyst-glow), var(--teal-jade-glow), var(--rose-copper-glow));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero .subtitle {
+  font-family: var(--font-body);
+  font-size: 1.1rem;
+  font-weight: 300;
+  color: var(--text-secondary);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: var(--space-lg);
+}
+
+.hero .tagline {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-style: italic;
+  color: var(--text-secondary);
+  max-width: 600px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* ========================================
+   Crystal Prism Divider
+   ======================================== */
+.crystal-divider {
+  position: relative;
+  height: 24px;
+  margin: var(--space-2xl) 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.crystal-divider::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 1px;
+  background: var(--text-ghost);
+  top: 50%;
+}
+
+.crystal-prism {
+  position: relative;
+  width: 200px;
+  height: 14px;
+  z-index: 1;
+}
+
+.crystal-prism .ray {
+  position: absolute;
+  height: 1px;
+  left: 50%;
+  transform-origin: left center;
+}
+
+.crystal-prism .ray:nth-child(1) {
+  background: #b05858; width: 100px; transform: rotate(-9deg);
+}
+.crystal-prism .ray:nth-child(2) {
+  background: #b87848; width: 95px; transform: rotate(-6deg);
+}
+.crystal-prism .ray:nth-child(3) {
+  background: #b89050; width: 90px; transform: rotate(-3deg);
+}
+.crystal-prism .ray:nth-child(4) {
+  background: #508868; width: 85px; transform: rotate(0deg);
+}
+.crystal-prism .ray:nth-child(5) {
+  background: #508880; width: 90px; transform: rotate(3deg);
+}
+.crystal-prism .ray:nth-child(6) {
+  background: #5070a0; width: 95px; transform: rotate(6deg);
+}
+.crystal-prism .ray:nth-child(7) {
+  background: #9070c0; width: 100px; transform: rotate(9deg);
+}
+
+/* Mirrored left side */
+.crystal-prism .ray-left {
+  right: 50%;
+  left: auto;
+  transform-origin: right center;
+}
+.crystal-prism .ray-left:nth-child(8) {
+  background: #b05858; width: 100px; transform: rotate(9deg);
+}
+.crystal-prism .ray-left:nth-child(9) {
+  background: #b87848; width: 95px; transform: rotate(6deg);
+}
+.crystal-prism .ray-left:nth-child(10) {
+  background: #b89050; width: 90px; transform: rotate(3deg);
+}
+.crystal-prism .ray-left:nth-child(11) {
+  background: #508868; width: 85px; transform: rotate(0deg);
+}
+.crystal-prism .ray-left:nth-child(12) {
+  background: #508880; width: 90px; transform: rotate(-3deg);
+}
+.crystal-prism .ray-left:nth-child(13) {
+  background: #5070a0; width: 95px; transform: rotate(-6deg);
+}
+.crystal-prism .ray-left:nth-child(14) {
+  background: #9070c0; width: 100px; transform: rotate(-9deg);
+}
+
+/* Center diamond */
+.crystal-prism .diamond {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: linear-gradient(135deg, var(--amethyst), var(--teal-jade));
+  z-index: 2;
+  box-shadow: 0 0 8px rgba(144, 112, 192, 0.4);
+}
+
+/* ========================================
+   Section Titles
+   ======================================== */
+.section-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 2rem;
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+  letter-spacing: 0.04em;
+}
+
+.section-desc {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin-bottom: var(--space-xl);
+  max-width: 700px;
+}
+
+/* ========================================
+   Obsidian Panel — Glass Effect
+   ======================================== */
+.obsidian-panel {
+  position: relative;
+  background: var(--obsidian-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-lg);
+  overflow: hidden;
+  /* Iridescent border */
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Animated iridescent border via pseudo-element */
+.obsidian-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+  padding: 1px;
+  background: linear-gradient(
+    var(--iris-angle, 135deg),
+    var(--iris-1),
+    var(--iris-2),
+    var(--iris-3),
+    var(--iris-4),
+    var(--iris-1)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: iris-shift 8s linear infinite;
+  opacity: 0.6;
+}
+
+@keyframes iris-shift {
+  0%   { --iris-angle: 135deg; }
+  25%  { --iris-angle: 225deg; }
+  50%  { --iris-angle: 315deg; }
+  75%  { --iris-angle: 45deg; }
+  100% { --iris-angle: 135deg; }
+}
+
+/* CSS Houdini for angle animation — fallback for non-Houdini browsers */
+@property --iris-angle {
+  syntax: '<angle>';
+  initial-value: 135deg;
+  inherits: false;
+}
+
+/* Shimmer hover effect */
+.obsidian-panel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 40%,
+    rgba(144, 112, 192, 0.03) 45%,
+    rgba(80, 136, 128, 0.05) 50%,
+    rgba(176, 112, 104, 0.03) 55%,
+    transparent 60%,
+    transparent 100%
+  );
+  transition: none;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.obsidian-panel:hover::after {
+  animation: shimmer-sweep 0.8s ease-out forwards;
+}
+
+@keyframes shimmer-sweep {
+  0%   { left: -100%; }
+  100% { left: 150%; }
+}
+
+/* Panel with no shimmer (for nested usage) */
+.obsidian-panel.no-shimmer::after {
+  display: none;
+}
+
+/* Panel elevations */
+.obsidian-panel.elevated {
+  background: var(--obsidian-elevated);
+}
+.obsidian-panel.raised {
+  background: var(--obsidian-raised);
+}
+
+/* ========================================
+   Color Palette
+   ======================================== */
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-md);
+}
+
+.swatch {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.swatch-color {
+  height: 72px;
+  position: relative;
+}
+
+.swatch-color::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, transparent 60%);
+}
+
+.swatch-info {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--obsidian-deep);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+.swatch-name {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  display: block;
+}
+
+.swatch-hex {
+  font-family: var(--font-code);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* ========================================
+   Typography Specimen
+   ======================================== */
+.type-specimen {
+  margin-bottom: var(--space-xl);
+}
+
+.type-row {
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-lg);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.type-row:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.type-label {
+  font-family: var(--font-code);
+  font-size: 0.7rem;
+  color: var(--amethyst);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: var(--space-xs);
+}
+
+.type-display {
+  font-family: var(--font-display);
+}
+
+.type-body {
+  font-family: var(--font-body);
+}
+
+.type-code {
+  font-family: var(--font-code);
+}
+
+/* ========================================
+   Buttons
+   ======================================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+  text-decoration: none;
+  line-height: 1.4;
+}
+
+.btn::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 60%; height: 100%;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.06) 50%, transparent 60%);
+  pointer-events: none;
+}
+
+.btn:hover::after {
+  animation: shimmer-sweep 0.6s ease-out forwards;
+}
+
+.btn-amethyst {
+  background: var(--amethyst);
+  color: #fff;
+  border-color: var(--amethyst);
+}
+.btn-amethyst:hover {
+  background: var(--amethyst-glow);
+  border-color: var(--amethyst-glow);
+  box-shadow: 0 0 20px rgba(144, 112, 192, 0.25);
+}
+
+.btn-teal {
+  background: var(--teal-jade);
+  color: #fff;
+  border-color: var(--teal-jade);
+}
+.btn-teal:hover {
+  background: var(--teal-jade-glow);
+  border-color: var(--teal-jade-glow);
+  box-shadow: 0 0 20px rgba(80, 136, 128, 0.25);
+}
+
+.btn-copper {
+  background: var(--rose-copper);
+  color: #fff;
+  border-color: var(--rose-copper);
+}
+.btn-copper:hover {
+  background: var(--rose-copper-glow);
+  border-color: var(--rose-copper-glow);
+  box-shadow: 0 0 20px rgba(176, 112, 104, 0.25);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: rgba(255,255,255,0.12);
+}
+.btn-outline:hover {
+  border-color: var(--amethyst);
+  color: var(--amethyst-glow);
+  background: rgba(144, 112, 192, 0.06);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border-color: transparent;
+}
+.btn-ghost:hover {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.04);
+}
+
+.btn-sm {
+  font-size: 0.8rem;
+  padding: 6px 14px;
+}
+
+.btn-lg {
+  font-size: 1rem;
+  padding: 14px 28px;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+/* ========================================
+   Inputs
+   ======================================== */
+.input-field {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  background: var(--obsidian-deep);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  width: 100%;
+  max-width: 360px;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.input-field::placeholder {
+  color: var(--text-tertiary);
+}
+
+.input-field:focus {
+  border-color: var(--amethyst);
+  box-shadow: 0 0 0 3px rgba(144, 112, 192, 0.12);
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.input-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.03em;
+}
+
+.select-field {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  background: var(--obsidian-deep);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  outline: none;
+  cursor: pointer;
+  max-width: 360px;
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a8680' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+.select-field:focus {
+  border-color: var(--amethyst);
+  box-shadow: 0 0 0 3px rgba(144, 112, 192, 0.12);
+}
+
+/* ========================================
+   Badges
+   ======================================== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 100px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.badge-emerald {
+  background: rgba(80, 136, 104, 0.15);
+  color: #70b888;
+  border: 1px solid rgba(80, 136, 104, 0.25);
+}
+
+.badge-ruby {
+  background: rgba(176, 88, 88, 0.15);
+  color: #d07878;
+  border: 1px solid rgba(176, 88, 88, 0.25);
+}
+
+.badge-topaz {
+  background: rgba(184, 144, 80, 0.15);
+  color: #d8b070;
+  border: 1px solid rgba(184, 144, 80, 0.25);
+}
+
+.badge-sapphire {
+  background: rgba(80, 112, 160, 0.15);
+  color: #7090c0;
+  border: 1px solid rgba(80, 112, 160, 0.25);
+}
+
+.badge-amethyst {
+  background: rgba(144, 112, 192, 0.15);
+  color: var(--amethyst-glow);
+  border: 1px solid rgba(144, 112, 192, 0.25);
+}
+
+/* ========================================
+   Toasts
+   ======================================== */
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  margin-bottom: var(--space-sm);
+  border-left: 3px solid;
+}
+
+.toast-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.toast-body strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.toast-emerald {
+  background: rgba(80, 136, 104, 0.08);
+  border-color: var(--emerald);
+  color: #90c8a0;
+}
+.toast-emerald .toast-icon { color: var(--emerald); }
+
+.toast-ruby {
+  background: rgba(176, 88, 88, 0.08);
+  border-color: var(--ruby);
+  color: #d09090;
+}
+.toast-ruby .toast-icon { color: var(--ruby); }
+
+.toast-topaz {
+  background: rgba(184, 144, 80, 0.08);
+  border-color: var(--topaz);
+  color: #d8c090;
+}
+.toast-topaz .toast-icon { color: var(--topaz); }
+
+.toast-sapphire {
+  background: rgba(80, 112, 160, 0.08);
+  border-color: var(--sapphire);
+  color: #90b0d0;
+}
+.toast-sapphire .toast-icon { color: var(--sapphire); }
+
+/* ========================================
+   Depth / Elevation Demo
+   ======================================== */
+.depth-stack {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-md);
+}
+
+.depth-card {
+  border-radius: var(--radius-md);
+  padding: var(--space-lg) var(--space-md);
+  text-align: center;
+  position: relative;
+  border: 1px solid rgba(255,255,255,0.04);
+}
+
+.depth-level {
+  font-family: var(--font-code);
+  font-size: 0.7rem;
+  color: var(--amethyst);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: var(--space-xs);
+}
+
+.depth-hex {
+  font-family: var(--font-code);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.depth-name {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  margin-top: var(--space-xs);
+}
+
+/* ========================================
+   Dashboard Mockup
+   ======================================== */
+.dashboard-mockup {
+  position: relative;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: var(--obsidian-deep);
+  border: 1px solid transparent;
+  min-height: 480px;
+  display: flex;
+}
+
+/* Animated iridescent border for dashboard */
+.dashboard-mockup::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-xl);
+  padding: 1px;
+  background: linear-gradient(
+    var(--iris-angle, 135deg),
+    var(--iris-1),
+    var(--iris-2),
+    var(--iris-3),
+    var(--iris-4),
+    var(--iris-1)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: iris-shift 8s linear infinite;
+  opacity: 0.8;
+  z-index: 5;
+}
+
+.mock-sidebar {
+  width: 220px;
+  background: var(--obsidian-surface);
+  border-right: 1px solid rgba(255,255,255,0.04);
+  padding: var(--space-lg) 0;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mock-sidebar-brand {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding: 0 var(--space-lg);
+  margin-bottom: var(--space-xl);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.mock-sidebar-brand .brand-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--amethyst);
+  box-shadow: 0 0 8px rgba(144, 112, 192, 0.4);
+}
+
+.mock-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 8px var(--space-lg);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: default;
+  transition: all 0.15s ease;
+  border-left: 2px solid transparent;
+}
+
+.mock-nav-item:hover {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.02);
+}
+
+.mock-nav-item.active {
+  color: var(--amethyst-glow);
+  background: rgba(144, 112, 192, 0.06);
+  border-left-color: var(--amethyst);
+}
+
+.mock-nav-icon {
+  width: 16px;
+  height: 16px;
+  opacity: 0.6;
+}
+
+.mock-nav-item.active .mock-nav-icon {
+  opacity: 1;
+}
+
+.mock-nav-section {
+  font-family: var(--font-code);
+  font-size: 0.65rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  padding: var(--space-md) var(--space-lg) var(--space-xs);
+  margin-top: var(--space-sm);
+}
+
+.mock-main {
+  flex: 1;
+  padding: var(--space-lg);
+  overflow: hidden;
+}
+
+.mock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.mock-header h3 {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.mock-kanban {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-md);
+}
+
+.mock-column {
+  background: var(--obsidian-surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  min-height: 280px;
+}
+
+.mock-column-title {
+  font-family: var(--font-code);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mock-column-count {
+  background: rgba(255,255,255,0.06);
+  border-radius: 100px;
+  padding: 1px 7px;
+  font-size: 0.65rem;
+}
+
+.mock-card {
+  background: var(--obsidian-elevated);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-sm);
+  border: 1px solid rgba(255,255,255,0.03);
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  cursor: default;
+  transition: all 0.15s ease;
+}
+
+.mock-card:hover {
+  border-color: rgba(144, 112, 192, 0.2);
+  transform: translateY(-1px);
+}
+
+.mock-card-label {
+  font-size: 0.65rem;
+  margin-top: 4px;
+}
+
+/* ========================================
+   Reading Block
+   ======================================== */
+.reading-block {
+  max-width: 680px;
+  line-height: 1.85;
+  font-size: 0.95rem;
+}
+
+.reading-block p {
+  margin-bottom: 1.2em;
+  color: var(--text-primary);
+}
+
+.reading-block p.secondary {
+  color: var(--text-secondary);
+}
+
+/* ========================================
+   Code Block
+   ======================================== */
+.code-block {
+  font-family: var(--font-code);
+  font-size: 0.82rem;
+  line-height: 1.7;
+  background: var(--obsidian-deep);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  overflow-x: auto;
+  color: var(--text-primary);
+}
+
+.code-block .kw { color: var(--amethyst-glow); }
+.code-block .fn { color: var(--teal-jade-glow); }
+.code-block .str { color: var(--rose-copper-glow); }
+.code-block .cm { color: var(--text-tertiary); }
+.code-block .num { color: var(--topaz); }
+.code-block .op { color: var(--text-secondary); }
+
+/* ========================================
+   Utility Classes
+   ======================================== */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: var(--space-lg);
+}
+
+.flex-row {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.flex-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.mt-lg { margin-top: var(--space-lg); }
+.mt-xl { margin-top: var(--space-xl); }
+.mb-lg { margin-bottom: var(--space-lg); }
+.mb-xl { margin-bottom: var(--space-xl); }
+
+/* ========================================
+   Toggle Switch
+   ======================================== */
+.toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  display: inline-block;
+}
+
+.toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-track {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--obsidian-overlay);
+  border-radius: 100px;
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: all 0.2s ease;
+}
+
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  top: 2px;
+  left: 2px;
+  transition: all 0.2s ease;
+}
+
+.toggle input:checked + .toggle-track {
+  background: rgba(144, 112, 192, 0.3);
+  border-color: var(--amethyst);
+}
+
+.toggle input:checked + .toggle-track::after {
+  transform: translateX(18px);
+  background: var(--amethyst-glow);
+}
+
+/* ========================================
+   Progress Bar
+   ======================================== */
+.progress-bar {
+  height: 6px;
+  background: var(--obsidian-overlay);
+  border-radius: 100px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 100px;
+  transition: width 0.4s ease;
+}
+
+.progress-amethyst .progress-fill { background: var(--amethyst); }
+.progress-teal .progress-fill { background: var(--teal-jade); }
+.progress-copper .progress-fill { background: var(--rose-copper); }
+.progress-emerald .progress-fill { background: var(--emerald); }
+
+/* ========================================
+   Tooltip (CSS-only)
+   ======================================== */
+.has-tooltip {
+  position: relative;
+}
+
+.has-tooltip .tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.95);
+  background: var(--obsidian-float);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: all 0.15s ease;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.has-tooltip:hover .tooltip {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+/* ========================================
+   Table
+   ======================================== */
+.obsidian-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.obsidian-table th {
+  text-align: left;
+  font-family: var(--font-code);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.obsidian-table td {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  color: var(--text-primary);
+}
+
+.obsidian-table tr:hover td {
+  background: rgba(255,255,255,0.015);
+}
+
+/* ========================================
+   Responsive
+   ======================================== */
+@media (max-width: 900px) {
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .mock-kanban { grid-template-columns: 1fr 1fr; }
+  .mock-sidebar { width: 180px; }
+  .hero h1 { font-size: 2.5rem; }
+}
+
+@media (max-width: 600px) {
+  .mock-kanban { grid-template-columns: 1fr; }
+  .mock-sidebar { display: none; }
+  .dashboard-mockup { flex-direction: column; }
+  .hero h1 { font-size: 2rem; }
+  .palette-grid { grid-template-columns: repeat(2, 1fr); }
+  .depth-stack { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ========================================
+   Scrollbar Styling
+   ======================================== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--obsidian-deep);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--obsidian-overlay);
+  border-radius: 100px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--obsidian-float);
+}
+
+/* ========================================
+   Checkbox
+   ======================================== */
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.checkbox-group input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--radius-sm);
+  background: var(--obsidian-deep);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.checkbox-group input[type="checkbox"]:checked {
+  background: var(--amethyst);
+  border-color: var(--amethyst);
+}
+
+.checkbox-group input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* ========================================
+   Avatar
+   ======================================== */
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* ========================================
+   Keyboard Shortcut
+   ======================================== */
+.kbd {
+  display: inline-block;
+  font-family: var(--font-code);
+  font-size: 0.7rem;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--obsidian-overlay);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* ========================================
+   Footer
+   ======================================== */
+.footer {
+  text-align: center;
+  padding: var(--space-3xl) 0 var(--space-xl);
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+}
+
+.footer a {
+  color: var(--amethyst);
+  text-decoration: none;
+}
+
+.footer a:hover {
+  color: var(--amethyst-glow);
+}
+
+/* ========================================
+   Tab Component
+   ======================================== */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: var(--space-lg);
+}
+
+.tab {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  padding: var(--space-sm) var(--space-lg);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tab.active {
+  color: var(--amethyst-glow);
+  border-bottom-color: var(--amethyst);
+}
+
+/* ========================================
+   Tag / Chip
+   ======================================== */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  padding: 2px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.tag-amethyst {
+  background: rgba(144, 112, 192, 0.1);
+  color: var(--amethyst-glow);
+  border-color: rgba(144, 112, 192, 0.2);
+}
+
+.tag-teal {
+  background: rgba(80, 136, 128, 0.1);
+  color: var(--teal-jade-glow);
+  border-color: rgba(80, 136, 128, 0.2);
+}
+
+</style>
+</head>
+<body>
+
+<!-- Background Particles — Mineral Inclusions -->
+<div class="particles" id="particles"></div>
+
+<div class="page-wrapper">
+
+  <!-- ==================== HERO ==================== -->
+  <header class="hero">
+    <div class="hero-icon">
+      <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="obsidian-grad" x1="0" y1="0" x2="80" y2="80">
+            <stop offset="0%" stop-color="#9070c0"/>
+            <stop offset="50%" stop-color="#508880"/>
+            <stop offset="100%" stop-color="#b07068"/>
+          </linearGradient>
+        </defs>
+        <!-- Faceted crystal shape -->
+        <polygon points="40,4 68,24 68,56 40,76 12,56 12,24" fill="none" stroke="url(#obsidian-grad)" stroke-width="1.5"/>
+        <polygon points="40,12 60,28 60,52 40,68 20,52 20,28" fill="none" stroke="url(#obsidian-grad)" stroke-width="0.8" opacity="0.5"/>
+        <line x1="40" y1="4" x2="40" y2="76" stroke="url(#obsidian-grad)" stroke-width="0.5" opacity="0.3"/>
+        <line x1="12" y1="24" x2="68" y2="56" stroke="url(#obsidian-grad)" stroke-width="0.5" opacity="0.3"/>
+        <line x1="68" y1="24" x2="12" y2="56" stroke="url(#obsidian-grad)" stroke-width="0.5" opacity="0.3"/>
+        <circle cx="40" cy="40" r="3" fill="url(#obsidian-grad)" opacity="0.6"/>
+      </svg>
+    </div>
+    <h1><span>Obsidian</span> Cave</h1>
+    <p class="subtitle">DevGlide Design System</p>
+    <p class="tagline">Dark as volcanic glass. Deep as hidden caverns. Every surface polished to reveal the light within.</p>
+  </header>
+
+  <!-- ==================== DIVIDER ==================== -->
+  <div class="crystal-divider">
+    <div class="crystal-prism">
+      <div class="ray"></div>
+      <div class="ray"></div>
+      <div class="ray"></div>
+      <div class="ray"></div>
+      <div class="ray"></div>
+      <div class="ray"></div>
+      <div class="ray"></div>
+      <div class="ray ray-left"></div>
+      <div class="ray ray-left"></div>
+      <div class="ray ray-left"></div>
+      <div class="ray ray-left"></div>
+      <div class="ray ray-left"></div>
+      <div class="ray ray-left"></div>
+      <div class="ray ray-left"></div>
+      <div class="diamond"></div>
+    </div>
+  </div>
+
+  <!-- ==================== COLOR PALETTE ==================== -->
+  <section>
+    <h2 class="section-title">Color Palette</h2>
+    <p class="section-desc">Jewel tones drawn from deep within volcanic glass. Each color is a mineral inclusion — precious, muted, and luminous against the dark.</p>
+
+    <h3 style="font-family: var(--font-display); font-size: 1.2rem; color: var(--text-secondary); margin-bottom: var(--space-md); font-weight: 400;">Accent Jewels</h3>
+    <div class="palette-grid mb-xl">
+      <div class="swatch">
+        <div class="swatch-color" style="background: #9070c0;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Amethyst</span>
+          <span class="swatch-hex">#9070c0</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #b090e0;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Amethyst Glow</span>
+          <span class="swatch-hex">#b090e0</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #508880;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Teal Jade</span>
+          <span class="swatch-hex">#508880</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #70a8a0;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Jade Glow</span>
+          <span class="swatch-hex">#70a8a0</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #b07068;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Rose Copper</span>
+          <span class="swatch-hex">#b07068</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #d09088;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Copper Glow</span>
+          <span class="swatch-hex">#d09088</span>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="font-family: var(--font-display); font-size: 1.2rem; color: var(--text-secondary); margin-bottom: var(--space-md); font-weight: 400;">Status Jewels</h3>
+    <div class="palette-grid mb-xl">
+      <div class="swatch">
+        <div class="swatch-color" style="background: #508868;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Emerald</span>
+          <span class="swatch-hex">#508868</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #b05858;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Ruby</span>
+          <span class="swatch-hex">#b05858</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #b89050;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Topaz</span>
+          <span class="swatch-hex">#b89050</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #5070a0;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Sapphire</span>
+          <span class="swatch-hex">#5070a0</span>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="font-family: var(--font-display); font-size: 1.2rem; color: var(--text-secondary); margin-bottom: var(--space-md); font-weight: 400;">Text Hierarchy</h3>
+    <div class="palette-grid mb-xl">
+      <div class="swatch">
+        <div class="swatch-color" style="background: #d0ccc4;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Primary</span>
+          <span class="swatch-hex">#d0ccc4 &middot; ~8.5:1</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #8a8680;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Secondary</span>
+          <span class="swatch-hex">#8a8680 &middot; ~4.8:1</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #5e5a56;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Tertiary</span>
+          <span class="swatch-hex">#5e5a56</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #3a3836;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Ghost</span>
+          <span class="swatch-hex">#3a3836</span>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="font-family: var(--font-display); font-size: 1.2rem; color: var(--text-secondary); margin-bottom: var(--space-md); font-weight: 400;">Surface Depths</h3>
+    <div class="palette-grid">
+      <div class="swatch">
+        <div class="swatch-color" style="background: #0c0c14;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Void</span>
+          <span class="swatch-hex">#0c0c14</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #101018;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Deep</span>
+          <span class="swatch-hex">#101018</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #14141e;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Surface</span>
+          <span class="swatch-hex">#14141e</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #181824;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Elevated</span>
+          <span class="swatch-hex">#181824</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #1c1c2a;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Raised</span>
+          <span class="swatch-hex">#1c1c2a</span>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #202030;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Overlay</span>
+          <span class="swatch-hex">#202030</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== DIVIDER ==================== -->
+  <div class="crystal-divider">
+    <div class="crystal-prism">
+      <div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div>
+      <div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div>
+      <div class="diamond"></div>
+    </div>
+  </div>
+
+  <!-- ==================== TYPOGRAPHY ==================== -->
+  <section>
+    <h2 class="section-title">Typography</h2>
+    <p class="section-desc">Three voices: the elegant serif for moments of ceremony, the humanist sans for everyday clarity, and the monospace for precision.</p>
+
+    <div class="obsidian-panel">
+      <div class="type-specimen">
+        <!-- Display font -->
+        <div class="type-row">
+          <div class="type-label">Display &middot; Cormorant Garamond</div>
+          <div class="type-display" style="font-size: 2.8rem; font-weight: 300; color: var(--text-primary); line-height: 1.2;">
+            The cave remembers every echo
+          </div>
+          <div class="type-display" style="font-size: 2rem; font-weight: 600; color: var(--text-primary); line-height: 1.3; margin-top: 8px;">
+            Volcanic Glass Holds Ancient Light
+          </div>
+          <div class="type-display" style="font-size: 1.3rem; font-weight: 400; font-style: italic; color: var(--text-secondary); margin-top: 8px;">
+            Deep within the obsidian, crystalline structures catch and refract starlight through layers of cooled magma
+          </div>
+        </div>
+
+        <!-- Body font -->
+        <div class="type-row">
+          <div class="type-label">Body &middot; Nunito Sans</div>
+          <div class="type-body" style="font-size: 1rem; color: var(--text-primary); line-height: 1.7;">
+            Nunito Sans delivers exceptional readability across long sessions. Its rounded terminals and open apertures reduce eye strain, while generous x-height maintains clarity at smaller sizes. The humanist construction feels approachable without sacrificing professionalism.
+          </div>
+          <div class="type-body" style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 8px;">
+            Secondary text uses a warmer muted tone, stepping back in hierarchy while maintaining comfortable contrast ratios for extended reading.
+          </div>
+          <div class="flex-row mt-lg" style="gap: var(--space-lg);">
+            <div>
+              <span style="font-weight: 300;">Light 300</span>
+            </div>
+            <div>
+              <span style="font-weight: 400;">Regular 400</span>
+            </div>
+            <div>
+              <span style="font-weight: 600;">SemiBold 600</span>
+            </div>
+            <div>
+              <span style="font-weight: 700;">Bold 700</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Code font -->
+        <div class="type-row">
+          <div class="type-label">Code &middot; JetBrains Mono</div>
+          <div class="code-block">
+<span class="cm">// Obsidian configuration</span>
+<span class="kw">const</span> theme <span class="op">=</span> {
+  name<span class="op">:</span> <span class="str">'obsidian-cave'</span>,
+  version<span class="op">:</span> <span class="str">'1.0.0'</span>,
+  surfaces<span class="op">:</span> {
+    void<span class="op">:</span>    <span class="str">'#0c0c14'</span>,  <span class="cm">// deepest layer</span>
+    surface<span class="op">:</span> <span class="str">'#14141e'</span>,  <span class="cm">// default panel</span>
+    raised<span class="op">:</span>  <span class="str">'#1c1c2a'</span>,  <span class="cm">// elevated element</span>
+  },
+  <span class="fn">shimmer</span><span class="op">(</span>panel<span class="op">)</span> {
+    <span class="kw">return</span> panel.<span class="fn">animate</span>(<span class="str">'light-sweep'</span>, <span class="num">800</span>);
+  }
+};</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== DIVIDER ==================== -->
+  <div class="crystal-divider">
+    <div class="crystal-prism">
+      <div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div>
+      <div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div>
+      <div class="diamond"></div>
+    </div>
+  </div>
+
+  <!-- ==================== DEPTH / ELEVATION ==================== -->
+  <section>
+    <h2 class="section-title">Depth &amp; Elevation</h2>
+    <p class="section-desc">Obsidian has depth when you gaze into it. Each elevation level shifts subtly lighter, like looking through layers of volcanic glass toward a faint inner glow.</p>
+
+    <div class="depth-stack">
+      <div class="depth-card" style="background: #0c0c14;">
+        <div class="depth-level">Level 0</div>
+        <div class="depth-hex">#0c0c14</div>
+        <div class="depth-name">Void</div>
+      </div>
+      <div class="depth-card" style="background: #101018;">
+        <div class="depth-level">Level 1</div>
+        <div class="depth-hex">#101018</div>
+        <div class="depth-name">Deep</div>
+      </div>
+      <div class="depth-card" style="background: #14141e;">
+        <div class="depth-level">Level 2</div>
+        <div class="depth-hex">#14141e</div>
+        <div class="depth-name">Surface</div>
+      </div>
+      <div class="depth-card" style="background: #181824;">
+        <div class="depth-level">Level 3</div>
+        <div class="depth-hex">#181824</div>
+        <div class="depth-name">Elevated</div>
+      </div>
+      <div class="depth-card" style="background: #1c1c2a;">
+        <div class="depth-level">Level 4</div>
+        <div class="depth-hex">#1c1c2a</div>
+        <div class="depth-name">Raised</div>
+      </div>
+      <div class="depth-card" style="background: #202030;">
+        <div class="depth-level">Level 5</div>
+        <div class="depth-hex">#202030</div>
+        <div class="depth-name">Overlay</div>
+      </div>
+    </div>
+
+    <p style="color: var(--text-tertiary); font-size: 0.8rem; margin-top: var(--space-md); font-family: var(--font-code);">
+      Each step adds approximately +4 to RGB blue channel, +4 to green, +4 to red. The blue-shift increases with elevation, giving a sense of light emerging from deep blue-black.
+    </p>
+  </section>
+
+  <!-- ==================== DIVIDER ==================== -->
+  <div class="crystal-divider">
+    <div class="crystal-prism">
+      <div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div>
+      <div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div>
+      <div class="diamond"></div>
+    </div>
+  </div>
+
+  <!-- ==================== IRIDESCENT PANELS ==================== -->
+  <section>
+    <h2 class="section-title">Iridescent Panels</h2>
+    <p class="section-desc">Panels exhibit the obsidian glass effect: a faint iridescent border that shifts from amethyst to teal to rose copper. Hover to see the shimmer — light catching polished glass.</p>
+
+    <div class="grid-2">
+      <div class="obsidian-panel">
+        <h3 style="font-family: var(--font-display); font-size: 1.3rem; margin-bottom: var(--space-sm);">MCP Server Status</h3>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: var(--space-md);">All seven servers running on port 7000. Connected clients: 3.</p>
+        <div class="flex-row" style="gap: var(--space-sm);">
+          <span class="badge badge-emerald">Healthy</span>
+          <span class="badge badge-amethyst">7 Servers</span>
+          <span class="badge badge-sapphire">3 Clients</span>
+        </div>
+      </div>
+      <div class="obsidian-panel">
+        <h3 style="font-family: var(--font-display); font-size: 1.3rem; margin-bottom: var(--space-sm);">Voice Pipeline</h3>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: var(--space-md);">Neural TTS active. Edge voice: en-GB-RyanNeural. Transcription: Groq Whisper.</p>
+        <div class="flex-row" style="gap: var(--space-sm);">
+          <span class="badge badge-emerald">Active</span>
+          <span class="badge badge-topaz">Groq STT</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="obsidian-panel mt-lg">
+      <h3 style="font-family: var(--font-display); font-size: 1.3rem; margin-bottom: var(--space-md);">Recent Activity</h3>
+      <table class="obsidian-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Event</th>
+            <th>Source</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-family: var(--font-code); font-size: 0.8rem; color: var(--text-secondary);">14:32:08</td>
+            <td>Task moved to In Review</td>
+            <td><span class="tag tag-amethyst">kanban</span></td>
+            <td><span class="badge badge-emerald">Success</span></td>
+          </tr>
+          <tr>
+            <td style="font-family: var(--font-code); font-size: 0.8rem; color: var(--text-secondary);">14:31:55</td>
+            <td>Test scenario completed</td>
+            <td><span class="tag tag-teal">test</span></td>
+            <td><span class="badge badge-emerald">Passed</span></td>
+          </tr>
+          <tr>
+            <td style="font-family: var(--font-code); font-size: 0.8rem; color: var(--text-secondary);">14:31:12</td>
+            <td>Shell command timeout</td>
+            <td><span class="tag">shell</span></td>
+            <td><span class="badge badge-topaz">Warning</span></td>
+          </tr>
+          <tr>
+            <td style="font-family: var(--font-code); font-size: 0.8rem; color: var(--text-secondary);">14:30:44</td>
+            <td>Workflow match failed</td>
+            <td><span class="tag">workflow</span></td>
+            <td><span class="badge badge-ruby">Error</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ==================== DIVIDER ==================== -->
+  <div class="crystal-divider">
+    <div class="crystal-prism">
+      <div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div>
+      <div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div>
+      <div class="diamond"></div>
+    </div>
+  </div>
+
+  <!-- ==================== COMPONENTS ==================== -->
+  <section>
+    <h2 class="section-title">Components</h2>
+    <p class="section-desc">Every interaction element is drawn from the same obsidian material language. Jewel-tone accents give purpose; the shimmer gives life.</p>
+
+    <!-- Buttons -->
+    <div class="obsidian-panel">
+      <h3 style="font-family: var(--font-display); font-size: 1.2rem; margin-bottom: var(--space-lg);">Buttons</h3>
+
+      <div class="type-label mb-lg">Primary Actions</div>
+      <div class="button-row mb-xl">
+        <button class="btn btn-amethyst">Amethyst Primary</button>
+        <button class="btn btn-teal">Teal Jade</button>
+        <button class="btn btn-copper">Rose Copper</button>
+      </div>
+
+      <div class="type-label mb-lg">Secondary &amp; Ghost</div>
+      <div class="button-row mb-xl">
+        <button class="btn btn-outline">Outline</button>
+        <button class="btn btn-ghost">Ghost Action</button>
+        <button class="btn btn-outline btn-sm">Small Outline</button>
+        <button class="btn btn-amethyst btn-lg">Large Amethyst</button>
+      </div>
+
+      <div class="type-label mb-lg">With Icons</div>
+      <div class="button-row">
+        <button class="btn btn-amethyst btn-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+          New Task
+        </button>
+        <button class="btn btn-teal btn-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          Run Test
+        </button>
+        <button class="btn btn-outline btn-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          Search
+        </button>
+      </div>
+    </div>
+
+    <!-- Inputs -->
+    <div class="obsidian-panel mt-lg">
+      <h3 style="font-family: var(--font-display); font-size: 1.2rem; margin-bottom: var(--space-lg);">Inputs</h3>
+
+      <div class="grid-2">
+        <div class="input-group">
+          <label class="input-label">Task Title</label>
+          <input type="text" class="input-field" placeholder="Enter task name...">
+        </div>
+        <div class="input-group">
+          <label class="input-label">Priority</label>
+          <select class="select-field">
+            <option>Medium</option>
+            <option>Low</option>
+            <option>High</option>
+            <option>Urgent</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-2 mt-lg">
+        <div class="input-group">
+          <label class="input-label">Search Scenarios</label>
+          <input type="text" class="input-field" placeholder="Filter test scenarios..." value="login flow">
+        </div>
+        <div class="flex-col" style="gap: var(--space-md);">
+          <div style="display: flex; align-items: center; gap: var(--space-md);">
+            <label class="checkbox-group">
+              <input type="checkbox" checked> Auto-run on save
+            </label>
+          </div>
+          <div style="display: flex; align-items: center; gap: var(--space-md);">
+            <span style="font-size: 0.85rem; color: var(--text-secondary);">Voice cleanup</span>
+            <label class="toggle">
+              <input type="checkbox" checked>
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Badges -->
+    <div class="obsidian-panel mt-lg">
+      <h3 style="font-family: var(--font-display); font-size: 1.2rem; margin-bottom: var(--space-lg);">Badges &amp; Tags</h3>
+
+      <div class="type-label mb-lg">Status Badges</div>
+      <div class="flex-row mb-xl">
+        <span class="badge badge-emerald">Emerald &middot; Success</span>
+        <span class="badge badge-ruby">Ruby &middot; Error</span>
+        <span class="badge badge-topaz">Topaz &middot; Warning</span>
+        <span class="badge badge-sapphire">Sapphire &middot; Info</span>
+        <span class="badge badge-amethyst">Amethyst &middot; Accent</span>
+      </div>
+
+      <div class="type-label mb-lg">Tags</div>
+      <div class="flex-row mb-xl">
+        <span class="tag">default</span>
+        <span class="tag tag-amethyst">kanban</span>
+        <span class="tag tag-teal">test</span>
+        <span class="tag">shell</span>
+        <span class="tag tag-amethyst">workflow</span>
+        <span class="tag tag-teal">voice</span>
+      </div>
+
+      <div class="type-label mb-lg">Keyboard Shortcuts</div>
+      <div class="flex-row">
+        <span class="kbd">Ctrl</span> + <span class="kbd">K</span>
+        <span style="color: var(--text-tertiary); margin: 0 var(--space-md);">|</span>
+        <span class="kbd">Ctrl</span> + <span class="kbd">Shift</span> + <span class="kbd">P</span>
+        <span style="color: var(--text-tertiary); margin: 0 var(--space-md);">|</span>
+        <span class="kbd">Esc</span>
+      </div>
+    </div>
+
+    <!-- Progress Bars -->
+    <div class="obsidian-panel mt-lg">
+      <h3 style="font-family: var(--font-display); font-size: 1.2rem; margin-bottom: var(--space-lg);">Progress</h3>
+
+      <div class="flex-col" style="gap: var(--space-lg);">
+        <div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-xs); font-size: 0.8rem;">
+            <span style="color: var(--text-secondary);">Feature progress</span>
+            <span style="color: var(--amethyst-glow); font-family: var(--font-code);">72%</span>
+          </div>
+          <div class="progress-bar progress-amethyst"><div class="progress-fill" style="width: 72%;"></div></div>
+        </div>
+        <div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-xs); font-size: 0.8rem;">
+            <span style="color: var(--text-secondary);">Test coverage</span>
+            <span style="color: var(--teal-jade-glow); font-family: var(--font-code);">89%</span>
+          </div>
+          <div class="progress-bar progress-teal"><div class="progress-fill" style="width: 89%;"></div></div>
+        </div>
+        <div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-xs); font-size: 0.8rem;">
+            <span style="color: var(--text-secondary);">Build pipeline</span>
+            <span style="color: var(--rose-copper-glow); font-family: var(--font-code);">45%</span>
+          </div>
+          <div class="progress-bar progress-copper"><div class="progress-fill" style="width: 45%;"></div></div>
+        </div>
+        <div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-xs); font-size: 0.8rem;">
+            <span style="color: var(--text-secondary);">All tasks complete</span>
+            <span style="color: #70b888; font-family: var(--font-code);">100%</span>
+          </div>
+          <div class="progress-bar progress-emerald"><div class="progress-fill" style="width: 100%;"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toasts -->
+    <div class="obsidian-panel mt-lg">
+      <h3 style="font-family: var(--font-display); font-size: 1.2rem; margin-bottom: var(--space-lg);">Toasts</h3>
+
+      <div class="toast toast-emerald">
+        <span class="toast-icon">&#x2714;</span>
+        <div class="toast-body">
+          <strong>Test scenario passed</strong>
+          All 12 assertions verified successfully. Login flow confirmed working.
+        </div>
+      </div>
+      <div class="toast toast-ruby">
+        <span class="toast-icon">&#x2718;</span>
+        <div class="toast-body">
+          <strong>Shell command failed</strong>
+          Process exited with code 1. Check scrollback for error details.
+        </div>
+      </div>
+      <div class="toast toast-topaz">
+        <span class="toast-icon">&#x26A0;</span>
+        <div class="toast-body">
+          <strong>Workflow match ambiguous</strong>
+          Multiple workflows matched. Please refine your query for exact match.
+        </div>
+      </div>
+      <div class="toast toast-sapphire">
+        <span class="toast-icon">&#x2139;</span>
+        <div class="toast-body">
+          <strong>Voice transcription ready</strong>
+          Audio processed in 1.2s via Groq Whisper. 143 words detected.
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="obsidian-panel mt-lg">
+      <h3 style="font-family: var(--font-display); font-size: 1.2rem; margin-bottom: var(--space-lg);">Tabs</h3>
+      <div class="tabs">
+        <button class="tab active">Overview</button>
+        <button class="tab">Tasks</button>
+        <button class="tab">Test Results</button>
+        <button class="tab">Logs</button>
+        <button class="tab">Settings</button>
+      </div>
+      <p style="color: var(--text-secondary); font-size: 0.9rem;">Tab content area. The active tab is highlighted with the amethyst accent underline.</p>
+    </div>
+
+    <!-- Avatars & Chips -->
+    <div class="obsidian-panel mt-lg">
+      <h3 style="font-family: var(--font-display); font-size: 1.2rem; margin-bottom: var(--space-lg);">Avatars &amp; Participants</h3>
+      <div class="flex-row">
+        <div style="display: flex; align-items: center; gap: var(--space-sm);">
+          <div class="avatar" style="background: var(--amethyst);">CL</div>
+          <div>
+            <div style="font-size: 0.85rem; font-weight: 600;">claude-1</div>
+            <div style="font-size: 0.75rem; color: var(--text-tertiary);">Sonnet 4</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: var(--space-sm);">
+          <div class="avatar" style="background: var(--teal-jade);">CX</div>
+          <div>
+            <div style="font-size: 0.85rem; font-weight: 600;">codex-2</div>
+            <div style="font-size: 0.75rem; color: var(--text-tertiary);">o4-mini</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: var(--space-sm);">
+          <div class="avatar" style="background: var(--rose-copper);">DK</div>
+          <div>
+            <div style="font-size: 0.85rem; font-weight: 600;">daniel</div>
+            <div style="font-size: 0.75rem; color: var(--text-tertiary);">user</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== DIVIDER ==================== -->
+  <div class="crystal-divider">
+    <div class="crystal-prism">
+      <div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div>
+      <div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div>
+      <div class="diamond"></div>
+    </div>
+  </div>
+
+  <!-- ==================== DASHBOARD MOCKUP ==================== -->
+  <section>
+    <h2 class="section-title">Dashboard Mockup</h2>
+    <p class="section-desc">The full experience: sidebar navigation, kanban board, and all visual elements working together in the obsidian environment.</p>
+
+    <div class="dashboard-mockup">
+      <div class="mock-sidebar">
+        <div class="mock-sidebar-brand">
+          <span class="brand-dot"></span>
+          DevGlide
+        </div>
+
+        <div class="mock-nav-section">Core</div>
+        <div class="mock-nav-item">
+          <svg class="mock-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          Dashboard
+        </div>
+        <div class="mock-nav-item active">
+          <svg class="mock-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/></svg>
+          Kanban
+        </div>
+        <div class="mock-nav-item">
+          <svg class="mock-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          Shell
+        </div>
+
+        <div class="mock-nav-section">Tools</div>
+        <div class="mock-nav-item">
+          <svg class="mock-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+          Workflows
+        </div>
+        <div class="mock-nav-item">
+          <svg class="mock-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+          Voice
+        </div>
+        <div class="mock-nav-item">
+          <svg class="mock-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Chat
+        </div>
+        <div class="mock-nav-item">
+          <svg class="mock-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          Test
+        </div>
+
+        <div class="mock-nav-section">Data</div>
+        <div class="mock-nav-item">
+          <svg class="mock-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Logs
+        </div>
+        <div class="mock-nav-item">
+          <svg class="mock-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Settings
+        </div>
+      </div>
+
+      <div class="mock-main">
+        <div class="mock-header">
+          <h3>Feature: Auth Module</h3>
+          <div class="flex-row" style="gap: var(--space-sm);">
+            <span class="badge badge-amethyst">Sprint 4</span>
+            <button class="btn btn-amethyst btn-sm">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              Add Task
+            </button>
+          </div>
+        </div>
+
+        <div class="mock-kanban">
+          <div class="mock-column">
+            <div class="mock-column-title">
+              Todo
+              <span class="mock-column-count">3</span>
+            </div>
+            <div class="mock-card">
+              OAuth2 PKCE flow
+              <div class="mock-card-label"><span class="badge badge-sapphire" style="font-size: 0.6rem;">TASK</span></div>
+            </div>
+            <div class="mock-card">
+              Session token rotation
+              <div class="mock-card-label"><span class="badge badge-sapphire" style="font-size: 0.6rem;">TASK</span></div>
+            </div>
+            <div class="mock-card">
+              Rate limiter middleware
+              <div class="mock-card-label"><span class="badge badge-topaz" style="font-size: 0.6rem;">MEDIUM</span></div>
+            </div>
+          </div>
+
+          <div class="mock-column">
+            <div class="mock-column-title">
+              In Progress
+              <span class="mock-column-count">2</span>
+            </div>
+            <div class="mock-card" style="border-left: 2px solid var(--amethyst);">
+              JWT validation service
+              <div class="mock-card-label">
+                <span class="badge badge-ruby" style="font-size: 0.6rem;">HIGH</span>
+              </div>
+            </div>
+            <div class="mock-card" style="border-left: 2px solid var(--teal-jade);">
+              User profile endpoint
+              <div class="mock-card-label">
+                <span class="badge badge-topaz" style="font-size: 0.6rem;">MEDIUM</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mock-column">
+            <div class="mock-column-title">
+              In Review
+              <span class="mock-column-count">1</span>
+            </div>
+            <div class="mock-card" style="border-left: 2px solid var(--rose-copper);">
+              Password reset flow
+              <div class="mock-card-label">
+                <span class="badge badge-emerald" style="font-size: 0.6rem;">DONE</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mock-column">
+            <div class="mock-column-title">
+              Testing
+              <span class="mock-column-count">1</span>
+            </div>
+            <div class="mock-card">
+              Login form validation
+              <div class="mock-card-label">
+                <div class="flex-row" style="gap: 4px; margin-top: 4px;">
+                  <div class="avatar" style="width: 18px; height: 18px; font-size: 0.55rem; background: var(--amethyst);">CL</div>
+                  <span style="font-size: 0.7rem; color: var(--text-tertiary);">claude-1 testing</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== DIVIDER ==================== -->
+  <div class="crystal-divider">
+    <div class="crystal-prism">
+      <div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div>
+      <div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div>
+      <div class="diamond"></div>
+    </div>
+  </div>
+
+  <!-- ==================== READING BLOCK ==================== -->
+  <section>
+    <h2 class="section-title">Reading Comfort</h2>
+    <p class="section-desc">The true test of a dark theme: extended reading without eye strain. Warm cream text on deep obsidian, with generous line height and measured width.</p>
+
+    <div class="obsidian-panel">
+      <div class="reading-block">
+        <p>
+          Obsidian forms when volcanic lava cools so rapidly that atoms cannot arrange themselves into a crystalline structure. The result is a natural glass — dark, smooth, and reflective. Ancient civilizations prized it for tools and mirrors, drawn to its ability to hold an edge sharper than surgical steel.
+        </p>
+        <p>
+          In designing this system, we drew from that same duality: utility and beauty. The deep blue-black backgrounds eliminate the harsh glare of white screens, while the warm cream text (at 8.5:1 contrast ratio) ensures every word is readable without the eye strain that comes from pure white on pure black. The slight warmth in the text color creates a sense of candlelight against stone.
+        </p>
+        <p class="secondary">
+          The jewel-tone accents — amethyst, teal jade, rose copper — are deliberate choices. Each is desaturated enough to avoid the "neon glow" trap of many dark themes, yet vivid enough to create clear visual hierarchy. They reference the mineral inclusions found in real obsidian: unexpected points of color within the dark glass.
+        </p>
+        <p>
+          The iridescent border effect on panels mimics the way light plays across an obsidian surface. At certain angles, volcanic glass reveals hidden colors — rainbow sheens of purple, blue, and green caused by thin-film interference. We capture this in the slow-cycling gradient borders that shift from amethyst to teal to rose, creating a sense that these panels are living surfaces rather than flat rectangles.
+        </p>
+        <p class="secondary">
+          Even the shimmer hover effect tells a story. Run your cursor across any panel and watch the sweep of light — it mimics the moment you tilt a piece of polished obsidian and catch the room's light across its surface. A small detail, but it transforms interaction from mechanical to sensory.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== FOOTER ==================== -->
+  <div class="crystal-divider">
+    <div class="crystal-prism">
+      <div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div><div class="ray"></div>
+      <div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div><div class="ray ray-left"></div>
+      <div class="diamond"></div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <p style="font-family: var(--font-display); font-size: 1.2rem; color: var(--text-secondary); margin-bottom: var(--space-sm);">
+      Obsidian Cave
+    </p>
+    <p>
+      A design system for <a href="#">DevGlide</a> &mdash; AI Workflow Toolkit
+    </p>
+    <p style="margin-top: var(--space-sm); color: var(--text-ghost);">
+      Dark as volcanic glass. Deep as hidden caverns.
+    </p>
+  </footer>
+
+</div>
+
+<!-- ==================== SCRIPTS ==================== -->
+<script>
+// Generate mineral inclusion particles
+(function() {
+  const container = document.getElementById('particles');
+  const particleCount = 18;
+  const colors = [
+    'rgba(144, 112, 192, 0.4)',
+    'rgba(80, 136, 128, 0.4)',
+    'rgba(176, 112, 104, 0.3)',
+    'rgba(208, 204, 196, 0.2)',
+    'rgba(80, 112, 160, 0.3)',
+    'rgba(184, 144, 80, 0.3)',
+  ];
+
+  for (let i = 0; i < particleCount; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'particle';
+    dot.style.left = (Math.random() * 100) + '%';
+    dot.style.top = (60 + Math.random() * 50) + '%';
+    dot.style.width = (1 + Math.random() * 2) + 'px';
+    dot.style.height = dot.style.width;
+    dot.style.background = colors[Math.floor(Math.random() * colors.length)];
+    dot.style.animationDuration = (25 + Math.random() * 40) + 's';
+    dot.style.animationDelay = (Math.random() * 30) + 's';
+    container.appendChild(dot);
+  }
+})();
+
+// Reset shimmer animation on each hover
+document.querySelectorAll('.obsidian-panel:not(.no-shimmer)').forEach(function(panel) {
+  panel.addEventListener('mouseenter', function() {
+    var after = this.querySelector('.__shimmer_reset');
+    // Force animation restart by toggling a class
+    this.style.animation = 'none';
+    void this.offsetHeight;
+    this.style.animation = '';
+  });
+});
+
+// Interactive tabs (purely visual)
+document.querySelectorAll('.tabs').forEach(function(tabGroup) {
+  var tabs = tabGroup.querySelectorAll('.tab');
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      tabs.forEach(function(t) { t.classList.remove('active'); });
+      this.classList.add('active');
+    });
+  });
+});
+</script>
+
+</body>
+</html>

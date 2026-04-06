@@ -356,6 +356,13 @@ describe('compact notification formatting', () => {
     expect(notification.body).toContain('Inspect assignment: pipe_get_assignment(pipeId="abc123")');
     expect(notification.body).toContain('Read stage input: pipe_read_output(pipeId="abc123")');
   });
+
+  it('includes the assignee role in the compact header when provided', () => {
+    const notification = delivery.formatCompactNotification(
+      'abc123', 'linear', 'handoff', 'alice', 3, 2, 'implementer',
+    );
+    expect(notification.body).toContain('[linear | stage 2/3 | @alice | Your role: implementer]');
+  });
 });
 
 // ── Clock injection ─────────────────────────────────────────────────────────

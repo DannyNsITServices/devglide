@@ -1,0 +1,1862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blueprint — Architectural Drawing Design System</title>
+
+<!-- Fonts -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/archivo-narrow@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/archivo-narrow@latest/latin-500-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/archivo-narrow@latest/latin-600-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/archivo-narrow@latest/latin-700-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/oswald@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/oswald@latest/latin-500-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/oswald@latest/latin-600-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@latest/latin-500-normal.css">
+
+<style>
+/* ============================================================
+   CSS CUSTOM PROPERTIES — Blueprint palette
+   ============================================================ */
+:root {
+  --bp-deep:        #0e2240;
+  --bp-base:        #1a3a5c;
+  --bp-mid:         #1f4a6e;
+  --bp-light:       #2a5f8a;
+  --bp-surface:     #163352;
+  --bp-raised:      #1e4668;
+
+  --bp-line:        rgba(255, 255, 255, 0.70);
+  --bp-line-dim:    rgba(255, 255, 255, 0.35);
+  --bp-line-faint:  rgba(255, 255, 255, 0.12);
+  --bp-grid-thin:   rgba(255, 255, 255, 0.05);
+  --bp-grid-thick:  rgba(255, 255, 255, 0.10);
+  --bp-fold:        rgba(255, 255, 255, 0.06);
+
+  --bp-text:        #e8f0ff;
+  --bp-text-dim:    #a0b8d8;
+  --bp-text-faint:  #6d8aaf;
+
+  --bp-accent:      #4fc3f7;
+  --bp-accent-dim:  #2196c9;
+  --bp-accent-glow: rgba(79, 195, 247, 0.15);
+
+  --bp-warn:        #ffb74d;
+  --bp-warn-dim:    #e09530;
+  --bp-error:       #ef5350;
+  --bp-error-dim:   #c62828;
+  --bp-success:     #66bb6a;
+  --bp-success-dim: #388e3c;
+
+  --bp-stamp-red:   #d32f2f;
+  --bp-stamp-green: #2e7d32;
+  --bp-stamp-blue:  #1565c0;
+
+  --font-heading:   'Oswald', 'Archivo Narrow', sans-serif;
+  --font-label:     'Archivo Narrow', 'Oswald', sans-serif;
+  --font-mono:      'JetBrains Mono', monospace;
+  --font-body:      'JetBrains Mono', monospace;
+
+  --corner-size:    12px;
+  --panel-border:   1px solid var(--bp-line-dim);
+  --radius:         0px;
+}
+
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  font-size: 14px;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--bp-text);
+  background: var(--bp-base);
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ============================================================
+   BLUEPRINT GRID BACKGROUND
+   Fine grid (20px) + thick grid (100px) + fold marks
+   ============================================================ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    /* Thick grid every 100px */
+    repeating-linear-gradient(0deg,   var(--bp-grid-thick) 0, var(--bp-grid-thick) 1px, transparent 1px, transparent 100px),
+    repeating-linear-gradient(90deg,  var(--bp-grid-thick) 0, var(--bp-grid-thick) 1px, transparent 1px, transparent 100px),
+    /* Fine grid every 20px */
+    repeating-linear-gradient(0deg,   var(--bp-grid-thin)  0, var(--bp-grid-thin)  1px, transparent 1px, transparent 20px),
+    repeating-linear-gradient(90deg,  var(--bp-grid-thin)  0, var(--bp-grid-thin)  1px, transparent 1px, transparent 20px);
+}
+
+/* Fold marks — horizontal dashed lines suggesting paper folds */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0,
+      transparent 299px,
+      var(--bp-fold) 299px,
+      var(--bp-fold) 300px,
+      transparent 300px,
+      transparent 301px
+    );
+  mask-image: repeating-linear-gradient(
+    0deg,
+    transparent 0, transparent 298px,
+    black 298px, black 302px,
+    transparent 302px, transparent 600px
+  );
+  /* Dashed effect via mask */
+  -webkit-mask-image:
+    repeating-linear-gradient(90deg, black 0, black 8px, transparent 8px, transparent 16px);
+  mask-image:
+    repeating-linear-gradient(90deg, black 0, black 8px, transparent 8px, transparent 16px);
+}
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.page-wrapper {
+  position: relative;
+  z-index: 1;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 40px 32px 80px;
+}
+
+section {
+  margin-bottom: 64px;
+}
+
+/* ============================================================
+   BLUEPRINT PANEL — Technical drawing frame
+   Double-line border with corner brackets
+   ============================================================ */
+.bp-panel {
+  position: relative;
+  border: 1px solid var(--bp-line-dim);
+  padding: 32px;
+  margin-bottom: 32px;
+  background: rgba(14, 34, 64, 0.40);
+  backdrop-filter: blur(2px);
+}
+
+/* Inner border (double-line effect) */
+.bp-panel::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 1px solid var(--bp-line-faint);
+  pointer-events: none;
+}
+
+/* Corner brackets — top-left */
+.bp-panel::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  /* top-left corner */
+  top: -1px; left: -1px;
+  width: var(--corner-size); height: var(--corner-size);
+  border-top: 2px solid var(--bp-line);
+  border-left: 2px solid var(--bp-line);
+}
+
+/* Additional corners via child pseudo-elements on a wrapper */
+.bp-corner-tr, .bp-corner-bl, .bp-corner-br {
+  position: absolute;
+  pointer-events: none;
+  width: var(--corner-size);
+  height: var(--corner-size);
+}
+.bp-corner-tr { top: -1px; right: -1px; border-top: 2px solid var(--bp-line); border-right: 2px solid var(--bp-line); }
+.bp-corner-bl { bottom: -1px; left: -1px; border-bottom: 2px solid var(--bp-line); border-left: 2px solid var(--bp-line); }
+.bp-corner-br { bottom: -1px; right: -1px; border-bottom: 2px solid var(--bp-line); border-right: 2px solid var(--bp-line); }
+
+/* ============================================================
+   TITLE BLOCK — Architectural drawing info block
+   ============================================================ */
+.title-block {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  border: 1px solid var(--bp-line-dim);
+  padding: 6px 12px;
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  color: var(--bp-text-dim);
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(14, 34, 64, 0.60);
+}
+.title-block dt { color: var(--bp-text-faint); }
+.title-block dd { color: var(--bp-text-dim); text-align: right; }
+
+/* ============================================================
+   SECTION HEADERS — Drawing annotations with leader lines
+   ============================================================ */
+h1, h2, h3, h4 {
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 500;
+  color: var(--bp-text);
+}
+
+.section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  position: relative;
+}
+
+.section-label .marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px; height: 36px;
+  border: 2px solid var(--bp-line);
+  border-radius: 50%;
+  font-family: var(--font-label);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--bp-accent);
+  flex-shrink: 0;
+}
+
+.section-label h2 {
+  font-size: 1.5rem;
+}
+
+/* Leader line from marker to heading */
+.section-label::after {
+  content: '';
+  position: absolute;
+  left: 18px;
+  top: 38px;
+  width: 1px;
+  height: 16px;
+  background: var(--bp-line-dim);
+}
+
+.section-desc {
+  font-size: 0.85rem;
+  color: var(--bp-text-dim);
+  margin-bottom: 24px;
+  max-width: 720px;
+  padding-left: 52px;
+}
+
+/* ============================================================
+   DIMENSION LINES — Decorative measurement lines
+   ============================================================ */
+.dimension-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--bp-text-faint);
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 16px 0;
+  user-select: none;
+}
+
+.dimension-line .dl-arrow {
+  flex: 1;
+  height: 1px;
+  background: var(--bp-line-dim);
+  position: relative;
+}
+
+/* Arrowheads */
+.dimension-line .dl-arrow::before,
+.dimension-line .dl-arrow::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  border: 3px solid transparent;
+}
+.dimension-line .dl-arrow::before {
+  left: 0;
+  border-right-color: var(--bp-line-dim);
+  border-left: none;
+}
+.dimension-line .dl-arrow::after {
+  right: 0;
+  border-left-color: var(--bp-line-dim);
+  border-right: none;
+}
+
+.dimension-line .dl-tick {
+  width: 1px; height: 10px;
+  background: var(--bp-line-dim);
+}
+
+.dimension-line .dl-label {
+  white-space: nowrap;
+  padding: 0 8px;
+  color: var(--bp-text-dim);
+}
+
+/* ============================================================
+   STAMP BADGES — Rubber stamp look
+   ============================================================ */
+.stamp {
+  display: inline-block;
+  font-family: var(--font-heading);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-weight: 600;
+  padding: 4px 14px;
+  border: 2px dashed;
+  border-radius: 4px;
+  transform: rotate(-2deg);
+  opacity: 0.85;
+  position: relative;
+  font-size: 0.8rem;
+}
+.stamp--round {
+  border-radius: 50%;
+  width: 72px; height: 72px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 6px;
+  font-size: 0.65rem;
+  line-height: 1.2;
+}
+.stamp--approved  { color: var(--bp-success); border-color: var(--bp-success); transform: rotate(-3deg); }
+.stamp--revision  { color: var(--bp-warn);    border-color: var(--bp-warn);    transform: rotate(2deg); }
+.stamp--rejected  { color: var(--bp-error);   border-color: var(--bp-error);   transform: rotate(-1.5deg); }
+.stamp--draft     { color: var(--bp-accent);  border-color: var(--bp-accent);  transform: rotate(1deg); }
+.stamp--large {
+  font-size: 1rem;
+  padding: 8px 24px;
+  border-width: 3px;
+}
+.stamp--round.stamp--large {
+  width: 96px; height: 96px;
+  font-size: 0.75rem;
+  border-width: 3px;
+}
+
+/* Double border stamp effect */
+.stamp::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 1px dashed inherit;
+  border-color: inherit;
+  border-radius: inherit;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* ============================================================
+   DETAIL CARDS — Section views from a larger drawing
+   ============================================================ */
+.detail-card {
+  position: relative;
+  border: 1px solid var(--bp-line-dim);
+  padding: 20px 20px 20px 20px;
+  background: rgba(14, 34, 64, 0.30);
+}
+
+.detail-card .card-marker {
+  position: absolute;
+  top: -14px;
+  left: 16px;
+  font-family: var(--font-label);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--bp-accent);
+  background: var(--bp-base);
+  padding: 2px 10px;
+  border: 1px solid var(--bp-accent-dim);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.detail-card .card-title {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+  color: var(--bp-text);
+}
+
+.detail-card .card-body {
+  font-size: 0.8rem;
+  color: var(--bp-text-dim);
+  line-height: 1.7;
+}
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+.heading-xl  { font-size: 2.2rem;  font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.15em; }
+.heading-lg  { font-size: 1.6rem;  font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.12em; }
+.heading-md  { font-size: 1.15rem; font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.10em; }
+.heading-sm  { font-size: 0.9rem;  font-family: var(--font-heading); text-transform: uppercase; letter-spacing: 0.10em; }
+.label-text  { font-size: 0.8rem;  font-family: var(--font-label);   text-transform: uppercase; letter-spacing: 0.08em; color: var(--bp-text-dim); }
+.body-text   { font-size: 0.85rem; font-family: var(--font-body);    color: var(--bp-text-dim); line-height: 1.7; }
+.mono-text   { font-size: 0.8rem;  font-family: var(--font-mono);    color: var(--bp-accent); }
+.caption     { font-size: 0.7rem;  font-family: var(--font-label);   color: var(--bp-text-faint); text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* ============================================================
+   BUTTONS — Technical / schematic style
+   ============================================================ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 8px 20px;
+  border: 1px solid var(--bp-line-dim);
+  background: transparent;
+  color: var(--bp-text);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 1px solid var(--bp-line-faint);
+  pointer-events: none;
+  transition: border-color 0.2s ease;
+}
+
+.btn:hover {
+  border-color: var(--bp-accent);
+  color: var(--bp-accent);
+  background: var(--bp-accent-glow);
+}
+.btn:hover::before { border-color: rgba(79, 195, 247, 0.2); }
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn--primary {
+  border-color: var(--bp-accent-dim);
+  color: var(--bp-accent);
+  background: rgba(79, 195, 247, 0.08);
+}
+.btn--primary:hover {
+  background: rgba(79, 195, 247, 0.18);
+  border-color: var(--bp-accent);
+}
+
+.btn--danger {
+  border-color: var(--bp-error-dim);
+  color: var(--bp-error);
+}
+.btn--danger:hover {
+  background: rgba(239, 83, 80, 0.12);
+  border-color: var(--bp-error);
+}
+
+.btn--success {
+  border-color: var(--bp-success-dim);
+  color: var(--bp-success);
+}
+.btn--success:hover {
+  background: rgba(102, 187, 106, 0.12);
+  border-color: var(--bp-success);
+}
+
+.btn--sm { font-size: 0.7rem; padding: 5px 12px; }
+.btn--lg { font-size: 0.9rem; padding: 12px 28px; }
+
+.btn--icon {
+  width: 36px; height: 36px;
+  padding: 0;
+  justify-content: center;
+}
+
+/* ============================================================
+   INPUTS — Technical drawing style
+   ============================================================ */
+.bp-input {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--bp-text);
+  background: rgba(14, 34, 64, 0.50);
+  border: 1px solid var(--bp-line-dim);
+  padding: 8px 12px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+.bp-input::placeholder { color: var(--bp-text-faint); }
+.bp-input:focus {
+  border-color: var(--bp-accent);
+  box-shadow: 0 0 0 1px var(--bp-accent-dim);
+}
+
+.bp-select {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--bp-text);
+  background: rgba(14, 34, 64, 0.50);
+  border: 1px solid var(--bp-line-dim);
+  padding: 8px 12px;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23a0b8d8'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+  cursor: pointer;
+}
+.bp-select:focus {
+  border-color: var(--bp-accent);
+}
+
+.bp-textarea {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--bp-text);
+  background: rgba(14, 34, 64, 0.50);
+  border: 1px solid var(--bp-line-dim);
+  padding: 10px 12px;
+  width: 100%;
+  outline: none;
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.6;
+}
+.bp-textarea:focus { border-color: var(--bp-accent); }
+
+.bp-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  color: var(--bp-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.bp-checkbox input[type="checkbox"] {
+  appearance: none;
+  width: 16px; height: 16px;
+  border: 1px solid var(--bp-line-dim);
+  background: rgba(14, 34, 64, 0.5);
+  cursor: pointer;
+  position: relative;
+}
+.bp-checkbox input[type="checkbox"]:checked {
+  border-color: var(--bp-accent);
+}
+.bp-checkbox input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px; right: 2px; bottom: 2px;
+  background: var(--bp-accent);
+}
+
+.field-group { margin-bottom: 16px; }
+.field-label {
+  display: block;
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--bp-text-faint);
+  margin-bottom: 6px;
+}
+
+/* ============================================================
+   TOASTS / NOTICES — Blueprint-style notification
+   ============================================================ */
+.bp-toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--bp-line-dim);
+  background: rgba(14, 34, 64, 0.70);
+  font-family: var(--font-label);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  position: relative;
+}
+.bp-toast::before {
+  content: '';
+  width: 3px;
+  align-self: stretch;
+  flex-shrink: 0;
+}
+.bp-toast--info::before    { background: var(--bp-accent); }
+.bp-toast--success::before { background: var(--bp-success); }
+.bp-toast--warning::before { background: var(--bp-warn); }
+.bp-toast--error::before   { background: var(--bp-error); }
+.bp-toast--info    { border-left-color: var(--bp-accent); color: var(--bp-accent); }
+.bp-toast--success { border-left-color: var(--bp-success); color: var(--bp-success); }
+.bp-toast--warning { border-left-color: var(--bp-warn); color: var(--bp-warn); }
+.bp-toast--error   { border-left-color: var(--bp-error); color: var(--bp-error); }
+
+.bp-toast .toast-code {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  opacity: 0.6;
+  margin-left: auto;
+}
+
+/* ============================================================
+   TAGS / LABELS
+   ============================================================ */
+.bp-tag {
+  display: inline-block;
+  font-family: var(--font-label);
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 3px 10px;
+  border: 1px solid var(--bp-line-dim);
+  color: var(--bp-text-dim);
+}
+.bp-tag--accent  { border-color: var(--bp-accent-dim); color: var(--bp-accent); }
+.bp-tag--warn    { border-color: var(--bp-warn-dim);   color: var(--bp-warn); }
+.bp-tag--error   { border-color: var(--bp-error-dim);  color: var(--bp-error); }
+.bp-tag--success { border-color: var(--bp-success-dim);color: var(--bp-success); }
+
+/* ============================================================
+   CODE BLOCK
+   ============================================================ */
+.bp-code {
+  background: rgba(14, 34, 64, 0.60);
+  border: 1px solid var(--bp-line-faint);
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--bp-accent);
+  line-height: 1.7;
+  overflow-x: auto;
+  position: relative;
+}
+.bp-code .line-no {
+  color: var(--bp-text-faint);
+  user-select: none;
+  display: inline-block;
+  width: 2em;
+  text-align: right;
+  margin-right: 1.2em;
+}
+.bp-code .kw   { color: var(--bp-accent); }
+.bp-code .str  { color: var(--bp-success); }
+.bp-code .cmt  { color: var(--bp-text-faint); font-style: italic; }
+.bp-code .num  { color: var(--bp-warn); }
+.bp-code .fn   { color: #e8f0ff; }
+
+/* ============================================================
+   TABLE
+   ============================================================ */
+.bp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.bp-table th {
+  font-family: var(--font-label);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--bp-text-faint);
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--bp-line-dim);
+}
+.bp-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--bp-line-faint);
+  color: var(--bp-text-dim);
+}
+.bp-table tr:hover td {
+  background: rgba(79, 195, 247, 0.04);
+}
+
+/* ============================================================
+   PROGRESS BAR
+   ============================================================ */
+.bp-progress {
+  width: 100%;
+  height: 6px;
+  background: rgba(14, 34, 64, 0.60);
+  border: 1px solid var(--bp-line-faint);
+  position: relative;
+}
+.bp-progress-fill {
+  height: 100%;
+  background: var(--bp-accent);
+  transition: width 0.3s ease;
+}
+.bp-progress--success .bp-progress-fill { background: var(--bp-success); }
+.bp-progress--warn    .bp-progress-fill { background: var(--bp-warn); }
+
+/* ============================================================
+   UTILITY
+   ============================================================ */
+.flex       { display: flex; }
+.flex-wrap  { flex-wrap: wrap; }
+.gap-8      { gap: 8px; }
+.gap-12     { gap: 12px; }
+.gap-16     { gap: 16px; }
+.gap-24     { gap: 24px; }
+.gap-32     { gap: 32px; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.grid-2     { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.grid-3     { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+.grid-4     { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+.mt-8  { margin-top: 8px; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
+.mt-32 { margin-top: 32px; }
+.mb-8  { margin-bottom: 8px; }
+.mb-16 { margin-bottom: 16px; }
+.mb-24 { margin-bottom: 24px; }
+
+/* ============================================================
+   HEADER — Drawing title strip
+   ============================================================ */
+.bp-header {
+  border: 1px solid var(--bp-line-dim);
+  padding: 24px 32px;
+  margin-bottom: 48px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(14, 34, 64, 0.50);
+}
+.bp-header::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 1px solid var(--bp-line-faint);
+  pointer-events: none;
+}
+/* Corner brackets on header */
+.bp-header .corner { position: absolute; width: 14px; height: 14px; pointer-events: none; }
+.bp-header .corner--tl { top: -1px; left: -1px;   border-top: 2px solid var(--bp-line); border-left: 2px solid var(--bp-line); }
+.bp-header .corner--tr { top: -1px; right: -1px;  border-top: 2px solid var(--bp-line); border-right: 2px solid var(--bp-line); }
+.bp-header .corner--bl { bottom: -1px; left: -1px; border-bottom: 2px solid var(--bp-line); border-left: 2px solid var(--bp-line); }
+.bp-header .corner--br { bottom: -1px; right: -1px;border-bottom: 2px solid var(--bp-line); border-right: 2px solid var(--bp-line); }
+
+.bp-header .logo {
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--bp-text);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.bp-header .logo .logo-mark {
+  width: 40px; height: 40px;
+  border: 2px solid var(--bp-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.bp-header .logo .logo-mark::before {
+  content: '';
+  width: 20px; height: 20px;
+  border: 1px solid var(--bp-accent);
+  transform: rotate(45deg);
+}
+
+.bp-header .header-meta {
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  color: var(--bp-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-align: right;
+  line-height: 1.8;
+}
+
+/* ============================================================
+   COLOR PALETTE
+   ============================================================ */
+.color-swatch {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.color-swatch .swatch-box {
+  width: 100%;
+  height: 56px;
+  border: 1px solid var(--bp-line-faint);
+  position: relative;
+}
+.color-swatch .swatch-box::after {
+  content: attr(data-hex);
+  position: absolute;
+  bottom: 4px;
+  right: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: inherit;
+  mix-blend-mode: difference;
+  opacity: 0.8;
+}
+.color-swatch .swatch-name {
+  font-family: var(--font-label);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bp-text-faint);
+}
+
+/* ============================================================
+   DASHBOARD MOCKUP
+   ============================================================ */
+.dashboard-mock {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  border: 1px solid var(--bp-line-dim);
+  min-height: 480px;
+  background: rgba(14, 34, 64, 0.30);
+  position: relative;
+}
+
+/* Corner brackets */
+.dashboard-mock .dm-corner { position: absolute; width: 16px; height: 16px; pointer-events: none; }
+.dashboard-mock .dm-corner--tl { top: -1px; left: -1px; border-top: 2px solid var(--bp-line); border-left: 2px solid var(--bp-line); }
+.dashboard-mock .dm-corner--tr { top: -1px; right: -1px; border-top: 2px solid var(--bp-line); border-right: 2px solid var(--bp-line); }
+.dashboard-mock .dm-corner--bl { bottom: -1px; left: -1px; border-bottom: 2px solid var(--bp-line); border-left: 2px solid var(--bp-line); }
+.dashboard-mock .dm-corner--br { bottom: -1px; right: -1px; border-bottom: 2px solid var(--bp-line); border-right: 2px solid var(--bp-line); }
+
+.dm-sidebar {
+  border-right: 1px solid var(--bp-line-dim);
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dm-sidebar-title {
+  font-family: var(--font-label);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--bp-text-faint);
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--bp-line-faint);
+  margin-bottom: 8px;
+}
+
+.dm-sidebar-item {
+  font-family: var(--font-label);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 8px 16px;
+  color: var(--bp-text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-left: 2px solid transparent;
+}
+.dm-sidebar-item:hover {
+  color: var(--bp-text);
+  background: rgba(79, 195, 247, 0.05);
+}
+.dm-sidebar-item--active {
+  color: var(--bp-accent);
+  border-left-color: var(--bp-accent);
+  background: rgba(79, 195, 247, 0.08);
+}
+
+.dm-sidebar-item .item-sheet {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--bp-text-faint);
+  margin-left: auto;
+}
+
+.dm-main {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.dm-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--bp-line-faint);
+  margin-bottom: 20px;
+}
+
+.dm-header-bar h3 {
+  font-size: 1.1rem;
+  font-family: var(--font-heading);
+  letter-spacing: 0.12em;
+}
+
+/* Kanban columns inside dashboard mock */
+.dm-kanban {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  flex: 1;
+}
+
+.dm-kanban-col {
+  border: 1px solid var(--bp-line-faint);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+.dm-kanban-col .col-marker {
+  position: absolute;
+  top: -10px;
+  left: 8px;
+  font-family: var(--font-label);
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--bp-accent);
+  background: var(--bp-base);
+  padding: 1px 8px;
+  border: 1px solid var(--bp-accent-dim);
+  letter-spacing: 0.08em;
+}
+
+.dm-kanban-col .col-title {
+  font-family: var(--font-label);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--bp-text-faint);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--bp-line-faint);
+}
+
+.dm-kanban-card {
+  border: 1px solid var(--bp-line-faint);
+  padding: 8px 10px;
+  background: rgba(14, 34, 64, 0.40);
+  font-size: 0.72rem;
+}
+.dm-kanban-card .card-id {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--bp-text-faint);
+  margin-bottom: 4px;
+}
+.dm-kanban-card .card-name {
+  font-family: var(--font-label);
+  color: var(--bp-text-dim);
+  letter-spacing: 0.04em;
+}
+.dm-kanban-card .card-prio {
+  font-family: var(--font-label);
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-top: 6px;
+}
+.card-prio--high   { color: var(--bp-error); }
+.card-prio--medium { color: var(--bp-warn); }
+.card-prio--low    { color: var(--bp-text-faint); }
+
+/* Dashboard title block */
+.dm-title-block {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--bp-line-faint);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 16px;
+  font-family: var(--font-label);
+  font-size: 0.6rem;
+  color: var(--bp-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.dm-title-block dt { color: var(--bp-text-faint); opacity: 0.6; }
+.dm-title-block dd { text-align: right; }
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+@keyframes blueprint-draw {
+  from { stroke-dashoffset: 200; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes stamp-press {
+  0%   { transform: scale(1.3) rotate(-3deg); opacity: 0; }
+  60%  { transform: scale(0.95) rotate(-3deg); opacity: 1; }
+  100% { transform: scale(1) rotate(-3deg); opacity: 0.85; }
+}
+
+.stamp--animated {
+  animation: stamp-press 0.4s ease-out forwards;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 900px) {
+  .grid-4 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: 1fr 1fr; }
+  .dashboard-mock { grid-template-columns: 160px 1fr; }
+  .dm-kanban { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 600px) {
+  .page-wrapper { padding: 20px 16px 60px; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .dashboard-mock { grid-template-columns: 1fr; }
+  .dm-sidebar { display: none; }
+  .bp-header { flex-direction: column; gap: 16px; text-align: center; }
+  .bp-header .header-meta { text-align: center; }
+  .dm-kanban { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="page-wrapper">
+
+  <!-- ============================================================
+       HEADER
+       ============================================================ -->
+  <header class="bp-header">
+    <span class="corner corner--tl"></span>
+    <span class="corner corner--tr"></span>
+    <span class="corner corner--bl"></span>
+    <span class="corner corner--br"></span>
+    <div class="logo">
+      <span class="logo-mark"></span>
+      DevGlide
+    </div>
+    <div class="header-meta">
+      Drawing No. DG-2026-001 &mdash; Rev. C<br>
+      Blueprint Design System<br>
+      Date: 2026-04-03
+    </div>
+  </header>
+
+  <!-- Dimension line -->
+  <div class="dimension-line">
+    <span class="dl-tick"></span>
+    <span class="dl-arrow"></span>
+    <span class="dl-label">1280px max-width</span>
+    <span class="dl-arrow"></span>
+    <span class="dl-tick"></span>
+  </div>
+
+  <!-- ============================================================
+       SECTION 1 — COLOR PALETTE
+       ============================================================ -->
+  <section>
+    <div class="section-label">
+      <span class="marker">1</span>
+      <h2>Color Palette</h2>
+    </div>
+    <p class="section-desc">
+      The blueprint palette is rooted in deep indigo-blues with white and cyan for line work.
+      Functional colors use traditional drawing markup conventions: red for errors, amber for
+      caution, green for approval.
+    </p>
+
+    <div class="bp-panel">
+      <span class="bp-corner-tr"></span>
+      <span class="bp-corner-bl"></span>
+      <span class="bp-corner-br"></span>
+
+      <p class="label-text mb-16">Foundation Blues</p>
+      <div class="grid-4 mb-24">
+        <div class="color-swatch">
+          <div class="swatch-box" style="background:#0e2240;" data-hex="#0e2240"></div>
+          <span class="swatch-name">Deep</span>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-box" style="background:#1a3a5c;" data-hex="#1a3a5c"></div>
+          <span class="swatch-name">Base (Paper)</span>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-box" style="background:#1f4a6e;" data-hex="#1f4a6e"></div>
+          <span class="swatch-name">Mid</span>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-box" style="background:#2a5f8a;" data-hex="#2a5f8a"></div>
+          <span class="swatch-name">Light</span>
+        </div>
+      </div>
+
+      <p class="label-text mb-16">Line Work &amp; Text</p>
+      <div class="grid-4 mb-24">
+        <div class="color-swatch">
+          <div class="swatch-box" style="background:#e8f0ff; border-color:var(--bp-base);" data-hex="#e8f0ff"></div>
+          <span class="swatch-name">Primary Text</span>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-box" style="background:#a0b8d8;" data-hex="#a0b8d8"></div>
+          <span class="swatch-name">Dim Text</span>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-box" style="background:#6d8aaf;" data-hex="#6d8aaf"></div>
+          <span class="swatch-name">Faint Text</span>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-box" style="background:#4fc3f7;" data-hex="#4fc3f7"></div>
+          <span class="swatch-name">Accent (Cyan)</span>
+        </div>
+      </div>
+
+      <p class="label-text mb-16">Functional / Markup</p>
+      <div class="grid-4">
+        <div class="color-swatch">
+          <div class="swatch-box" style="background:#66bb6a;" data-hex="#66bb6a"></div>
+          <span class="swatch-name">Approved / Success</span>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-box" style="background:#ffb74d;" data-hex="#ffb74d"></div>
+          <span class="swatch-name">Caution / Warning</span>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-box" style="background:#ef5350;" data-hex="#ef5350"></div>
+          <span class="swatch-name">Rejected / Error</span>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-box" style="background:#2196c9;" data-hex="#2196c9"></div>
+          <span class="swatch-name">Accent Dim</span>
+        </div>
+      </div>
+
+      <dl class="title-block">
+        <dt>Sheet</dt><dd>1 of 6</dd>
+        <dt>Scale</dt><dd>N/A</dd>
+        <dt>Drawn</dt><dd>DevGlide</dd>
+        <dt>Rev</dt><dd>C</dd>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SECTION 2 — TYPOGRAPHY
+       ============================================================ -->
+  <section>
+    <div class="section-label">
+      <span class="marker">2</span>
+      <h2>Typography</h2>
+    </div>
+    <p class="section-desc">
+      Headers use Oswald — a condensed, technical typeface reminiscent of engineering title
+      blocks. Labels use Archivo Narrow for compact, legible annotation text. All body text
+      and code uses JetBrains Mono.
+    </p>
+
+    <div class="bp-panel">
+      <span class="bp-corner-tr"></span>
+      <span class="bp-corner-bl"></span>
+      <span class="bp-corner-br"></span>
+
+      <div class="flex gap-32" style="flex-direction:column;">
+        <div>
+          <p class="caption mb-8">Heading XL &mdash; Oswald 2.2rem</p>
+          <p class="heading-xl">DevGlide Blueprint</p>
+        </div>
+        <div>
+          <p class="caption mb-8">Heading LG &mdash; Oswald 1.6rem</p>
+          <p class="heading-lg">System Architecture</p>
+        </div>
+        <div>
+          <p class="caption mb-8">Heading MD &mdash; Oswald 1.15rem</p>
+          <p class="heading-md">Module Specification</p>
+        </div>
+        <div>
+          <p class="caption mb-8">Heading SM &mdash; Oswald 0.9rem</p>
+          <p class="heading-sm">Component Detail</p>
+        </div>
+
+        <!-- Dimension line -->
+        <div class="dimension-line">
+          <span class="dl-tick"></span>
+          <span class="dl-arrow"></span>
+          <span class="dl-label">Type Scale</span>
+          <span class="dl-arrow"></span>
+          <span class="dl-tick"></span>
+        </div>
+
+        <div>
+          <p class="caption mb-8">Label &mdash; Archivo Narrow 0.8rem</p>
+          <p class="label-text">Section reference / field label / annotation text</p>
+        </div>
+        <div>
+          <p class="caption mb-8">Body &mdash; JetBrains Mono 0.85rem</p>
+          <p class="body-text">The standard body text for descriptions, documentation, and general content. Monospace for that technical drawing feel, with comfortable line height for readability across long passages.</p>
+        </div>
+        <div>
+          <p class="caption mb-8">Code / Mono &mdash; JetBrains Mono 0.8rem</p>
+          <p class="mono-text">const server = createDevglideMcpServer({ name: 'kanban' });</p>
+        </div>
+        <div>
+          <p class="caption mb-8">Caption &mdash; Archivo Narrow 0.7rem</p>
+          <p class="caption">Reference number DG-2026-001-C &bull; Drawing notes &bull; Tolerances</p>
+        </div>
+      </div>
+
+      <dl class="title-block">
+        <dt>Sheet</dt><dd>2 of 6</dd>
+        <dt>Family</dt><dd>Type</dd>
+        <dt>Drawn</dt><dd>DevGlide</dd>
+        <dt>Rev</dt><dd>C</dd>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SECTION 3 — BUTTONS, INPUTS, BADGES, TOASTS
+       ============================================================ -->
+  <section>
+    <div class="section-label">
+      <span class="marker">3</span>
+      <h2>Components</h2>
+    </div>
+    <p class="section-desc">
+      Interactive elements rendered in the blueprint idiom. Double-border buttons, clean
+      inputs, stamp-style badges, and annotation-style toasts.
+    </p>
+
+    <div class="bp-panel">
+      <span class="bp-corner-tr"></span>
+      <span class="bp-corner-bl"></span>
+      <span class="bp-corner-br"></span>
+
+      <!-- BUTTONS -->
+      <div class="detail-card mb-24">
+        <span class="card-marker">A-1</span>
+        <p class="card-title">Buttons</p>
+        <div class="flex flex-wrap gap-12 items-center mt-16">
+          <button class="btn">Default</button>
+          <button class="btn btn--primary">Primary</button>
+          <button class="btn btn--success">Approve</button>
+          <button class="btn btn--danger">Reject</button>
+          <button class="btn btn--sm">Small</button>
+          <button class="btn btn--lg btn--primary">Large Action</button>
+          <button class="btn btn--icon" title="Settings">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- INPUTS -->
+      <div class="detail-card mb-24">
+        <span class="card-marker">A-2</span>
+        <p class="card-title">Form Inputs</p>
+        <div class="grid-2 mt-16">
+          <div class="field-group">
+            <label class="field-label">Project Name</label>
+            <input type="text" class="bp-input" placeholder="Enter project identifier..." value="devglide-v2">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Environment</label>
+            <select class="bp-select">
+              <option>Production</option>
+              <option selected>Staging</option>
+              <option>Development</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Description</label>
+            <textarea class="bp-textarea" placeholder="Technical specification notes...">MCP server configuration for multi-agent orchestration with blueprint-style interface rendering.</textarea>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Options</label>
+            <div class="flex gap-16" style="flex-direction:column; margin-top:4px;">
+              <label class="bp-checkbox"><input type="checkbox" checked> Enable Auto-Build</label>
+              <label class="bp-checkbox"><input type="checkbox"> Verbose Logging</label>
+              <label class="bp-checkbox"><input type="checkbox" checked> Hot Reload</label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAGS -->
+      <div class="detail-card mb-24">
+        <span class="card-marker">A-3</span>
+        <p class="card-title">Tags &amp; Labels</p>
+        <div class="flex flex-wrap gap-8 mt-16">
+          <span class="bp-tag">Default</span>
+          <span class="bp-tag bp-tag--accent">MCP</span>
+          <span class="bp-tag bp-tag--success">Stable</span>
+          <span class="bp-tag bp-tag--warn">Beta</span>
+          <span class="bp-tag bp-tag--error">Breaking</span>
+          <span class="bp-tag">Kanban</span>
+          <span class="bp-tag bp-tag--accent">Shell</span>
+          <span class="bp-tag bp-tag--accent">Voice</span>
+          <span class="bp-tag">Workflow</span>
+        </div>
+      </div>
+
+      <!-- STAMPS -->
+      <div class="detail-card mb-24">
+        <span class="card-marker">A-4</span>
+        <p class="card-title">Stamp Badges</p>
+        <div class="flex flex-wrap gap-24 items-center mt-16">
+          <span class="stamp stamp--approved">Approved</span>
+          <span class="stamp stamp--revision">Revision B</span>
+          <span class="stamp stamp--rejected">Rejected</span>
+          <span class="stamp stamp--draft">Draft</span>
+          <span class="stamp stamp--approved stamp--large">Final Review Passed</span>
+          <span class="stamp stamp--round stamp--approved stamp--large">QA<br>Passed</span>
+          <span class="stamp stamp--round stamp--rejected">Not For<br>Constr.</span>
+          <span class="stamp stamp--round stamp--draft">Prelim<br>Issue</span>
+        </div>
+      </div>
+
+      <!-- TOASTS -->
+      <div class="detail-card mb-24">
+        <span class="card-marker">A-5</span>
+        <p class="card-title">Toasts &amp; Notices</p>
+        <div class="flex gap-12 mt-16" style="flex-direction:column;">
+          <div class="bp-toast bp-toast--info">
+            MCP server "kanban" registered successfully on port 7000.
+            <span class="toast-code">INFO-200</span>
+          </div>
+          <div class="bp-toast bp-toast--success">
+            Build completed. 12 modules compiled, 0 errors.
+            <span class="toast-code">BUILD-OK</span>
+          </div>
+          <div class="bp-toast bp-toast--warning">
+            Voice provider fallback active &mdash; using local whisper.cpp.
+            <span class="toast-code">WARN-301</span>
+          </div>
+          <div class="bp-toast bp-toast--error">
+            Shell pane #3 terminated unexpectedly (exit code 137).
+            <span class="toast-code">ERR-500</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- PROGRESS BARS -->
+      <div class="detail-card mb-24">
+        <span class="card-marker">A-6</span>
+        <p class="card-title">Progress Indicators</p>
+        <div class="mt-16">
+          <p class="caption mb-8">Build Progress &mdash; 73%</p>
+          <div class="bp-progress"><div class="bp-progress-fill" style="width:73%"></div></div>
+        </div>
+        <div class="mt-16">
+          <p class="caption mb-8">Test Coverage &mdash; 91%</p>
+          <div class="bp-progress bp-progress--success"><div class="bp-progress-fill" style="width:91%"></div></div>
+        </div>
+        <div class="mt-16">
+          <p class="caption mb-8">Memory Usage &mdash; 84%</p>
+          <div class="bp-progress bp-progress--warn"><div class="bp-progress-fill" style="width:84%"></div></div>
+        </div>
+      </div>
+
+      <!-- CODE BLOCK -->
+      <div class="detail-card mb-24">
+        <span class="card-marker">A-7</span>
+        <p class="card-title">Code Block</p>
+        <div class="mt-16">
+          <div class="bp-code">
+<span class="line-no">1</span><span class="cmt">// MCP Server — Blueprint Configuration</span>
+<span class="line-no">2</span><span class="kw">import</span> <span class="fn">{ createDevglideMcpServer }</span> <span class="kw">from</span> <span class="str">'@devglide/core'</span>;
+<span class="line-no">3</span>
+<span class="line-no">4</span><span class="kw">const</span> <span class="fn">server</span> = <span class="fn">createDevglideMcpServer</span>({
+<span class="line-no">5</span>  name: <span class="str">'kanban'</span>,
+<span class="line-no">6</span>  port: <span class="num">7000</span>,
+<span class="line-no">7</span>  tools: [<span class="str">'list'</span>, <span class="str">'create'</span>, <span class="str">'move'</span>, <span class="str">'update'</span>],
+<span class="line-no">8</span>  columns: [<span class="str">'Backlog'</span>, <span class="str">'Todo'</span>, <span class="str">'In Progress'</span>, <span class="str">'Done'</span>],
+<span class="line-no">9</span>});
+<span class="line-no">10</span>
+<span class="line-no">11</span><span class="fn">server</span>.<span class="fn">listen</span>(() =&gt; {
+<span class="line-no">12</span>  <span class="fn">console</span>.<span class="fn">log</span>(<span class="str">`Blueprint server active on :</span><span class="num">${port}</span><span class="str">`</span>);
+<span class="line-no">13</span>});
+          </div>
+        </div>
+      </div>
+
+      <!-- TABLE -->
+      <div class="detail-card">
+        <span class="card-marker">A-8</span>
+        <p class="card-title">Data Table</p>
+        <div class="mt-16">
+          <table class="bp-table">
+            <thead>
+              <tr>
+                <th>Server</th>
+                <th>Status</th>
+                <th>Tools</th>
+                <th>Uptime</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="color:var(--bp-text);">devglide-kanban</td>
+                <td><span class="bp-tag bp-tag--success">Active</span></td>
+                <td>12</td>
+                <td style="font-family:var(--font-mono);font-size:0.75rem;">4d 12h 33m</td>
+              </tr>
+              <tr>
+                <td style="color:var(--bp-text);">devglide-shell</td>
+                <td><span class="bp-tag bp-tag--success">Active</span></td>
+                <td>5</td>
+                <td style="font-family:var(--font-mono);font-size:0.75rem;">4d 12h 33m</td>
+              </tr>
+              <tr>
+                <td style="color:var(--bp-text);">devglide-voice</td>
+                <td><span class="bp-tag bp-tag--warn">Degraded</span></td>
+                <td>8</td>
+                <td style="font-family:var(--font-mono);font-size:0.75rem;">2d 06h 11m</td>
+              </tr>
+              <tr>
+                <td style="color:var(--bp-text);">devglide-test</td>
+                <td><span class="bp-tag bp-tag--error">Offline</span></td>
+                <td>6</td>
+                <td style="font-family:var(--font-mono);font-size:0.75rem;">&mdash;</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <dl class="title-block">
+        <dt>Sheet</dt><dd>3 of 6</dd>
+        <dt>Scale</dt><dd>1:1</dd>
+        <dt>Drawn</dt><dd>DevGlide</dd>
+        <dt>Rev</dt><dd>C</dd>
+      </dl>
+    </div>
+  </section>
+
+  <!-- Dimension line -->
+  <div class="dimension-line">
+    <span class="dl-tick"></span>
+    <span class="dl-arrow"></span>
+    <span class="dl-label">Component Specifications &mdash; Detail Views A-1 through A-8</span>
+    <span class="dl-arrow"></span>
+    <span class="dl-tick"></span>
+  </div>
+
+  <!-- ============================================================
+       SECTION 4 — DASHBOARD MOCKUP
+       ============================================================ -->
+  <section class="mt-32">
+    <div class="section-label">
+      <span class="marker">4</span>
+      <h2>Dashboard Mockup</h2>
+    </div>
+    <p class="section-desc">
+      The sidebar serves as a drawing index / sheet list. The main area renders the active
+      module &mdash; here shown as the Kanban board with section markers on each column.
+    </p>
+
+    <div class="dashboard-mock">
+      <span class="dm-corner dm-corner--tl"></span>
+      <span class="dm-corner dm-corner--tr"></span>
+      <span class="dm-corner dm-corner--bl"></span>
+      <span class="dm-corner dm-corner--br"></span>
+
+      <!-- Sidebar -->
+      <div class="dm-sidebar">
+        <div class="dm-sidebar-title">Drawing Index</div>
+        <div class="dm-sidebar-item dm-sidebar-item--active">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          Kanban
+          <span class="item-sheet">SH.1</span>
+        </div>
+        <div class="dm-sidebar-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="1"/><line x1="4" y1="10" x2="20" y2="10"/><line x1="10" y1="4" x2="10" y2="20"/></svg>
+          Shell
+          <span class="item-sheet">SH.2</span>
+        </div>
+        <div class="dm-sidebar-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="11 5 6 9 6 15 11 19 17 15 17 9"/></svg>
+          Workflow
+          <span class="item-sheet">SH.3</span>
+        </div>
+        <div class="dm-sidebar-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+          Voice
+          <span class="item-sheet">SH.4</span>
+        </div>
+        <div class="dm-sidebar-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Chat
+          <span class="item-sheet">SH.5</span>
+        </div>
+        <div class="dm-sidebar-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Tests
+          <span class="item-sheet">SH.6</span>
+        </div>
+        <div class="dm-sidebar-item">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Docs
+          <span class="item-sheet">SH.7</span>
+        </div>
+      </div>
+
+      <!-- Main content area -->
+      <div class="dm-main">
+        <div class="dm-header-bar">
+          <h3>Kanban &mdash; Feature Board</h3>
+          <div class="flex gap-8">
+            <button class="btn btn--sm btn--primary">+ New Task</button>
+            <button class="btn btn--sm">Filter</button>
+          </div>
+        </div>
+
+        <div class="dm-kanban">
+          <!-- BACKLOG -->
+          <div class="dm-kanban-col">
+            <span class="col-marker">B-1</span>
+            <div class="col-title">Backlog</div>
+            <div class="dm-kanban-card">
+              <div class="card-id">#DG-041</div>
+              <div class="card-name">Add workflow DAG visualizer</div>
+              <div class="card-prio card-prio--low">Low</div>
+            </div>
+            <div class="dm-kanban-card">
+              <div class="card-id">#DG-042</div>
+              <div class="card-name">Voice history export to CSV</div>
+              <div class="card-prio card-prio--low">Low</div>
+            </div>
+          </div>
+
+          <!-- TODO -->
+          <div class="dm-kanban-col">
+            <span class="col-marker">B-2</span>
+            <div class="col-title">Todo</div>
+            <div class="dm-kanban-card">
+              <div class="card-id">#DG-038</div>
+              <div class="card-name">Blueprint theme CSS integration</div>
+              <div class="card-prio card-prio--high">High</div>
+            </div>
+            <div class="dm-kanban-card">
+              <div class="card-id">#DG-039</div>
+              <div class="card-name">Shell pane auto-reconnect</div>
+              <div class="card-prio card-prio--medium">Medium</div>
+            </div>
+          </div>
+
+          <!-- IN PROGRESS -->
+          <div class="dm-kanban-col">
+            <span class="col-marker">B-3</span>
+            <div class="col-title">In Progress</div>
+            <div class="dm-kanban-card">
+              <div class="card-id">#DG-035</div>
+              <div class="card-name">MCP server bundling pipeline</div>
+              <div class="card-prio card-prio--high">High</div>
+            </div>
+          </div>
+
+          <!-- DONE -->
+          <div class="dm-kanban-col">
+            <span class="col-marker">B-4</span>
+            <div class="col-title">Done</div>
+            <div class="dm-kanban-card">
+              <div class="card-id">#DG-032</div>
+              <div class="card-name">Chat multi-agent broadcast</div>
+              <div class="card-prio card-prio--medium">Medium</div>
+            </div>
+            <div class="dm-kanban-card">
+              <div class="card-id">#DG-033</div>
+              <div class="card-name">Documentation seed content</div>
+              <div class="card-prio card-prio--medium">Medium</div>
+            </div>
+            <div class="dm-kanban-card">
+              <div class="card-id">#DG-034</div>
+              <div class="card-name">Kanban work log append</div>
+              <div class="card-prio card-prio--low">Low</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dashboard title block -->
+        <dl class="dm-title-block">
+          <dt>Project</dt><dd>DevGlide</dd>
+          <dt>Sheet</dt><dd>SH.1 &mdash; Kanban</dd>
+          <dt>Date</dt><dd>2026-04-03</dd>
+          <dt>Rev</dt><dd>C</dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- Dimension line -->
+  <div class="dimension-line">
+    <span class="dl-tick"></span>
+    <span class="dl-arrow"></span>
+    <span class="dl-label">Dashboard Layout &mdash; 200px sidebar + fluid main</span>
+    <span class="dl-arrow"></span>
+    <span class="dl-tick"></span>
+  </div>
+
+  <!-- ============================================================
+       SECTION 5 — GRID & FOLD MARKS REFERENCE
+       ============================================================ -->
+  <section class="mt-32">
+    <div class="section-label">
+      <span class="marker">5</span>
+      <h2>Grid &amp; Drawing Artifacts</h2>
+    </div>
+    <p class="section-desc">
+      The blueprint background includes a dual-density grid (20px fine, 100px thick) visible
+      behind all content. Horizontal fold marks appear every 300px. These are purely decorative
+      CSS layers applied to the body.
+    </p>
+
+    <div class="bp-panel">
+      <span class="bp-corner-tr"></span>
+      <span class="bp-corner-bl"></span>
+      <span class="bp-corner-br"></span>
+
+      <div class="grid-3">
+        <div class="detail-card">
+          <span class="card-marker">C-1</span>
+          <p class="card-title">Fine Grid</p>
+          <div class="card-body mt-8">
+            20px interval, white at 5% opacity. Provides the underlying paper texture of an engineering drawing.
+          </div>
+        </div>
+        <div class="detail-card">
+          <span class="card-marker">C-2</span>
+          <p class="card-title">Major Grid</p>
+          <div class="card-body mt-8">
+            100px interval, white at 10% opacity. Thicker lines create visual reference points for alignment.
+          </div>
+        </div>
+        <div class="detail-card">
+          <span class="card-marker">C-3</span>
+          <p class="card-title">Fold Marks</p>
+          <div class="card-body mt-8">
+            Dashed horizontal lines every 300px. Suggests the paper was folded for storage, adding tactile authenticity.
+          </div>
+        </div>
+      </div>
+
+      <div class="dimension-line mt-24">
+        <span class="dl-tick"></span>
+        <span class="dl-arrow"></span>
+        <span class="dl-label">20px</span>
+        <span class="dl-arrow"></span>
+        <span class="dl-label">20px</span>
+        <span class="dl-arrow"></span>
+        <span class="dl-label">20px</span>
+        <span class="dl-arrow"></span>
+        <span class="dl-label">20px</span>
+        <span class="dl-arrow"></span>
+        <span class="dl-label">20px = 100px major interval</span>
+        <span class="dl-arrow"></span>
+        <span class="dl-tick"></span>
+      </div>
+
+      <div class="grid-2 mt-24">
+        <div class="detail-card">
+          <span class="card-marker">C-4</span>
+          <p class="card-title">Corner Brackets</p>
+          <div class="card-body mt-8">
+            L-shaped corner marks on panels replicate the registration marks of technical drawings. Created with border fragments on pseudo-elements.
+          </div>
+        </div>
+        <div class="detail-card">
+          <span class="card-marker">C-5</span>
+          <p class="card-title">Dimension Lines</p>
+          <div class="card-body mt-8">
+            Horizontal measurement annotations with arrow endpoints and tick marks. Used decoratively between sections to convey engineering precision.
+          </div>
+        </div>
+      </div>
+
+      <dl class="title-block">
+        <dt>Sheet</dt><dd>5 of 6</dd>
+        <dt>Scale</dt><dd>NTS</dd>
+        <dt>Drawn</dt><dd>DevGlide</dd>
+        <dt>Rev</dt><dd>C</dd>
+      </dl>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SECTION 6 — DRAWING NOTES & REVISION TABLE
+       ============================================================ -->
+  <section>
+    <div class="section-label">
+      <span class="marker">6</span>
+      <h2>Drawing Notes &amp; Revisions</h2>
+    </div>
+    <p class="section-desc">
+      Every architectural drawing set includes general notes and a revision history. This
+      section demonstrates both, styled as they would appear on a title sheet.
+    </p>
+
+    <div class="bp-panel">
+      <span class="bp-corner-tr"></span>
+      <span class="bp-corner-bl"></span>
+      <span class="bp-corner-br"></span>
+
+      <div class="grid-2">
+        <div>
+          <p class="heading-sm mb-16">General Notes</p>
+          <div class="body-text" style="line-height:2.2;">
+            1. All dimensions in pixels unless noted otherwise.<br>
+            2. Color values specified in hexadecimal (sRGB).<br>
+            3. Font sizes relative to 14px base (1rem = 14px).<br>
+            4. Grid spacing: 20px fine, 100px major.<br>
+            5. Minimum contrast ratio: 4.5:1 (WCAG AA).<br>
+            6. Panel corner brackets: 12px default, scalable.<br>
+            7. All borders: 1px solid unless noted.<br>
+            8. Blueprint paper color: #1a3a5c (Pantone 7693 C approx.)
+          </div>
+        </div>
+        <div>
+          <p class="heading-sm mb-16">Revision History</p>
+          <table class="bp-table">
+            <thead>
+              <tr><th>Rev</th><th>Date</th><th>Description</th><th>By</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>A</td><td>2026-03-15</td><td>Initial draft</td><td>DK</td></tr>
+              <tr><td>B</td><td>2026-03-22</td><td>Added dashboard mockup, stamps</td><td>DK</td></tr>
+              <tr><td style="color:var(--bp-accent);">C</td><td>2026-04-03</td><td>Full component library, grid docs</td><td>DK</td></tr>
+            </tbody>
+          </table>
+
+          <div class="flex gap-16 items-center mt-24" style="justify-content:flex-end;">
+            <span class="stamp stamp--approved stamp--animated">Rev C Approved</span>
+          </div>
+        </div>
+      </div>
+
+      <dl class="title-block">
+        <dt>Sheet</dt><dd>6 of 6</dd>
+        <dt>Project</dt><dd>DevGlide</dd>
+        <dt>Drawn</dt><dd>DK</dd>
+        <dt>Date</dt><dd>2026-04-03</dd>
+        <dt>Rev</dt><dd>C</dd>
+      </dl>
+    </div>
+  </section>
+
+  <!-- Final dimension line -->
+  <div class="dimension-line">
+    <span class="dl-tick"></span>
+    <span class="dl-arrow"></span>
+    <span class="dl-label">End of Drawing Set &mdash; DG-2026-001 Rev C &mdash; 6 Sheets</span>
+    <span class="dl-arrow"></span>
+    <span class="dl-tick"></span>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     JAVASCRIPT — Minimal interactivity
+     ============================================================ -->
+<script>
+(function() {
+  'use strict';
+
+  // Sidebar item click highlighting
+  document.querySelectorAll('.dm-sidebar-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+      document.querySelectorAll('.dm-sidebar-item').forEach(function(i) {
+        i.classList.remove('dm-sidebar-item--active');
+      });
+      this.classList.add('dm-sidebar-item--active');
+    });
+  });
+
+  // Button ripple / press feedback
+  document.querySelectorAll('.btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+    });
+  });
+
+  // Stamp animation on scroll into view
+  var stamps = document.querySelectorAll('.stamp--animated');
+  if ('IntersectionObserver' in window) {
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.style.animation = 'none';
+          // Force reflow
+          void entry.target.offsetWidth;
+          entry.target.style.animation = 'stamp-press 0.5s ease-out forwards';
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.5 });
+
+    stamps.forEach(function(stamp) {
+      observer.observe(stamp);
+    });
+  }
+
+  // Toast dismiss on click
+  document.querySelectorAll('.bp-toast').forEach(function(toast) {
+    toast.style.cursor = 'pointer';
+    toast.addEventListener('click', function() {
+      this.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+      this.style.opacity = '0';
+      this.style.transform = 'translateX(20px)';
+      var el = this;
+      setTimeout(function() { el.style.display = 'none'; }, 300);
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

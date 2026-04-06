@@ -119,20 +119,20 @@ ${oklchBlock}
 
   /* Accent glow pulse */
   @keyframes df-glow-pulse {
-    0%, 100% { filter: drop-shadow(0 0 6px rgba(0,175,175,0.4)); }
-    50%      { filter: drop-shadow(0 0 14px rgba(0,175,175,0.7)); }
+    0%, 100% { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--df-color-accent-default) 24%, transparent)); }
+    50%      { filter: drop-shadow(0 0 12px color-mix(in srgb, var(--df-color-accent-default) 36%, transparent)); }
   }
 
   /* Error/recording alert pulse */
   @keyframes df-alert-pulse {
-    0%, 100% { box-shadow: 0 0 6px rgba(255,51,51,0.4); }
-    50%      { box-shadow: 0 0 16px rgba(255,51,51,0.8); }
+    0%, 100% { box-shadow: 0 0 6px color-mix(in srgb, var(--df-color-state-error) 24%, transparent); }
+    50%      { box-shadow: 0 0 14px color-mix(in srgb, var(--df-color-state-error) 38%, transparent); }
   }
 
   /* Processing amber pulse */
   @keyframes df-processing-pulse {
-    0%, 100% { box-shadow: 0 0 6px rgba(227,179,65,0.3); }
-    50%      { box-shadow: 0 0 12px rgba(227,179,65,0.6); }
+    0%, 100% { box-shadow: 0 0 6px color-mix(in srgb, var(--df-color-state-processing) 20%, transparent); }
+    50%      { box-shadow: 0 0 12px color-mix(in srgb, var(--df-color-state-processing) 32%, transparent); }
   }
 
   /* Cursor blink */
@@ -198,7 +198,7 @@ ${oklchBlock}
     background: linear-gradient(
       to bottom,
       transparent 0%,
-      rgba(0,175,175,0.03) 50%,
+      color-mix(in srgb, var(--df-color-accent-default) 8%, transparent) 50%,
       transparent 100%
     );
     background-size: 100% 40px;
@@ -210,8 +210,8 @@ ${oklchBlock}
   .df-grid {
     background-image: repeating-linear-gradient(
       -45deg,
-      rgba(0,175,175,0.02) 0px,
-      rgba(0,175,175,0.02) 1px,
+      color-mix(in srgb, var(--df-color-accent-default) 6%, transparent) 0px,
+      color-mix(in srgb, var(--df-color-accent-default) 6%, transparent) 1px,
       transparent 1px,
       transparent 8px
     );

@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevGlide | Fighter Jet HUD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=B612+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ================================================================
+   RESET & BASE
+   ================================================================ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --hud-green: #33ff33;
+  --hud-green2: #00ff88;
+  --hud-amber: #ffaa00;
+  --hud-red: #ff3333;
+  --hud-dim: rgba(51, 255, 51, 0.25);
+  --hud-glow: 0 0 6px rgba(51, 255, 51, 0.6), 0 0 12px rgba(51, 255, 51, 0.2);
+  --hud-glow-amber: 0 0 6px rgba(255, 170, 0, 0.6), 0 0 12px rgba(255, 170, 0, 0.2);
+  --hud-glow-red: 0 0 6px rgba(255, 51, 51, 0.6), 0 0 12px rgba(255, 51, 51, 0.2);
+  --font: 'B612 Mono', 'Courier New', monospace;
+  --bg-top: #0a1628;
+  --bg-bottom: #1a2840;
+}
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+  font-family: var(--font);
+  color: var(--hud-green);
+  cursor: crosshair;
+}
+
+/* ================================================================
+   STARS — very faint background
+   ================================================================ */
+.stars {
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 0;
+}
+.stars span {
+  position: absolute;
+  width: 1px; height: 1px;
+  background: rgba(255,255,255,0.35);
+  border-radius: 50%;
+}
+
+/* ================================================================
+   TERRAIN WIREFRAME — perspective grid at bottom
+   ================================================================ */
+.terrain {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: 35%;
+  perspective: 600px;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+  mask-image: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 100%);
+}
+.terrain-grid {
+  position: absolute;
+  bottom: -10%; left: -20%; right: -20%;
+  height: 160%;
+  transform: rotateX(65deg);
+  transform-origin: bottom center;
+  background-image:
+    linear-gradient(0deg, rgba(51,255,51,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(51,255,51,0.06) 1px, transparent 1px);
+  background-size: 60px 60px;
+  animation: terrain-scroll 8s linear infinite;
+}
+@keyframes terrain-scroll {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 60px; }
+}
+
+/* ================================================================
+   CANOPY GLASS LAYER — the main HUD overlay
+   ================================================================ */
+.canopy {
+  position: fixed; inset: 0;
+  perspective: 1200px;
+  z-index: 10;
+  pointer-events: none;
+}
+.hud {
+  width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  transform: rotateX(2deg);
+  transition: transform 0.15s ease-out;
+  pointer-events: none;
+}
+.hud * { pointer-events: none; }
+
+/* ================================================================
+   SCANLINES overlay
+   ================================================================ */
+.scanlines {
+  position: fixed; inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 0, 0, 0.04) 2px,
+    rgba(0, 0, 0, 0.04) 4px
+  );
+}
+
+/* ================================================================
+   SHARED TEXT STYLES
+   ================================================================ */
+.hud-text {
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+  letter-spacing: 0.5px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.hud-text.amber { color: var(--hud-amber); text-shadow: var(--hud-glow-amber); }
+.hud-text.red   { color: var(--hud-red);   text-shadow: var(--hud-glow-red); }
+.hud-text.dim   { color: var(--hud-dim);   text-shadow: none; }
+
+/* ================================================================
+   HEADING TAPE — top center
+   ================================================================ */
+.heading-tape-container {
+  position: absolute;
+  top: 28px; left: 50%;
+  transform: translateX(-50%);
+  width: 420px; height: 44px;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(51,255,51,0.3);
+}
+.heading-caret {
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid var(--hud-green);
+  filter: drop-shadow(0 0 4px rgba(51,255,51,0.6));
+  z-index: 2;
+}
+.heading-tape {
+  position: absolute;
+  top: 10px; left: 0;
+  height: 34px;
+  display: flex; align-items: flex-end;
+  transition: transform 0.08s linear;
+}
+.heading-tick {
+  display: flex; flex-direction: column; align-items: center;
+  width: 40px; flex-shrink: 0;
+}
+.heading-tick .line {
+  width: 1px; height: 10px;
+  background: var(--hud-green);
+  box-shadow: var(--hud-glow);
+}
+.heading-tick .line.major { height: 16px; width: 1.5px; }
+.heading-tick .label {
+  font-family: var(--font);
+  font-size: 10px;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+  margin-top: 2px;
+}
+.heading-value-box {
+  position: absolute;
+  top: -2px; left: 50%;
+  transform: translateX(-50%);
+  background: rgba(51,255,51,0.08);
+  border: 1px solid rgba(51,255,51,0.5);
+  padding: 1px 10px;
+  font-family: var(--font);
+  font-size: 12px; font-weight: 700;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+  z-index: 3;
+}
+
+/* ================================================================
+   PITCH LADDER — center
+   ================================================================ */
+.pitch-ladder {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px; height: 400px;
+  overflow: hidden;
+}
+.pitch-lines {
+  position: absolute;
+  left: 0; right: 0;
+  transition: transform 0.08s linear;
+}
+.pitch-line {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  height: 40px;
+}
+.pitch-line .segment {
+  height: 1px;
+  background: var(--hud-green);
+  box-shadow: var(--hud-glow);
+}
+.pitch-line .segment.horizon { height: 1.5px; }
+.pitch-line .gap { width: 80px; }
+.pitch-line .deg-label {
+  position: absolute;
+  font-family: var(--font);
+  font-size: 9px;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+}
+.pitch-line .deg-label.left  { right: calc(50% + 70px); }
+.pitch-line .deg-label.right { left:  calc(50% + 70px); }
+.pitch-line.negative .segment {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--hud-green) 0px,
+    var(--hud-green) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+  height: 1px;
+}
+
+/* ================================================================
+   FLIGHT PATH MARKER (Velocity Vector)
+   ================================================================ */
+.fpm {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px; height: 24px;
+  transition: transform 0.08s linear;
+}
+.fpm-circle {
+  width: 24px; height: 24px;
+  border: 1.5px solid var(--hud-green);
+  border-radius: 50%;
+  box-shadow: var(--hud-glow);
+}
+.fpm-wing-l, .fpm-wing-r {
+  position: absolute;
+  top: 50%; height: 1.5px; width: 14px;
+  background: var(--hud-green);
+  box-shadow: var(--hud-glow);
+}
+.fpm-wing-l { right: 100%; transform: translateY(-50%); margin-right: 1px; }
+.fpm-wing-r { left:  100%; transform: translateY(-50%); margin-left: 1px; }
+.fpm-stab {
+  position: absolute;
+  bottom: 100%; left: 50%;
+  width: 1.5px; height: 10px;
+  background: var(--hud-green);
+  box-shadow: var(--hud-glow);
+  transform: translateX(-50%);
+  margin-bottom: 1px;
+}
+
+/* ================================================================
+   AIRSPEED TAPE — left side
+   ================================================================ */
+.speed-tape-container {
+  position: absolute;
+  top: 50%; left: 60px;
+  transform: translateY(-50%);
+  width: 80px; height: 300px;
+  overflow: hidden;
+  border-right: 1px solid rgba(51,255,51,0.3);
+}
+.speed-tape {
+  position: absolute;
+  right: 0; width: 80px;
+  transition: transform 0.08s linear;
+}
+.speed-tick {
+  display: flex; align-items: center; justify-content: flex-end;
+  height: 30px; padding-right: 6px;
+}
+.speed-tick .line {
+  width: 8px; height: 1px;
+  background: var(--hud-green);
+  box-shadow: var(--hud-glow);
+  margin-left: 4px;
+}
+.speed-tick .line.major { width: 14px; height: 1.5px; }
+.speed-tick .label {
+  font-family: var(--font);
+  font-size: 10px;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+}
+.speed-value-box {
+  position: absolute;
+  top: 50%; right: -1px;
+  transform: translateY(-50%);
+  background: rgba(51,255,51,0.08);
+  border: 1px solid rgba(51,255,51,0.5);
+  padding: 2px 8px;
+  font-family: var(--font);
+  font-size: 13px; font-weight: 700;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+  z-index: 3;
+}
+
+/* ================================================================
+   ALTITUDE TAPE — right side
+   ================================================================ */
+.alt-tape-container {
+  position: absolute;
+  top: 50%; right: 60px;
+  transform: translateY(-50%);
+  width: 80px; height: 300px;
+  overflow: hidden;
+  border-left: 1px solid rgba(51,255,51,0.3);
+}
+.alt-tape {
+  position: absolute;
+  left: 0; width: 80px;
+  transition: transform 0.08s linear;
+}
+.alt-tick {
+  display: flex; align-items: center;
+  height: 30px; padding-left: 6px;
+}
+.alt-tick .line {
+  width: 8px; height: 1px;
+  background: var(--hud-green);
+  box-shadow: var(--hud-glow);
+  margin-right: 4px;
+}
+.alt-tick .line.major { width: 14px; height: 1.5px; }
+.alt-tick .label {
+  font-family: var(--font);
+  font-size: 10px;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+}
+.alt-value-box {
+  position: absolute;
+  top: 50%; left: -1px;
+  transform: translateY(-50%);
+  background: rgba(51,255,51,0.08);
+  border: 1px solid rgba(51,255,51,0.5);
+  padding: 2px 8px;
+  font-family: var(--font);
+  font-size: 13px; font-weight: 700;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+  z-index: 3;
+}
+
+/* ================================================================
+   LEFT MFD — STORES (Weapon Stations / DevGlide Tools)
+   ================================================================ */
+.mfd-left {
+  position: absolute;
+  bottom: 80px; left: 30px;
+  width: 220px;
+  border: 1px solid rgba(51,255,51,0.3);
+  background: rgba(10, 22, 40, 0.6);
+  padding: 8px 10px;
+}
+.mfd-title {
+  font-family: var(--font);
+  font-size: 10px;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+  border-bottom: 1px solid rgba(51,255,51,0.2);
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+  letter-spacing: 2px;
+}
+.store-row {
+  display: flex; justify-content: space-between;
+  font-family: var(--font);
+  font-size: 10px;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+  padding: 2px 0;
+}
+.store-row .status { font-weight: 700; }
+.store-row .status.rdy  { color: var(--hud-green); }
+.store-row .status.arm  { color: var(--hud-amber); text-shadow: var(--hud-glow-amber); }
+.store-row .status.stby { color: var(--hud-dim);   text-shadow: none; }
+.store-row .status.fail { color: var(--hud-red);   text-shadow: var(--hud-glow-red); }
+
+/* ================================================================
+   RIGHT MFD — TARGET LOCK (Current Task)
+   ================================================================ */
+.mfd-right {
+  position: absolute;
+  bottom: 80px; right: 30px;
+  width: 240px;
+  border: 1px solid rgba(51,255,51,0.3);
+  background: rgba(10, 22, 40, 0.6);
+  padding: 8px 10px;
+}
+.target-brackets {
+  position: relative;
+  border: 1px solid var(--hud-green);
+  box-shadow: var(--hud-glow);
+  padding: 8px 10px;
+  margin-top: 6px;
+}
+.target-brackets::before,
+.target-brackets::after {
+  content: '';
+  position: absolute;
+  width: 10px; height: 10px;
+  border-color: var(--hud-green);
+  border-style: solid;
+}
+.target-brackets::before {
+  top: -3px; left: -3px;
+  border-width: 2px 0 0 2px;
+}
+.target-brackets::after {
+  bottom: -3px; right: -3px;
+  border-width: 0 2px 2px 0;
+}
+.target-info {
+  font-family: var(--font);
+  font-size: 9px;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+  line-height: 1.6;
+}
+.target-info .val { font-weight: 700; }
+.target-info .amber { color: var(--hud-amber); text-shadow: var(--hud-glow-amber); }
+
+/* ================================================================
+   RADAR DISPLAY — bottom center
+   ================================================================ */
+.radar-container {
+  position: absolute;
+  bottom: 28px; left: 50%;
+  transform: translateX(-50%);
+  width: 340px; height: 180px;
+  border: 1px solid rgba(51,255,51,0.3);
+  background: rgba(10, 22, 40, 0.7);
+  overflow: hidden;
+}
+.radar-title {
+  position: absolute;
+  top: 4px; left: 8px;
+  font-family: var(--font);
+  font-size: 9px;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+  letter-spacing: 2px;
+}
+.radar-mode {
+  position: absolute;
+  top: 4px; right: 8px;
+  font-family: var(--font);
+  font-size: 9px;
+  color: var(--hud-amber);
+  text-shadow: var(--hud-glow-amber);
+}
+.radar-rings {
+  position: absolute;
+  inset: 20px 10px 10px 10px;
+}
+.radar-ring {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  border: 1px solid rgba(51,255,51,0.12);
+  border-radius: 50%;
+  transform: translateX(-50%);
+}
+.radar-ring-label {
+  position: absolute;
+  font-family: var(--font);
+  font-size: 7px;
+  color: rgba(51,255,51,0.3);
+}
+.radar-center-line {
+  position: absolute;
+  bottom: 10px; left: 50%;
+  width: 1px; height: calc(100% - 30px);
+  background: rgba(51,255,51,0.1);
+}
+.radar-sweep {
+  position: absolute;
+  inset: 20px 10px 10px 10px;
+  overflow: hidden;
+}
+.radar-sweep-line {
+  position: absolute;
+  bottom: 0; left: 50%;
+  width: 1px; height: 100%;
+  background: linear-gradient(to top, rgba(51,255,51,0.5), transparent);
+  transform-origin: bottom center;
+  animation: sweep 4s linear infinite;
+}
+@keyframes sweep {
+  0%   { transform: rotate(-30deg); }
+  100% { transform: rotate(30deg); }
+}
+.radar-blip {
+  position: absolute;
+  width: 6px; height: 6px;
+  background: var(--hud-green);
+  box-shadow: var(--hud-glow);
+  border-radius: 1px;
+  transform: rotate(45deg);
+}
+.radar-blip.urgent {
+  background: var(--hud-red);
+  box-shadow: var(--hud-glow-red);
+}
+.radar-blip.high {
+  background: var(--hud-amber);
+  box-shadow: var(--hud-glow-amber);
+}
+.radar-tag {
+  position: absolute;
+  font-family: var(--font);
+  font-size: 7px;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+  white-space: nowrap;
+}
+.radar-tag.urgent { color: var(--hud-red); text-shadow: var(--hud-glow-red); }
+.radar-tag.high   { color: var(--hud-amber); text-shadow: var(--hud-glow-amber); }
+
+/* ================================================================
+   MASTER CAUTION PANEL — top left
+   ================================================================ */
+.caution-panel {
+  position: absolute;
+  top: 28px; left: 30px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+}
+.caution-light {
+  width: 72px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font);
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  border: 1px solid rgba(51,255,51,0.1);
+  background: rgba(10,22,40,0.4);
+  color: rgba(51,255,51,0.15);
+  text-shadow: none;
+  transition: all 0.3s;
+}
+.caution-light.lit-amber {
+  border-color: rgba(255,170,0,0.5);
+  background: rgba(255,170,0,0.1);
+  color: var(--hud-amber);
+  text-shadow: var(--hud-glow-amber);
+  animation: caution-blink 2s ease-in-out infinite;
+}
+.caution-light.lit-red {
+  border-color: rgba(255,51,51,0.5);
+  background: rgba(255,51,51,0.1);
+  color: var(--hud-red);
+  text-shadow: var(--hud-glow-red);
+  animation: caution-blink 1s ease-in-out infinite;
+}
+@keyframes caution-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* ================================================================
+   G-METER — top right area
+   ================================================================ */
+.g-meter {
+  position: absolute;
+  top: 28px; right: 30px;
+  width: 50px; height: 160px;
+  border: 1px solid rgba(51,255,51,0.3);
+  background: rgba(10, 22, 40, 0.5);
+  display: flex; flex-direction: column; align-items: center;
+}
+.g-meter-title {
+  font-family: var(--font);
+  font-size: 8px;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+.g-meter-track {
+  position: relative;
+  width: 12px; height: 110px;
+  margin-top: 6px;
+  border: 1px solid rgba(51,255,51,0.2);
+  background: rgba(0,0,0,0.3);
+}
+.g-meter-fill {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: linear-gradient(to top, var(--hud-green), var(--hud-amber));
+  transition: height 0.5s ease;
+}
+.g-meter-value {
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+  margin-top: 4px;
+}
+.g-meter-ticks {
+  position: absolute;
+  top: 0; bottom: 0; right: -16px;
+  display: flex; flex-direction: column;
+  justify-content: space-between;
+}
+.g-meter-ticks span {
+  font-family: var(--font);
+  font-size: 7px;
+  color: rgba(51,255,51,0.4);
+}
+
+/* ================================================================
+   RADIO COMMS LOG — bottom left overlay
+   ================================================================ */
+.comms-log {
+  position: absolute;
+  bottom: 280px; left: 30px;
+  width: 220px;
+  max-height: 140px;
+  overflow: hidden;
+  border-left: 1px solid rgba(51,255,51,0.15);
+  padding-left: 8px;
+}
+.comms-line {
+  font-family: var(--font);
+  font-size: 8px;
+  color: rgba(51,255,51,0.5);
+  line-height: 1.6;
+  animation: comms-fade 0.5s ease-out;
+}
+.comms-line .callsign {
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+}
+.comms-line .time {
+  color: rgba(51,255,51,0.3);
+}
+@keyframes comms-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ================================================================
+   FLIGHT DATA READOUTS — below heading tape
+   ================================================================ */
+.flight-data {
+  position: absolute;
+  top: 80px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; gap: 40px;
+}
+.flight-datum {
+  text-align: center;
+}
+.flight-datum .fd-label {
+  font-family: var(--font);
+  font-size: 8px;
+  color: rgba(51,255,51,0.5);
+  letter-spacing: 1px;
+}
+.flight-datum .fd-value {
+  font-family: var(--font);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+}
+
+/* ================================================================
+   MISSION CLOCK & MODE — top center flanks
+   ================================================================ */
+.mission-clock {
+  position: absolute;
+  top: 6px; left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font);
+  font-size: 10px;
+  color: rgba(51,255,51,0.6);
+  text-shadow: var(--hud-glow);
+  letter-spacing: 1px;
+}
+.nav-mode {
+  position: absolute;
+  top: 76px; left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font);
+  font-size: 9px;
+  color: var(--hud-green2);
+  text-shadow: 0 0 6px rgba(0,255,136,0.6);
+  letter-spacing: 2px;
+  border: 1px solid rgba(0,255,136,0.3);
+  padding: 1px 12px;
+}
+
+/* ================================================================
+   TARGETING BRACKETS — decorative corners on MFDs
+   ================================================================ */
+.bracket-tl, .bracket-tr, .bracket-bl, .bracket-br {
+  position: absolute;
+  width: 14px; height: 14px;
+  border-color: var(--hud-green);
+  border-style: solid;
+}
+.bracket-tl { top: -2px; left: -2px; border-width: 1.5px 0 0 1.5px; }
+.bracket-tr { top: -2px; right: -2px; border-width: 1.5px 1.5px 0 0; }
+.bracket-bl { bottom: -2px; left: -2px; border-width: 0 0 1.5px 1.5px; }
+.bracket-br { bottom: -2px; right: -2px; border-width: 0 1.5px 1.5px 0; }
+
+/* ================================================================
+   FUEL BAR (Test Coverage)
+   ================================================================ */
+.fuel-bar-container {
+  position: absolute;
+  bottom: 280px; right: 30px;
+  width: 50px;
+}
+.fuel-bar-title {
+  font-family: var(--font);
+  font-size: 8px;
+  color: rgba(51,255,51,0.5);
+  text-align: center;
+  letter-spacing: 1px;
+  margin-bottom: 3px;
+}
+.fuel-bar-track {
+  width: 20px; height: 100px;
+  margin: 0 auto;
+  border: 1px solid rgba(51,255,51,0.3);
+  background: rgba(0,0,0,0.3);
+  position: relative;
+}
+.fuel-bar-fill {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: linear-gradient(to top, var(--hud-green), var(--hud-green2));
+  transition: height 1s ease;
+}
+.fuel-bar-value {
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--hud-green);
+  text-shadow: var(--hud-glow);
+  text-align: center;
+  margin-top: 4px;
+}
+
+/* ================================================================
+   BOTTOM DATA STRIP
+   ================================================================ */
+.bottom-strip {
+  position: absolute;
+  bottom: 4px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; gap: 20px;
+  font-family: var(--font);
+  font-size: 8px;
+  color: rgba(51,255,51,0.35);
+  letter-spacing: 0.5px;
+}
+
+/* ================================================================
+   HUD FRAME LINES — decorative border
+   ================================================================ */
+.hud-frame {
+  position: fixed; inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+.hud-frame::before {
+  content: '';
+  position: absolute;
+  inset: 16px;
+  border: 1px solid rgba(51,255,51,0.06);
+  border-radius: 8px;
+}
+
+/* ================================================================
+   BORESIGHT CROSS — very subtle center mark
+   ================================================================ */
+.boresight {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+}
+.boresight .h {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 16px; height: 1px;
+  background: rgba(51,255,51,0.15);
+  transform: translate(-50%, -50%);
+}
+.boresight .v {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 1px; height: 16px;
+  background: rgba(51,255,51,0.15);
+  transform: translate(-50%, -50%);
+}
+
+/* ================================================================
+   PULSE ANIMATION for blip dots
+   ================================================================ */
+@keyframes blip-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.radar-blip { animation: blip-pulse 2s ease-in-out infinite; }
+
+/* ================================================================
+   VIGNETTE
+   ================================================================ */
+.vignette {
+  position: fixed; inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.5) 100%);
+}
+</style>
+</head>
+<body>
+
+<!-- Stars background -->
+<div class="stars" id="stars"></div>
+
+<!-- Terrain wireframe -->
+<div class="terrain"><div class="terrain-grid"></div></div>
+
+<!-- Vignette -->
+<div class="vignette"></div>
+
+<!-- HUD Frame -->
+<div class="hud-frame"></div>
+
+<!-- Canopy glass with HUD -->
+<div class="canopy">
+<div class="hud" id="hud">
+
+  <!-- Mission Clock -->
+  <div class="mission-clock" id="missionClock">T+ 02:47:13 | MCP 7000</div>
+
+  <!-- Nav Mode -->
+  <div class="nav-mode">NAV  DEVGLIDE</div>
+
+  <!-- Heading Tape -->
+  <div class="heading-tape-container">
+    <div class="heading-caret"></div>
+    <div class="heading-value-box" id="headingValue">270</div>
+    <div class="heading-tape" id="headingTape"></div>
+  </div>
+
+  <!-- Flight Data Readouts -->
+  <div class="flight-data">
+    <div class="flight-datum">
+      <div class="fd-label">MACH</div>
+      <div class="fd-value" id="fdMach">1.02</div>
+    </div>
+    <div class="flight-datum">
+      <div class="fd-label">ALT</div>
+      <div class="fd-value" id="fdAlt">047</div>
+    </div>
+    <div class="flight-datum">
+      <div class="fd-label">SPD</div>
+      <div class="fd-value" id="fdSpd">312</div>
+    </div>
+    <div class="flight-datum">
+      <div class="fd-label">HDG</div>
+      <div class="fd-value" id="fdHdg">S-14</div>
+    </div>
+    <div class="flight-datum">
+      <div class="fd-label">FUEL</div>
+      <div class="fd-value" id="fdFuel">98%</div>
+    </div>
+  </div>
+
+  <!-- Master Caution Panel -->
+  <div class="caution-panel" id="cautionPanel">
+    <div class="caution-light">BUILD FAIL</div>
+    <div class="caution-light lit-amber">TEST FAIL</div>
+    <div class="caution-light">DISK 90%</div>
+    <div class="caution-light">MEM HIGH</div>
+    <div class="caution-light lit-amber">TIMEOUT</div>
+    <div class="caution-light">QUEUE FULL</div>
+    <div class="caution-light">LINT ERR</div>
+    <div class="caution-light">DEP VULN</div>
+    <div class="caution-light lit-red">API DOWN</div>
+  </div>
+
+  <!-- G-Meter (System Load) -->
+  <div class="g-meter">
+    <div class="g-meter-title">LOAD</div>
+    <div class="g-meter-track">
+      <div class="g-meter-fill" id="gMeterFill" style="height: 42%"></div>
+      <div class="g-meter-ticks">
+        <span>9</span><span>7</span><span>5</span><span>3</span><span>1</span>
+      </div>
+    </div>
+    <div class="g-meter-value" id="gMeterValue">3.8G</div>
+  </div>
+
+  <!-- Pitch Ladder -->
+  <div class="pitch-ladder">
+    <div class="pitch-lines" id="pitchLines"></div>
+  </div>
+
+  <!-- Flight Path Marker -->
+  <div class="fpm" id="fpm">
+    <div class="fpm-circle"></div>
+    <div class="fpm-wing-l"></div>
+    <div class="fpm-wing-r"></div>
+    <div class="fpm-stab"></div>
+  </div>
+
+  <!-- Boresight cross -->
+  <div class="boresight">
+    <div class="h"></div>
+    <div class="v"></div>
+  </div>
+
+  <!-- Airspeed Tape -->
+  <div class="speed-tape-container">
+    <div class="speed-value-box" id="speedValue">312</div>
+    <div class="speed-tape" id="speedTape"></div>
+  </div>
+
+  <!-- Altitude Tape -->
+  <div class="alt-tape-container">
+    <div class="alt-value-box" id="altValue">047</div>
+    <div class="alt-tape" id="altTape"></div>
+  </div>
+
+  <!-- Left MFD — STORES -->
+  <div class="mfd-left">
+    <div class="bracket-tl"></div><div class="bracket-tr"></div>
+    <div class="bracket-bl"></div><div class="bracket-br"></div>
+    <div class="mfd-title">STORES</div>
+    <div class="store-row"><span>STN 1: KANBAN</span><span class="status rdy">RDY</span></div>
+    <div class="store-row"><span>STN 2: SHELL</span><span class="status arm">ARM</span></div>
+    <div class="store-row"><span>STN 3: TEST</span><span class="status rdy">RDY</span></div>
+    <div class="store-row"><span>STN 4: VOICE</span><span class="status stby">STBY</span></div>
+    <div class="store-row"><span>STN 5: WORKFLOW</span><span class="status rdy">RDY</span></div>
+    <div class="store-row"><span>STN 6: LOG</span><span class="status rdy">RDY</span></div>
+    <div class="store-row"><span>STN 7: CHAT</span><span class="status arm">ARM</span></div>
+    <div class="store-row"><span>STN 8: DOCS</span><span class="status rdy">RDY</span></div>
+    <div style="margin-top:6px; border-top:1px solid rgba(51,255,51,0.15); padding-top:4px;">
+      <div class="store-row"><span>MCP SVR</span><span class="status rdy">8/8 ONLINE</span></div>
+      <div class="store-row"><span>PORT</span><span class="status rdy">:7000</span></div>
+    </div>
+  </div>
+
+  <!-- Right MFD — TARGET LOCK -->
+  <div class="mfd-right">
+    <div class="bracket-tl"></div><div class="bracket-tr"></div>
+    <div class="bracket-bl"></div><div class="bracket-br"></div>
+    <div class="mfd-title">TGT LOCK</div>
+    <div class="target-brackets">
+      <div class="target-info">
+        <div>TGT: <span class="val">TASK-0042</span></div>
+        <div>DESC: <span class="val">Implement voice STT</span></div>
+        <div>PRI: <span class="val amber">HIGH</span></div>
+        <div>RNG: <span class="val">2.4 NM</span> BRG: <span class="val">042</span></div>
+        <div>STAT: <span class="val">IN PROGRESS</span></div>
+        <div>ETA: <span class="val">00:45:00</span></div>
+      </div>
+    </div>
+    <div style="margin-top:8px;">
+      <div class="store-row"><span>NEXT TGT</span><span class="hud-text" style="font-size:9px">TASK-0038</span></div>
+      <div class="store-row"><span>QUEUE</span><span class="hud-text" style="font-size:9px">12 PENDING</span></div>
+    </div>
+  </div>
+
+  <!-- Radar Display -->
+  <div class="radar-container" id="radarContainer">
+    <div class="bracket-tl"></div><div class="bracket-tr"></div>
+    <div class="bracket-bl"></div><div class="bracket-br"></div>
+    <div class="radar-title">B-SCOPE  TWS</div>
+    <div class="radar-mode">AUTO ACQ</div>
+    <div class="radar-center-line"></div>
+    <div class="radar-rings" id="radarRings"></div>
+    <div class="radar-sweep"><div class="radar-sweep-line"></div></div>
+    <div id="radarBlips"></div>
+  </div>
+
+  <!-- Comms Log -->
+  <div class="comms-log" id="commsLog"></div>
+
+  <!-- Fuel Bar (Test Coverage) -->
+  <div class="fuel-bar-container">
+    <div class="fuel-bar-title">FUEL</div>
+    <div class="fuel-bar-track">
+      <div class="fuel-bar-fill" id="fuelFill" style="height: 98%"></div>
+    </div>
+    <div class="fuel-bar-value" id="fuelValue">98%</div>
+  </div>
+
+  <!-- Bottom Data Strip -->
+  <div class="bottom-strip">
+    <span>LAT 51.5074N</span>
+    <span>LON 0.1278W</span>
+    <span>GS 312KT</span>
+    <span>WIND 240/12</span>
+    <span>QNH 1013</span>
+    <span id="utcTime">UTC 14:27:13Z</span>
+  </div>
+
+</div><!-- /.hud -->
+</div><!-- /.canopy -->
+
+<!-- Scanlines -->
+<div class="scanlines"></div>
+
+<script>
+/* ================================================================
+   INITIALIZATION
+   ================================================================ */
+(function() {
+  'use strict';
+
+  // Mouse state (normalized -1 to 1)
+  let mouseX = 0, mouseY = 0;
+  let smoothMouseX = 0, smoothMouseY = 0;
+
+  document.addEventListener('mousemove', function(e) {
+    mouseX = (e.clientX / window.innerWidth  - 0.5) * 2;
+    mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
+  });
+
+  // ================================================================
+  // STARS
+  // ================================================================
+  (function generateStars() {
+    const container = document.getElementById('stars');
+    const count = 80;
+    for (let i = 0; i < count; i++) {
+      const star = document.createElement('span');
+      star.style.left = Math.random() * 100 + '%';
+      star.style.top  = Math.random() * 60 + '%';
+      star.style.opacity = (0.1 + Math.random() * 0.4).toFixed(2);
+      if (Math.random() > 0.7) {
+        star.style.width = '2px';
+        star.style.height = '2px';
+      }
+      container.appendChild(star);
+    }
+  })();
+
+  // ================================================================
+  // HEADING TAPE
+  // ================================================================
+  const HEADINGS = [
+    'N','010','020','030','040','050','060','070','080',
+    'E','100','110','120','130','140','150','160','170',
+    'S','190','200','210','220','230','240','250','260',
+    'W','280','290','300','310','320','330','340','350'
+  ];
+
+  (function buildHeadingTape() {
+    const tape = document.getElementById('headingTape');
+    // Build three copies for seamless wrapping
+    for (let copy = 0; copy < 3; copy++) {
+      HEADINGS.forEach(function(h, i) {
+        const tick = document.createElement('div');
+        tick.className = 'heading-tick';
+        const isMajor = (i % 9 === 0); // N, E, S, W
+        tick.innerHTML =
+          '<div class="line ' + (isMajor ? 'major' : '') + '"></div>' +
+          '<div class="label">' + h + '</div>';
+        tape.appendChild(tick);
+      });
+    }
+  })();
+
+  let baseHeading = 270;
+
+  function updateHeadingTape() {
+    const tape = document.getElementById('headingTape');
+    const tickW = 40;
+    const totalW = HEADINGS.length * tickW;
+    // Mouse shifts heading
+    const hdgOffset = smoothMouseX * 30;
+    const currentHdg = ((baseHeading + hdgOffset) % 360 + 360) % 360;
+    // Position the tape
+    const containerW = 420;
+    const centerOffset = containerW / 2;
+    const hdgPixels = (currentHdg / 360) * totalW;
+    const shift = -hdgPixels - totalW + centerOffset;
+    tape.style.transform = 'translateX(' + shift + 'px)';
+
+    document.getElementById('headingValue').textContent =
+      String(Math.round(currentHdg)).padStart(3, '0');
+  }
+
+  // ================================================================
+  // PITCH LADDER
+  // ================================================================
+  (function buildPitchLadder() {
+    const container = document.getElementById('pitchLines');
+    const degrees = [-20, -15, -10, -5, 0, 5, 10, 15, 20];
+    degrees.forEach(function(deg) {
+      const line = document.createElement('div');
+      line.className = 'pitch-line' + (deg < 0 ? ' negative' : '');
+      const isHorizon = deg === 0;
+      const width = isHorizon ? 120 : (Math.abs(deg) <= 5 ? 60 : 80);
+      const segClass = isHorizon ? 'segment horizon' : 'segment';
+      line.innerHTML =
+        '<div class="' + segClass + '" style="width:' + width + 'px"></div>' +
+        '<div class="gap"></div>' +
+        '<div class="' + segClass + '" style="width:' + width + 'px"></div>' +
+        (deg !== 0 ? '<span class="deg-label left">' + deg + '</span>' +
+                      '<span class="deg-label right">' + deg + '</span>' : '');
+      container.appendChild(line);
+    });
+  })();
+
+  function updatePitchLadder() {
+    const container = document.getElementById('pitchLines');
+    // Mouse Y shifts pitch
+    const pitchShift = smoothMouseY * 40;
+    container.style.transform = 'translateY(' + pitchShift + 'px)';
+  }
+
+  // ================================================================
+  // SPEED TAPE
+  // ================================================================
+  (function buildSpeedTape() {
+    const tape = document.getElementById('speedTape');
+    // Build ticks from 200 to 450
+    for (let spd = 450; spd >= 200; spd -= 5) {
+      const tick = document.createElement('div');
+      tick.className = 'speed-tick';
+      const isMajor = spd % 20 === 0;
+      tick.innerHTML =
+        (isMajor ? '<span class="label">' + spd + '</span>' : '') +
+        '<div class="line ' + (isMajor ? 'major' : '') + '"></div>';
+      tape.appendChild(tick);
+    }
+  })();
+
+  let baseSpeed = 312;
+
+  function updateSpeedTape() {
+    const tape = document.getElementById('speedTape');
+    const tickH = 30;
+    const minSpd = 200, maxSpd = 450;
+    const range = maxSpd - minSpd;
+    const totalH = (range / 5) * tickH;
+    const containerH = 300;
+    // Speed varies slightly with mouse
+    const currentSpd = baseSpeed + smoothMouseY * -8;
+    const fraction = (maxSpd - currentSpd) / range;
+    const shift = -(fraction * totalH) + containerH / 2;
+    tape.style.transform = 'translateY(' + shift + 'px)';
+    document.getElementById('speedValue').textContent = Math.round(currentSpd);
+    document.getElementById('fdSpd').textContent = Math.round(currentSpd);
+  }
+
+  // ================================================================
+  // ALTITUDE TAPE
+  // ================================================================
+  (function buildAltTape() {
+    const tape = document.getElementById('altTape');
+    for (let alt = 100; alt >= 0; alt -= 1) {
+      const tick = document.createElement('div');
+      tick.className = 'alt-tick';
+      const isMajor = alt % 5 === 0;
+      tick.innerHTML =
+        '<div class="line ' + (isMajor ? 'major' : '') + '"></div>' +
+        (isMajor ? '<span class="label">' + String(alt).padStart(3, '0') + '</span>' : '');
+      tape.appendChild(tick);
+    }
+  })();
+
+  let baseAlt = 47;
+
+  function updateAltTape() {
+    const tape = document.getElementById('altTape');
+    const tickH = 30;
+    const maxAlt = 100;
+    const totalH = maxAlt * tickH;
+    const containerH = 300;
+    const currentAlt = baseAlt + smoothMouseY * -3;
+    const fraction = (maxAlt - currentAlt) / maxAlt;
+    const shift = -(fraction * totalH) + containerH / 2;
+    tape.style.transform = 'translateY(' + shift + 'px)';
+    const altStr = String(Math.round(Math.max(0, currentAlt))).padStart(3, '0');
+    document.getElementById('altValue').textContent = altStr;
+    document.getElementById('fdAlt').textContent = altStr;
+  }
+
+  // ================================================================
+  // FLIGHT PATH MARKER (FPM)
+  // ================================================================
+  function updateFPM() {
+    const fpm = document.getElementById('fpm');
+    const dx = smoothMouseX * 30;
+    const dy = smoothMouseY * 25;
+    fpm.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+  }
+
+  // ================================================================
+  // HUD parallax tilt
+  // ================================================================
+  function updateHUDTilt() {
+    const hud = document.getElementById('hud');
+    const tiltX = 2 + smoothMouseY * 1.5;
+    const tiltY = smoothMouseX * -1;
+    hud.style.transform = 'rotateX(' + tiltX + 'deg) rotateY(' + tiltY + 'deg)';
+  }
+
+  // ================================================================
+  // RADAR — rings and blips
+  // ================================================================
+  (function buildRadar() {
+    const rings = document.getElementById('radarRings');
+    const sizes = [
+      { r: 60,  label: '20' },
+      { r: 100, label: '40' },
+      { r: 140, label: '60' }
+    ];
+    sizes.forEach(function(s) {
+      const ring = document.createElement('div');
+      ring.className = 'radar-ring';
+      ring.style.width  = s.r * 2 + 'px';
+      ring.style.height = s.r * 2 + 'px';
+      ring.style.marginBottom = -s.r + 'px';
+      rings.appendChild(ring);
+
+      const lbl = document.createElement('div');
+      lbl.className = 'radar-ring-label';
+      lbl.textContent = s.label;
+      lbl.style.position = 'absolute';
+      lbl.style.left = 'calc(50% + ' + (s.r + 4) + 'px)';
+      lbl.style.bottom = '-2px';
+      rings.appendChild(lbl);
+    });
+
+    // Build blips for kanban tasks
+    const blips = [
+      { name: 'Voice STT',       pri: 'high',   x: 30,  y: 35 },
+      { name: 'Chat room',       pri: 'urgent', x: -50, y: 55 },
+      { name: 'Shell refactor',  pri: 'medium', x: 70,  y: 70 },
+      { name: 'Kanban filters',  pri: 'medium', x: -20, y: 80 },
+      { name: 'Test runner',     pri: 'high',   x: 90,  y: 45 },
+      { name: 'Workflow DAG',    pri: 'medium', x: -80, y: 30 },
+      { name: 'Docs seed',       pri: 'low',    x: 40,  y: 90 },
+      { name: 'Prompt lib',      pri: 'low',    x: -100,y: 65 },
+      { name: 'MCP bundle',      pri: 'medium', x: 60,  y: 20 },
+      { name: 'Dashboard UI',    pri: 'high',   x: -30, y: 48 },
+    ];
+
+    const blipContainer = document.getElementById('radarBlips');
+    blips.forEach(function(b) {
+      // Blip dot
+      const dot = document.createElement('div');
+      dot.className = 'radar-blip' + (b.pri === 'urgent' ? ' urgent' : '') +
+                      (b.pri === 'high' ? ' high' : '');
+      // Position relative to radar container center-bottom
+      // x: center is at 170px, y: bottom is at 170px
+      const cx = 170 + b.x;
+      const cy = 170 - b.y;
+      dot.style.left = cx + 'px';
+      dot.style.top  = cy + 'px';
+      dot.style.animationDelay = (Math.random() * 2).toFixed(1) + 's';
+      blipContainer.appendChild(dot);
+
+      // Tag
+      const tag = document.createElement('div');
+      tag.className = 'radar-tag' + (b.pri === 'urgent' ? ' urgent' : '') +
+                      (b.pri === 'high' ? ' high' : '');
+      tag.textContent = b.name + ' [' + b.pri.charAt(0).toUpperCase() + ']';
+      tag.style.left = (cx + 10) + 'px';
+      tag.style.top  = (cy - 2) + 'px';
+      blipContainer.appendChild(tag);
+    });
+  })();
+
+  // ================================================================
+  // COMMS LOG
+  // ================================================================
+  const commsMessages = [
+    { cs: 'KANBAN-1', msg: 'Feature board created, 12 items queued' },
+    { cs: 'SHELL-2',  msg: 'Pane allocated, PID 4821 active' },
+    { cs: 'TEST-3',   msg: 'Scenario "login-flow" — PASS 6/6' },
+    { cs: 'VOICE-4',  msg: 'STT provider: groq, latency 240ms' },
+    { cs: 'CHAT-5',   msg: 'claude-1 joined room, pane bound' },
+    { cs: 'WKFLOW-6', msg: 'Matched "deploy" workflow, executing' },
+    { cs: 'LOG-7',    msg: 'Write op success, 3 entries appended' },
+    { cs: 'MCP-SRV',  msg: 'All 8 servers nominal on :7000' },
+    { cs: 'DOCS-8',   msg: 'Seed content installed, 14 guides loaded' },
+    { cs: 'KANBAN-1', msg: 'TASK-0042 moved to In Progress' },
+    { cs: 'TEST-3',   msg: 'Running "api-crud" scenario...' },
+    { cs: 'SHELL-2',  msg: 'pnpm build — exit 0, 4.2s' },
+    { cs: 'VOICE-4',  msg: 'Transcription complete, 142 WPM avg' },
+    { cs: 'CHAT-5',   msg: '@claude-1 acknowledged, task claimed' },
+    { cs: 'KANBAN-1', msg: 'Work log appended to TASK-0042' },
+    { cs: 'MCP-SRV',  msg: 'Health check PASS, uptime 02:47:13' },
+    { cs: 'TEST-3',   msg: 'Scenario "api-crud" — PASS 11/11' },
+    { cs: 'WKFLOW-6', msg: 'Deploy workflow step 3/5: push to staging' },
+    { cs: 'SHELL-2',  msg: 'git push origin develop — done' },
+    { cs: 'LOG-7',    msg: 'Rotating logs, 847 entries archived' },
+  ];
+
+  let commsIndex = 0;
+  const commsLog = document.getElementById('commsLog');
+  const MAX_COMMS = 8;
+
+  function addCommsLine() {
+    const msg = commsMessages[commsIndex % commsMessages.length];
+    commsIndex++;
+    const now = new Date();
+    const ts = String(now.getHours()).padStart(2,'0') + ':' +
+               String(now.getMinutes()).padStart(2,'0') + ':' +
+               String(now.getSeconds()).padStart(2,'0');
+    const line = document.createElement('div');
+    line.className = 'comms-line';
+    line.innerHTML = '<span class="time">' + ts + '</span> ' +
+                     '[<span class="callsign">' + msg.cs + '</span>] ' + msg.msg;
+    commsLog.appendChild(line);
+    // Trim old lines
+    while (commsLog.children.length > MAX_COMMS) {
+      commsLog.removeChild(commsLog.firstChild);
+    }
+  }
+
+  // Initial lines
+  for (let i = 0; i < 5; i++) addCommsLine();
+  setInterval(addCommsLine, 3500);
+
+  // ================================================================
+  // MISSION CLOCK
+  // ================================================================
+  let missionSeconds = 2 * 3600 + 47 * 60 + 13;
+
+  function updateMissionClock() {
+    missionSeconds++;
+    const h = Math.floor(missionSeconds / 3600);
+    const m = Math.floor((missionSeconds % 3600) / 60);
+    const s = missionSeconds % 60;
+    document.getElementById('missionClock').textContent =
+      'T+ ' + String(h).padStart(2,'0') + ':' +
+      String(m).padStart(2,'0') + ':' +
+      String(s).padStart(2,'0') + ' | MCP 7000';
+
+    // UTC time in bottom strip
+    const now = new Date();
+    document.getElementById('utcTime').textContent =
+      'UTC ' + String(now.getUTCHours()).padStart(2,'0') + ':' +
+      String(now.getUTCMinutes()).padStart(2,'0') + ':' +
+      String(now.getUTCSeconds()).padStart(2,'0') + 'Z';
+  }
+  setInterval(updateMissionClock, 1000);
+
+  // ================================================================
+  // G-METER / SYSTEM LOAD animation
+  // ================================================================
+  let gTarget = 3.8;
+  let gCurrent = 3.8;
+
+  function updateGMeter() {
+    // Randomly shift target
+    if (Math.random() < 0.05) {
+      gTarget = 1.5 + Math.random() * 5.5;
+    }
+    gCurrent += (gTarget - gCurrent) * 0.05;
+    const pct = ((gCurrent - 1) / 8) * 100;
+    document.getElementById('gMeterFill').style.height = Math.min(100, Math.max(0, pct)) + '%';
+    document.getElementById('gMeterValue').textContent = gCurrent.toFixed(1) + 'G';
+  }
+
+  // ================================================================
+  // CAUTION PANEL — randomly toggle some lights
+  // ================================================================
+  function updateCaution() {
+    if (Math.random() < 0.03) {
+      const lights = document.querySelectorAll('.caution-light');
+      const idx = Math.floor(Math.random() * lights.length);
+      const light = lights[idx];
+      if (light.classList.contains('lit-amber') || light.classList.contains('lit-red')) {
+        light.classList.remove('lit-amber', 'lit-red');
+      } else {
+        light.classList.add(Math.random() > 0.3 ? 'lit-amber' : 'lit-red');
+      }
+    }
+  }
+
+  // ================================================================
+  // MACH NUMBER — subtle drift
+  // ================================================================
+  let machBase = 1.02;
+  let machTarget = 1.02;
+
+  function updateMach() {
+    if (Math.random() < 0.02) {
+      machTarget = 0.88 + Math.random() * 0.3;
+    }
+    machBase += (machTarget - machBase) * 0.02;
+    document.getElementById('fdMach').textContent = machBase.toFixed(2);
+  }
+
+  // ================================================================
+  // BASE VALUES — slow drift
+  // ================================================================
+  let hdgTarget = 270, spdTarget = 312, altTarget = 47;
+
+  function driftBaseValues() {
+    if (Math.random() < 0.02) hdgTarget = Math.random() * 360;
+    if (Math.random() < 0.02) spdTarget = 280 + Math.random() * 60;
+    if (Math.random() < 0.02) altTarget = 30 + Math.random() * 40;
+
+    baseHeading += (hdgTarget - baseHeading) * 0.002;
+    baseSpeed   += (spdTarget - baseSpeed) * 0.003;
+    baseAlt     += (altTarget - baseAlt) * 0.003;
+  }
+
+  // ================================================================
+  // FUEL — very slow drain
+  // ================================================================
+  let fuelPct = 98;
+
+  function updateFuel() {
+    fuelPct -= 0.002;
+    if (fuelPct < 10) fuelPct = 98; // "refuel"
+    document.getElementById('fuelFill').style.height = fuelPct + '%';
+    document.getElementById('fuelValue').textContent = Math.round(fuelPct) + '%';
+    document.getElementById('fdFuel').textContent = Math.round(fuelPct) + '%';
+  }
+
+  // ================================================================
+  // SPRINT HEADING
+  // ================================================================
+  const sprints = ['S-14', 'S-15', 'S-13', 'S-16'];
+  let sprintIdx = 0;
+
+  function updateSprint() {
+    if (Math.random() < 0.001) {
+      sprintIdx = (sprintIdx + 1) % sprints.length;
+      document.getElementById('fdHdg').textContent = sprints[sprintIdx];
+    }
+  }
+
+  // ================================================================
+  // RADAR BLIP JITTER
+  // ================================================================
+  function jitterBlips() {
+    const blips = document.querySelectorAll('.radar-blip');
+    blips.forEach(function(b) {
+      if (Math.random() < 0.1) {
+        const jx = (Math.random() - 0.5) * 3;
+        const jy = (Math.random() - 0.5) * 3;
+        const cx = parseFloat(b.style.left);
+        const cy = parseFloat(b.style.top);
+        b.style.left = (cx + jx) + 'px';
+        b.style.top  = (cy + jy) + 'px';
+      }
+    });
+  }
+
+  // ================================================================
+  // MAIN ANIMATION LOOP
+  // ================================================================
+  function animate() {
+    // Smooth mouse tracking
+    smoothMouseX += (mouseX - smoothMouseX) * 0.08;
+    smoothMouseY += (mouseY - smoothMouseY) * 0.08;
+
+    updateHUDTilt();
+    updateHeadingTape();
+    updatePitchLadder();
+    updateSpeedTape();
+    updateAltTape();
+    updateFPM();
+    updateGMeter();
+    updateCaution();
+    updateMach();
+    driftBaseValues();
+    updateFuel();
+    updateSprint();
+    jitterBlips();
+
+    requestAnimationFrame(animate);
+  }
+
+  animate();
+
+})();
+</script>
+</body>
+</html>

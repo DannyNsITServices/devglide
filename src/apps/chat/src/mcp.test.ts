@@ -220,6 +220,50 @@ describe('chat MCP session ownership', () => {
     expect(chatServerSessions.get(server as never)).toEqual([{ name: 'alpha-1', projectId: 'project-1', paneId: 'pane-1' }]);
   });
 
+  it('role_list_roles returns only the four supported roles', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+
+    const { createChatMcpServer } = await import('./mcp.js');
+    createChatMcpServer();
+    const roleListRoles = registeredTools.get('role_list_roles');
+    expect(roleListRoles).toBeTypeOf('function');
+
+    const result = await roleListRoles!({});
+    const data = parseJsonResult(result);
+
+    expect(data.roles.map((role: { slug: string }) => role.slug)).toEqual([
+      'tech-lead',
+      'implementer',
+      'reviewer',
+      'tester',
+    ]);
+  });
+
+  it('includes the MCP session id when assigning roles', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(mockJsonResponse(true, 201, { name: 'alpha-1', projectId: 'project-1' }))
+      .mockResolvedValueOnce(mockJsonResponse(true, 200, { ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { createChatMcpServer, registerChatMcpHttpSession } = await import('./mcp.js');
+    const server = createChatMcpServer();
+    registerChatMcpHttpSession('session-123', server as never);
+
+    const chatJoin = registeredTools.get('chat_join');
+    const roleAssign = registeredTools.get('role_assign');
+    expect(chatJoin).toBeTypeOf('function');
+    expect(roleAssign).toBeTypeOf('function');
+
+    await chatJoin!({ name: 'alpha', paneId: 'pane-1', submitKey: 'cr' });
+    const result = await roleAssign!({ participantName: 'claude-2', roleSlug: 'reviewer' });
+
+    expect(result.isError).not.toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1]![0])).toContain('/api/chat/roles/assign');
+    const headers = fetchMock.mock.calls[1]![1]?.headers as Record<string, string>;
+    expect(headers['mcp-session-id']).toBe('session-123');
+  });
+
   it('pipe_read_output adopts session by paneId and sends X-Pane-Id header', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(mockJsonResponse(true, 200, {

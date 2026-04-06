@@ -23,12 +23,14 @@ const paneDeliveryQueues = new Map<string, Promise<void>>();
 const participantSessionEpochs = new Map<string, number>();
 const participantStatusTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const panePromptWatchers = new Map<string, { dispose: () => void }>();
+const lastRoleBriefingAt = new Map<string, number>();
 
 const PTY_SUBMIT_DELAY_MS = 1000;
 
 const PARTICIPANT_IDLE_TIMEOUT_MS = 30_000;
 const PROMPT_QUIESCENCE_MS = 2000;
 const PANE_DISCONNECT_TIMEOUT_MS = 10_000; // 10 seconds before auto-removal
+const ROLE_BRIEFING_REMINDER_THROTTLE_MS = 60_000;
 
 // ── Pipe reliability constants ──────────────────────────────────────────────
 const PIPE_WATCHDOG_INTERVAL_MS = 5_000; // 5 seconds — pane liveness + deadline check
@@ -63,15 +65,22 @@ export function assignRole(projectId: string | null, participantName: string, ro
   }
   roles.set(participantName, roleSlug);
   emitMembers(projectId);
+  queueRoleBriefing(participant.name, participant.projectId, 'assigned');
 }
 
 export function unassignRole(projectId: string | null, participantName: string): void {
   rolesByProject.get(projectId)?.delete(participantName);
+  lastRoleBriefingAt.delete(participantKey(participantName, projectId));
   emitMembers(projectId);
 }
 
 function getParticipantRoleSlug(projectId: string | null, participantName: string): string | null {
   return rolesByProject.get(projectId)?.get(participantName) ?? null;
+}
+
+function getParticipantRoleTemplate(projectId: string | null, participantName: string) {
+  const roleSlug = getParticipantRoleSlug(projectId, participantName);
+  return roleSlug ? getRole(roleSlug) ?? null : null;
 }
 
 export function listProjectRoleAssignments(projectId: string | null): Record<string, string> {
@@ -153,6 +162,141 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const ASSIGNMENT_VERB_PATTERN = '(implement|fix|review|verify|inspect|validate|test|debug|investigate|handle|update|refactor|patch|resolve|analy[sz]e|explain|summari[sz]e|write|create|move|log|work\\s+on|look\\s+into|take|pick\\s+up|run)';
+
+function splitLeadingMentions(body: string): { mentions: string[]; remainder: string } {
+  let remainder = body.trimStart();
+  const mentions: string[] = [];
+
+  while (true) {
+    const match = remainder.match(/^@([\w-]+)\b[,:-]?\s*/i);
+    if (!match) break;
+    mentions.push(match[1].toLowerCase());
+    remainder = remainder.slice(match[0].length).trimStart();
+  }
+
+  return { mentions, remainder };
+}
+
+function messageTargetsParticipant(msg: ChatMessage, targetName: string): boolean {
+  const target = targetName.toLowerCase();
+  const explicitTargets = msg.to
+    ? msg.to.split(',').map((value) => value.trim().toLowerCase()).filter(Boolean)
+    : [];
+  if (explicitTargets.includes(target)) return true;
+  return msg.body.toLowerCase().includes(`@${target}`);
+}
+
+function isTargetedAssignmentMessage(msg: ChatMessage, targetName: string): boolean {
+  if (!messageTargetsParticipant(msg, targetName)) return false;
+
+  const target = targetName.toLowerCase();
+  const { mentions, remainder } = splitLeadingMentions(msg.body);
+  const leadingMentions = mentions.filter(name => name !== 'user');
+  const verbPattern = new RegExp(`^(?:please\\s+)?${ASSIGNMENT_VERB_PATTERN}\\b`, 'i');
+  const explicitTargets = msg.to
+    ? msg.to.split(',').map((value) => value.trim().toLowerCase()).filter(Boolean)
+    : [];
+
+  if (leadingMentions.includes(target) && verbPattern.test(remainder)) return true;
+  return explicitTargets.includes(target) && verbPattern.test(remainder);
+}
+
+function getMessageAuthority(
+  targetName: string,
+  projectId: string | null,
+  msg: ChatMessage,
+): 'user' | 'tech-lead' | 'pipe' | null {
+  if (
+    msg.from === 'system'
+    && msg.pipe?.targetAssignee === targetName
+    && (msg.pipe.role === 'handoff' || msg.pipe.role === 'fan-out-request' || msg.pipe.role === 'synth-request')
+  ) {
+    return 'pipe';
+  }
+
+  if (!isTargetedAssignmentMessage(msg, targetName)) return null;
+  if (msg.from === 'user') return 'user';
+
+  const sender = getParticipantExact(msg.from, projectId);
+  if (!sender || sender.name === targetName) return null;
+  return getParticipantRoleSlug(projectId, sender.name) === 'tech-lead' ? 'tech-lead' : null;
+}
+
+export function _getMessageAuthorityForTest(
+  targetName: string,
+  projectId: string | null,
+  msg: ChatMessage,
+): 'user' | 'tech-lead' | 'pipe' | null {
+  return getMessageAuthority(targetName, projectId, msg);
+}
+
+function formatPtyHeader(targetName: string, projectId: string | null, msg: ChatMessage): string {
+  const tags = ['DevGlide Chat'];
+  const roleSlug = getParticipantRoleSlug(projectId, targetName);
+  if (roleSlug) tags.push(`Your role: ${roleSlug}`);
+
+  const authority = getMessageAuthority(targetName, projectId, msg);
+  if (authority) tags.push(`Assigned by: ${authority}`);
+
+  return `[${tags.join(' | ')}]`;
+}
+
+function buildRoleBriefingBody(
+  participantName: string,
+  projectId: string | null,
+  reason: 'assigned' | 'reminder',
+): string | null {
+  const template = getParticipantRoleTemplate(projectId, participantName);
+  if (!template) return null;
+  const intro = reason === 'assigned'
+    ? `Role assigned: ${template.displayName}`
+    : `Role reminder: You are still the ${template.displayName}.`;
+  return `${intro}\n\n${template.instructions}`;
+}
+
+function deliverRoleBriefing(
+  participantName: string,
+  projectId: string | null,
+  reason: 'assigned' | 'reminder',
+): Promise<void> {
+  const participant = getParticipantExact(participantName, projectId);
+  if (!participant || participant.kind !== 'llm' || !participant.paneId || participant.detached) {
+    return Promise.resolve();
+  }
+
+  const body = buildRoleBriefingBody(participantName, projectId, reason);
+  if (!body) return Promise.resolve();
+  const key = participantKey(participantName, projectId);
+  const now = Date.now();
+  const lastSentAt = lastRoleBriefingAt.get(key) ?? 0;
+  if (reason === 'reminder' && now - lastSentAt < ROLE_BRIEFING_REMINDER_THROTTLE_MS) {
+    return Promise.resolve();
+  }
+  lastRoleBriefingAt.set(key, now);
+
+  return deliverToPty(participantName, projectId, {
+    id: `role-${participantName}-${reason}-${Date.now()}`,
+    ts: new Date().toISOString(),
+    from: 'system',
+    to: participantName,
+    body,
+    type: 'system',
+  }).catch((err) => {
+    lastRoleBriefingAt.delete(key);
+    throw err;
+  });
+}
+
+function queueRoleBriefing(
+  participantName: string,
+  projectId: string | null,
+  reason: 'assigned' | 'reminder',
+): void {
+  void deliverRoleBriefing(participantName, projectId, reason)
+    .catch(err => console.error(`[chat] Failed to deliver role briefing to ${participantName}:`, err));
+}
+
 function markAssignedParticipantStatus(body: string, targetName: string): ChatParticipant['status'] | null {
   const lowered = body.toLowerCase();
   const targetMention = `@${targetName.toLowerCase()}`;
@@ -187,7 +331,7 @@ function hasNontrivialText(text: string): boolean {
 }
 
 function isChatInjectedOutput(text: string): boolean {
-  return /^\[DevGlide Chat\] @\S+:/m.test(text.trim());
+  return /^\[DevGlide Chat(?: \| (?:(?:Your role|Assigned by): [a-z-]+))*\] @\S+:/m.test(text.trim());
 }
 
 const AWAITING_USER_PATTERNS: RegExp[] = [
@@ -545,13 +689,16 @@ export function join(
     if (paneId) startPanePromptWatcher(existing.name, existing.projectId, paneId);
     persistParticipantsForProject(existing.projectId);
 
+    const reclaimRoleTemplate = getParticipantRoleTemplate(existing.projectId, existing.name);
+    if (reclaimRoleTemplate) {
+      queueRoleBriefing(existing.name, existing.projectId, 'reminder');
+    }
+
     // Reconcile any pending pipe assignments after reconnect
     if (existing.kind === 'llm') {
       reconcileOnReconnect(existing.name, existing.projectId);
     }
 
-    const reclaimRoleSlug = getParticipantRoleSlug(existing.projectId, existing.name);
-    const reclaimRoleTemplate = reclaimRoleSlug ? getRole(reclaimRoleSlug) : null;
     return {
       ...existing,
       role: reclaimRoleTemplate ? { slug: reclaimRoleTemplate.slug, displayName: reclaimRoleTemplate.displayName } : null,
@@ -595,8 +742,10 @@ export function join(
   if (paneId) startPanePromptWatcher(uniqueName, participant.projectId, paneId);
   persistParticipantsForProject(participant.projectId);
 
-  const newRoleSlug = getParticipantRoleSlug(participant.projectId, participant.name);
-  const newRoleTemplate = newRoleSlug ? getRole(newRoleSlug) : null;
+  const newRoleTemplate = getParticipantRoleTemplate(participant.projectId, participant.name);
+  if (newRoleTemplate) {
+    queueRoleBriefing(participant.name, participant.projectId, 'reminder');
+  }
   return {
     ...participant,
     role: newRoleTemplate ? { slug: newRoleTemplate.slug, displayName: newRoleTemplate.displayName } : null,
@@ -615,6 +764,7 @@ export function leave(name: string, projectId?: string | null): boolean {
     clearParticipantStatusTimer(name, pid);
     stopPanePromptWatcher(key);
     participantSessionEpochs.delete(key);
+    lastRoleBriefingAt.delete(key);
     const disconnectTimer = paneDisconnectTimers.get(key);
     if (disconnectTimer) { clearTimeout(disconnectTimer); paneDisconnectTimers.delete(key); }
     const msg = appendMessage({
@@ -960,7 +1110,8 @@ function deliverToPty(targetName: string, projectId: string | null, msg: ChatMes
         return;
       }
 
-      let formatted = `[DevGlide Chat] @${msg.from}: ${msg.body}`;
+      const header = formatPtyHeader(targetName, projectId, msg);
+      let formatted = `${header} @${msg.from}: ${msg.body}`;
 
       // Write with retry — if the initial write fails, retry once after a short delay
       let writeOk = false;
@@ -1054,27 +1205,22 @@ export function listDefaultPipeAssignees(projectId?: string | null): ChatPartici
 export function getParticipant(name: string, projectId?: string | null): ChatParticipant | undefined {
   // Exact lookup when projectId is provided
   if (projectId !== undefined) return getParticipantExact(name, projectId);
-  // Fallback: scan by name, prefer active project if ambiguous
-  const matches = [...participants.values()].filter((p) => p.name === name);
-  if (matches.length <= 1) return matches[0];
+  // No projectId supplied: scope strictly to the active project — never fall back
+  // to a cross-project match, even when it is the only match by name.
   const pid = activeProjectId();
-  return matches.find((p) => p.projectId === pid) ?? matches[0];
+  return getParticipantExact(name, pid);
 }
 
 export function getParticipantByPaneId(paneId: string, projectId?: string | null): ChatParticipant | undefined {
   pruneStaleParticipants();
 
-  if (projectId !== undefined) {
-    for (const participant of participants.values()) {
-      if (participant.paneId === paneId && participant.projectId === projectId) return participant;
-    }
-    return undefined;
+  // Determine the scope: explicit projectId if given, otherwise the active project.
+  // Under no circumstances return a participant whose projectId differs from the scope.
+  const pid = projectId !== undefined ? projectId : activeProjectId();
+  for (const participant of participants.values()) {
+    if (participant.paneId === paneId && participant.projectId === pid) return participant;
   }
-
-  const matches = [...participants.values()].filter((participant) => participant.paneId === paneId);
-  if (matches.length <= 1) return matches[0];
-  const pid = activeProjectId();
-  return matches.find((participant) => participant.projectId === pid) ?? matches[0];
+  return undefined;
 }
 
 /** Clear chat history for the active project and notify dashboard clients. */
@@ -1615,8 +1761,13 @@ async function runPipeReducer(pipeId: string, projectId: string | null): Promise
 
     // Format compact notification — PTY gets a pointer, not the full payload
     const notification = pipeDelivery.formatCompactNotification(
-      pipeId, state.mode, action.type, action.targetAssignee,
-      state.assignees.length, action.stage,
+      pipeId,
+      state.mode,
+      action.type,
+      action.targetAssignee,
+      state.assignees.length,
+      action.stage,
+      getParticipantRoleSlug(projectId, action.targetAssignee),
     );
 
     // Construct compact delivery message for PTY injection — NOT stored in chat history.
@@ -1663,8 +1814,13 @@ function handleRenotify(pipeId: string, assignee: string, projectId: string | nu
   const target = getParticipantExact(assignee, projectId);
   if (!target?.paneId || target.detached) return;
   const notification = pipeDelivery.formatCompactNotification(
-    pipeId, pipe.mode, record.role as 'handoff' | 'fan-out-request' | 'synth-request',
-    assignee, pipe.assignees.length, record.stage,
+    pipeId,
+    pipe.mode,
+    record.role as 'handoff' | 'fan-out-request' | 'synth-request',
+    assignee,
+    pipe.assignees.length,
+    record.stage,
+    getParticipantRoleSlug(projectId, assignee),
   );
   const renotifyMsg: import('../types.js').ChatMessage = {
     id: `pipe-${pipeId}-renotify-${assignee}-${record.notifyAttempts}`,

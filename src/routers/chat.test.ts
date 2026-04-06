@@ -11,12 +11,20 @@ const registryMock = vi.hoisted(() => ({
   setChatNsp: vi.fn(),
   getChatNsp: vi.fn(() => null),
   getActivePipes: vi.fn(() => []),
+  listAllPipes: vi.fn(() => []),
+  getRuntimeLeaseStatuses: vi.fn(() => []),
+  getDeadLetterEntries: vi.fn(() => []),
+  queryPipeProvenance: vi.fn(() => []),
   getPipeRun: vi.fn(() => null),
   getPipeStoreStatus: vi.fn(() => null),
+  getPipeTimingSummary: vi.fn(() => null),
+  getPipeProvenance: vi.fn(() => []),
   submitPipeStage: vi.fn(),
   cancelPipeRun: vi.fn(),
   readPipeOutput: vi.fn(() => ({ ok: false, status: 404, error: 'Pipe not found' })),
   restoreParticipants: vi.fn(() => ({ restored: [], failed: [] })),
+  recoverPipes: vi.fn(() => 0),
+  cleanupStalePipes: vi.fn(() => 0),
   getActiveBrainstorms: vi.fn(() => []),
   getBrainstormRecord: vi.fn(() => null),
   brainstormAcceptIdea: vi.fn(async () => false),
@@ -24,6 +32,8 @@ const registryMock = vi.hoisted(() => ({
   brainstormAdjustDetails: vi.fn(async () => false),
   brainstormFinalize: vi.fn(async () => false),
   brainstormBackToIdeas: vi.fn(async () => false),
+  assignRole: vi.fn(),
+  unassignRole: vi.fn(),
   persistParticipantsForProject: vi.fn(),
   deriveNameBase: vi.fn((hint: string, model: string | null) => (hint || model || 'agent').toLowerCase().replace(/[^a-z0-9-]/g, '')),
   listAssignments: vi.fn(() => []),
@@ -31,6 +41,7 @@ const registryMock = vi.hoisted(() => ({
 
 const storeMock = vi.hoisted(() => ({
   readMessages: vi.fn(() => []),
+  readPipeEvents: vi.fn(() => []),
   appendMessage: vi.fn((_msg: unknown, _pid?: string | null) => ({
     id: 'sys-msg-1',
     ts: '2026-03-23T00:00:00.000Z',
@@ -53,11 +64,22 @@ const projectContextMock = vi.hoisted(() => ({
   getActiveProject: vi.fn(() => ({ id: 'project-1', name: 'Test Project', path: '/tmp/project-1' })),
   onProjectChange: vi.fn(),
 }));
+const projectStoreMock = vi.hoisted(() => ({
+  listProjects: vi.fn(() => ({
+    projects: [
+      { id: 'project-1', name: 'Test Project', path: '/tmp/project-1' },
+      { id: 'project-2', name: 'Other Project', path: '/tmp/project-2' },
+      { id: 'project-9', name: 'Scoped Project', path: '/tmp/project-9' },
+      { id: 'project-99', name: 'Drifted', path: '/tmp/project-99' },
+    ],
+  })),
+}));
 
 vi.mock('../apps/chat/services/chat-registry.js', () => registryMock);
 vi.mock('../apps/chat/services/chat-store.js', () => storeMock);
 vi.mock('../apps/chat/services/chat-rules.js', () => rulesMock);
 vi.mock('../project-context.js', () => projectContextMock);
+vi.mock('../packages/project-store.js', () => projectStoreMock);
 const pane1PtyWrite = vi.fn();
 const spawnGlobalPtyMock = vi.hoisted(() => vi.fn());
 const shellStateMock = vi.hoisted(() => ({
@@ -112,12 +134,13 @@ vi.mock('../apps/chat/src/mcp.js', () => ({
   createChatMcpServer: vi.fn(),
   chatServerSessions: new WeakMap(),
   bindChatSessionToMcpHttpSession: vi.fn(),
+  getChatMcpHttpSessionEntry: vi.fn(() => null),
   hasChatMcpHttpSession: vi.fn(() => false),
   registerChatMcpHttpSession: vi.fn(),
   unregisterChatMcpHttpSession: vi.fn(),
 }));
 
-const { router } = await import('./chat.js');
+const { router, initChat } = await import('./chat.js');
 
 function makeApp() {
   const app = express();
@@ -144,14 +167,57 @@ async function withServer<T>(fn: (baseUrl: string) => Promise<T>): Promise<T> {
   }
 }
 
+function createFakeSocketHarness() {
+  const socketHandlers = new Map<string, (...args: unknown[]) => unknown>();
+  const socket = {
+    rooms: new Set<string>(['socket-1']),
+    data: {} as Record<string, unknown>,
+    emit: vi.fn(),
+    on: vi.fn((event: string, handler: (...args: unknown[]) => unknown) => {
+      socketHandlers.set(event, handler);
+      return socket;
+    }),
+    join: vi.fn((room: string) => {
+      socket.rooms.add(room);
+      return socket;
+    }),
+    leave: vi.fn((room: string) => {
+      socket.rooms.delete(room);
+      return socket;
+    }),
+  };
+
+  let connectionHandler: ((socket: typeof socket) => void) | null = null;
+  const nsp = {
+    sockets: new Map([['socket-1', socket]]),
+    to: vi.fn(() => ({ emit: vi.fn() })),
+    on: vi.fn((event: string, handler: (socket: typeof socket) => void) => {
+      if (event === 'connection') connectionHandler = handler;
+      return nsp;
+    }),
+  };
+
+  return {
+    socket,
+    socketHandlers,
+    nsp,
+    connect() {
+      if (!connectionHandler) throw new Error('connection handler was not registered');
+      connectionHandler(socket);
+    },
+  };
+}
+
 describe('chat router rules of engagement', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    const mcpModule = await import('../apps/chat/src/mcp.js');
     storeMock.readMessages.mockReturnValue([]);
     registryMock.listParticipants.mockReturnValue([]);
     registryMock.getParticipantByPaneId.mockReturnValue(null);
     registryMock.getPipeStoreStatus.mockReturnValue(null);
     registryMock.getPipeRun.mockReturnValue(null);
+    vi.mocked(mcpModule.getChatMcpHttpSessionEntry).mockReturnValue(null);
     registryMock.join.mockImplementation((name: string, kind: string, paneId: string, model: string, submitKey: string, projectId: string | null, joinedVia: string) => ({
       name: `${name}-1`,
       kind,
@@ -658,8 +724,129 @@ describe('chat router rules of engagement', () => {
       });
 
       expect(response.status).toBe(201);
-      expect(registryMock.send).toHaveBeenCalledWith('user', '@claude-1 pipe #pipe-abc123 is archived', undefined);
+      expect(registryMock.send).toHaveBeenCalledWith('user', '@claude-1 pipe #pipe-abc123 is archived', undefined, 'project-1');
     });
+  });
+
+  it('reads members and message history for the explicit project query', async () => {
+    storeMock.readMessages.mockReturnValue([
+      { id: 'msg-1', ts: '2026-03-25T00:00:00.000Z', from: 'user', to: null, body: 'hello', type: 'message' },
+    ]);
+    registryMock.listParticipants.mockReturnValue([
+      { name: 'codex-9', kind: 'llm', model: 'codex', paneId: 'pane-9', projectId: 'project-9', detached: false },
+    ]);
+
+    await withServer(async (baseUrl) => {
+      const [messagesResponse, membersResponse] = await Promise.all([
+        fetch(`${baseUrl}/messages?limit=10&projectId=project-9`),
+        fetch(`${baseUrl}/members?projectId=project-9`),
+      ]);
+
+      expect(messagesResponse.status).toBe(200);
+      expect(membersResponse.status).toBe(200);
+      expect(storeMock.readMessages).toHaveBeenCalledWith({ limit: 10 }, 'project-9');
+      expect(registryMock.listParticipants).toHaveBeenCalledWith('project-9');
+    });
+  });
+
+  it('sends dashboard user messages to the explicit project query', async () => {
+    registryMock.send.mockResolvedValue({
+      id: 'msg-9',
+      ts: '2026-03-25T00:00:00.000Z',
+      from: 'user',
+      to: null,
+      body: '@codex-9 investigate',
+      type: 'message',
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/messages?projectId=project-9`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: '@codex-9 investigate' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect(registryMock.send).toHaveBeenCalledWith('user', '@codex-9 investigate', undefined, 'project-9');
+    });
+  });
+
+  it('rejects unknown explicit project ids for scoped reads', async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/members?projectId=project-missing`);
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: 'Unknown projectId "project-missing"',
+      });
+      expect(registryMock.listParticipants).not.toHaveBeenCalledWith('project-missing');
+    });
+  });
+
+  it('rejects unknown explicit project ids for dashboard sends', async () => {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/messages`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: '@codex-9 investigate', projectId: 'project-missing' }),
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: 'Unknown projectId "project-missing"',
+      });
+      expect(registryMock.send).not.toHaveBeenCalledWith('user', '@codex-9 investigate', undefined, 'project-missing');
+    });
+  });
+
+  it('rejects self role-assignment from an MCP-bound participant', async () => {
+    const mcpModule = await import('../apps/chat/src/mcp.js');
+    vi.mocked(mcpModule.getChatMcpHttpSessionEntry).mockReturnValue({
+      name: 'codex-1',
+      projectId: 'project-1',
+      paneId: 'pane-1',
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/roles/assign`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'mcp-session-id': 'session-123',
+        },
+        body: JSON.stringify({ participantName: 'codex-1', roleSlug: 'implementer' }),
+      });
+
+      expect(response.status).toBe(403);
+      await expect(response.json()).resolves.toMatchObject({
+        error: 'Participants cannot assign roles to themselves.',
+      });
+      expect(registryMock.assignRole).not.toHaveBeenCalled();
+    });
+  });
+
+  it('binds socket bootstrap and sends to the socket project instead of the global active project', async () => {
+    const harness = createFakeSocketHarness();
+    storeMock.readMessages.mockReturnValue([
+      { id: 'msg-socket', ts: '2026-03-25T00:00:00.000Z', from: 'user', to: null, body: 'socket hello', type: 'message' },
+    ]);
+
+    initChat(harness.nsp as never);
+    harness.connect();
+
+    expect(registryMock.listParticipants).toHaveBeenCalledWith('project-1');
+    expect(storeMock.readMessages).toHaveBeenCalledWith({ limit: 50 }, 'project-1');
+
+    const projectChangeHandler = projectContextMock.onProjectChange.mock.calls[0]?.[0] as ((project: { id: string } | null) => void) | undefined;
+    expect(projectChangeHandler).toBeTypeOf('function');
+    projectChangeHandler?.({ id: 'project-2' });
+
+    projectContextMock.getActiveProject.mockReturnValue({ id: 'project-99', name: 'Drifted', path: '/tmp/project-99' });
+    const sendHandler = harness.socketHandlers.get('chat:send') as ((payload: { message: string; to?: string }) => Promise<void>) | undefined;
+    expect(sendHandler).toBeTypeOf('function');
+    await sendHandler?.({ message: '@codex-2 hello' });
+
+    expect(registryMock.send).toHaveBeenCalledWith('user', '@codex-2 hello', undefined, 'project-2');
   });
 
 });

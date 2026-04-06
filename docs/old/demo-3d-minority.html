@@ -1,0 +1,1721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevGlide - Minority Report Interface</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   MINORITY REPORT GESTURE INTERFACE — DevGlide Dashboard
+   Transparent floating panels, gesture trails, push/pull physics
+   ═══════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-deep: #050508;
+  --bg-mid: #0a0a14;
+  --glass: rgba(255, 255, 255, 0.03);
+  --glass-hover: rgba(255, 255, 255, 0.06);
+  --glass-active: rgba(255, 255, 255, 0.09);
+  --glass-pulled: rgba(255, 255, 255, 0.12);
+  --border: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(255, 255, 255, 0.12);
+  --border-active: rgba(255, 255, 255, 0.22);
+  --text-primary: rgba(255, 255, 255, 1.0);
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-tertiary: rgba(255, 255, 255, 0.3);
+  --text-ghost: rgba(255, 255, 255, 0.12);
+  --accent: #4488cc;
+  --accent-dim: rgba(68, 136, 204, 0.15);
+  --accent-glow: rgba(68, 136, 204, 0.4);
+  --accent-bright: rgba(68, 136, 204, 0.7);
+  --line: rgba(255, 255, 255, 0.08);
+  --line-glow: rgba(255, 255, 255, 0.30);
+  --font-ui: 'Outfit', -apple-system, sans-serif;
+  --font-data: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-deep);
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+  cursor: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Ambient Fog / Atmosphere ─── */
+#atmosphere {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 42%, rgba(68, 136, 204, 0.035) 0%, transparent 70%),
+    radial-gradient(ellipse 100% 70% at 50% 48%, rgba(255, 255, 255, 0.012) 0%, transparent 55%),
+    radial-gradient(ellipse 40% 30% at 30% 35%, rgba(68, 136, 204, 0.015) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 70% 35%, rgba(68, 136, 204, 0.015) 0%, transparent 60%),
+    linear-gradient(180deg, var(--bg-mid) 0%, var(--bg-deep) 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Animated atmosphere breathing */
+#atmosphere::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 40% at 50% 45%, rgba(68, 136, 204, 0.02) 0%, transparent 70%);
+  animation: breathe 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+/* ─── Scanline Overlay ─── */
+#scanline {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.025) 2px,
+    rgba(0, 0, 0, 0.025) 4px
+  );
+}
+
+/* ─── Particle Layer ─── */
+#particleCanvas {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ─── Gesture Trail Canvas ─── */
+#gestureCanvas {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  pointer-events: none;
+}
+
+/* ─── Custom Cursor ─── */
+#cursor {
+  position: fixed;
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 10001;
+  transform: translate(-50%, -50%);
+  transition: width 0.25s cubic-bezier(0.23, 1, 0.32, 1),
+              height 0.25s cubic-bezier(0.23, 1, 0.32, 1),
+              border-color 0.25s ease,
+              background 0.25s ease;
+}
+
+#cursor.hovering {
+  width: 40px;
+  height: 40px;
+  border-color: var(--accent);
+  background: rgba(68, 136, 204, 0.06);
+}
+
+#cursor.pressing {
+  width: 16px;
+  height: 16px;
+  border-color: var(--accent-bright);
+  background: rgba(68, 136, 204, 0.15);
+}
+
+#cursor-dot {
+  position: fixed;
+  width: 3px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 10002;
+  transform: translate(-50%, -50%);
+}
+
+/* Cursor crosshairs */
+#cursor-cross {
+  position: fixed;
+  width: 60px;
+  height: 60px;
+  pointer-events: none;
+  z-index: 10000;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+#cursor-cross.visible {
+  opacity: 1;
+}
+
+#cursor-cross::before,
+#cursor-cross::after {
+  content: '';
+  position: absolute;
+  background: rgba(68, 136, 204, 0.15);
+}
+
+#cursor-cross::before {
+  width: 1px;
+  height: 100%;
+  left: 50%;
+  top: 0;
+}
+
+#cursor-cross::after {
+  width: 100%;
+  height: 1px;
+  top: 50%;
+  left: 0;
+}
+
+/* ─── Scene Container ─── */
+#scene-wrapper {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+#scene {
+  width: 100%;
+  height: 100%;
+  perspective: 900px;
+  perspective-origin: 50% 45%;
+  transition: perspective 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+#scene-inner {
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  position: relative;
+}
+
+/* ─── Glass Panel Base ─── */
+.glass-panel {
+  position: absolute;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  padding: 20px;
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+  opacity: 0;
+  animation: panelBoot 1.4s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+  overflow: hidden;
+}
+
+/* Panel shimmer edge — top light reflection */
+.glass-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 10%,
+    rgba(255, 255, 255, 0.08) 30%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.08) 70%,
+    transparent 90%
+  );
+  pointer-events: none;
+}
+
+/* Inner glow on active */
+.glass-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(68, 136, 204, 0.04) 0%, transparent 70%);
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.glass-panel.active::after {
+  opacity: 1;
+}
+
+.glass-panel.active {
+  background: var(--glass-active);
+  border-color: var(--border-active);
+  box-shadow:
+    0 0 60px rgba(68, 136, 204, 0.04),
+    0 0 20px rgba(68, 136, 204, 0.02),
+    inset 0 0 40px rgba(255, 255, 255, 0.015);
+}
+
+.glass-panel.pulled {
+  background: var(--glass-pulled);
+  border-color: rgba(68, 136, 204, 0.25);
+  box-shadow:
+    0 0 80px rgba(68, 136, 204, 0.06),
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 0 50px rgba(255, 255, 255, 0.02);
+}
+
+@keyframes panelBoot {
+  0% {
+    opacity: 0;
+    filter: blur(8px);
+  }
+  40% {
+    filter: blur(2px);
+  }
+  100% {
+    opacity: var(--target-opacity, 1);
+    filter: blur(0px);
+  }
+}
+
+/* ─── Panel Header ─── */
+.panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 10px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 2.5px;
+  color: var(--text-tertiary);
+  user-select: none;
+}
+
+.panel-header .dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.5;
+  animation: headerDotPulse 3s ease-in-out infinite;
+}
+
+@keyframes headerDotPulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+}
+
+.panel-header .id-tag {
+  margin-left: auto;
+  font-family: var(--font-data);
+  font-size: 8px;
+  color: var(--text-ghost);
+  letter-spacing: 1px;
+}
+
+/* ─── Stat Panels ─── */
+.stat-value {
+  font-family: var(--font-data);
+  font-size: 36px;
+  font-weight: 300;
+  color: var(--text-primary);
+  line-height: 1;
+  margin-bottom: 6px;
+  letter-spacing: -1px;
+}
+
+.stat-label {
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.stat-change {
+  font-family: var(--font-data);
+  font-size: 10px;
+  color: var(--accent);
+  opacity: 0.6;
+  margin-top: 6px;
+}
+
+.stat-sparkline {
+  margin-top: 10px;
+  height: 20px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.stat-sparkline .bar {
+  flex: 1;
+  background: var(--accent);
+  opacity: 0.2;
+  border-radius: 1px 1px 0 0;
+  transition: opacity 0.3s ease;
+}
+
+.glass-panel.active .stat-sparkline .bar,
+.glass-panel.pulled .stat-sparkline .bar {
+  opacity: 0.4;
+}
+
+/* ─── Activity Feed ─── */
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.025);
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+.activity-time {
+  font-family: var(--font-data);
+  font-size: 9px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  min-width: 32px;
+  padding-top: 2px;
+}
+
+.activity-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.35;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.activity-text {
+  flex: 1;
+}
+
+.activity-text .tool-name {
+  color: var(--accent);
+  opacity: 0.7;
+}
+
+/* ─── Kanban Summary ─── */
+.kanban-col {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.025);
+  font-size: 11px;
+}
+
+.kanban-col:last-child { border-bottom: none; }
+
+.kanban-col-name {
+  color: var(--text-secondary);
+  font-weight: 300;
+  min-width: 70px;
+  font-size: 11px;
+}
+
+.kanban-col-bar-track {
+  flex: 1;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 2px;
+  overflow: hidden;
+  max-width: 60px;
+}
+
+.kanban-col-bar {
+  height: 100%;
+  background: var(--accent);
+  opacity: 0.35;
+  border-radius: 2px;
+  transition: width 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.kanban-col-count {
+  font-family: var(--font-data);
+  font-size: 12px;
+  color: var(--text-primary);
+  opacity: 0.7;
+  min-width: 20px;
+  text-align: right;
+}
+
+/* ─── Chart Area ─── */
+.chart-container {
+  width: 100%;
+  height: calc(100% - 36px);
+  position: relative;
+}
+
+.chart-container svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ─── SVG Connection Lines ─── */
+#connections-svg {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+#connections-svg line {
+  stroke: var(--line);
+  stroke-width: 0.6;
+  stroke-dasharray: 4 6;
+  transition: stroke 0.5s ease, stroke-width 0.5s ease, stroke-dasharray 0.5s ease;
+}
+
+#connections-svg line.glow {
+  stroke: var(--accent);
+  stroke-opacity: 0.4;
+  stroke-width: 1;
+  stroke-dasharray: none;
+}
+
+/* ─── Connection Anchor Dots ─── */
+.conn-dot {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  transition: background 0.4s ease, box-shadow 0.4s ease, transform 0.4s ease;
+  z-index: 5;
+}
+
+.conn-dot.glow {
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+  transform: scale(1.5);
+}
+
+/* ─── Timeline Scrubber ─── */
+#timeline {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 72px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, transparent 0%, rgba(5, 5, 8, 0.7) 30%, rgba(5, 5, 8, 0.95) 100%);
+}
+
+#timeline-track {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  width: 76%;
+  max-width: 860px;
+  height: 52px;
+  position: relative;
+  padding-top: 8px;
+}
+
+.timeline-node {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: none;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  opacity: 0.3;
+  position: relative;
+}
+
+.timeline-node.active {
+  opacity: 1;
+}
+
+.timeline-node .node-pip {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  position: relative;
+}
+
+.timeline-node.active .node-pip {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 14px var(--accent-glow), 0 0 4px var(--accent);
+}
+
+/* Ripple ring on active nodes */
+.timeline-node.active .node-pip::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  opacity: 0;
+  animation: nodeRipple 2s ease-out infinite;
+}
+
+@keyframes nodeRipple {
+  0% { transform: scale(0.5); opacity: 0.6; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+.timeline-node-label {
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.timeline-node.active .timeline-node-label {
+  color: var(--text-secondary);
+}
+
+.timeline-node-date {
+  font-family: var(--font-data);
+  font-size: 7px;
+  color: var(--text-ghost);
+  letter-spacing: 0.5px;
+}
+
+.timeline-line {
+  position: absolute;
+  top: 12px;
+  left: 7%;
+  right: 7%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.04);
+  z-index: -1;
+}
+
+#timeline-progress {
+  position: absolute;
+  top: 12px;
+  left: 7%;
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent), rgba(68, 136, 204, 0.3));
+  transition: width 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+  z-index: -1;
+}
+
+/* ─── Zoom Controls ─── */
+#zoom-controls {
+  position: fixed;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.zoom-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-tertiary);
+  font-family: var(--font-data);
+  font-size: 15px;
+  cursor: none;
+  transition: all 0.3s ease;
+  user-select: none;
+}
+
+.zoom-btn:hover {
+  background: var(--glass-hover);
+  border-color: var(--border-hover);
+  color: var(--text-secondary);
+}
+
+.zoom-label {
+  font-family: var(--font-data);
+  font-size: 8px;
+  color: var(--text-ghost);
+  text-align: center;
+  padding: 4px 0;
+  letter-spacing: 0.5px;
+}
+
+/* ─── Top Bar ─── */
+#top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  background: linear-gradient(180deg, rgba(10, 10, 20, 0.6) 0%, transparent 100%);
+}
+
+.brand {
+  font-size: 12px;
+  font-weight: 300;
+  letter-spacing: 5px;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.brand span { color: var(--accent); opacity: 0.5; }
+
+.top-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-data);
+  font-size: 9px;
+  color: var(--text-ghost);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.status {
+  font-family: var(--font-data);
+  font-size: 9px;
+  color: var(--text-tertiary);
+  letter-spacing: 1.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #44cc88;
+  animation: livePulse 2s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 0.3; box-shadow: none; }
+  50% { opacity: 1; box-shadow: 0 0 6px rgba(68, 204, 136, 0.4); }
+}
+
+/* ─── Corner Brackets (cinematic framing) ─── */
+.corner-bracket {
+  position: fixed;
+  width: 30px;
+  height: 30px;
+  z-index: 99;
+  pointer-events: none;
+}
+
+.corner-bracket::before,
+.corner-bracket::after {
+  content: '';
+  position: absolute;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.corner-bracket.tl { top: 16px; left: 16px; }
+.corner-bracket.tl::before { width: 20px; height: 1px; top: 0; left: 0; }
+.corner-bracket.tl::after { width: 1px; height: 20px; top: 0; left: 0; }
+
+.corner-bracket.tr { top: 16px; right: 16px; }
+.corner-bracket.tr::before { width: 20px; height: 1px; top: 0; right: 0; }
+.corner-bracket.tr::after { width: 1px; height: 20px; top: 0; right: 0; }
+
+.corner-bracket.bl { bottom: 80px; left: 16px; }
+.corner-bracket.bl::before { width: 20px; height: 1px; bottom: 0; left: 0; }
+.corner-bracket.bl::after { width: 1px; height: 20px; bottom: 0; left: 0; }
+
+.corner-bracket.br { bottom: 80px; right: 16px; }
+.corner-bracket.br::before { width: 20px; height: 1px; bottom: 0; right: 0; }
+.corner-bracket.br::after { width: 1px; height: 20px; bottom: 0; right: 0; }
+
+/* ─── Mouse Velocity Indicator ─── */
+#velocity-indicator {
+  position: fixed;
+  bottom: 82px;
+  left: 28px;
+  z-index: 100;
+  font-family: var(--font-data);
+  font-size: 8px;
+  color: var(--text-ghost);
+  letter-spacing: 1px;
+  pointer-events: none;
+}
+
+/* ─── Perspective readout ─── */
+#perspective-readout {
+  position: fixed;
+  bottom: 82px;
+  right: 28px;
+  z-index: 100;
+  font-family: var(--font-data);
+  font-size: 8px;
+  color: var(--text-ghost);
+  letter-spacing: 1px;
+  pointer-events: none;
+}
+
+/* ─── Scrollbar hide ─── */
+::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+
+<!-- Layers -->
+<div id="atmosphere"></div>
+<div id="scanline"></div>
+<canvas id="particleCanvas"></canvas>
+<canvas id="gestureCanvas"></canvas>
+<div id="cursor"></div>
+<div id="cursor-dot"></div>
+<div id="cursor-cross"></div>
+
+<!-- Cinematic framing brackets -->
+<div class="corner-bracket tl"></div>
+<div class="corner-bracket tr"></div>
+<div class="corner-bracket bl"></div>
+<div class="corner-bracket br"></div>
+
+<!-- Top bar -->
+<div id="top-bar">
+  <div class="brand">Dev<span>Glide</span></div>
+  <div class="top-center">Gesture Interface v2.0</div>
+  <div class="status">
+    <span class="live-dot"></span>
+    SYSTEM ACTIVE
+  </div>
+</div>
+
+<!-- HUD readouts -->
+<div id="velocity-indicator">VEL 0.0</div>
+<div id="perspective-readout">FOV 900</div>
+
+<!-- SVG connections -->
+<svg id="connections-svg"></svg>
+
+<!-- 3D Scene -->
+<div id="scene-wrapper">
+  <div id="scene">
+    <div id="scene-inner">
+      <!-- Panels injected by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- Timeline -->
+<div id="timeline">
+  <div id="timeline-track">
+    <div class="timeline-line"></div>
+    <div id="timeline-progress"></div>
+  </div>
+</div>
+
+<!-- Zoom controls -->
+<div id="zoom-controls">
+  <div class="zoom-btn" id="zoom-in">+</div>
+  <div class="zoom-label" id="zoom-val">900</div>
+  <div class="zoom-btn" id="zoom-out">&minus;</div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   MINORITY REPORT ENGINE
+   Panel physics, gesture trails, particle system, connections
+   ═══════════════════════════════════════════════════════════════ */
+(function() {
+  'use strict';
+
+  // ─── Global State ───
+  const state = {
+    mouseX: window.innerWidth / 2,
+    mouseY: window.innerHeight / 2,
+    prevMouseX: window.innerWidth / 2,
+    prevMouseY: window.innerHeight / 2,
+    smoothX: window.innerWidth / 2,
+    smoothY: window.innerHeight / 2,
+    velocity: 0,
+    perspective: 900,
+    timelineIndex: 3,
+    hoveredPanel: null,
+    trailPoints: [],
+    panels: [],
+    connections: [],
+    particles: [],
+    pressing: false,
+    time: 0,
+  };
+
+  const W = () => window.innerWidth;
+  const H = () => window.innerHeight;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const dist = (x1, y1, x2, y2) => Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+
+  // ─── Panel Definitions (Cinematic Arc) ───
+  const panelDefs = [
+    // === Central chart panel (largest, front-center) ===
+    {
+      id: 'chart-main',
+      group: 'center',
+      x: 0.50, y: 0.40,
+      w: 400, h: 250,
+      rotateY: 0, rotateX: 0,
+      z: 10,
+      opacity: 1,
+      content: 'chart',
+      connDots: [
+        { x: 0, y: 0.5, id: 'chart-l' },
+        { x: 1, y: 0.5, id: 'chart-r' },
+        { x: 0.5, y: 1, id: 'chart-b' },
+      ],
+      delay: 0,
+    },
+    // === Left cluster — 4 stat panels ===
+    {
+      id: 'stat-tasks',
+      group: 'left',
+      x: 0.18, y: 0.28,
+      w: 175, h: 135,
+      rotateY: 26, rotateX: -2,
+      z: -25,
+      opacity: 0.88,
+      content: 'stat',
+      data: { value: '47', label: 'Active Tasks', change: '+12 this week', spark: [3,5,4,7,6,8,5] },
+      connDots: [{ x: 1, y: 0.5, id: 'tasks-r' }],
+      delay: 200,
+    },
+    {
+      id: 'stat-mcp',
+      group: 'left',
+      x: 0.24, y: 0.52,
+      w: 175, h: 135,
+      rotateY: 20, rotateX: 1,
+      z: -10,
+      opacity: 0.92,
+      content: 'stat',
+      data: { value: '2,841', label: 'MCP Calls', change: '+340 today', spark: [5,8,6,9,7,10,8] },
+      connDots: [{ x: 1, y: 0.35, id: 'mcp-r' }],
+      delay: 350,
+    },
+    {
+      id: 'stat-tests',
+      group: 'left',
+      x: 0.10, y: 0.50,
+      w: 165, h: 128,
+      rotateY: 33, rotateX: -1,
+      z: -48,
+      opacity: 0.72,
+      content: 'stat',
+      data: { value: '98%', label: 'Test Pass Rate', change: '+2.1% vs last', spark: [8,9,7,10,9,10,9] },
+      connDots: [{ x: 1, y: 0.5, id: 'tests-r' }],
+      delay: 500,
+    },
+    {
+      id: 'stat-transcriptions',
+      group: 'left',
+      x: 0.19, y: 0.73,
+      w: 165, h: 128,
+      rotateY: 23, rotateX: 2,
+      z: -20,
+      opacity: 0.82,
+      content: 'stat',
+      data: { value: '87', label: 'Transcriptions', change: '~142 WPM avg', spark: [4,6,3,5,7,4,6] },
+      connDots: [{ x: 1, y: 0.3, id: 'trans-r' }],
+      delay: 650,
+    },
+    // === Right cluster — activity feed + kanban ===
+    {
+      id: 'activity-feed',
+      group: 'right',
+      x: 0.76, y: 0.30,
+      w: 260, h: 275,
+      rotateY: -22, rotateX: -1,
+      z: -15,
+      opacity: 0.90,
+      content: 'activity',
+      connDots: [{ x: 0, y: 0.5, id: 'activity-l' }],
+      delay: 280,
+    },
+    {
+      id: 'kanban-summary',
+      group: 'right',
+      x: 0.87, y: 0.56,
+      w: 210, h: 235,
+      rotateY: -30, rotateX: 1,
+      z: -40,
+      opacity: 0.75,
+      content: 'kanban',
+      connDots: [
+        { x: 0, y: 0.3, id: 'kanban-l' },
+        { x: 0, y: 0.7, id: 'kanban-l2' },
+      ],
+      delay: 430,
+    },
+    // === Far periphery — depth panels ===
+    {
+      id: 'panel-workflows',
+      group: 'far-left',
+      x: 0.04, y: 0.36,
+      w: 145, h: 95,
+      rotateY: 40, rotateX: -3,
+      z: -85,
+      opacity: 0.38,
+      content: 'mini',
+      data: { title: 'Workflows', value: '12 active', sub: '3 triggered today' },
+      delay: 800,
+    },
+    {
+      id: 'panel-prompts',
+      group: 'far-right',
+      x: 0.96, y: 0.38,
+      w: 145, h: 95,
+      rotateY: -38, rotateX: -2,
+      z: -80,
+      opacity: 0.36,
+      content: 'mini',
+      data: { title: 'Prompts', value: '34 saved', sub: '8 high-rated' },
+      delay: 850,
+    },
+    {
+      id: 'panel-vocab',
+      group: 'far-left',
+      x: 0.06, y: 0.66,
+      w: 135, h: 85,
+      rotateY: 36, rotateX: 2,
+      z: -95,
+      opacity: 0.32,
+      content: 'mini',
+      data: { title: 'Vocabulary', value: '56 terms', sub: 'project-scoped' },
+      delay: 920,
+    },
+    {
+      id: 'panel-docs',
+      group: 'far-right',
+      x: 0.94, y: 0.72,
+      w: 135, h: 85,
+      rotateY: -35, rotateX: 3,
+      z: -90,
+      opacity: 0.34,
+      content: 'mini',
+      data: { title: 'Docs', value: '23 guides', sub: '5 workflows' },
+      delay: 960,
+    },
+    // Overlapping cascade pair (center-left, slightly behind main chart)
+    {
+      id: 'panel-shell',
+      group: 'center',
+      x: 0.38, y: 0.68,
+      w: 180, h: 110,
+      rotateY: 8, rotateX: 4,
+      z: -30,
+      opacity: 0.55,
+      content: 'mini',
+      data: { title: 'Shell Panes', value: '4 active', sub: 'pane-1 idle' },
+      connDots: [{ x: 0.5, y: 0, id: 'shell-t' }],
+      delay: 700,
+    },
+    {
+      id: 'panel-logs',
+      group: 'center',
+      x: 0.58, y: 0.70,
+      w: 170, h: 100,
+      rotateY: -6, rotateX: 3,
+      z: -35,
+      opacity: 0.50,
+      content: 'mini',
+      data: { title: 'Log Stream', value: '1,204 entries', sub: '12 errors' },
+      connDots: [{ x: 0.5, y: 0, id: 'logs-t' }],
+      delay: 750,
+    },
+  ];
+
+  // ─── Connection Definitions ───
+  const connectionDefs = [
+    { from: 'tasks-r', to: 'chart-l', panels: ['stat-tasks', 'chart-main'] },
+    { from: 'mcp-r', to: 'chart-l', panels: ['stat-mcp', 'chart-main'] },
+    { from: 'tests-r', to: 'chart-l', panels: ['stat-tests', 'chart-main'] },
+    { from: 'trans-r', to: 'chart-b', panels: ['stat-transcriptions', 'chart-main'] },
+    { from: 'chart-r', to: 'activity-l', panels: ['chart-main', 'activity-feed'] },
+    { from: 'chart-r', to: 'kanban-l', panels: ['chart-main', 'kanban-summary'] },
+    { from: 'activity-l', to: 'kanban-l2', panels: ['activity-feed', 'kanban-summary'] },
+    { from: 'chart-b', to: 'shell-t', panels: ['chart-main', 'panel-shell'] },
+    { from: 'chart-b', to: 'logs-t', panels: ['chart-main', 'panel-logs'] },
+  ];
+
+  // ─── Data ───
+  const activities = [
+    { time: '2m', tool: 'kanban_move_item', text: ' #34 to In Review' },
+    { time: '8m', tool: 'shell_run_command', text: ': pnpm build (0 errors)' },
+    { time: '15m', tool: 'test_run_saved', text: ': auth-flow passed' },
+    { time: '22m', tool: 'voice_transcribe', text: ': 142 WPM cleanup' },
+    { time: '31m', tool: 'workflow_match', text: ': deploy-staging' },
+    { time: '45m', tool: 'chat_send', text: ': @codex review PR #87' },
+  ];
+
+  const kanbanCols = [
+    { name: 'Backlog', count: 8, pct: 0.17 },
+    { name: 'Todo', count: 12, pct: 0.26 },
+    { name: 'In Progress', count: 6, pct: 0.13 },
+    { name: 'In Review', count: 4, pct: 0.09 },
+    { name: 'Testing', count: 3, pct: 0.06 },
+    { name: 'Done', count: 14, pct: 0.30 },
+  ];
+
+  const milestones = [
+    { label: 'Init', date: 'Jan 12' },
+    { label: 'MCP v1', date: 'Feb 3' },
+    { label: 'Shell', date: 'Feb 18' },
+    { label: 'Voice', date: 'Mar 5' },
+    { label: 'Chat', date: 'Mar 20' },
+    { label: 'Tests', date: 'Mar 28' },
+    { label: 'v1.0', date: 'Apr 1' },
+  ];
+
+  const chartData = [120, 180, 150, 220, 190, 250, 210];
+  const chartLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  // ─── Build Chart SVG ───
+  function buildChart() {
+    const maxVal = Math.max(...chartData) * 1.1;
+    const pad = { top: 18, right: 15, bottom: 28, left: 32 };
+    const w = 370, h = 185;
+    const plotW = w - pad.left - pad.right;
+    const plotH = h - pad.top - pad.bottom;
+
+    const points = chartData.map((v, i) => ({
+      x: pad.left + (i / (chartData.length - 1)) * plotW,
+      y: pad.top + plotH - (v / maxVal) * plotH,
+    }));
+
+    // Smooth curve through points (catmull-rom to bezier)
+    function catmullRomToBezier(pts) {
+      let d = `M${pts[0].x},${pts[0].y}`;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[Math.max(i - 1, 0)];
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const p3 = pts[Math.min(i + 2, pts.length - 1)];
+        const tension = 0.3;
+        const cp1x = p1.x + (p2.x - p0.x) * tension;
+        const cp1y = p1.y + (p2.y - p0.y) * tension;
+        const cp2x = p2.x - (p3.x - p1.x) * tension;
+        const cp2y = p2.y - (p3.y - p1.y) * tension;
+        d += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
+      }
+      return d;
+    }
+
+    const curvePath = catmullRomToBezier(points);
+    const areaPath = curvePath + ` L${points[points.length-1].x},${pad.top + plotH} L${points[0].x},${pad.top + plotH} Z`;
+
+    let gridLines = '';
+    for (let i = 0; i <= 4; i++) {
+      const y = pad.top + (i / 4) * plotH;
+      const val = Math.round(maxVal - (i / 4) * maxVal);
+      gridLines += `<line x1="${pad.left}" y1="${y}" x2="${pad.left + plotW}" y2="${y}" stroke="rgba(255,255,255,0.03)" stroke-width="0.5"/>`;
+      gridLines += `<text x="${pad.left - 6}" y="${y + 3}" text-anchor="end" fill="rgba(255,255,255,0.15)" font-size="7" font-family="JetBrains Mono">${val}</text>`;
+    }
+
+    let labels = '';
+    points.forEach((p, i) => {
+      labels += `<text x="${p.x}" y="${pad.top + plotH + 16}" text-anchor="middle" fill="rgba(255,255,255,0.2)" font-size="8" font-family="JetBrains Mono">${chartLabels[i]}</text>`;
+    });
+
+    let dots = '';
+    points.forEach((p) => {
+      dots += `<circle cx="${p.x}" cy="${p.y}" r="2" fill="var(--accent)" opacity="0.6"/>`;
+      dots += `<circle cx="${p.x}" cy="${p.y}" r="5" fill="var(--accent)" opacity="0.08"/>`;
+    });
+
+    return `
+      <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.12"/>
+            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.005"/>
+          </linearGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="2" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        ${gridLines}
+        <path d="${areaPath}" fill="url(#areaGrad)"/>
+        <path d="${curvePath}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-opacity="0.45" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+        ${dots}
+        ${labels}
+      </svg>
+    `;
+  }
+
+  // ─── Build Sparkline ───
+  function buildSparkline(data) {
+    const max = Math.max(...data);
+    return data.map(v => `<div class="bar" style="height:${(v / max) * 100}%"></div>`).join('');
+  }
+
+  // ─── Build Panel Content ───
+  function buildPanelContent(def) {
+    switch (def.content) {
+      case 'chart':
+        return `
+          <div class="panel-header">
+            <span class="dot"></span>MCP Activity / Week
+            <span class="id-tag">PANEL-001</span>
+          </div>
+          <div class="chart-container">${buildChart()}</div>
+        `;
+      case 'stat':
+        return `
+          <div class="panel-header">
+            <span class="dot"></span>${def.data.label}
+            <span class="id-tag">${def.id.toUpperCase()}</span>
+          </div>
+          <div class="stat-value">${def.data.value}</div>
+          <div class="stat-label">${def.data.label}</div>
+          <div class="stat-change">${def.data.change}</div>
+          <div class="stat-sparkline">${buildSparkline(def.data.spark)}</div>
+        `;
+      case 'activity':
+        return `
+          <div class="panel-header">
+            <span class="dot"></span>Activity Feed
+            <span class="id-tag">FEED-001</span>
+          </div>
+          ${activities.map(a => `
+            <div class="activity-item">
+              <span class="activity-time">${a.time}</span>
+              <span class="activity-dot"></span>
+              <span class="activity-text"><span class="tool-name">${a.tool}</span>${a.text}</span>
+            </div>
+          `).join('')}
+        `;
+      case 'kanban':
+        return `
+          <div class="panel-header">
+            <span class="dot"></span>Kanban Summary
+            <span class="id-tag">BOARD-001</span>
+          </div>
+          ${kanbanCols.map(c => `
+            <div class="kanban-col">
+              <span class="kanban-col-name">${c.name}</span>
+              <div class="kanban-col-bar-track"><div class="kanban-col-bar" style="width:${c.pct * 100}%"></div></div>
+              <span class="kanban-col-count">${c.count}</span>
+            </div>
+          `).join('')}
+        `;
+      case 'mini':
+        return `
+          <div class="panel-header">
+            <span class="dot"></span>${def.data.title}
+            <span class="id-tag">${def.id.replace('panel-', '').toUpperCase()}</span>
+          </div>
+          <div style="font-family:var(--font-data);font-size:15px;color:var(--text-secondary);opacity:0.7;margin-bottom:4px;">${def.data.value}</div>
+          <div style="font-size:10px;color:var(--text-tertiary);opacity:0.5;">${def.data.sub}</div>
+        `;
+    }
+    return '';
+  }
+
+  // ─── Create Panel DOM ───
+  const sceneInner = document.getElementById('scene-inner');
+
+  panelDefs.forEach(def => {
+    const el = document.createElement('div');
+    el.className = 'glass-panel';
+    el.id = def.id;
+    el.dataset.group = def.group;
+    el.innerHTML = buildPanelContent(def);
+    el.style.width = def.w + 'px';
+    el.style.height = def.h + 'px';
+    el.style.animationDelay = (def.delay || 0) + 'ms';
+    el.style.setProperty('--target-opacity', def.opacity);
+
+    // Connection anchor dots
+    if (def.connDots) {
+      def.connDots.forEach(cd => {
+        const dot = document.createElement('div');
+        dot.className = 'conn-dot';
+        dot.dataset.connId = cd.id;
+        const px = cd.x === 0 ? '-3px' : cd.x === 1 ? 'calc(100% - 3px)' : (cd.x * 100) + '%';
+        const py = cd.y === 0 ? '-3px' : cd.y === 1 ? 'calc(100% - 3px)' : (cd.y * 100) + '%';
+        dot.style.left = px;
+        dot.style.top = py;
+        el.appendChild(dot);
+      });
+    }
+
+    sceneInner.appendChild(el);
+
+    state.panels.push({
+      def,
+      el,
+      currentZ: def.z,
+      currentScale: 1,
+      currentOpacity: def.opacity,
+      velZ: 0,
+      velScale: 0,
+    });
+  });
+
+  // ─── Position Panels ───
+  function positionPanels() {
+    state.panels.forEach(p => {
+      p.centerX = W() * p.def.x;
+      p.centerY = H() * p.def.y;
+      p.baseLeft = p.centerX - p.def.w / 2;
+      p.baseTop = p.centerY - p.def.h / 2;
+    });
+  }
+
+  positionPanels();
+  window.addEventListener('resize', () => {
+    positionPanels();
+    resizeCanvases();
+  });
+
+  // ─── Timeline ───
+  const timelineTrack = document.getElementById('timeline-track');
+  const timelineProgress = document.getElementById('timeline-progress');
+
+  milestones.forEach((m, i) => {
+    const node = document.createElement('div');
+    node.className = 'timeline-node' + (i <= state.timelineIndex ? ' active' : '');
+    node.innerHTML = `
+      <div class="node-pip"></div>
+      <span class="timeline-node-label">${m.label}</span>
+      <span class="timeline-node-date">${m.date}</span>
+    `;
+    node.dataset.index = i;
+    timelineTrack.appendChild(node);
+  });
+
+  function updateTimeline(idx) {
+    state.timelineIndex = clamp(Math.round(idx), 0, milestones.length - 1);
+    timelineTrack.querySelectorAll('.timeline-node').forEach((n, i) => {
+      n.classList.toggle('active', i <= state.timelineIndex);
+    });
+    timelineProgress.style.width = (state.timelineIndex / (milestones.length - 1)) * 86 + '%';
+  }
+
+  updateTimeline(state.timelineIndex);
+
+  document.getElementById('timeline').addEventListener('mousemove', (e) => {
+    const rect = timelineTrack.getBoundingClientRect();
+    const relX = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+    updateTimeline(relX * (milestones.length - 1));
+  });
+
+  // ─── SVG Connections ───
+  const connSvg = document.getElementById('connections-svg');
+
+  function getConnDotCenter(connId) {
+    const dot = document.querySelector(`[data-conn-id="${connId}"]`);
+    if (!dot) return { x: 0, y: 0 };
+    const r = dot.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+
+  function buildConnections() {
+    connSvg.innerHTML = '';
+    connSvg.setAttribute('width', W());
+    connSvg.setAttribute('height', H());
+    state.connections = connectionDefs.map(cd => {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.dataset.panels = cd.panels.join(',');
+      connSvg.appendChild(line);
+      return { def: cd, line };
+    });
+  }
+
+  function updateConnections() {
+    connSvg.setAttribute('width', W());
+    connSvg.setAttribute('height', H());
+    state.connections.forEach(c => {
+      const from = getConnDotCenter(c.def.from);
+      const to = getConnDotCenter(c.def.to);
+      c.line.setAttribute('x1', from.x);
+      c.line.setAttribute('y1', from.y);
+      c.line.setAttribute('x2', to.x);
+      c.line.setAttribute('y2', to.y);
+    });
+  }
+
+  setTimeout(() => { buildConnections(); updateConnections(); }, 150);
+
+  // ─── Canvases ───
+  const gestureCanvas = document.getElementById('gestureCanvas');
+  const gestureCtx = gestureCanvas.getContext('2d');
+  const particleCanvas = document.getElementById('particleCanvas');
+  const particleCtx = particleCanvas.getContext('2d');
+
+  function resizeCanvases() {
+    gestureCanvas.width = W();
+    gestureCanvas.height = H();
+    particleCanvas.width = W();
+    particleCanvas.height = H();
+  }
+  resizeCanvases();
+
+  // ─── Gesture Trail ───
+  function addTrailPoint(x, y) {
+    const speed = state.velocity;
+    state.trailPoints.push({
+      x, y,
+      life: 1.0,
+      baseSize: 5 + Math.min(speed * 0.8, 12),
+      brightness: Math.min(0.4 + speed * 0.02, 0.9),
+    });
+    if (state.trailPoints.length > 60) state.trailPoints.shift();
+  }
+
+  function drawGestureTrail() {
+    gestureCtx.clearRect(0, 0, gestureCanvas.width, gestureCanvas.height);
+
+    const pts = state.trailPoints;
+    if (pts.length < 2) return;
+
+    // Connecting ribbon
+    gestureCtx.beginPath();
+    gestureCtx.lineWidth = 1.2;
+    let started = false;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      if (p.life <= 0.05) continue;
+      if (!started) { gestureCtx.moveTo(p.x, p.y); started = true; }
+      else gestureCtx.lineTo(p.x, p.y);
+    }
+    gestureCtx.strokeStyle = 'rgba(68, 136, 204, 0.08)';
+    gestureCtx.stroke();
+
+    // Glow points
+    for (let i = pts.length - 1; i >= 0; i--) {
+      const p = pts[i];
+      p.life -= 0.02;
+      if (p.life <= 0) continue;
+
+      const alpha = p.life * p.brightness;
+      const size = p.baseSize * p.life;
+
+      // Outer glow
+      const grad = gestureCtx.createRadialGradient(p.x, p.y, 0, p.x, p.y, size * 2.5);
+      grad.addColorStop(0, `rgba(68, 136, 204, ${alpha * 0.3})`);
+      grad.addColorStop(0.4, `rgba(68, 136, 204, ${alpha * 0.08})`);
+      grad.addColorStop(1, 'rgba(68, 136, 204, 0)');
+      gestureCtx.beginPath();
+      gestureCtx.fillStyle = grad;
+      gestureCtx.arc(p.x, p.y, size * 2.5, 0, Math.PI * 2);
+      gestureCtx.fill();
+
+      // Core
+      gestureCtx.beginPath();
+      gestureCtx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.7})`;
+      gestureCtx.arc(p.x, p.y, size * 0.2, 0, Math.PI * 2);
+      gestureCtx.fill();
+    }
+
+    state.trailPoints = state.trailPoints.filter(p => p.life > 0);
+
+    // Cursor glow (at current mouse position)
+    const cg = gestureCtx.createRadialGradient(state.mouseX, state.mouseY, 0, state.mouseX, state.mouseY, 30);
+    cg.addColorStop(0, 'rgba(68, 136, 204, 0.06)');
+    cg.addColorStop(1, 'rgba(68, 136, 204, 0)');
+    gestureCtx.beginPath();
+    gestureCtx.fillStyle = cg;
+    gestureCtx.arc(state.mouseX, state.mouseY, 30, 0, Math.PI * 2);
+    gestureCtx.fill();
+  }
+
+  // ─── Particle System (ambient dust) ───
+  function initParticles(count) {
+    state.particles = [];
+    for (let i = 0; i < count; i++) {
+      state.particles.push({
+        x: Math.random() * W(),
+        y: Math.random() * H(),
+        vx: (Math.random() - 0.5) * 0.15,
+        vy: (Math.random() - 0.5) * 0.1,
+        size: Math.random() * 1.2 + 0.3,
+        alpha: Math.random() * 0.12 + 0.02,
+        pulse: Math.random() * Math.PI * 2,
+        pulseSpeed: Math.random() * 0.01 + 0.005,
+      });
+    }
+  }
+
+  initParticles(80);
+
+  function drawParticles() {
+    particleCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+
+    state.particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.pulse += p.pulseSpeed;
+
+      // Wrap around
+      if (p.x < -10) p.x = W() + 10;
+      if (p.x > W() + 10) p.x = -10;
+      if (p.y < -10) p.y = H() + 10;
+      if (p.y > H() + 10) p.y = -10;
+
+      // Subtle mouse repulsion
+      const dx = p.x - state.smoothX;
+      const dy = p.y - state.smoothY;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < 100) {
+        const force = (100 - d) / 100 * 0.3;
+        p.x += (dx / d) * force;
+        p.y += (dy / d) * force;
+      }
+
+      const flicker = (Math.sin(p.pulse) * 0.5 + 0.5) * 0.5 + 0.5;
+      const alpha = p.alpha * flicker;
+
+      particleCtx.beginPath();
+      particleCtx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+      particleCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      particleCtx.fill();
+    });
+  }
+
+  // ─── Mouse Tracking ───
+  const cursor = document.getElementById('cursor');
+  const cursorDot = document.getElementById('cursor-dot');
+  const cursorCross = document.getElementById('cursor-cross');
+  let trailFrame = 0;
+
+  document.addEventListener('mousemove', (e) => {
+    state.prevMouseX = state.mouseX;
+    state.prevMouseY = state.mouseY;
+    state.mouseX = e.clientX;
+    state.mouseY = e.clientY;
+
+    cursor.style.left = e.clientX + 'px';
+    cursor.style.top = e.clientY + 'px';
+    cursorDot.style.left = e.clientX + 'px';
+    cursorDot.style.top = e.clientY + 'px';
+    cursorCross.style.left = e.clientX + 'px';
+    cursorCross.style.top = e.clientY + 'px';
+
+    trailFrame++;
+    if (trailFrame % 2 === 0) {
+      addTrailPoint(e.clientX, e.clientY);
+    }
+  });
+
+  document.addEventListener('mousedown', () => {
+    state.pressing = true;
+    cursor.classList.add('pressing');
+    cursorCross.classList.add('visible');
+  });
+
+  document.addEventListener('mouseup', () => {
+    state.pressing = false;
+    cursor.classList.remove('pressing');
+    cursorCross.classList.remove('visible');
+  });
+
+  // Hover state for cursor ring
+  document.addEventListener('mouseover', (e) => {
+    const isInteractive = e.target.closest('.glass-panel, .zoom-btn, .timeline-node');
+    cursor.classList.toggle('hovering', !!isInteractive);
+  });
+
+  // ─── Zoom ───
+  const zoomVal = document.getElementById('zoom-val');
+  const perspReadout = document.getElementById('perspective-readout');
+
+  function setZoom(val) {
+    state.perspective = clamp(val, 350, 2000);
+    document.getElementById('scene').style.perspective = state.perspective + 'px';
+    zoomVal.textContent = Math.round(state.perspective);
+    perspReadout.textContent = 'FOV ' + Math.round(state.perspective);
+  }
+
+  document.getElementById('zoom-in').addEventListener('click', () => setZoom(state.perspective - 80));
+  document.getElementById('zoom-out').addEventListener('click', () => setZoom(state.perspective + 80));
+
+  document.addEventListener('wheel', (e) => {
+    if (e.target.closest('#timeline')) return;
+    setZoom(state.perspective + e.deltaY * 0.4);
+  }, { passive: true });
+
+  // ─── Keyboard ───
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '+' || e.key === '=') setZoom(state.perspective - 80);
+    else if (e.key === '-') setZoom(state.perspective + 80);
+    else if (e.key === 'ArrowLeft') updateTimeline(state.timelineIndex - 1);
+    else if (e.key === 'ArrowRight') updateTimeline(state.timelineIndex + 1);
+    else if (e.key === '0') setZoom(900); // reset
+  });
+
+  // ─── Panel click to cascade front ───
+  document.querySelectorAll('.glass-panel').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.glass-panel').forEach(p => p.style.zIndex = '');
+      el.style.zIndex = '150';
+      setTimeout(() => { el.style.zIndex = ''; }, 3000);
+    });
+  });
+
+  // ─── HUD elements ───
+  const velocityEl = document.getElementById('velocity-indicator');
+
+  // ─── Main Animation Loop ───
+  const sceneInner_ref = document.getElementById('scene-inner');
+
+  function animate() {
+    state.time++;
+
+    // Velocity calculation
+    const vx = state.mouseX - state.prevMouseX;
+    const vy = state.mouseY - state.prevMouseY;
+    const rawVel = Math.sqrt(vx * vx + vy * vy);
+    state.velocity = lerp(state.velocity, rawVel, 0.15);
+
+    // Smooth mouse
+    state.smoothX = lerp(state.smoothX, state.mouseX, 0.07);
+    state.smoothY = lerp(state.smoothY, state.mouseY, 0.07);
+
+    // Scene tilt from mouse position
+    const tiltX = ((state.smoothY / H()) - 0.5) * -5;
+    const tiltY = ((state.smoothX / W()) - 0.5) * 7;
+    sceneInner_ref.style.transform = `rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+
+    // Panel push/pull physics
+    let anyPulled = false;
+    state.panels.forEach(p => {
+      const pcx = p.centerX;
+      const pcy = p.centerY;
+      const d = dist(state.mouseX, state.mouseY, pcx, pcy);
+
+      const hoverR = Math.max(p.def.w, p.def.h) * 0.6;
+      const pushR = Math.max(p.def.w, p.def.h) * 2.2;
+
+      let targetZ = p.def.z;
+      let targetScale = 1;
+      let targetOpacity = p.def.opacity;
+      let isPulled = false;
+      let isActive = false;
+
+      if (d < hoverR) {
+        // Direct hover: PULL toward viewer
+        const factor = 1 - (d / hoverR);
+        const pullAmount = state.pressing ? 55 : 35;
+        targetZ = p.def.z + pullAmount * factor;
+        targetScale = 1 + (state.pressing ? 0.06 : 0.04) * factor;
+        targetOpacity = clamp(p.def.opacity + 0.25 * factor, 0, 1);
+        isPulled = true;
+        isActive = true;
+        state.hoveredPanel = p.def.id;
+        anyPulled = true;
+      } else if (d < pushR) {
+        // Proximity: PUSH away (ripple effect)
+        const factor = 1 - ((d - hoverR) / (pushR - hoverR));
+        targetZ = p.def.z - 25 * factor * factor;
+        isActive = d < pushR * 0.5;
+      }
+
+      // Spring physics for smooth transitions
+      const springK = 0.08;
+      const damping = 0.75;
+
+      p.velZ = (p.velZ + (targetZ - p.currentZ) * springK) * damping;
+      p.currentZ += p.velZ;
+
+      p.velScale = (p.velScale + (targetScale - p.currentScale) * springK) * damping;
+      p.currentScale += p.velScale;
+
+      p.currentOpacity = lerp(p.currentOpacity, targetOpacity, 0.06);
+
+      // Subtle idle floating
+      const floatY = Math.sin(state.time * 0.008 + p.def.delay * 0.01) * 2;
+      const floatX = Math.cos(state.time * 0.006 + p.def.delay * 0.008) * 1;
+
+      // Apply transform
+      const tx = p.baseLeft + floatX;
+      const ty = p.baseTop + floatY;
+      p.el.style.transform = `translate3d(${tx}px, ${ty}px, ${p.currentZ}px) rotateY(${p.def.rotateY}deg) rotateX(${p.def.rotateX || 0}deg) scale(${p.currentScale})`;
+      p.el.style.opacity = p.currentOpacity;
+
+      p.el.classList.toggle('pulled', isPulled);
+      p.el.classList.toggle('active', isActive && !isPulled);
+    });
+
+    if (!anyPulled) state.hoveredPanel = null;
+
+    // Connection glow logic
+    state.connections.forEach(c => {
+      const isHovered = state.hoveredPanel && c.def.panels.includes(state.hoveredPanel);
+      c.line.classList.toggle('glow', isHovered);
+
+      // Anchor dots
+      [c.def.from, c.def.to].forEach(id => {
+        const dot = document.querySelector(`[data-conn-id="${id}"]`);
+        if (dot) dot.classList.toggle('glow', isHovered);
+      });
+    });
+
+    // Update connection line positions
+    updateConnections();
+
+    // Draw layers
+    drawGestureTrail();
+    drawParticles();
+
+    // Update HUD
+    if (state.time % 6 === 0) {
+      velocityEl.textContent = 'VEL ' + state.velocity.toFixed(1);
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  requestAnimationFrame(animate);
+
+})();
+</script>
+</body>
+</html>

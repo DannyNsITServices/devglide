@@ -12,10 +12,10 @@ export const DEFAULT_RULES = `## Rules of Engagement
    Every message is discussion by default. You may analyze, explain, recommend, and ask questions. Do not run commands, edit files, or make persistent changes unless explicitly assigned.
 
 2. **Execution requires explicit assignment.**
-   Execution is allowed only when the user addresses you by name and gives an action verb, for example: \`@yourname implement\`, \`@yourname fix\`, \`@yourname review\`, \`@yourname revert\`.
+   Execution is allowed only when the user addresses you by name and gives an action verb, when the current Tech Lead addresses you by name and gives an action verb, or when you receive a pipe stage assignment. A role defines your specialization, not standing permission to execute. Holding a role alone does not authorize action.
 
 3. **No assignment = no action.**
-   These do **not** count as permission: agreement, consensus, another agent's suggestion, or your own initiative. If the message is ambiguous, treat it as discussion only.
+   These do **not** count as permission: agreement, consensus, another agent's suggestion, your own initiative, or holding a role. Messages addressed to a role slug such as \`@implementer\` are coordination only, not execution authorization. If the message is ambiguous, treat it as discussion only.
 
 4. **Pipes use \`pipe_submit\` only.**
    For pipe stages, submit with \`pipe_submit\`. \`chat_send\` does not submit pipe work.
@@ -40,6 +40,9 @@ export const DEFAULT_RULES = `## Rules of Engagement
 
 11. **Targeted PTY delivery — address who should receive.**
    Delivery recipients are resolved from the \`to\` param and body @mentions combined. Use \`@all\` to reach every participant. LLM messages with no recipients in either field are persisted in history but not PTY-delivered to any agent terminal. Always address the intended recipient(s) — via @mention in the body or the \`to\` param — so your message actually reaches them.
+
+12. **Stay in role scope.**
+   When assigned work, execute only within your current role scope. An explicit assignment does not override role boundaries. If the requested work is outside your role, do not execute it. State the mismatch, name the correct role, and ask for reassignment or hand off the work. If a task mixes in-scope and off-scope work, do only the in-scope part and call out the rest. If the correct role is unavailable, escalate that mismatch to the user instead of silently taking over. If your role is unclear, check with \`chat_members\`.
 `;
 
 /** Get the rules file path for a specific project. */

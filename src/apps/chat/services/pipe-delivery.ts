@@ -369,6 +369,7 @@ export function formatCompactNotification(
   targetAssignee: string,
   totalStages: number,
   stage?: number,
+  chatRole?: string | null,
 ): CompactNotification {
   const roleMap: Record<string, PipeRole> = {
     'handoff': 'handoff',
@@ -379,18 +380,19 @@ export function formatCompactNotification(
 
   let header: string;
   let guidance: string;
+  const roleSuffix = chatRole ? ` | Your role: ${chatRole}` : '';
 
   if (actionType === 'handoff') {
     const isLast = stage === totalStages;
-    header = `#pipe-${pipeId} [linear | stage ${stage}/${totalStages} | @${targetAssignee}]`;
+    header = `#pipe-${pipeId} [linear | stage ${stage}/${totalStages} | @${targetAssignee}${roleSuffix}]`;
     guidance = isLast
       ? 'Final stage — your response goes to the user.'
       : 'Your output passes to the next stage.';
   } else if (actionType === 'fan-out-request') {
-    header = `#pipe-${pipeId} [${mode} | fan-out | @${targetAssignee}]`;
+    header = `#pipe-${pipeId} [${mode} | fan-out | @${targetAssignee}${roleSuffix}]`;
     guidance = 'Provide your independent analysis. Other participants answer in parallel.';
   } else {
-    header = `#pipe-${pipeId} [${mode} | synthesizer | @${targetAssignee}]`;
+    header = `#pipe-${pipeId} [${mode} | synthesizer | @${targetAssignee}${roleSuffix}]`;
     guidance = 'Synthesize the fan-out outputs into a unified response.';
   }
 

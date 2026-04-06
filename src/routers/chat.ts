@@ -19,6 +19,7 @@ import {
   createChatMcpServer,
   chatServerSessions,
   bindChatSessionToMcpHttpSession,
+  getChatMcpHttpSessionEntry,
   hasChatMcpHttpSession,
   registerChatMcpHttpSession,
   unregisterChatMcpHttpSession,
@@ -28,6 +29,7 @@ export {
   createChatMcpServer,
   chatServerSessions,
   bindChatSessionToMcpHttpSession,
+  getChatMcpHttpSessionEntry,
   hasChatMcpHttpSession,
   registerChatMcpHttpSession,
   unregisterChatMcpHttpSession,
@@ -40,6 +42,7 @@ export const router: Router = Router();
 const sendMessageSchema = z.object({
   message: z.string().min(1, 'message is required'),
   to: z.string().optional(),
+  projectId: z.string().nullable().optional(),
 });
 
 const messagesQuerySchema = z.object({
@@ -105,6 +108,25 @@ function getBlockedPipeReferenceError(message: string, projectId?: string | null
 
   return `Chat messages may not reference currently running pipes via #pipe-${runningPipeId}. `
     + 'Use pipe_submit for stage output, or discuss the pipe without the #pipe- anchor.';
+}
+
+function resolveProjectIdInput(
+  res: Response,
+  requestedProjectId: string | null | undefined,
+  fallbackProjectId: string | null = getActiveProject()?.id ?? null,
+): string | null | undefined {
+  if (requestedProjectId === undefined) return fallbackProjectId;
+  if (requestedProjectId === null) return null;
+  if (listProjects().projects.some(project => project.id === requestedProjectId)) {
+    return requestedProjectId;
+  }
+  badRequest(res, `Unknown projectId "${requestedProjectId}"`);
+  return undefined;
+}
+
+function getRequestedProjectId(req: Request, res: Response, bodyProjectId?: string | null): string | null | undefined {
+  const queryProjectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined;
+  return resolveProjectIdInput(res, bodyProjectId ?? queryProjectId);
 }
 
 // ── Pane resolution & diagnostics ────────────────────────────────────────────
@@ -318,8 +340,9 @@ function resolvePane(
 // GET /panes — list routable panes for chat join
 // Accepts optional ?projectId= to scope to a specific project (defaults to active project)
 router.get('/panes', (req: Request, res: Response) => {
-  const projectId = req.query.projectId as string | undefined;
-  res.json(getRoutablePanes(projectId ?? undefined));
+  const projectId = resolveProjectIdInput(res, req.query.projectId as string | undefined);
+  if (projectId === undefined) return;
+  res.json(getRoutablePanes(projectId));
 });
 
 // GET /status — connection diagnostics for a participant
@@ -328,7 +351,8 @@ router.get('/panes', (req: Request, res: Response) => {
 router.get('/status', (req: Request, res: Response) => {
   const name = req.query.name as string | undefined;
   const paneId = req.query.paneId as string | undefined;
-  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+  const projectId = resolveProjectIdInput(res, req.query.projectId as string | undefined);
+  if (projectId === undefined) return;
 
   if (!name) {
     if (paneId) {
@@ -402,7 +426,9 @@ router.get('/messages', (req: Request, res: Response) => {
     badRequest(res, query.error.issues[0]?.message ?? 'Invalid input');
     return;
   }
-  const messages = store.readMessages(query.data);
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
+  const messages = store.readMessages(query.data, projectId);
   res.json(messages);
 });
 
@@ -413,29 +439,36 @@ router.get('/pipe-events', (req: Request, res: Response) => {
     badRequest(res, query.error.issues[0]?.message ?? 'Invalid input');
     return;
   }
-  const events = store.readPipeEvents(query.data);
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
+  const events = store.readPipeEvents(query.data, projectId);
   res.json(events);
 });
 
 // POST /messages — send as "user" (dashboard shorthand)
+// Accepts body `projectId` to target a specific project without relying on the active-project singleton.
 router.post('/messages', asyncHandler(async (req: Request, res: Response) => {
   const parsed = sendMessageSchema.safeParse(req.body);
   if (!parsed.success) {
     badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
     return;
   }
-  const error = getBlockedPipeReferenceError(parsed.data.message);
+  const projectId = getRequestedProjectId(req, res, parsed.data.projectId);
+  if (projectId === undefined) return;
+  const error = getBlockedPipeReferenceError(parsed.data.message, projectId);
   if (error) {
     res.status(422).json({ error });
     return;
   }
-  const msg = await registry.send('user', parsed.data.message, parsed.data.to);
+  const msg = await registry.send('user', parsed.data.message, parsed.data.to, projectId);
   res.status(201).json(msg);
 }));
 
 // GET /members — list active participants
-router.get('/members', (_req: Request, res: Response) => {
-  res.json(registry.listParticipants());
+router.get('/members', (req: Request, res: Response) => {
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
+  res.json(registry.listParticipants(projectId));
 });
 
 // POST /join — register a participant (used by MCP bridge)
@@ -548,12 +581,14 @@ router.post('/send', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
   const { from, message, to, projectId } = parsed.data;
-  const error = getBlockedPipeReferenceError(message, projectId ?? undefined);
+  const pid = resolveProjectIdInput(res, projectId);
+  if (pid === undefined) return;
+  const error = getBlockedPipeReferenceError(message, pid);
   if (error) {
     res.status(422).json({ error });
     return;
   }
-  const msg = await registry.send(from, message, to, projectId ?? undefined);
+  const msg = await registry.send(from, message, to, pid);
   res.status(201).json(msg);
 }));
 
@@ -563,18 +598,20 @@ const rulesSchema = z.object({
   rules: z.string().min(1, 'rules text is required'),
 });
 
-// GET /rules — get effective rules for active project
-router.get('/rules', (_req: Request, res: Response) => {
-  const project = getActiveProject();
-  const rules = getEffectiveRules(project?.id);
-  const isDefault = !project || !hasProjectRules(project.id);
+// GET /rules — get effective rules for the scoped project
+router.get('/rules', (req: Request, res: Response) => {
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
+  const rules = getEffectiveRules(projectId);
+  const isDefault = !projectId || !hasProjectRules(projectId);
   res.json({ rules, isDefault, defaultRules: getDefaultRules() });
 });
 
 // PUT /rules — save per-project rules override
 router.put('/rules', (req: Request, res: Response) => {
-  const project = getActiveProject();
-  if (!project) {
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
+  if (!projectId) {
     badRequest(res, 'No active project');
     return;
   }
@@ -583,56 +620,64 @@ router.put('/rules', (req: Request, res: Response) => {
     badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
     return;
   }
-  saveProjectRules(project.id, parsed.data.rules);
+  saveProjectRules(projectId, parsed.data.rules);
   res.json({ ok: true, rules: parsed.data.rules });
 });
 
 // DELETE /rules — delete per-project override (revert to default)
-router.delete('/rules', (_req: Request, res: Response) => {
-  const project = getActiveProject();
-  if (!project) {
+router.delete('/rules', (req: Request, res: Response) => {
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
+  if (!projectId) {
     badRequest(res, 'No active project');
     return;
   }
-  const deleted = deleteProjectRules(project.id);
+  const deleted = deleteProjectRules(projectId);
   res.json({ ok: true, deleted, rules: getDefaultRules() });
 });
 
-// DELETE /messages — clear chat history for the active project
-router.delete('/messages', (_req: Request, res: Response) => {
-  registry.clearHistory();
+// DELETE /messages — clear chat history for the scoped project
+router.delete('/messages', (req: Request, res: Response) => {
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
+  registry.clearHistory(projectId);
   res.json({ ok: true });
 });
 
 // ── Pipe endpoints ───────────────────────────────────────────────────────────
 
-// GET /pipes — list active pipes for the current project
-router.get('/pipes', (_req: Request, res: Response) => {
-  const projectId = getActiveProject()?.id ?? null;
+// GET /pipes — list active pipes for the scoped project
+router.get('/pipes', (req: Request, res: Response) => {
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
   res.json(registry.getActivePipes(projectId));
 });
 
 // GET /pipes/all — list all pipes (running + terminal) with slot summaries
-router.get('/pipes/all', (_req: Request, res: Response) => {
-  const projectId = getActiveProject()?.id ?? null;
+router.get('/pipes/all', (req: Request, res: Response) => {
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
   res.json(registry.listAllPipes(projectId));
 });
 
 // GET /pipes/leases — runtime lease statuses with elapsed/remaining
-router.get('/pipes/leases', (_req: Request, res: Response) => {
-  const projectId = getActiveProject()?.id ?? null;
+router.get('/pipes/leases', (req: Request, res: Response) => {
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
   res.json(registry.getRuntimeLeaseStatuses(projectId));
 });
 
 // GET /pipes/dead-letters — stuck and expired assignments
-router.get('/pipes/dead-letters', (_req: Request, res: Response) => {
-  const projectId = getActiveProject()?.id ?? null;
+router.get('/pipes/dead-letters', (req: Request, res: Response) => {
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
   res.json(registry.getDeadLetterEntries(projectId));
 });
 
 // GET /pipes/provenance — query provenance records across all pipes
 router.get('/pipes/provenance', (req: Request, res: Response) => {
-  const projectId = getActiveProject()?.id ?? null;
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
   const { pipeId, actor, event, since } = req.query as Record<string, string | undefined>;
   res.json(registry.queryPipeProvenance(projectId, { pipeId, actor, event, since }));
 });
@@ -640,7 +685,8 @@ router.get('/pipes/provenance', (req: Request, res: Response) => {
 // GET /pipes/assignments — list assignments for a participant
 router.get('/pipes/assignments', (req: Request, res: Response) => {
   const assignee = req.query.assignee as string | undefined;
-  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+  const projectId = resolveProjectIdInput(res, req.query.projectId as string | undefined);
+  if (projectId === undefined) return;
   if (!assignee) { res.status(400).json({ error: 'assignee query parameter is required' }); return; }
   res.json(registry.listAssignments(assignee, projectId));
 });
@@ -648,7 +694,8 @@ router.get('/pipes/assignments', (req: Request, res: Response) => {
 // GET /pipes/:id/assignment — get assignment for calling participant
 router.get('/pipes/:id/assignment', (req: Request, res: Response) => {
   const paneId = req.headers['x-pane-id'] as string | undefined;
-  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+  const projectId = resolveProjectIdInput(res, req.query.projectId as string | undefined);
+  if (projectId === undefined) return;
   if (!paneId) { res.status(401).json({ error: 'X-Pane-Id header is required' }); return; }
   const participant = registry.getParticipantByPaneId(paneId, projectId);
   if (!participant) { res.status(403).json({ error: 'No registered participant for the supplied pane' }); return; }
@@ -659,7 +706,8 @@ router.get('/pipes/:id/assignment', (req: Request, res: Response) => {
 
 // GET /pipes/:id — get a specific pipe run (scoped to active project)
 router.get('/pipes/:id', (req: Request, res: Response) => {
-  const projectId = getActiveProject()?.id ?? null;
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
   const run = registry.getPipeRun(req.params.id, projectId);
   if (!run) {
     res.status(404).json({ error: 'Pipe not found' });
@@ -672,7 +720,8 @@ router.get('/pipes/:id', (req: Request, res: Response) => {
 // Caller identity is resolved server-side from the X-Pane-Id header via the participant registry.
 router.get('/pipes/:id/output', (req: Request, res: Response) => {
   const paneId = req.headers['x-pane-id'] as string | undefined;
-  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+  const projectId = resolveProjectIdInput(res, req.query.projectId as string | undefined);
+  if (projectId === undefined) return;
 
   if (!paneId) {
     res.status(401).json({ error: 'X-Pane-Id header is required' });
@@ -710,7 +759,8 @@ router.post('/pipes/:id/submit', asyncHandler(async (req: Request, res: Response
 
   const { from, content, projectId } = parsed.data;
   const pipeId = req.params.id;
-  const pid = projectId ?? getActiveProject()?.id ?? null;
+  const pid = resolveProjectIdInput(res, projectId);
+  if (pid === undefined) return;
 
   const result = await registry.submitPipeStage(pipeId, from, content, pid);
   if (!result.ok) {
@@ -729,7 +779,8 @@ router.post('/pipes/:id/submit', asyncHandler(async (req: Request, res: Response
 // GET /pipes/:id/status — get detailed pipe status from the store
 // Accepts optional ?projectId= to scope to a specific project (defaults to active project)
 router.get('/pipes/:id/status', (req: Request, res: Response) => {
-  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+  const projectId = resolveProjectIdInput(res, req.query.projectId as string | undefined);
+  if (projectId === undefined) return;
   const status = registry.getPipeStoreStatus(req.params.id, projectId);
   if (!status) {
     res.status(404).json({ error: 'Pipe not found in store' });
@@ -740,7 +791,8 @@ router.get('/pipes/:id/status', (req: Request, res: Response) => {
 
 // POST /pipes/:id/cancel — cancel a running pipe (scoped to active project)
 router.post('/pipes/:id/cancel', asyncHandler(async (req: Request, res: Response) => {
-  const projectId = getActiveProject()?.id ?? null;
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
   const run = registry.getPipeRun(req.params.id, projectId);
   if (!run) {
     res.status(404).json({ error: 'Pipe not found or not running' });
@@ -756,7 +808,8 @@ router.post('/pipes/:id/cancel', asyncHandler(async (req: Request, res: Response
 
 // GET /pipes/:id/timing — timing summary with per-stage breakdown
 router.get('/pipes/:id/timing', (req: Request, res: Response) => {
-  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+  const projectId = resolveProjectIdInput(res, req.query.projectId as string | undefined);
+  if (projectId === undefined) return;
   const timing = registry.getPipeTimingSummary(req.params.id, projectId);
   if (!timing) { res.status(404).json({ error: 'Pipe not found' }); return; }
   res.json(timing);
@@ -764,20 +817,23 @@ router.get('/pipes/:id/timing', (req: Request, res: Response) => {
 
 // GET /pipes/:id/provenance — provenance audit trail for a pipe
 router.get('/pipes/:id/provenance', (req: Request, res: Response) => {
-  const projectId = (req.query.projectId as string | undefined) ?? getActiveProject()?.id ?? null;
+  const projectId = resolveProjectIdInput(res, req.query.projectId as string | undefined);
+  if (projectId === undefined) return;
   res.json(registry.getPipeProvenance(req.params.id, projectId));
 });
 // ── Brainstorm endpoints ─────────────────────────────────────────────────────
 
 // GET /brainstorms — list active brainstorms
-router.get('/brainstorms', (_req: Request, res: Response) => {
-  const projectId = getActiveProject()?.id ?? null;
+router.get('/brainstorms', (req: Request, res: Response) => {
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
   res.json(registry.getActiveBrainstorms(projectId));
 });
 
 // GET /brainstorms/:id — get brainstorm status
 router.get('/brainstorms/:id', (req: Request, res: Response) => {
-  const projectId = getActiveProject()?.id ?? null;
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
   const record = registry.getBrainstormRecord(req.params.id, projectId);
   if (!record) {
     res.status(404).json({ error: 'Brainstorm not found' });
@@ -788,7 +844,8 @@ router.get('/brainstorms/:id', (req: Request, res: Response) => {
 
 // POST /brainstorms/:id/accept-idea
 router.post('/brainstorms/:id/accept-idea', asyncHandler(async (req: Request, res: Response) => {
-  const projectId = getActiveProject()?.id ?? null;
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
   const ok = await registry.brainstormAcceptIdea(req.params.id, projectId);
   if (!ok) {
     res.status(409).json({ error: 'Brainstorm not in ideas_review phase' });
@@ -803,7 +860,8 @@ const brainstormNoteSchema = z.object({ note: z.string().nullable().optional() }
 router.post('/brainstorms/:id/retry-ideas', asyncHandler(async (req: Request, res: Response) => {
   const parsed = brainstormNoteSchema.safeParse(req.body);
   const note = parsed.success ? (parsed.data.note ?? null) : null;
-  const projectId = getActiveProject()?.id ?? null;
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
   const ok = await registry.brainstormRetryIdeas(req.params.id, note, projectId);
   if (!ok) {
     res.status(409).json({ error: 'Brainstorm not in ideas_review phase' });
@@ -816,7 +874,8 @@ router.post('/brainstorms/:id/retry-ideas', asyncHandler(async (req: Request, re
 router.post('/brainstorms/:id/adjust-details', asyncHandler(async (req: Request, res: Response) => {
   const parsed = brainstormNoteSchema.safeParse(req.body);
   const note = parsed.success ? (parsed.data.note ?? null) : null;
-  const projectId = getActiveProject()?.id ?? null;
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
   const ok = await registry.brainstormAdjustDetails(req.params.id, note, projectId);
   if (!ok) {
     res.status(409).json({ error: 'Brainstorm not in details_review phase' });
@@ -827,7 +886,8 @@ router.post('/brainstorms/:id/adjust-details', asyncHandler(async (req: Request,
 
 // POST /brainstorms/:id/finalize
 router.post('/brainstorms/:id/finalize', asyncHandler(async (req: Request, res: Response) => {
-  const projectId = getActiveProject()?.id ?? null;
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
   const ok = await registry.brainstormFinalize(req.params.id, projectId);
   if (!ok) {
     res.status(409).json({ error: 'Brainstorm not in details_review phase' });
@@ -838,7 +898,8 @@ router.post('/brainstorms/:id/finalize', asyncHandler(async (req: Request, res: 
 
 // POST /brainstorms/:id/back-to-ideas
 router.post('/brainstorms/:id/back-to-ideas', asyncHandler(async (req: Request, res: Response) => {
-  const projectId = getActiveProject()?.id ?? null;
+  const projectId = getRequestedProjectId(req, res);
+  if (projectId === undefined) return;
   const ok = await registry.brainstormBackToIdeas(req.params.id, projectId);
   if (!ok) {
     res.status(409).json({ error: 'Brainstorm not in details_review phase' });
@@ -859,7 +920,20 @@ router.post('/roles/assign', (req: Request, res: Response) => {
   const { participantName, roleSlug } = req.body as { participantName?: string; roleSlug?: string };
   if (!participantName || !roleSlug) { badRequest(res, 'participantName and roleSlug are required'); return; }
   if (!isValidRoleSlug(roleSlug)) { res.status(400).json({ error: `"${roleSlug}" is not a valid role slug` }); return; }
-  const pid = getActiveProject()?.id ?? null;
+  const pid = getRequestedProjectId(req, res);
+  if (pid === undefined) return;
+  const mcpSessionId = req.headers['mcp-session-id'];
+  const actorSession = typeof mcpSessionId === 'string' && mcpSessionId
+    ? getChatMcpHttpSessionEntry(mcpSessionId)
+    : null;
+  if (actorSession && actorSession.projectId !== pid) {
+    res.status(403).json({ error: 'Role assignment must stay within the MCP session project.' });
+    return;
+  }
+  if (actorSession && actorSession.name === participantName) {
+    res.status(403).json({ error: 'Participants cannot assign roles to themselves.' });
+    return;
+  }
   try {
     registry.assignRole(pid, participantName, roleSlug);
     res.json({ ok: true });
@@ -870,7 +944,8 @@ router.post('/roles/assign', (req: Request, res: Response) => {
 
 // DELETE /roles/:participantName — unassign a participant's role
 router.delete('/roles/:participantName', (req: Request, res: Response) => {
-  const pid = getActiveProject()?.id ?? null;
+  const pid = getRequestedProjectId(req, res);
+  if (pid === undefined) return;
   registry.unassignRole(pid, req.params.participantName);
   res.json({ ok: true });
 });
@@ -1248,9 +1323,11 @@ export function initChat(nsp: Namespace): void {
 
   // When the active project changes, move all connected sockets to the new room
   onProjectChange((p) => {
+    const nextProjectId = p?.id ?? null;
     for (const [, socket] of nsp.sockets) {
       leaveAllProjectRooms(socket);
-      if (p) joinProjectRoom(socket, p.id);
+      socket.data.chatProjectId = nextProjectId;
+      if (nextProjectId) joinProjectRoom(socket, nextProjectId);
     }
     // No replay here — the frontend's onProjectChange handler calls loadInitialData()
   });
@@ -1258,13 +1335,15 @@ export function initChat(nsp: Namespace): void {
   nsp.on('connection', (socket) => {
     // Join the room for the active project
     const project = getActiveProject();
-    if (project) joinProjectRoom(socket, project.id);
+    const projectId = project?.id ?? null;
+    socket.data.chatProjectId = projectId;
+    if (projectId) joinProjectRoom(socket, projectId);
 
     // Send current members on connect
-    socket.emit('chat:members', registry.listParticipants());
+    socket.emit('chat:members', registry.listParticipants(projectId));
 
-    // Send recent messages for context (already project-scoped via store)
-    const recent = store.readMessages({ limit: 50 });
+    // Send recent messages for context from the same project this socket joined.
+    const recent = store.readMessages({ limit: 50 }, projectId);
     for (const msg of recent) {
       socket.emit('chat:message', msg);
     }
@@ -1272,17 +1351,19 @@ export function initChat(nsp: Namespace): void {
     // Handle send from dashboard
     socket.on('chat:send', async ({ message, to }: { message: string; to?: string }) => {
       if (!message || typeof message !== 'string') return;
-      const error = getBlockedPipeReferenceError(message);
+      const socketProjectId = typeof socket.data.chatProjectId === 'string' ? socket.data.chatProjectId : null;
+      const error = getBlockedPipeReferenceError(message, socketProjectId);
       if (error) {
         socket.emit('chat:error', { error });
         return;
       }
-      await registry.send('user', message, to);
+      await registry.send('user', message, to, socketProjectId);
     });
 
     // Handle clear from dashboard
     socket.on('chat:clear', () => {
-      registry.clearHistory();
+      const socketProjectId = typeof socket.data.chatProjectId === 'string' ? socket.data.chatProjectId : null;
+      registry.clearHistory(socketProjectId);
     });
   });
 }

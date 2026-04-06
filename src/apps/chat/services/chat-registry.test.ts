@@ -36,8 +36,15 @@ vi.mock('./chat-store.js', () => ({
 const registry = await import('./chat-registry.js');
 
 /** Format a chat message as it would appear in PTY delivery to an LLM participant. */
-function pty(from: string, body: string): string {
-  return `[DevGlide Chat] @${from}: ${body}`;
+function pty(
+  from: string,
+  body: string,
+  options?: { role?: string | null; assignedBy?: 'user' | 'tech-lead' | 'pipe' | null },
+): string {
+  const tags = ['DevGlide Chat'];
+  if (options?.role) tags.push(`Your role: ${options.role}`);
+  if (options?.assignedBy) tags.push(`Assigned by: ${options.assignedBy}`);
+  return `[${tags.join(' | ')}] @${from}: ${body}`;
 }
 
 async function flushDeliveryQueue(): Promise<void> {
@@ -327,6 +334,227 @@ describe('chat-registry PTY delivery', () => {
     registry.leave(sender.name);
     registry.leave(target.name);
     registry.leave(observer.name);
+  });
+
+  it('adds role and user authority tags for direct user assignments', async () => {
+    const writes: string[] = [];
+    globalPtys.set('pane-role-user', {
+      ptyProcess: { write: vi.fn((chunk: string) => { writes.push(chunk); }) } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+
+    const target = registry.join('target', 'llm', 'pane-role-user', 'claude', '\r');
+    registry.assignRole('project-chat', target.name, 'implementer');
+    await flushDeliveryQueue();
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    writes.length = 0;
+
+    const sendPromise = registry.send('user', `@${target.name} implement the login flow`);
+    await flushDeliveryQueue();
+
+    expect(writes).toEqual([
+      pty('user', `@${target.name} implement the login flow`, { role: 'implementer', assignedBy: 'user' }),
+    ]);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    await sendPromise;
+
+    registry.leave(target.name);
+  });
+
+  it('adds tech-lead authority tags for tech-lead-issued assignments', async () => {
+    const writes: string[] = [];
+
+    globalPtys.set('pane-tech-lead', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    globalPtys.set('pane-tech-target', {
+      ptyProcess: { write: vi.fn((chunk: string) => { writes.push(chunk); }) } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+
+    const lead = registry.join('lead', 'llm', 'pane-tech-lead', 'codex', '\r');
+    const target = registry.join('target', 'llm', 'pane-tech-target', 'claude', '\r');
+
+    registry.assignRole('project-chat', lead.name, 'tech-lead');
+    registry.assignRole('project-chat', target.name, 'implementer');
+    await flushDeliveryQueue();
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    writes.length = 0;
+
+    const sendPromise = registry.send(lead.name, `@${target.name} implement the login flow`);
+    await flushDeliveryQueue();
+
+    expect(writes).toEqual([
+      pty(lead.name, `@${target.name} implement the login flow`, { role: 'implementer', assignedBy: 'tech-lead' }),
+    ]);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    await sendPromise;
+
+    registry.leave(lead.name);
+    registry.leave(target.name);
+  });
+
+  it('does not treat self-directed tech-lead messages as executable assignments', () => {
+    globalPtys.set('pane-self-tech-lead', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+
+    const lead = registry.join('lead', 'llm', 'pane-self-tech-lead', 'codex', '\r');
+    registry.assignRole('project-chat', lead.name, 'tech-lead');
+
+    const authority = registry._getMessageAuthorityForTest(lead.name, 'project-chat', {
+      id: 'msg-self-tech-lead',
+      ts: '2026-01-01T00:00:00.000Z',
+      from: lead.name,
+      to: lead.name,
+      body: `@${lead.name} implement the login flow`,
+      type: 'message',
+    });
+
+    expect(authority).toBeNull();
+
+    registry.leave(lead.name);
+  });
+
+  it('does not add an authority tag for direct messages from non-tech-leads', async () => {
+    const writes: string[] = [];
+
+    globalPtys.set('pane-normal-sender', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    globalPtys.set('pane-normal-target', {
+      ptyProcess: { write: vi.fn((chunk: string) => { writes.push(chunk); }) } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+
+    const sender = registry.join('sender', 'llm', 'pane-normal-sender', 'codex', '\r');
+    const target = registry.join('target', 'llm', 'pane-normal-target', 'claude', '\r');
+
+    registry.assignRole('project-chat', sender.name, 'implementer');
+    registry.assignRole('project-chat', target.name, 'reviewer');
+    await flushDeliveryQueue();
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    writes.length = 0;
+
+    const sendPromise = registry.send(sender.name, `@${target.name} verify the fix`);
+    await flushDeliveryQueue();
+
+    expect(writes).toEqual([
+      pty(sender.name, `@${target.name} verify the fix`, { role: 'reviewer' }),
+    ]);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    await sendPromise;
+
+    registry.leave(sender.name);
+    registry.leave(target.name);
+  });
+
+  it('adds pipe authority tags for compact pipe handoff notifications', async () => {
+    const writes: string[] = [];
+
+    globalPtys.set('pane-pipe-a', {
+      ptyProcess: { write: vi.fn((chunk: string) => { writes.push(chunk); }) } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    globalPtys.set('pane-pipe-b', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+
+    const first = registry.join('alice', 'llm', 'pane-pipe-a', 'claude', '\r');
+    const second = registry.join('bob', 'llm', 'pane-pipe-b', 'codex', '\r');
+
+    registry.assignRole('project-chat', first.name, 'implementer');
+    await flushDeliveryQueue();
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    writes.length = 0;
+
+    const sendPromise = registry.send('user', `/linear-pipe @${first.name} @${second.name} : audit the last changes`);
+    await flushDeliveryQueue();
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    await sendPromise;
+
+    expect(writes.some(chunk => chunk.includes('[DevGlide Chat | Your role: implementer | Assigned by: pipe] @system: #pipe-'))).toBe(true);
+    expect(writes.some(chunk => chunk.includes('Inspect assignment: pipe_get_assignment'))).toBe(true);
+
+    registry.leave(first.name);
+    registry.leave(second.name);
+  });
+
+  it('delivers a role briefing when a role is assigned', async () => {
+    const writes: string[] = [];
+    globalPtys.set('pane-role-briefing', {
+      ptyProcess: { write: vi.fn((chunk: string) => { writes.push(chunk); }) } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+
+    const participant = registry.join('lead', 'llm', 'pane-role-briefing', 'codex', '\r');
+
+    registry.assignRole('project-chat', participant.name, 'tech-lead');
+    await flushDeliveryQueue();
+
+    expect(writes[0]).toContain('[DevGlide Chat | Your role: tech-lead] @system: Role assigned: Tech Lead');
+    expect(writes[0]).toContain('Assign other participants by name plus an action verb to authorize their execution');
+
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+
+    registry.leave(participant.name);
+  });
+
+  it('throttles repeated role reminders on rapid reconnects', async () => {
+    const writes: string[] = [];
+    globalPtys.set('pane-role-reminder-throttle', {
+      ptyProcess: { write: vi.fn((chunk: string) => { writes.push(chunk); }) } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+
+    let participant = registry.join('lead', 'llm', 'pane-role-reminder-throttle', 'codex', '\r');
+    registry.assignRole('project-chat', participant.name, 'tech-lead');
+    await flushDeliveryQueue();
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    writes.length = 0;
+
+    await vi.advanceTimersByTimeAsync(60_001);
+    registry.detach(participant.name);
+    participant = registry.join('lead', 'llm', 'pane-role-reminder-throttle', 'codex', '\r');
+    await flushDeliveryQueue();
+
+    expect(writes.filter(chunk => chunk.includes('Role reminder: You are still the Tech Lead.'))).toHaveLength(1);
+
+    writes.length = 0;
+    registry.detach(participant.name);
+    participant = registry.join('lead', 'llm', 'pane-role-reminder-throttle', 'codex', '\r');
+    await flushDeliveryQueue();
+
+    expect(writes).toEqual([]);
+
+    registry.leave(participant.name);
   });
 
   it('does not append interaction reminder to any participant', async () => {
@@ -710,7 +938,7 @@ describe('chat-registry PTY status detection (idle/working)', () => {
     expect(registry.getParticipant(participant.name)?.status).toBe('working');
 
     // Chat-injected text arrives — should NOT clear the prompt hold
-    emitPtyData('pane-prompt-chat-injected', '[DevGlide Chat] @codex-2: checking now');
+    emitPtyData('pane-prompt-chat-injected', '[DevGlide Chat | Your role: implementer | Assigned by: tech-lead] @codex-2: checking now');
     await vi.advanceTimersByTimeAsync(2000);
     await vi.advanceTimersByTimeAsync(8000);
 
@@ -755,5 +983,99 @@ describe('chat-registry PTY status detection (idle/working)', () => {
     expect(dataListeners.length).toBe(0);
 
     registry.leave(participant.name);
+  });
+});
+
+describe('chat-registry cross-project isolation', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    chatStoreMock.reset();
+    chatStoreMock.appendMessage.mockClear();
+    chatStoreMock.readMessages.mockReset();
+    chatStoreMock.readMessages.mockReturnValue([]);
+    globalPtys.clear();
+    globalPtys.set('pane-xproj-a', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    globalPtys.set('pane-xproj-b', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    setActiveProject({ id: 'project-a', name: 'A', path: '/tmp/a' });
+    for (const p of registry.listParticipants('project-a')) registry.leave(p.name, 'project-a');
+    for (const p of registry.listParticipants('project-b')) registry.leave(p.name, 'project-b');
+  });
+
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+    for (const p of registry.listParticipants('project-a')) registry.leave(p.name, 'project-a');
+    for (const p of registry.listParticipants('project-b')) registry.leave(p.name, 'project-b');
+    globalPtys.clear();
+    setActiveProject(null);
+  });
+
+  it('listParticipants excludes participants from other projects', () => {
+    // Use distinct base names so cross-project identity is unambiguous
+    const a = registry.join('alice', 'llm', 'pane-xproj-a', 'claude', '\r', 'project-a');
+    const b = registry.join('bob', 'llm', 'pane-xproj-b', 'claude', '\r', 'project-b');
+
+    const aList = registry.listParticipants('project-a');
+    const bList = registry.listParticipants('project-b');
+
+    expect(aList.map((p) => p.name)).toEqual([a.name]);
+    expect(bList.map((p) => p.name)).toEqual([b.name]);
+    expect(aList.every((p) => p.projectId === 'project-a')).toBe(true);
+    expect(bList.every((p) => p.projectId === 'project-b')).toBe(true);
+  });
+
+  it('getParticipant(name) without projectId never returns a cross-project match', () => {
+    // Only project-b has a participant named "solo"; active project is project-a
+    const b = registry.join('solo', 'llm', 'pane-xproj-b', 'claude', '\r', 'project-b');
+    // Sanity: the participant exists in project-b
+    expect(registry.getParticipant(b.name, 'project-b')?.projectId).toBe('project-b');
+    // Legacy call (no projectId) must NOT leak the project-b match through the active (project-a) scope
+    expect(registry.getParticipant(b.name)).toBeUndefined();
+  });
+
+  it('getParticipantByPaneId(paneId) without projectId never returns a cross-project match', () => {
+    const b = registry.join('bob', 'llm', 'pane-xproj-b', 'claude', '\r', 'project-b');
+    // Sanity: explicit project lookup works
+    expect(registry.getParticipantByPaneId('pane-xproj-b', 'project-b')?.name).toBe(b.name);
+    // Active project is project-a — lookup without projectId must NOT leak project-b
+    expect(registry.getParticipantByPaneId('pane-xproj-b')).toBeUndefined();
+  });
+
+  it('assignRole rejects a participant that belongs to another project', () => {
+    const b = registry.join('bob', 'llm', 'pane-xproj-b', 'claude', '\r', 'project-b');
+    // Attempting to assign project-b participant inside project-a scope must throw
+    expect(() => registry.assignRole('project-a', b.name, 'implementer')).toThrow(/not connected to this project/i);
+    // And must not record the assignment under project-a
+    expect(registry.listProjectRoleAssignments('project-a')).toEqual({});
+  });
+
+  it('send does not PTY-deliver to a cross-project @mention target', async () => {
+    // Distinct base names so @bob exists only in project-b and cannot resolve in project-a
+    registry.join('alice', 'llm', 'pane-xproj-a', 'claude', '\r', 'project-a');
+    const b = registry.join('bob', 'llm', 'pane-xproj-b', 'claude', '\r', 'project-b');
+    const writeA = (globalPtys.get('pane-xproj-a')!.ptyProcess as unknown as { write: ReturnType<typeof vi.fn> }).write;
+    const writeB = (globalPtys.get('pane-xproj-b')!.ptyProcess as unknown as { write: ReturnType<typeof vi.fn> }).write;
+    writeA.mockClear();
+    writeB.mockClear();
+
+    // User in project-a @-mentions a name that exists only in project-b.
+    const sendPromise = registry.send('user', `@${b.name} please implement`, undefined, 'project-a');
+    await flushDeliveryQueue();
+    const msg = await sendPromise;
+
+    // project-b participant must not have been written to
+    expect(writeB).not.toHaveBeenCalled();
+    // project-a participant must not be the target either — the token was unresolved
+    expect(writeA).not.toHaveBeenCalled();
+    // The persisted message must list the cross-project token as unresolved
+    expect(msg.unresolvedTargets ?? []).toContain(b.name);
   });
 });

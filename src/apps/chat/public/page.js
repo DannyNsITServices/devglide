@@ -414,7 +414,14 @@ function onTooltipOut(e) {
 // ── API helpers ─────────────────────────────────────────────────────
 
 async function api(path, opts) {
-  return fetch('/api/chat' + path, {
+  let scopedPath = path;
+  if (_projectId && !/[?&]projectId=/.test(path)) {
+    const [basePath, hash = ''] = path.split('#');
+    const joiner = basePath.includes('?') ? '&' : '?';
+    scopedPath = `${basePath}${joiner}projectId=${encodeURIComponent(_projectId)}${hash ? `#${hash}` : ''}`;
+  }
+
+  return fetch('/api/chat' + scopedPath, {
     headers: { 'Content-Type': 'application/json' },
     ...opts,
   });
@@ -612,7 +619,7 @@ function makeBsBtn(label, variant, onClick) {
 
 async function brainstormAction(brainstormId, action) {
   try {
-    await fetch(`/api/chat/brainstorms/${brainstormId}/${action}`, {
+    await api(`/brainstorms/${brainstormId}/${action}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
     });
   } catch { /* socket events will update the UI */ }
@@ -651,7 +658,7 @@ async function brainstormActionWithNote(brainstormId, action) {
   const note = await openNoteModal();
   if (note === undefined) return false; // user cancelled — keep buttons alive
   try {
-    await fetch(`/api/chat/brainstorms/${brainstormId}/${action}`, {
+    await api(`/brainstorms/${brainstormId}/${action}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ note: note || null }),
     });
@@ -1340,6 +1347,7 @@ function renderMembers() {
     const name = document.createElement('span');
     name.className = 'chat-member-name';
     name.textContent = m.name;
+    name.title = m.name;
 
     const meta = document.createElement('div');
     meta.className = 'chat-member-meta';
@@ -1368,8 +1376,9 @@ function renderMembers() {
       meta.appendChild(createMemberModeIndicator(m.permissionMode || 'supervised'));
     }
 
+    let roleSelect = null;
     if (!m.isUser && !m.detached) {
-      const roleSelect = document.createElement('select');
+      roleSelect = document.createElement('select');
       roleSelect.className = 'chat-member-role-select';
       roleSelect.dataset.participantName = m.name;
       roleSelect.title = 'Assign role';
@@ -1386,10 +1395,13 @@ function renderMembers() {
         if (m.role?.slug === tpl.slug) opt.selected = true;
         roleSelect.appendChild(opt);
       }
-      meta.appendChild(roleSelect);
     }
 
     body.appendChild(meta);
+
+    if (roleSelect) {
+      body.appendChild(roleSelect);
+    }
     item.appendChild(dot);
     item.appendChild(body);
     listEl.appendChild(item);

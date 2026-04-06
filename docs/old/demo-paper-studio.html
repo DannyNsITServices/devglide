@@ -1,0 +1,2147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paper Studio — DevGlide Design System</title>
+
+<!-- Fonts from fontsource CDN -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/newsreader@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/newsreader@latest/latin-500-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/newsreader@latest/latin-400-italic.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/newsreader@latest/latin-500-italic.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/source-sans-3@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/source-sans-3@latest/latin-500-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@latest/latin-500-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@latest/latin-600-normal.css">
+
+<style>
+/* ============================================================
+   PAPER STUDIO — Design Tokens
+   ============================================================ */
+:root {
+  /* Surfaces */
+  --bg:          #f2f1ed;
+  --card:        #ffffff;
+  --row-alt:     #faf8f4;
+  --row-hover:   #f7f5f0;
+
+  /* Text */
+  --text:        #26251e;
+  --text-sec:    #666660;
+  --text-muted:  #999990;
+
+  /* Accents */
+  --orange:      #f54e00;
+  --teal:        #1f8a65;
+  --crimson:     #cf2d56;
+
+  /* Shadows (border replacement) */
+  --shadow-border: rgba(0,0,0,0.08) 0px 0px 0px 1px;
+  --shadow-hover:  rgba(0,0,0,0.08) 0px 0px 0px 1px,
+                   rgba(0,0,0,0.04) 0px 2px 2px,
+                   rgba(0,0,0,0.04) 0px 8px 8px -8px;
+  --shadow-elevated: rgba(0,0,0,0.06) 0px 0px 0px 1px,
+                     rgba(0,0,0,0.05) 0px 4px 6px,
+                     rgba(0,0,0,0.03) 0px 16px 24px -8px;
+
+  /* Radius */
+  --radius: 8px;
+
+  /* Fonts */
+  --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
+  --font-body:    'Source Sans 3', 'Segoe UI', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text);
+  background-color: var(--bg);
+  position: relative;
+}
+
+/* Warm noise texture overlay via SVG filter */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.018;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-size: 400px 400px;
+}
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.headline-hero {
+  font-size: 48px;
+  line-height: 1.0;
+  font-weight: 500;
+  letter-spacing: -2px;
+  color: var(--text);
+}
+
+.headline-section {
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: -1px;
+  color: var(--text);
+}
+
+.headline-card {
+  font-size: 18px;
+  line-height: 1.25;
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+
+.label {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-sec);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.metric {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  letter-spacing: -0.5px;
+}
+
+.metric-sm {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.text-sec {
+  color: var(--text-sec);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.serif-italic {
+  font-family: var(--font-display);
+  font-style: italic;
+}
+
+/* Drop cap */
+.drop-cap::first-letter {
+  font-family: var(--font-display);
+  font-size: 3.4em;
+  float: left;
+  line-height: 0.8;
+  margin-right: 8px;
+  margin-top: 4px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.page-wrapper {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 0;
+  margin-bottom: 48px;
+}
+
+.nav-logo {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.5px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.nav-logo-mark {
+  width: 28px;
+  height: 28px;
+  background: var(--text);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-logo-mark svg {
+  width: 16px;
+  height: 16px;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  list-style: none;
+}
+
+.nav-links a {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-sec);
+  text-decoration: none;
+  transition: color 200ms ease;
+}
+
+.nav-links a:hover {
+  color: var(--text);
+}
+
+.nav-links a.active {
+  color: var(--text);
+}
+
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.nav-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--row-alt);
+  box-shadow: var(--shadow-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-sec);
+  cursor: pointer;
+  transition: box-shadow 200ms ease;
+}
+
+.nav-avatar:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+/* Breadcrumb */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 32px;
+}
+
+.breadcrumb a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 200ms ease;
+}
+
+.breadcrumb a:hover {
+  color: var(--text);
+}
+
+.breadcrumb .sep {
+  font-size: 11px;
+  opacity: 0.5;
+}
+
+.breadcrumb .current {
+  color: var(--text-sec);
+}
+
+/* 3-column asymmetric grid */
+.bento {
+  display: grid;
+  grid-template-columns: 45% 30% 25%;
+  gap: 20px;
+  align-items: start;
+}
+
+.section-gap {
+  margin-top: 96px;
+}
+
+.section-gap-sm {
+  margin-top: 56px;
+}
+
+/* ============================================================
+   CARD
+   ============================================================ */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-border);
+  padding: 24px;
+  transition: box-shadow 200ms ease;
+  border: none;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.card-flush {
+  padding: 0;
+}
+
+.card-flush > .card-header {
+  padding: 24px 24px 0;
+}
+
+.card-flush > .card-body {
+  padding: 0 24px 24px;
+}
+
+.card-header {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.card-header-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Card spanning full row */
+.span-full {
+  grid-column: 1 / -1;
+}
+
+.span-2 {
+  grid-column: span 2;
+}
+
+/* ============================================================
+   STAT CARD
+   ============================================================ */
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-card .label {
+  margin-bottom: 2px;
+}
+
+.stat-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.stat-delta {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.stat-delta.up {
+  color: var(--teal);
+  background: rgba(31, 138, 101, 0.08);
+}
+
+.stat-delta.down {
+  color: var(--crimson);
+  background: rgba(207, 45, 86, 0.08);
+}
+
+/* ============================================================
+   BADGES
+   ============================================================ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 20px;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.badge-orange {
+  color: var(--orange);
+  background: rgba(245, 78, 0, 0.08);
+}
+
+.badge-teal {
+  color: var(--teal);
+  background: rgba(31, 138, 101, 0.08);
+}
+
+.badge-neutral {
+  color: var(--text-sec);
+  background: rgba(38, 37, 30, 0.06);
+}
+
+.badge-crimson {
+  color: var(--crimson);
+  background: rgba(207, 45, 86, 0.08);
+}
+
+/* Dot indicator inside badge */
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.badge-orange .badge-dot { background: var(--orange); }
+.badge-teal .badge-dot { background: var(--teal); }
+.badge-neutral .badge-dot { background: var(--text-muted); }
+.badge-crimson .badge-dot { background: var(--crimson); }
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius);
+  padding: 8px 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 200ms ease;
+  text-decoration: none;
+  line-height: 1.4;
+}
+
+.btn-primary {
+  background: var(--text);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: #3a392f;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-sec);
+  box-shadow: none;
+}
+
+.btn-ghost:hover {
+  color: var(--text);
+  box-shadow: var(--shadow-border);
+  background: var(--row-alt);
+}
+
+.btn-accent {
+  background: var(--orange);
+  color: #fff;
+}
+
+.btn-accent:hover {
+  background: var(--crimson);
+}
+
+.btn-sm {
+  font-size: 12px;
+  padding: 5px 12px;
+}
+
+/* ============================================================
+   INPUTS
+   ============================================================ */
+.input {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 0;
+  outline: none;
+  width: 100%;
+  transition: border-color 200ms ease;
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.input:focus {
+  border-bottom-color: var(--text);
+}
+
+.input-boxed {
+  background: var(--row-alt);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  border-bottom: none;
+  box-shadow: none;
+  transition: box-shadow 200ms ease;
+}
+
+.input-boxed:focus {
+  box-shadow: var(--shadow-border);
+  background: var(--card);
+}
+
+/* ============================================================
+   TOGGLE
+   ============================================================ */
+.toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  cursor: pointer;
+}
+
+.toggle input {
+  display: none;
+}
+
+.toggle-track {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.1);
+  border-radius: 11px;
+  transition: background 200ms ease;
+}
+
+.toggle input:checked + .toggle-track {
+  background: var(--teal);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  transition: transform 200ms ease;
+}
+
+.toggle input:checked ~ .toggle-thumb {
+  transform: translateX(18px);
+}
+
+/* ============================================================
+   DATA TABLE
+   ============================================================ */
+.table-wrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-align: left;
+  padding: 10px 16px;
+}
+
+.table td {
+  padding: 12px 16px;
+  color: var(--text-sec);
+  vertical-align: middle;
+}
+
+.table tbody tr {
+  transition: background 200ms ease;
+}
+
+.table tbody tr:nth-child(even) {
+  background: var(--row-alt);
+}
+
+.table tbody tr:hover {
+  background: var(--row-hover);
+}
+
+.table td:first-child {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.table .mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   ACTIVITY TIMELINE
+   ============================================================ */
+.timeline {
+  position: relative;
+  padding-left: 24px;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  background: rgba(0,0,0,0.1);
+}
+
+.timeline-item {
+  position: relative;
+  padding-bottom: 20px;
+}
+
+.timeline-item:last-child {
+  padding-bottom: 0;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: -22px;
+  top: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.15);
+}
+
+.timeline-dot.active {
+  background: var(--orange);
+  box-shadow: 0 0 0 2px var(--orange), 0 0 0 5px rgba(245,78,0,0.12);
+}
+
+.timeline-dot.success {
+  background: var(--teal);
+  box-shadow: 0 0 0 2px var(--teal);
+}
+
+.timeline-time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+
+.timeline-desc {
+  font-size: 13px;
+  color: var(--text-sec);
+  line-height: 1.45;
+}
+
+.timeline-desc strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ============================================================
+   BAR CHART (horizontal)
+   ============================================================ */
+.bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bar-label {
+  font-size: 12px;
+  color: var(--text-sec);
+  width: 80px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--row-alt);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 600ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bar-fill.orange { background: var(--orange); opacity: 0.7; }
+.bar-fill.teal   { background: var(--teal); opacity: 0.7; }
+.bar-fill.muted  { background: var(--text-muted); opacity: 0.35; }
+.bar-fill.crimson { background: var(--crimson); opacity: 0.6; }
+
+.bar-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  width: 40px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   PULL QUOTE
+   ============================================================ */
+.pull-quote {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 24px;
+  line-height: 1.35;
+  letter-spacing: -0.5px;
+  color: var(--text-sec);
+  padding: 24px 0;
+  position: relative;
+}
+
+.pull-quote::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 24px;
+  bottom: 24px;
+  width: 3px;
+  background: var(--orange);
+  border-radius: 2px;
+}
+
+.pull-quote cite {
+  display: block;
+  font-size: 13px;
+  font-style: normal;
+  font-family: var(--font-body);
+  color: var(--text-muted);
+  margin-top: 12px;
+}
+
+/* ============================================================
+   COMPONENT SHOWCASE (bottom section)
+   ============================================================ */
+.showcase-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+}
+
+.swatch-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.swatch-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  box-shadow: var(--shadow-border);
+}
+
+.swatch-name {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ============================================================
+   SVG AREA CHART
+   ============================================================ */
+.chart-area-wrap {
+  margin-top: 16px;
+  position: relative;
+}
+
+.chart-area-wrap svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Chart labels */
+.chart-x-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.chart-y-label {
+  position: absolute;
+  right: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   STATUS INDICATOR
+   ============================================================ */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.live {
+  background: var(--teal);
+  box-shadow: 0 0 0 3px rgba(31,138,101,0.15);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(31,138,101,0.15); }
+  50% { box-shadow: 0 0 0 6px rgba(31,138,101,0.08); }
+}
+
+/* ============================================================
+   SEPARATOR
+   ============================================================ */
+.sep-line {
+  height: 1px;
+  background: rgba(0,0,0,0.06);
+  margin: 20px 0;
+}
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.items-baseline { align-items: baseline; }
+.justify-between { justify-content: space-between; }
+.gap-4 { gap: 4px; }
+.gap-6 { gap: 6px; }
+.gap-8 { gap: 8px; }
+.gap-10 { gap: 10px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+.gap-20 { gap: 20px; }
+.gap-24 { gap: 24px; }
+.mt-4 { margin-top: 4px; }
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; }
+.mt-20 { margin-top: 20px; }
+.mt-24 { margin-top: 24px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-12 { margin-bottom: 12px; }
+.mb-16 { margin-bottom: 16px; }
+.w-full { width: 100%; }
+.text-right { text-align: right; }
+.shrink-0 { flex-shrink: 0; }
+.grow { flex-grow: 1; }
+.nowrap { white-space: nowrap; }
+.overflow-hidden { overflow: hidden; }
+
+/* ============================================================
+   MINI SPARKLINE
+   ============================================================ */
+.sparkline {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* ============================================================
+   SERVER STATUS PILL
+   ============================================================ */
+.server-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(31,138,101,0.06);
+  color: var(--teal);
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 1100px) {
+  .bento {
+    grid-template-columns: 1fr 1fr;
+  }
+  .bento > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .bento, .showcase-grid {
+    grid-template-columns: 1fr;
+  }
+  .bento > * {
+    grid-column: auto !important;
+  }
+  .headline-hero {
+    font-size: 36px;
+    letter-spacing: -1.5px;
+  }
+  .nav-links {
+    display: none;
+  }
+}
+
+/* ============================================================
+   PROGRESS RING
+   ============================================================ */
+.progress-ring {
+  transform: rotate(-90deg);
+}
+
+.progress-ring circle {
+  transition: stroke-dashoffset 600ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ============================================================
+   ANIMATE ON SCROLL
+   ============================================================ */
+.fade-up {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 500ms ease, transform 500ms ease;
+}
+
+.fade-up.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+</style>
+</head>
+
+<body>
+<div class="page-wrapper">
+
+  <!-- ========================================================
+       NAVIGATION
+       ======================================================== -->
+  <nav class="nav">
+    <a href="#" class="nav-logo">
+      <span class="nav-logo-mark">
+        <svg viewBox="0 0 16 16" fill="none">
+          <path d="M3 4h10M3 8h7M3 12h10" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </span>
+      DevGlide
+    </a>
+    <ul class="nav-links">
+      <li><a href="#" class="active">Dashboard</a></li>
+      <li><a href="#">Servers</a></li>
+      <li><a href="#">Workflows</a></li>
+      <li><a href="#">Kanban</a></li>
+      <li><a href="#">Settings</a></li>
+    </ul>
+    <div class="nav-right">
+      <span class="server-pill">
+        <span class="status-dot live"></span>
+        All systems nominal
+      </span>
+      <div class="nav-avatar">DK</div>
+    </div>
+  </nav>
+
+  <!-- ========================================================
+       BREADCRUMB
+       ======================================================== -->
+  <div class="breadcrumb">
+    <a href="#">Home</a>
+    <span class="sep">&gt;</span>
+    <a href="#">Dashboard</a>
+    <span class="sep">&gt;</span>
+    <span class="current">MCP Overview</span>
+  </div>
+
+  <!-- ========================================================
+       HERO ROW — Page title
+       ======================================================== -->
+  <div class="flex items-baseline justify-between mb-16">
+    <div>
+      <h1 class="headline-hero">MCP Server Health</h1>
+      <p class="text-sec mt-8" style="font-size: 16px; max-width: 520px; line-height: 1.55;">
+        Real-time telemetry across all Model Context Protocol servers.
+        Last 30 days of tool invocations, latency, and error rates.
+      </p>
+    </div>
+    <div class="flex gap-12 items-center">
+      <button class="btn btn-ghost btn-sm">Export</button>
+      <button class="btn btn-accent btn-sm">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        New Server
+      </button>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       MAIN BENTO GRID
+       ======================================================== -->
+  <div class="bento">
+
+    <!-- =====================================
+         LEFT COLUMN — Hero chart card (45%)
+         ===================================== -->
+    <div class="card card-flush fade-up" style="grid-row: span 2;">
+      <div class="card-header" style="padding: 24px 24px 0;">
+        <div class="card-header-col">
+          <span class="label">Total Tool Invocations</span>
+          <div class="stat-row mt-4">
+            <span class="metric" style="font-size: 42px; letter-spacing: -1px;">847,293</span>
+            <span class="stat-delta up">+12.4%</span>
+          </div>
+        </div>
+        <div class="flex gap-8 items-center">
+          <button class="btn btn-ghost btn-sm">7d</button>
+          <button class="btn btn-primary btn-sm">30d</button>
+          <button class="btn btn-ghost btn-sm">90d</button>
+        </div>
+      </div>
+      <div class="chart-area-wrap" style="padding: 0 4px;">
+        <svg viewBox="0 0 560 200" preserveAspectRatio="none" style="width:100%; height: 200px;">
+          <defs>
+            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#f54e00" stop-opacity="0.12"/>
+              <stop offset="100%" stop-color="#f54e00" stop-opacity="0.01"/>
+            </linearGradient>
+          </defs>
+          <!-- Grid lines -->
+          <line x1="0" y1="50" x2="560" y2="50" stroke="rgba(0,0,0,0.04)" stroke-width="1"/>
+          <line x1="0" y1="100" x2="560" y2="100" stroke="rgba(0,0,0,0.04)" stroke-width="1"/>
+          <line x1="0" y1="150" x2="560" y2="150" stroke="rgba(0,0,0,0.04)" stroke-width="1"/>
+          <!-- Area fill -->
+          <path d="M0,160 C20,155 40,140 60,135 C80,130 100,125 120,110 C140,95 160,105 180,100 C200,95 220,80 240,75 C260,70 280,85 300,78 C320,71 340,60 360,55 C380,50 400,65 420,58 C440,51 460,40 480,35 C500,30 520,42 540,38 L560,36 L560,200 L0,200 Z" fill="url(#areaGrad)"/>
+          <!-- Line -->
+          <path d="M0,160 C20,155 40,140 60,135 C80,130 100,125 120,110 C140,95 160,105 180,100 C200,95 220,80 240,75 C260,70 280,85 300,78 C320,71 340,60 360,55 C380,50 400,65 420,58 C440,51 460,40 480,35 C500,30 520,42 540,38 L560,36" fill="none" stroke="#f54e00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+          <!-- Current dot -->
+          <circle cx="560" cy="36" r="4" fill="#f54e00"/>
+          <circle cx="560" cy="36" r="8" fill="#f54e00" opacity="0.15"/>
+        </svg>
+        <div class="chart-x-labels" style="padding: 0 20px;">
+          <span>Mar 4</span>
+          <span>Mar 11</span>
+          <span>Mar 18</span>
+          <span>Mar 25</span>
+          <span>Apr 1</span>
+        </div>
+      </div>
+      <div style="padding: 20px 24px 24px;">
+        <div class="sep-line"></div>
+        <div class="flex gap-24 mt-16">
+          <div class="flex flex-col gap-4">
+            <span class="label" style="font-size: 11px;">Avg. Latency</span>
+            <span class="metric-sm">142<span class="text-muted" style="font-size: 12px;">ms</span></span>
+          </div>
+          <div class="flex flex-col gap-4">
+            <span class="label" style="font-size: 11px;">Error Rate</span>
+            <span class="metric-sm" style="color: var(--teal);">0.3<span class="text-muted" style="font-size: 12px;">%</span></span>
+          </div>
+          <div class="flex flex-col gap-4">
+            <span class="label" style="font-size: 11px;">Active Servers</span>
+            <span class="metric-sm">8<span class="text-muted" style="font-size: 12px;">/9</span></span>
+          </div>
+          <div class="flex flex-col gap-4">
+            <span class="label" style="font-size: 11px;">Uptime</span>
+            <span class="metric-sm" style="color: var(--teal);">99.97<span class="text-muted" style="font-size: 12px;">%</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =====================================
+         MIDDLE COLUMN — Stat cards (30%)
+         ===================================== -->
+    <div class="flex flex-col gap-20">
+      <!-- Stat: Kanban -->
+      <div class="card fade-up">
+        <div class="stat-card">
+          <span class="label">Kanban Tasks</span>
+          <div class="stat-row">
+            <span class="metric">1,247</span>
+            <span class="stat-delta up">+8.2%</span>
+          </div>
+          <div class="flex gap-8 mt-8">
+            <span class="badge badge-teal"><span class="badge-dot"></span>342 done</span>
+            <span class="badge badge-orange"><span class="badge-dot"></span>89 in progress</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stat: Shell -->
+      <div class="card fade-up">
+        <div class="stat-card">
+          <span class="label">Shell Sessions</span>
+          <div class="stat-row">
+            <span class="metric">56</span>
+            <span class="stat-delta up">+3</span>
+          </div>
+          <div class="flex gap-8 mt-8">
+            <span class="badge badge-teal"><span class="badge-dot"></span>12 active</span>
+            <span class="badge badge-neutral"><span class="badge-dot"></span>44 closed</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stat: Voice -->
+      <div class="card fade-up">
+        <div class="stat-card">
+          <span class="label">Voice Transcriptions</span>
+          <div class="stat-row">
+            <span class="metric">3,891</span>
+            <span class="stat-delta up">+24.1%</span>
+          </div>
+          <p class="text-muted mt-4" style="font-size: 12px;">
+            Avg. 142 WPM &middot; 2.1% filler rate
+          </p>
+        </div>
+      </div>
+
+      <!-- Mini stat row -->
+      <div class="card fade-up" style="padding: 16px 24px;">
+        <div class="flex justify-between items-center">
+          <div class="flex flex-col gap-4">
+            <span class="label" style="font-size: 11px;">Workflows</span>
+            <span class="metric-sm">34</span>
+          </div>
+          <div class="flex flex-col gap-4 text-right">
+            <span class="label" style="font-size: 11px;">Prompts</span>
+            <span class="metric-sm">128</span>
+          </div>
+          <div class="flex flex-col gap-4 text-right">
+            <span class="label" style="font-size: 11px;">Vocab</span>
+            <span class="metric-sm">67</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- =====================================
+         RIGHT COLUMN — Activity feed (25%)
+         ===================================== -->
+    <div class="flex flex-col gap-20">
+      <div class="card fade-up">
+        <div class="card-header">
+          <span class="headline-card">Activity</span>
+          <button class="btn btn-ghost btn-sm">View all</button>
+        </div>
+        <div class="timeline">
+          <div class="timeline-item">
+            <div class="timeline-dot active"></div>
+            <div class="timeline-time">2 min ago</div>
+            <div class="timeline-desc"><strong>kanban_move_item</strong> moved "Refactor auth flow" to In Review</div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot success"></div>
+            <div class="timeline-time">8 min ago</div>
+            <div class="timeline-desc"><strong>test_run_saved</strong> "Login E2E" passed (4.2s)</div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-time">15 min ago</div>
+            <div class="timeline-desc"><strong>shell_run_command</strong> executed <code style="font-family: var(--font-mono); font-size: 11px; background: var(--row-alt); padding: 1px 5px; border-radius: 3px;">pnpm build</code> in pane-3</div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot success"></div>
+            <div class="timeline-time">22 min ago</div>
+            <div class="timeline-desc"><strong>voice_transcribe</strong> processed 3m 42s audio (523 words)</div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-time">31 min ago</div>
+            <div class="timeline-desc"><strong>workflow_match</strong> triggered "PR Review" workflow</div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot"></div>
+            <div class="timeline-time">45 min ago</div>
+            <div class="timeline-desc"><strong>chat_send</strong> claude-1 messaged @codex-2 about API types</div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-dot success"></div>
+            <div class="timeline-time">1h ago</div>
+            <div class="timeline-desc"><strong>kanban_create_item</strong> added "Fix SSR hydration" to Todo</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick actions -->
+      <div class="card fade-up">
+        <span class="label mb-12" style="display: block;">Quick Actions</span>
+        <div class="flex flex-col gap-8">
+          <button class="btn btn-ghost btn-sm w-full" style="justify-content: flex-start;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M2 6h12" stroke="currentColor" stroke-width="1.4"/></svg>
+            Open Kanban
+          </button>
+          <button class="btn btn-ghost btn-sm w-full" style="justify-content: flex-start;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 12.5L7.5 8l-2-2L10 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Run Test Suite
+          </button>
+          <button class="btn btn-ghost btn-sm w-full" style="justify-content: flex-start;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3.5l2.5 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            View Logs
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SECTION 2 — Tool Usage + Data Table
+       ======================================================== -->
+  <div class="section-gap fade-up">
+    <div class="flex items-baseline justify-between mb-16">
+      <h2 class="headline-section">Tool Usage Breakdown</h2>
+      <span class="text-muted" style="font-size: 13px;">Last 30 days</span>
+    </div>
+  </div>
+
+  <div class="bento">
+
+    <!-- Horizontal bar chart -->
+    <div class="card fade-up">
+      <div class="card-header">
+        <span class="headline-card">Invocations by Server</span>
+      </div>
+      <div class="bar-chart">
+        <div class="bar-row">
+          <span class="bar-label">Kanban</span>
+          <div class="bar-track"><div class="bar-fill orange" style="width: 92%;"></div></div>
+          <span class="bar-value">284k</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">Shell</span>
+          <div class="bar-track"><div class="bar-fill teal" style="width: 78%;"></div></div>
+          <span class="bar-value">241k</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">Voice</span>
+          <div class="bar-track"><div class="bar-fill muted" style="width: 54%;"></div></div>
+          <span class="bar-value">167k</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">Test</span>
+          <div class="bar-track"><div class="bar-fill orange" style="width: 38%;"></div></div>
+          <span class="bar-value">118k</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">Chat</span>
+          <div class="bar-track"><div class="bar-fill teal" style="width: 28%;"></div></div>
+          <span class="bar-value">86k</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">Workflow</span>
+          <div class="bar-track"><div class="bar-fill muted" style="width: 22%;"></div></div>
+          <span class="bar-value">68k</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">Prompts</span>
+          <div class="bar-track"><div class="bar-fill crimson" style="width: 15%;"></div></div>
+          <span class="bar-value">46k</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">Vocab</span>
+          <div class="bar-track"><div class="bar-fill muted" style="width: 10%;"></div></div>
+          <span class="bar-value">31k</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">Docs</span>
+          <div class="bar-track"><div class="bar-fill teal" style="width: 6%;"></div></div>
+          <span class="bar-value">18k</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data table -->
+    <div class="card card-flush fade-up span-2">
+      <div class="card-header" style="padding: 24px 24px 16px;">
+        <span class="headline-card">Recent Tool Calls</span>
+        <div class="flex gap-8">
+          <input type="text" class="input-boxed" placeholder="Filter tools..." style="width: 160px; font-size: 12px; padding: 6px 12px;">
+          <button class="btn btn-ghost btn-sm">Refresh</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Tool</th>
+              <th>Server</th>
+              <th>Status</th>
+              <th>Latency</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>kanban_move_item</td>
+              <td>kanban</td>
+              <td><span class="badge badge-teal badge-sm">success</span></td>
+              <td class="mono">23ms</td>
+              <td class="text-muted nowrap">2 min ago</td>
+            </tr>
+            <tr>
+              <td>test_run_saved</td>
+              <td>test</td>
+              <td><span class="badge badge-teal badge-sm">success</span></td>
+              <td class="mono">4,218ms</td>
+              <td class="text-muted nowrap">8 min ago</td>
+            </tr>
+            <tr>
+              <td>shell_run_command</td>
+              <td>shell</td>
+              <td><span class="badge badge-teal badge-sm">success</span></td>
+              <td class="mono">12,403ms</td>
+              <td class="text-muted nowrap">15 min ago</td>
+            </tr>
+            <tr>
+              <td>voice_transcribe</td>
+              <td>voice</td>
+              <td><span class="badge badge-teal badge-sm">success</span></td>
+              <td class="mono">2,891ms</td>
+              <td class="text-muted nowrap">22 min ago</td>
+            </tr>
+            <tr>
+              <td>workflow_match</td>
+              <td>workflow</td>
+              <td><span class="badge badge-teal badge-sm">success</span></td>
+              <td class="mono">18ms</td>
+              <td class="text-muted nowrap">31 min ago</td>
+            </tr>
+            <tr>
+              <td>chat_send</td>
+              <td>chat</td>
+              <td><span class="badge badge-teal badge-sm">success</span></td>
+              <td class="mono">34ms</td>
+              <td class="text-muted nowrap">45 min ago</td>
+            </tr>
+            <tr>
+              <td>test_run_scenario</td>
+              <td>test</td>
+              <td><span class="badge badge-crimson badge-sm">error</span></td>
+              <td class="mono">8,102ms</td>
+              <td class="text-muted nowrap">52 min ago</td>
+            </tr>
+            <tr>
+              <td>kanban_create_item</td>
+              <td>kanban</td>
+              <td><span class="badge badge-teal badge-sm">success</span></td>
+              <td class="mono">31ms</td>
+              <td class="text-muted nowrap">1h ago</td>
+            </tr>
+            <tr>
+              <td>shell_get_scrollback</td>
+              <td>shell</td>
+              <td><span class="badge badge-teal badge-sm">success</span></td>
+              <td class="mono">8ms</td>
+              <td class="text-muted nowrap">1h ago</td>
+            </tr>
+            <tr>
+              <td>prompts_render</td>
+              <td>prompts</td>
+              <td><span class="badge badge-teal badge-sm">success</span></td>
+              <td class="mono">12ms</td>
+              <td class="text-muted nowrap">1h ago</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SECTION 3 — Server Status + Pull Quote
+       ======================================================== -->
+  <div class="section-gap fade-up">
+    <div class="flex items-baseline justify-between mb-16">
+      <h2 class="headline-section">Server Registry</h2>
+      <div class="flex gap-12 items-center">
+        <span class="text-muted" style="font-size: 13px;">9 registered</span>
+        <label class="toggle">
+          <input type="checkbox" checked>
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+        <span class="text-sec" style="font-size: 13px;">Auto-refresh</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="bento">
+
+    <!-- Server list -->
+    <div class="card card-flush fade-up span-2">
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Server</th>
+              <th>Status</th>
+              <th>Tools</th>
+              <th>Uptime</th>
+              <th>P95 Latency</th>
+              <th>Errors (24h)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>devglide-kanban</td>
+              <td><span class="badge badge-teal"><span class="badge-dot"></span>Running</span></td>
+              <td class="mono">14</td>
+              <td class="mono">14d 6h</td>
+              <td class="mono">28ms</td>
+              <td class="mono">0</td>
+            </tr>
+            <tr>
+              <td>devglide-shell</td>
+              <td><span class="badge badge-teal"><span class="badge-dot"></span>Running</span></td>
+              <td class="mono">5</td>
+              <td class="mono">14d 6h</td>
+              <td class="mono">156ms</td>
+              <td class="mono">2</td>
+            </tr>
+            <tr>
+              <td>devglide-voice</td>
+              <td><span class="badge badge-teal"><span class="badge-dot"></span>Running</span></td>
+              <td class="mono">7</td>
+              <td class="mono">14d 6h</td>
+              <td class="mono">2,340ms</td>
+              <td class="mono">0</td>
+            </tr>
+            <tr>
+              <td>devglide-test</td>
+              <td><span class="badge badge-teal"><span class="badge-dot"></span>Running</span></td>
+              <td class="mono">6</td>
+              <td class="mono">14d 6h</td>
+              <td class="mono">5,120ms</td>
+              <td class="mono">4</td>
+            </tr>
+            <tr>
+              <td>devglide-chat</td>
+              <td><span class="badge badge-teal"><span class="badge-dot"></span>Running</span></td>
+              <td class="mono">8</td>
+              <td class="mono">14d 6h</td>
+              <td class="mono">42ms</td>
+              <td class="mono">0</td>
+            </tr>
+            <tr>
+              <td>devglide-workflow</td>
+              <td><span class="badge badge-teal"><span class="badge-dot"></span>Running</span></td>
+              <td class="mono">5</td>
+              <td class="mono">14d 6h</td>
+              <td class="mono">22ms</td>
+              <td class="mono">0</td>
+            </tr>
+            <tr>
+              <td>devglide-prompts</td>
+              <td><span class="badge badge-teal"><span class="badge-dot"></span>Running</span></td>
+              <td class="mono">7</td>
+              <td class="mono">14d 6h</td>
+              <td class="mono">14ms</td>
+              <td class="mono">0</td>
+            </tr>
+            <tr>
+              <td>devglide-vocabulary</td>
+              <td><span class="badge badge-orange"><span class="badge-dot"></span>Degraded</span></td>
+              <td class="mono">6</td>
+              <td class="mono">2d 18h</td>
+              <td class="mono">890ms</td>
+              <td class="mono">12</td>
+            </tr>
+            <tr>
+              <td>devglide-log</td>
+              <td><span class="badge badge-teal"><span class="badge-dot"></span>Running</span></td>
+              <td class="mono">3</td>
+              <td class="mono">14d 6h</td>
+              <td class="mono">6ms</td>
+              <td class="mono">0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pull quote + uptime ring -->
+    <div class="flex flex-col gap-20">
+      <div class="card fade-up" style="padding: 28px 24px 28px 44px;">
+        <div class="pull-quote">
+          The best developer tools feel less like software and more like an extension of thought.
+          <cite>DevGlide design philosophy</cite>
+        </div>
+      </div>
+
+      <!-- Uptime ring card -->
+      <div class="card fade-up" style="text-align: center; padding: 28px 24px;">
+        <span class="label mb-12" style="display: block;">System Uptime</span>
+        <div style="display: inline-block; position: relative;">
+          <svg width="100" height="100" class="progress-ring">
+            <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(0,0,0,0.05)" stroke-width="6"/>
+            <circle cx="50" cy="50" r="42" fill="none" stroke="var(--teal)" stroke-width="6"
+              stroke-dasharray="263.9" stroke-dashoffset="0.8"
+              stroke-linecap="round" id="uptime-ring"/>
+          </svg>
+          <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; transform: rotate(0deg);">
+            <span class="metric-sm" style="color: var(--teal);">99.97%</span>
+          </div>
+        </div>
+        <p class="text-muted mt-8" style="font-size: 12px;">14 days without incident</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SECTION 4 — Design System Showcase
+       ======================================================== -->
+  <div class="section-gap fade-up">
+    <div class="flex items-baseline justify-between mb-8">
+      <h2 class="headline-section">Paper Studio</h2>
+      <span class="badge badge-neutral">Design System v1.0</span>
+    </div>
+    <p class="text-sec mb-16" style="max-width: 640px; font-size: 15px; line-height: 1.6;">
+      <span class="drop-cap">A design language</span> that rejects the ubiquity of dark mode
+      dashboards. Paper Studio draws from editorial print design, warm surfaces,
+      and the quiet confidence of well-set type. Every component is built to breathe.
+    </p>
+  </div>
+
+  <div class="showcase-grid">
+
+    <!-- Color palette -->
+    <div class="card fade-up">
+      <span class="headline-card mb-16" style="display: block;">Palette</span>
+      <div class="swatch-row">
+        <div class="swatch">
+          <div class="swatch-circle" style="background: #f2f1ed;"></div>
+          <span class="swatch-name">#f2f1ed</span>
+        </div>
+        <div class="swatch">
+          <div class="swatch-circle" style="background: #ffffff;"></div>
+          <span class="swatch-name">#ffffff</span>
+        </div>
+        <div class="swatch">
+          <div class="swatch-circle" style="background: #26251e;"></div>
+          <span class="swatch-name">#26251e</span>
+        </div>
+        <div class="swatch">
+          <div class="swatch-circle" style="background: #666660;"></div>
+          <span class="swatch-name">#666660</span>
+        </div>
+        <div class="swatch">
+          <div class="swatch-circle" style="background: #f54e00;"></div>
+          <span class="swatch-name">#f54e00</span>
+        </div>
+        <div class="swatch">
+          <div class="swatch-circle" style="background: #1f8a65;"></div>
+          <span class="swatch-name">#1f8a65</span>
+        </div>
+        <div class="swatch">
+          <div class="swatch-circle" style="background: #cf2d56;"></div>
+          <span class="swatch-name">#cf2d56</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Typography showcase -->
+    <div class="card fade-up">
+      <span class="headline-card mb-16" style="display: block;">Typography</span>
+      <div class="flex flex-col gap-12">
+        <div>
+          <span class="text-muted" style="font-size: 11px; font-family: var(--font-mono);">Display / Newsreader 500</span>
+          <p style="font-family: var(--font-display); font-size: 28px; font-weight: 500; letter-spacing: -1px; line-height: 1.1; margin-top: 4px;">Elegant numbers</p>
+        </div>
+        <div>
+          <span class="text-muted" style="font-size: 11px; font-family: var(--font-mono);">Body / Source Sans 3</span>
+          <p style="font-size: 15px; line-height: 1.5; margin-top: 4px; color: var(--text-sec);">The quick brown fox jumps over the lazy dog. Readability is the foundation of utility.</p>
+        </div>
+        <div>
+          <span class="text-muted" style="font-size: 11px; font-family: var(--font-mono);">Mono / JetBrains Mono 600</span>
+          <p style="font-family: var(--font-mono); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 4px;">847,293</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Buttons + badges + inputs -->
+    <div class="card fade-up">
+      <span class="headline-card mb-16" style="display: block;">Components</span>
+      <div class="flex flex-col gap-16">
+        <!-- Buttons -->
+        <div>
+          <span class="label mb-8" style="display: block; font-size: 11px;">Buttons</span>
+          <div class="flex gap-8 items-center" style="flex-wrap: wrap;">
+            <button class="btn btn-primary btn-sm">Primary</button>
+            <button class="btn btn-accent btn-sm">Accent</button>
+            <button class="btn btn-ghost btn-sm">Ghost</button>
+          </div>
+        </div>
+        <!-- Badges -->
+        <div>
+          <span class="label mb-8" style="display: block; font-size: 11px;">Badges</span>
+          <div class="flex gap-8 items-center" style="flex-wrap: wrap;">
+            <span class="badge badge-teal"><span class="badge-dot"></span>Success</span>
+            <span class="badge badge-orange"><span class="badge-dot"></span>Warning</span>
+            <span class="badge badge-crimson"><span class="badge-dot"></span>Error</span>
+            <span class="badge badge-neutral"><span class="badge-dot"></span>Neutral</span>
+          </div>
+        </div>
+        <!-- Input -->
+        <div>
+          <span class="label mb-8" style="display: block; font-size: 11px;">Input</span>
+          <input type="text" class="input" placeholder="Type something..." style="max-width: 220px;">
+        </div>
+        <!-- Toggle -->
+        <div>
+          <span class="label mb-8" style="display: block; font-size: 11px;">Toggle</span>
+          <div class="flex gap-12 items-center">
+            <label class="toggle">
+              <input type="checkbox" checked>
+              <span class="toggle-track"></span>
+              <span class="toggle-thumb"></span>
+            </label>
+            <span class="text-sec" style="font-size: 13px;">Enabled</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SECTION 5 — Shadow + Card Technique Showcase
+       ======================================================== -->
+  <div class="section-gap-sm fade-up">
+    <div class="showcase-grid">
+
+      <!-- Shadow showcase -->
+      <div class="card fade-up">
+        <span class="headline-card mb-16" style="display: block;">Shadow as Border</span>
+        <div class="flex flex-col gap-16">
+          <div style="padding: 16px; border-radius: var(--radius); box-shadow: var(--shadow-border);">
+            <span class="text-muted" style="font-size: 12px; font-family: var(--font-mono);">--shadow-border</span>
+            <p class="text-sec mt-4" style="font-size: 13px;">Default card state. No CSS borders.</p>
+          </div>
+          <div style="padding: 16px; border-radius: var(--radius); box-shadow: var(--shadow-hover);">
+            <span class="text-muted" style="font-size: 12px; font-family: var(--font-mono);">--shadow-hover</span>
+            <p class="text-sec mt-4" style="font-size: 13px;">Hover state. Layered shadows add depth.</p>
+          </div>
+          <div style="padding: 16px; border-radius: var(--radius); box-shadow: var(--shadow-elevated);">
+            <span class="text-muted" style="font-size: 12px; font-family: var(--font-mono);">--shadow-elevated</span>
+            <p class="text-sec mt-4" style="font-size: 13px;">Elevated modals and popovers.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Spacing showcase -->
+      <div class="card fade-up">
+        <span class="headline-card mb-16" style="display: block;">Spacing System</span>
+        <div class="flex flex-col gap-12">
+          <div class="flex items-center gap-10">
+            <div style="width: 4px; height: 12px; background: var(--orange); border-radius: 2px;"></div>
+            <span class="mono text-muted" style="font-size: 11px; width: 32px;">4px</span>
+            <span class="text-sec" style="font-size: 12px;">Tight / inline</span>
+          </div>
+          <div class="flex items-center gap-10">
+            <div style="width: 8px; height: 12px; background: var(--orange); border-radius: 2px;"></div>
+            <span class="mono text-muted" style="font-size: 11px; width: 32px;">8px</span>
+            <span class="text-sec" style="font-size: 12px;">Compact</span>
+          </div>
+          <div class="flex items-center gap-10">
+            <div style="width: 16px; height: 12px; background: var(--orange); border-radius: 2px;"></div>
+            <span class="mono text-muted" style="font-size: 11px; width: 32px;">16px</span>
+            <span class="text-sec" style="font-size: 12px;">Default</span>
+          </div>
+          <div class="flex items-center gap-10">
+            <div style="width: 24px; height: 12px; background: var(--orange); border-radius: 2px;"></div>
+            <span class="mono text-muted" style="font-size: 11px; width: 32px;">24px</span>
+            <span class="text-sec" style="font-size: 12px;">Card padding</span>
+          </div>
+          <div class="flex items-center gap-10">
+            <div style="width: 48px; height: 12px; background: var(--teal); border-radius: 2px;"></div>
+            <span class="mono text-muted" style="font-size: 11px; width: 32px;">48px</span>
+            <span class="text-sec" style="font-size: 12px;">Section inner</span>
+          </div>
+          <div class="flex items-center gap-10">
+            <div style="width: 96px; height: 12px; background: var(--teal); border-radius: 2px;"></div>
+            <span class="mono text-muted" style="font-size: 11px; width: 32px;">96px</span>
+            <span class="text-sec" style="font-size: 12px;">Section gap</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interactive card sample -->
+      <div class="card fade-up">
+        <span class="headline-card mb-16" style="display: block;">Interactive States</span>
+        <div class="flex flex-col gap-12">
+          <div>
+            <span class="label" style="font-size: 11px; display: block; margin-bottom: 6px;">Hover Preview</span>
+            <div id="hover-demo" style="padding: 16px; border-radius: var(--radius); box-shadow: var(--shadow-border); background: var(--card); cursor: pointer; transition: all 200ms ease;">
+              <div class="flex items-center justify-between">
+                <span class="text-sec" style="font-size: 13px;">Hover me</span>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="opacity: 0.3; transition: opacity 200ms ease;" id="hover-arrow"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+          </div>
+          <div>
+            <span class="label" style="font-size: 11px; display: block; margin-bottom: 6px;">Focus Preview</span>
+            <input type="text" class="input" placeholder="Focus me..." style="max-width: 100%;">
+          </div>
+          <div>
+            <span class="label" style="font-size: 11px; display: block; margin-bottom: 6px;">Accent Hover</span>
+            <button class="btn btn-accent btn-sm" style="width: 100%; justify-content: center;">
+              Hover shifts orange to crimson
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SECTION 6 — Latency Heatmap + Chat preview
+       ======================================================== -->
+  <div class="section-gap fade-up">
+    <div class="flex items-baseline justify-between mb-16">
+      <h2 class="headline-section">Performance & Communication</h2>
+    </div>
+  </div>
+
+  <div class="bento">
+
+    <!-- Latency distribution -->
+    <div class="card fade-up">
+      <div class="card-header">
+        <div class="card-header-col">
+          <span class="headline-card">Latency Distribution</span>
+          <span class="text-muted" style="font-size: 12px;">P50, P90, P95, P99 across all servers</span>
+        </div>
+      </div>
+      <div class="flex flex-col gap-16 mt-8">
+        <div class="flex items-center gap-16">
+          <span class="label" style="width: 28px; text-align: right; text-transform: none; letter-spacing: normal;">P50</span>
+          <div style="flex: 1; height: 24px; background: var(--row-alt); border-radius: 4px; position: relative; overflow: hidden;">
+            <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 12%; background: rgba(31,138,101,0.2); border-radius: 4px;"></div>
+            <span class="mono text-muted" style="position: absolute; left: 14%; top: 3px; font-size: 11px;">18ms</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-16">
+          <span class="label" style="width: 28px; text-align: right; text-transform: none; letter-spacing: normal;">P90</span>
+          <div style="flex: 1; height: 24px; background: var(--row-alt); border-radius: 4px; position: relative; overflow: hidden;">
+            <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 35%; background: rgba(31,138,101,0.15); border-radius: 4px;"></div>
+            <span class="mono text-muted" style="position: absolute; left: 37%; top: 3px; font-size: 11px;">89ms</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-16">
+          <span class="label" style="width: 28px; text-align: right; text-transform: none; letter-spacing: normal;">P95</span>
+          <div style="flex: 1; height: 24px; background: var(--row-alt); border-radius: 4px; position: relative; overflow: hidden;">
+            <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 55%; background: rgba(245,78,0,0.12); border-radius: 4px;"></div>
+            <span class="mono text-muted" style="position: absolute; left: 57%; top: 3px; font-size: 11px;">142ms</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-16">
+          <span class="label" style="width: 28px; text-align: right; text-transform: none; letter-spacing: normal;">P99</span>
+          <div style="flex: 1; height: 24px; background: var(--row-alt); border-radius: 4px; position: relative; overflow: hidden;">
+            <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 82%; background: rgba(207,45,86,0.1); border-radius: 4px;"></div>
+            <span class="mono text-muted" style="position: absolute; left: 84%; top: 3px; font-size: 11px;">2.3s</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chat room preview -->
+    <div class="card fade-up">
+      <div class="card-header">
+        <div class="card-header-col">
+          <span class="headline-card">Chat Room</span>
+          <span class="text-muted" style="font-size: 12px;">3 participants active</span>
+        </div>
+        <div class="flex gap-6">
+          <span class="badge badge-teal"><span class="badge-dot"></span>Live</span>
+        </div>
+      </div>
+      <div class="flex flex-col gap-14" style="font-size: 13px;">
+        <div class="flex gap-10">
+          <span class="shrink-0" style="font-family: var(--font-mono); font-size: 12px; color: var(--orange); width: 60px;">claude-1</span>
+          <span class="text-sec">I've finished the auth refactor. Moving it to In Review. @codex-2 can you run the test suite?</span>
+        </div>
+        <div class="flex gap-10">
+          <span class="shrink-0" style="font-family: var(--font-mono); font-size: 12px; color: var(--teal); width: 60px;">codex-2</span>
+          <span class="text-sec">Running test_run_saved "Auth E2E" now. Will report back.</span>
+        </div>
+        <div class="flex gap-10">
+          <span class="shrink-0" style="font-family: var(--font-mono); font-size: 12px; color: var(--teal); width: 60px;">codex-2</span>
+          <span class="text-sec">All 14 tests passed in 8.4s. Looks clean.</span>
+        </div>
+        <div class="flex gap-10">
+          <span class="shrink-0" style="font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); width: 60px;">user</span>
+          <span class="text-sec">Great work both. Moving to Testing column.</span>
+        </div>
+      </div>
+      <div class="sep-line"></div>
+      <div class="flex gap-8 items-center">
+        <input type="text" class="input-boxed grow" placeholder="Send a message..." style="font-size: 12px; padding: 8px 12px;">
+        <button class="btn btn-primary btn-sm">Send</button>
+      </div>
+    </div>
+
+    <!-- Error log preview -->
+    <div class="card fade-up">
+      <div class="card-header">
+        <span class="headline-card">Recent Errors</span>
+        <span class="badge badge-crimson">4 today</span>
+      </div>
+      <div class="flex flex-col gap-12">
+        <div style="padding: 10px 12px; background: rgba(207,45,86,0.04); border-radius: 6px;">
+          <div class="flex justify-between items-center mb-4">
+            <span style="font-family: var(--font-mono); font-size: 11px; color: var(--crimson);">TIMEOUT</span>
+            <span class="text-muted" style="font-size: 11px;">52m ago</span>
+          </div>
+          <p class="text-sec" style="font-size: 12px;">test_run_scenario exceeded 8s limit on "Dashboard load"</p>
+        </div>
+        <div style="padding: 10px 12px; background: rgba(207,45,86,0.04); border-radius: 6px;">
+          <div class="flex justify-between items-center mb-4">
+            <span style="font-family: var(--font-mono); font-size: 11px; color: var(--crimson);">ECONNRESET</span>
+            <span class="text-muted" style="font-size: 11px;">3h ago</span>
+          </div>
+          <p class="text-sec" style="font-size: 12px;">vocabulary_lookup failed — connection reset by upstream</p>
+        </div>
+        <div style="padding: 10px 12px; background: rgba(207,45,86,0.04); border-radius: 6px;">
+          <div class="flex justify-between items-center mb-4">
+            <span style="font-family: var(--font-mono); font-size: 11px; color: var(--crimson);">RATE_LIMIT</span>
+            <span class="text-muted" style="font-size: 11px;">5h ago</span>
+          </div>
+          <p class="text-sec" style="font-size: 12px;">voice_transcribe hit provider rate limit (groq, 429)</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       FOOTER
+       ======================================================== -->
+  <div class="section-gap" style="padding-bottom: 80px;">
+    <div class="sep-line" style="margin-bottom: 32px;"></div>
+    <div class="flex justify-between items-center">
+      <div class="flex items-center gap-8">
+        <span class="nav-logo-mark" style="width: 20px; height: 20px; border-radius: 4px;">
+          <svg viewBox="0 0 16 16" fill="none" style="width: 11px; height: 11px;">
+            <path d="M3 4h10M3 8h7M3 12h10" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span style="font-family: var(--font-display); font-size: 14px; color: var(--text-sec);">Paper Studio</span>
+        <span class="text-muted" style="font-size: 13px;">&mdash; DevGlide Design System</span>
+      </div>
+      <div class="flex gap-20">
+        <a href="#" class="text-muted" style="font-size: 13px; text-decoration: none;">Documentation</a>
+        <a href="#" class="text-muted" style="font-size: 13px; text-decoration: none;">GitHub</a>
+        <a href="#" class="text-muted" style="font-size: 13px; text-decoration: none;">Changelog</a>
+      </div>
+    </div>
+  </div>
+
+</div><!-- .page-wrapper -->
+
+<!-- ============================================================
+     JAVASCRIPT — Animations + Interactions
+     ============================================================ -->
+<script>
+(function() {
+  'use strict';
+
+  // ---- Intersection Observer for fade-up animations ----
+  const observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, {
+    threshold: 0.08,
+    rootMargin: '0px 0px -40px 0px'
+  });
+
+  document.querySelectorAll('.fade-up').forEach(function(el) {
+    observer.observe(el);
+  });
+
+  // ---- Hover demo card ----
+  var hoverDemo = document.getElementById('hover-demo');
+  var hoverArrow = document.getElementById('hover-arrow');
+  if (hoverDemo) {
+    hoverDemo.addEventListener('mouseenter', function() {
+      this.style.boxShadow = 'rgba(0,0,0,0.08) 0px 0px 0px 1px, rgba(0,0,0,0.04) 0px 2px 2px, rgba(0,0,0,0.04) 0px 8px 8px -8px';
+      this.style.background = '#faf8f4';
+      if (hoverArrow) hoverArrow.style.opacity = '0.7';
+    });
+    hoverDemo.addEventListener('mouseleave', function() {
+      this.style.boxShadow = 'rgba(0,0,0,0.08) 0px 0px 0px 1px';
+      this.style.background = 'var(--card)';
+      if (hoverArrow) hoverArrow.style.opacity = '0.3';
+    });
+  }
+
+  // ---- Animate bar chart fills on scroll ----
+  var barFills = document.querySelectorAll('.bar-fill');
+  var barObserver = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        var target = entry.target;
+        var targetWidth = target.style.width;
+        target.style.width = '0%';
+        requestAnimationFrame(function() {
+          requestAnimationFrame(function() {
+            target.style.width = targetWidth;
+          });
+        });
+        barObserver.unobserve(target);
+      }
+    });
+  }, { threshold: 0.2 });
+
+  barFills.forEach(function(fill) {
+    barObserver.observe(fill);
+  });
+
+  // ---- Animate metrics counting up ----
+  function animateMetric(el, target, duration) {
+    var start = performance.now();
+    var startVal = 0;
+
+    function step(now) {
+      var progress = Math.min((now - start) / duration, 1);
+      // Ease out cubic
+      var eased = 1 - Math.pow(1 - progress, 3);
+      var current = Math.round(startVal + (target - startVal) * eased);
+      el.textContent = current.toLocaleString();
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      }
+    }
+
+    requestAnimationFrame(step);
+  }
+
+  var metrics = document.querySelectorAll('.metric');
+  var metricObserver = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        var el = entry.target;
+        var text = el.textContent.replace(/,/g, '');
+        // Find the number portion only (before any child elements)
+        var numText = '';
+        for (var i = 0; i < el.childNodes.length; i++) {
+          if (el.childNodes[i].nodeType === Node.TEXT_NODE) {
+            numText = el.childNodes[i].textContent.replace(/,/g, '').trim();
+            break;
+          }
+        }
+        var num = parseInt(numText, 10);
+        if (!isNaN(num) && num > 0) {
+          // Only animate the text node, preserve child elements
+          var textNode = null;
+          for (var j = 0; j < el.childNodes.length; j++) {
+            if (el.childNodes[j].nodeType === Node.TEXT_NODE && el.childNodes[j].textContent.trim()) {
+              textNode = el.childNodes[j];
+              break;
+            }
+          }
+          if (textNode) {
+            var startTime = performance.now();
+            var dur = 1200;
+            (function anim(now) {
+              var progress = Math.min((now - startTime) / dur, 1);
+              var eased = 1 - Math.pow(1 - progress, 3);
+              var current = Math.round(num * eased);
+              textNode.textContent = current.toLocaleString();
+              if (progress < 1) requestAnimationFrame(anim);
+            })(startTime);
+          }
+        }
+        metricObserver.unobserve(el);
+      }
+    });
+  }, { threshold: 0.3 });
+
+  metrics.forEach(function(m) { metricObserver.observe(m); });
+
+  // ---- Stagger fade-up animations ----
+  var allFadeUp = document.querySelectorAll('.fade-up');
+  allFadeUp.forEach(function(el, i) {
+    el.style.transitionDelay = (i * 60) + 'ms';
+  });
+
+  // ---- Live timestamp update (simulated) ----
+  var timeEls = document.querySelectorAll('.timeline-time');
+  // Add a subtle "now" indicator to the first timeline item
+  if (timeEls.length > 0) {
+    var firstDot = document.querySelector('.timeline-dot.active');
+    if (firstDot) {
+      firstDot.style.animation = 'pulse 2s infinite';
+    }
+  }
+
+  // ---- SVG area chart tooltip simulation ----
+  var chartWrap = document.querySelector('.chart-area-wrap');
+  if (chartWrap) {
+    var svg = chartWrap.querySelector('svg');
+    var tooltip = document.createElement('div');
+    tooltip.style.cssText = 'position:absolute;pointer-events:none;opacity:0;transition:opacity 150ms ease;' +
+      'background:#26251e;color:#fff;font-family:var(--font-mono);font-size:11px;padding:4px 10px;border-radius:4px;' +
+      'white-space:nowrap;z-index:10;transform:translateX(-50%);';
+    chartWrap.appendChild(tooltip);
+
+    // Sample data points for tooltip
+    var dataPoints = [
+      { x: 0, y: 160, val: '21,400' },
+      { x: 60, y: 135, val: '23,100' },
+      { x: 120, y: 110, val: '25,800' },
+      { x: 180, y: 100, val: '26,200' },
+      { x: 240, y: 75, val: '28,900' },
+      { x: 300, y: 78, val: '28,600' },
+      { x: 360, y: 55, val: '30,400' },
+      { x: 420, y: 58, val: '30,100' },
+      { x: 480, y: 35, val: '32,800' },
+      { x: 560, y: 36, val: '32,700' }
+    ];
+
+    svg.addEventListener('mousemove', function(e) {
+      var rect = svg.getBoundingClientRect();
+      var x = (e.clientX - rect.left) / rect.width * 560;
+
+      // Find closest point
+      var closest = dataPoints[0];
+      var minDist = Infinity;
+      for (var i = 0; i < dataPoints.length; i++) {
+        var dist = Math.abs(dataPoints[i].x - x);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = dataPoints[i];
+        }
+      }
+
+      tooltip.textContent = closest.val + ' calls';
+      tooltip.style.opacity = '1';
+      var tooltipX = closest.x / 560 * rect.width;
+      tooltip.style.left = tooltipX + 'px';
+      tooltip.style.top = (closest.y / 200 * (rect.height - 30)) - 32 + 'px';
+    });
+
+    svg.addEventListener('mouseleave', function() {
+      tooltip.style.opacity = '0';
+    });
+  }
+
+  // ---- Nav link active state ----
+  document.querySelectorAll('.nav-links a').forEach(function(link) {
+    link.addEventListener('click', function(e) {
+      e.preventDefault();
+      document.querySelectorAll('.nav-links a').forEach(function(l) {
+        l.classList.remove('active');
+      });
+      this.classList.add('active');
+    });
+  });
+
+  // ---- Uptime ring animation ----
+  var ring = document.getElementById('uptime-ring');
+  if (ring) {
+    var circumference = 2 * Math.PI * 42; // ~263.9
+    var percent = 99.97;
+    var offset = circumference * (1 - percent / 100);
+    ring.style.strokeDasharray = circumference;
+    ring.style.strokeDashoffset = circumference;
+
+    var ringObserver = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          requestAnimationFrame(function() {
+            ring.style.strokeDashoffset = offset;
+          });
+          ringObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.5 });
+
+    ringObserver.observe(ring);
+  }
+
+})();
+</script>
+
+</body>
+</html>

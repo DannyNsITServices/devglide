@@ -45,34 +45,34 @@ body {
 .aurora-blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(120px);
+  filter: blur(160px);
   animation: aurora-drift linear infinite;
   will-change: transform;
 }
 
 .aurora-blob:nth-child(1) {
   width: 600px; height: 600px;
-  background: rgba(125, 211, 252, 0.025);
+  background: rgba(79, 163, 165, 0.018);
   top: -10%; left: -5%;
   animation-duration: 25s;
 }
 .aurora-blob:nth-child(2) {
   width: 500px; height: 500px;
-  background: rgba(196, 181, 253, 0.018);
+  background: rgba(124, 143, 181, 0.012);
   top: 20%; right: -10%;
   animation-duration: 30s;
   animation-delay: -8s;
 }
 .aurora-blob:nth-child(3) {
   width: 450px; height: 450px;
-  background: rgba(253, 186, 154, 0.015);
+  background: rgba(201, 161, 90, 0.008);
   bottom: -5%; left: 30%;
   animation-duration: 22s;
   animation-delay: -14s;
 }
 .aurora-blob:nth-child(4) {
   width: 400px; height: 400px;
-  background: rgba(110, 231, 183, 0.015);
+  background: rgba(111, 168, 126, 0.007);
   bottom: 30%; right: 20%;
   animation-duration: 28s;
   animation-delay: -5s;
@@ -80,9 +80,9 @@ body {
 
 @keyframes aurora-drift {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  25% { transform: translate(80px, -60px) scale(1.1); }
-  50% { transform: translate(-40px, 80px) scale(0.9); }
-  75% { transform: translate(60px, 40px) scale(1.05); }
+  25% { transform: translate(48px, -36px) scale(1.06); }
+  50% { transform: translate(-28px, 52px) scale(0.96); }
+  75% { transform: translate(34px, 24px) scale(1.03); }
 }
 
 /* ── Grid overlay ─────────────────────────────────────────────────────── */
@@ -92,8 +92,8 @@ body::before {
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(rgba(125, 211, 252, 0.008) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(125, 211, 252, 0.008) 1px, transparent 1px);
+    linear-gradient(color-mix(in srgb, var(--df-color-border-strong) 24%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--df-color-border-strong) 24%, transparent) 1px, transparent 1px);
   background-size: 40px 40px;
   pointer-events: none;
   z-index: 0;
@@ -177,8 +177,7 @@ body::after {
   left: var(--df-space-4);
   right: var(--df-space-4);
   z-index: 200;
-  background: color-mix(in srgb, var(--df-color-bg-surface) 97%, transparent);
-  backdrop-filter: blur(4px);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 98%, transparent);
   border: 1px solid color-mix(in srgb, var(--df-color-state-error) 40%, transparent);
   border-radius: var(--df-radius-md);
   color: var(--df-color-state-error);
@@ -345,9 +344,8 @@ body::after {
 }
 
 .service-item.active {
-  background: color-mix(in srgb, var(--df-color-accent-default) 7%, transparent);
+  background: color-mix(in srgb, var(--df-color-accent-default) 5%, transparent);
   border-left-color: var(--df-color-accent-default);
-  box-shadow: inset 3px 0 8px -4px color-mix(in srgb, var(--df-color-accent-default) 30%, transparent);
 }
 
 .service-item.disabled {
@@ -604,12 +602,10 @@ a:focus-visible,
   left: var(--df-space-3);
   right: var(--df-space-3);
   top: calc(100% + 4px);
-  background: color-mix(in srgb, var(--df-color-bg-overlay) 96%, transparent);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: color-mix(in srgb, var(--df-color-bg-overlay) 98%, transparent);
   border: 1px solid var(--df-color-border-default);
   border-radius: var(--df-radius-lg);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
   z-index: var(--df-z-index-overlay);
   max-height: min(60vh, 360px);
   overflow-x: hidden;
@@ -644,7 +640,7 @@ a:focus-visible,
 }
 
 .project-item.active {
-  background: color-mix(in srgb, var(--df-color-accent-default) 20%, transparent);
+  background: color-mix(in srgb, var(--df-color-accent-default) 14%, transparent);
   border-left: 2px solid var(--df-color-accent-default);
 }
 
@@ -1057,9 +1053,7 @@ a:focus-visible,
   top: calc(100% + 6px);
   right: 0;
   width: calc(var(--sidebar-width) - var(--df-space-3) * 2);
-  background: color-mix(in srgb, var(--df-color-bg-surface) 97%, transparent);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 98%, transparent);
   border: 1px solid color-mix(in srgb, var(--df-color-state-error) 40%, transparent);
   border-radius: var(--df-radius-md);
   color: var(--df-color-state-error);
@@ -1122,9 +1116,7 @@ a:focus-visible,
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--df-color-bg-base) 84%, transparent);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: color-mix(in srgb, var(--df-color-bg-base) 88%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1135,16 +1127,14 @@ a:focus-visible,
 .modal-overlay.hidden { display: none; }
 
 .modal {
-  background: color-mix(in srgb, var(--df-color-bg-surface) 96%, transparent);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 98%, transparent);
   border: 1px solid var(--df-color-border-default);
   border-radius: var(--df-radius-xl);
   padding: var(--df-space-6);
   max-width: 480px;
   width: 100%;
   position: relative;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px color-mix(in srgb, var(--df-color-border-strong) 30%, transparent);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.34), 0 0 0 1px color-mix(in srgb, var(--df-color-border-strong) 18%, transparent);
 }
 
 .modal-header {}
@@ -1186,7 +1176,11 @@ a:focus-visible,
   border: 1px solid transparent;
   border-radius: var(--df-radius-lg);
   cursor: pointer;
-  transition: all var(--df-duration-fast) var(--df-easing-default);
+  transition:
+    background var(--df-duration-fast) var(--df-easing-default),
+    border-color var(--df-duration-fast) var(--df-easing-default),
+    color var(--df-duration-fast) var(--df-easing-default),
+    transform var(--df-duration-fast) var(--df-easing-default);
   white-space: nowrap;
 }
 
@@ -1196,16 +1190,14 @@ a:focus-visible,
 }
 
 .btn-primary {
-  background: color-mix(in srgb, var(--df-color-accent-default) 14%, var(--df-color-bg-raised));
+  background: color-mix(in srgb, var(--df-color-accent-default) 12%, var(--df-color-bg-raised));
   color: var(--df-color-accent-default);
-  border-color: color-mix(in srgb, var(--df-color-accent-default) 35%, transparent);
+  border-color: color-mix(in srgb, var(--df-color-accent-default) 28%, transparent);
 }
 
 .btn-primary:not(:disabled):hover {
-  background: color-mix(in srgb, var(--df-color-accent-default) 22%, var(--df-color-bg-raised));
+  background: color-mix(in srgb, var(--df-color-accent-default) 16%, var(--df-color-bg-raised));
   border-color: var(--df-color-accent-default);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--df-color-accent-default) 12%, transparent);
-  transform: translateY(-1px);
 }
 
 .btn-primary:not(:disabled):active { transform: translateY(0); }
@@ -1217,23 +1209,22 @@ a:focus-visible,
 }
 
 .btn-secondary:not(:disabled):hover {
-  border-color: var(--df-color-accent-default);
+  background: color-mix(in srgb, var(--df-color-accent-default) 5%, var(--df-color-bg-raised));
+  border-color: color-mix(in srgb, var(--df-color-accent-default) 36%, transparent);
   color: var(--df-color-accent-default);
-  transform: translateY(-1px);
 }
 
 .btn-secondary:not(:disabled):active { transform: translateY(0); }
 
 .btn-danger {
-  background: color-mix(in srgb, var(--df-color-state-error) 14%, var(--df-color-bg-raised));
+  background: color-mix(in srgb, var(--df-color-state-error) 12%, var(--df-color-bg-raised));
   color: var(--df-color-state-error);
-  border-color: color-mix(in srgb, var(--df-color-state-error) 35%, transparent);
+  border-color: color-mix(in srgb, var(--df-color-state-error) 28%, transparent);
 }
 
 .btn-danger:not(:disabled):hover {
-  background: color-mix(in srgb, var(--df-color-state-error) 22%, var(--df-color-bg-raised));
-  box-shadow: 0 0 10px color-mix(in srgb, var(--df-color-state-error) 12%, transparent);
-  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--df-color-state-error) 16%, var(--df-color-bg-raised));
+  border-color: var(--df-color-state-error);
 }
 
 .btn-danger:not(:disabled):active { transform: translateY(0); }
@@ -1253,7 +1244,7 @@ a:focus-visible,
 
 .btn-ghost:not(:disabled):hover {
   color: var(--df-color-accent-default);
-  background: color-mix(in srgb, var(--df-color-accent-default) 8%, transparent);
+  background: color-mix(in srgb, var(--df-color-accent-default) 6%, transparent);
 }
 
 .btn-icon {
@@ -1359,7 +1350,7 @@ a:focus-visible,
 .form-group select {
   cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23636e7b'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236f7b8c'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
   padding-right: var(--df-space-6);
@@ -1471,9 +1462,7 @@ a:focus-visible,
 
 .toast {
   padding: 10px 20px;
-  background: color-mix(in srgb, var(--df-color-bg-overlay) 96%, transparent);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: color-mix(in srgb, var(--df-color-bg-overlay) 98%, transparent);
   color: var(--df-color-text-primary);
   border: 1px solid var(--df-color-border-default);
   border-radius: 999px;
@@ -1502,9 +1491,7 @@ a:focus-visible,
 .project-switcher-overlay {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--df-color-bg-base) 78%, transparent);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  background: color-mix(in srgb, var(--df-color-bg-base) 84%, transparent);
   z-index: var(--df-z-index-modal, 1000);
   display: flex;
   align-items: flex-start;
@@ -1520,8 +1507,6 @@ a:focus-visible,
 
 .project-switcher {
   background: color-mix(in srgb, var(--df-color-bg-surface) 98%, transparent);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
   border: 1px solid var(--df-color-border-default);
   border-radius: var(--df-radius-xl);
   width: 420px;
@@ -1529,7 +1514,7 @@ a:focus-visible,
   max-height: 50vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px color-mix(in srgb, var(--df-color-border-strong) 30%, transparent);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32), 0 0 0 1px color-mix(in srgb, var(--df-color-border-strong) 18%, transparent);
   transform: translateY(-8px);
   transition: transform var(--df-duration-fast) var(--df-easing-spring);
 }

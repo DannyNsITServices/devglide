@@ -1,5 +1,5 @@
 /* @devglide/design-tokens v3.0 — Shared Component Library
- * Fresh, modern components with rounded shapes, glassmorphism, and smooth animations.
+ * Subdued dark components tuned for long night sessions.
  * Uses native CSS nesting, color-mix(), @starting-style, @container queries.
  * All classes use df- prefix, placed in the df-components layer.
  */
@@ -63,7 +63,7 @@
   }
 
   /* ══════════════════════════════════════════════════════════════════════
-     .df-btn — Buttons (fresh rounded style with soft glow)
+     .df-btn — Buttons with restrained night-mode contrast
      ══════════════════════════════════════════════════════════════════════ */
   .df-btn {
     display: inline-flex;
@@ -77,7 +77,11 @@
     border: 1px solid transparent;
     border-radius: var(--df-radius-lg);
     cursor: pointer;
-    transition: all var(--df-duration-fast) var(--df-easing-default);
+    transition:
+      background var(--df-duration-fast) var(--df-easing-default),
+      border-color var(--df-duration-fast) var(--df-easing-default),
+      color var(--df-duration-fast) var(--df-easing-default),
+      transform var(--df-duration-fast) var(--df-easing-default);
     white-space: nowrap;
     text-decoration: none;
 
@@ -88,15 +92,13 @@
 
     /* ── Primary ──────────────────────────────────────────────────── */
     &.df-btn--primary {
-      background: color-mix(in srgb, var(--df-color-accent-default) 14%, var(--df-color-bg-raised));
+      background: color-mix(in srgb, var(--df-color-accent-default) 12%, var(--df-color-bg-raised));
       color: var(--df-color-accent-default);
-      border-color: color-mix(in srgb, var(--df-color-accent-default) 35%, transparent);
+      border-color: color-mix(in srgb, var(--df-color-accent-default) 28%, transparent);
 
       &:not(:disabled):hover {
-        background: color-mix(in srgb, var(--df-color-accent-default) 22%, var(--df-color-bg-raised));
+        background: color-mix(in srgb, var(--df-color-accent-default) 16%, var(--df-color-bg-raised));
         border-color: var(--df-color-accent-default);
-        box-shadow: 0 0 10px color-mix(in srgb, var(--df-color-accent-default) 12%, transparent);
-        transform: translateY(-1px);
       }
       &:not(:disabled):active { transform: translateY(0); }
     }
@@ -108,23 +110,22 @@
       border-color: var(--df-color-border-default);
 
       &:not(:disabled):hover {
-        border-color: var(--df-color-accent-default);
+        background: color-mix(in srgb, var(--df-color-accent-default) 5%, var(--df-color-bg-raised));
+        border-color: color-mix(in srgb, var(--df-color-accent-default) 36%, transparent);
         color: var(--df-color-accent-default);
-        transform: translateY(-1px);
       }
       &:not(:disabled):active { transform: translateY(0); }
     }
 
     /* ── Danger ───────────────────────────────────────────────────── */
     &.df-btn--danger {
-      background: color-mix(in srgb, var(--df-color-state-error) 14%, var(--df-color-bg-raised));
+      background: color-mix(in srgb, var(--df-color-state-error) 12%, var(--df-color-bg-raised));
       color: var(--df-color-state-error);
-      border-color: color-mix(in srgb, var(--df-color-state-error) 35%, transparent);
+      border-color: color-mix(in srgb, var(--df-color-state-error) 28%, transparent);
 
       &:not(:disabled):hover {
-        background: color-mix(in srgb, var(--df-color-state-error) 22%, var(--df-color-bg-raised));
-        box-shadow: 0 0 10px color-mix(in srgb, var(--df-color-state-error) 12%, transparent);
-        transform: translateY(-1px);
+        background: color-mix(in srgb, var(--df-color-state-error) 16%, var(--df-color-bg-raised));
+        border-color: var(--df-color-state-error);
       }
       &:not(:disabled):active { transform: translateY(0); }
     }
@@ -137,7 +138,7 @@
 
       &:not(:disabled):hover {
         color: var(--df-color-accent-default);
-        background: color-mix(in srgb, var(--df-color-accent-default) 8%, transparent);
+        background: color-mix(in srgb, var(--df-color-accent-default) 6%, transparent);
       }
     }
 
@@ -276,7 +277,7 @@
   .df-select {
     cursor: pointer;
     appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23636e7b'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236f7b8c'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 10px center;
     padding-right: var(--df-space-6);
@@ -287,14 +288,12 @@
   }
 
   /* ══════════════════════════════════════════════════════════════════════
-     .df-modal — Modal with glassmorphism and smooth entrance
+     .df-modal — Modal with solid dark surfaces and restrained depth
      ══════════════════════════════════════════════════════════════════════ */
   .df-modal-overlay {
     position: fixed;
     inset: 0;
-    background: color-mix(in srgb, var(--df-color-bg-base) 82%, transparent);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    background: color-mix(in srgb, var(--df-color-bg-base) 88%, transparent);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -311,16 +310,14 @@
   }
 
   .df-modal {
-    background: color-mix(in srgb, var(--df-color-bg-surface) 94%, transparent);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    background: color-mix(in srgb, var(--df-color-bg-surface) 98%, transparent);
     border: 1px solid var(--df-color-border-default);
     border-radius: var(--df-radius-xl);
     padding: var(--df-space-6);
     max-width: 480px;
     width: 100%;
     position: relative;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px color-mix(in srgb, var(--df-color-border-strong) 30%, transparent);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.34), 0 0 0 1px color-mix(in srgb, var(--df-color-border-strong) 18%, transparent);
 
     @starting-style {
       & {
@@ -371,9 +368,7 @@
 
   .df-toast {
     padding: 10px 20px;
-    background: color-mix(in srgb, var(--df-color-bg-overlay) 94%, transparent);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    background: color-mix(in srgb, var(--df-color-bg-overlay) 97%, transparent);
     color: var(--df-color-text-primary);
     border: 1px solid var(--df-color-border-default);
     border-radius: 999px;
@@ -471,12 +466,12 @@
 
     &:hover {
       color: var(--df-color-text-primary);
-      background: color-mix(in srgb, var(--df-color-accent-default) 6%, transparent);
+      background: color-mix(in srgb, var(--df-color-accent-default) 4%, transparent);
     }
 
     &.df-tab--active {
       color: var(--df-color-accent-default);
-      background: color-mix(in srgb, var(--df-color-accent-default) 10%, transparent);
+      background: color-mix(in srgb, var(--df-color-accent-default) 8%, transparent);
       font-weight: 500;
     }
   }
