@@ -860,6 +860,26 @@ describe('chat router invite permission modes', () => {
     });
   });
 
+  it('GET /invite/available exposes Pi as auto-only with dangerByDefault', async () => {
+    execSyncMock.mockImplementation((cmd: string) => {
+      if (typeof cmd !== 'string') throw new Error('unexpected command type');
+      if (cmd === 'pi --version') return '';
+      throw new Error('not found');
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/invite/available?rescan=true`);
+      expect(response.status).toBe(200);
+      const data = await response.json();
+
+      const pi = data.find((l: { cli: string }) => l.cli === 'pi');
+      expect(pi).toBeDefined();
+      expect(pi.modes).toEqual(['auto-accept']);
+      expect(pi.modes).not.toContain('supervised');
+      expect(pi.dangerByDefault).toBe(true);
+    });
+  });
+
   it('GET /invite/available detects Cursor via agent.cmd fallback', async () => {
     execSyncMock.mockImplementation((cmd: string) => {
       if (typeof cmd !== 'string') throw new Error('unexpected command type');
@@ -906,6 +926,91 @@ describe('chat router invite permission modes', () => {
       expect(response.status).toBe(201);
       const data = await response.json();
       expect(data.mode).toBe('supervised');
+    });
+  });
+
+  it('POST /invite launches Pi with auto-accept mode and injects bare `pi` command', async () => {
+    execSyncMock.mockImplementation((cmd: string) => {
+      if (typeof cmd === 'string' && cmd === 'pi --version') return '';
+      throw new Error('not found');
+    });
+
+    const { pty, write: mockPtyWrite } = createMockPty();
+    spawnGlobalPtyMock.mockImplementation((id: string) => {
+      const promptOutput = 'bash-5.2$ ';
+      shellStateMock.globalPtys.set(id, {
+        ptyProcess: pty,
+        chunks: [promptOutput],
+        totalLen: promptOutput.length,
+      });
+      return pty;
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/invite`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cli: 'pi', mode: 'auto-accept' }),
+      });
+
+      expect(response.status).toBe(201);
+      const data = await response.json();
+      expect(data.ok).toBe(true);
+      expect(data.mode).toBe('auto-accept');
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Pi launches with no permission flags but with the pinned lmstudio/google/gemma-4-26b-a4b model.
+      expect(mockPtyWrite).toHaveBeenCalledTimes(1);
+      const injected = mockPtyWrite.mock.calls[0][0] as string;
+      expect(injected).toMatch(/^'pi' --model lmstudio\/google\/gemma-4-26b-a4b /);
+      expect(injected).not.toContain('--dangerously');
+      expect(injected).toContain('mcp__devglide-chat__chat_join');
+
+      const pane = shellStateMock.dashboardState.panes.find(
+        (p: { id: string }) => p.id === data.paneId,
+      );
+      expect(pane).toBeDefined();
+      expect(pane.llmCli).toBe('pi');
+      expect(pane.permissionMode).toBe('auto-accept');
+    });
+  });
+
+  it('POST /invite rejects supervised mode for Pi (dangerByDefault)', async () => {
+    execSyncMock.mockImplementation((cmd: string) => {
+      if (typeof cmd === 'string' && cmd === 'pi --version') return '';
+      throw new Error('not found');
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/invite`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cli: 'pi', mode: 'supervised' }),
+      });
+
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.error).toMatch(/does not support/i);
+    });
+  });
+
+  it('POST /invite rejects default supervised mode for Pi when mode is omitted', async () => {
+    execSyncMock.mockImplementation((cmd: string) => {
+      if (typeof cmd === 'string' && cmd === 'pi --version') return '';
+      throw new Error('not found');
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/invite`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cli: 'pi' }),
+      });
+
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.error).toMatch(/does not support/i);
     });
   });
 
@@ -983,6 +1088,44 @@ describe('chat router invite permission modes', () => {
       expect(registryMock.join).toHaveBeenCalledWith('claude', 'llm', data.paneId, 'claude', '\r', 'project-1', 'rest');
       expect(mockPtyWrite).toHaveBeenCalledTimes(1);
       expect(mockPtyWrite.mock.calls[0][0]).toContain('mcp__devglide-chat__chat_join');
+    });
+  });
+
+  it('POST /invite injects REST fallback guidance into the bootstrap prompt', async () => {
+    const { pty, write: mockPtyWrite } = createMockPty();
+    spawnGlobalPtyMock.mockImplementation((id: string) => {
+      const promptOutput = 'bash-5.2$ ';
+      shellStateMock.globalPtys.set(id, {
+        ptyProcess: pty,
+        chunks: [promptOutput],
+        totalLen: promptOutput.length,
+      });
+      return pty;
+    });
+
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/invite`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cli: 'claude', mode: 'auto-accept' }),
+      });
+
+      expect(response.status).toBe(201);
+      const data = await response.json();
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockPtyWrite).toHaveBeenCalledTimes(1);
+      const injected = mockPtyWrite.mock.calls[0][0] as string;
+      expect(injected).toContain('http://localhost:7000/api/chat/rules?projectId=project-1');
+      expect(injected).toContain('http://localhost:7000/api/chat/messages?projectId=project-1');
+      expect(injected).toContain('http://localhost:7000/api/chat/send');
+      expect(injected).toContain(`from:"${data.chatParticipant}"`);
+      expect(injected).toContain('projectId:"project-1"');
+      expect(injected).toContain('http://localhost:7000/api/chat/leave');
+      expect(injected).toContain('http://localhost:7000/api/chat/pipes/:id/output?projectId=project-1');
+      expect(injected).toContain(`X-Pane-Id: "${data.paneId}"`);
+      expect(injected).toContain('http://localhost:7000/api/chat/pipes/:id/submit');
     });
   });
 

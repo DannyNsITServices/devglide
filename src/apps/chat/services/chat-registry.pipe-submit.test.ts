@@ -429,6 +429,97 @@ describe('chat-registry store-backed pipe submissions', () => {
     registry.leave(alice.name);
     registry.leave(bob.name);
   });
+
+  it('final output is NOT PTY-delivered to LLM participants (user-only delivery)', async () => {
+    const writesA: string[] = [];
+    const writesB: string[] = [];
+    globalPtys.set('pane-a', {
+      ptyProcess: { write: vi.fn((c: string) => { writesA.push(c); }) } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    globalPtys.set('pane-b', {
+      ptyProcess: { write: vi.fn((c: string) => { writesB.push(c); }) } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    const alice = registry.join('alice', 'llm', 'pane-a', 'alice', '\r');
+    const bob = registry.join('bob', 'llm', 'pane-b', 'bob', '\r');
+
+    const startPromise = registry.send('user', `/linear-pipe @${alice.name} @${bob.name} do work`);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await startPromise;
+
+    const pipeId = registry.getActivePipes('project-chat')[0]?.pipeId;
+    expect(pipeId).toBeDefined();
+
+    // Clear writes from pipe setup (handoff notifications)
+    writesA.length = 0;
+    writesB.length = 0;
+
+    // Alice submits stage 1
+    const aliceSubmit = registry.submitPipeStage(pipeId!, alice.name, 'stage 1 output', 'project-chat');
+    await vi.advanceTimersByTimeAsync(3_000);
+    await aliceSubmit;
+
+    // Clear writes from stage 1 handoff to bob
+    writesA.length = 0;
+    writesB.length = 0;
+
+    // Bob submits final stage
+    const bobSubmit = registry.submitPipeStage(pipeId!, bob.name, 'final output content', 'project-chat');
+    await vi.advanceTimersByTimeAsync(5_000);
+    await bobSubmit;
+
+    // Neither LLM should have received the final output via PTY
+    const allWrites = [...writesA, ...writesB];
+    const finalDeliveries = allWrites.filter(w => w.includes('final output content'));
+    expect(finalDeliveries).toEqual([]);
+
+    registry.leave(alice.name);
+    registry.leave(bob.name);
+  });
+
+  it('final output message is persisted with to="user" (not broadcast)', async () => {
+    globalPtys.set('pane-a', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    globalPtys.set('pane-b', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    const alice = registry.join('alice', 'llm', 'pane-a', 'alice', '\r');
+    const bob = registry.join('bob', 'llm', 'pane-b', 'bob', '\r');
+
+    const startPromise = registry.send('user', `/linear-pipe @${alice.name} @${bob.name} do work`);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await startPromise;
+
+    const pipeId = registry.getActivePipes('project-chat')[0]?.pipeId;
+
+    const aliceSubmit = registry.submitPipeStage(pipeId!, alice.name, 'stage 1 output', 'project-chat');
+    await vi.advanceTimersByTimeAsync(3_000);
+    await aliceSubmit;
+
+    chatStoreMock.appendMessage.mockClear();
+
+    const bobSubmit = registry.submitPipeStage(pipeId!, bob.name, 'final output', 'project-chat');
+    await vi.advanceTimersByTimeAsync(5_000);
+    await bobSubmit;
+
+    const finalMessage = chatStoreMock.appendMessage.mock.calls
+      .map(([message]) => message)
+      .find((message: any) => message?.pipe?.role === 'final');
+
+    expect(finalMessage).toBeDefined();
+    expect(finalMessage!.to).toBe('user');
+
+    registry.leave(alice.name);
+    registry.leave(bob.name);
+  });
 });
 
 describe('readPipeOutput entitlement', () => {

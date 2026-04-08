@@ -89,6 +89,89 @@ describe('parseTargetTokens', () => {
   it('deduplicates to param when also in body', () => {
     expect(registry.parseTargetTokens('@claude-7 check', 'claude-7', 'user')).toEqual(['claude-7']);
   });
+
+  // ── Code-aware mention extraction (self-loop bug fix) ─────────────
+  // Mentions inside inline code spans (`...`) and fenced code blocks (```...```)
+  // are example syntax, not actual addressees. The parser must skip them.
+
+  it('ignores @mention inside inline code span', () => {
+    expect(registry.parseTargetTokens('use `@claude-7 fix` to assign')).toEqual([]);
+  });
+
+  it('ignores @mention inside fenced code block', () => {
+    const body = 'example:\n```\n@claude-7 do this\n```\nplease';
+    expect(registry.parseTargetTokens(body)).toEqual([]);
+  });
+
+  it('ignores @mention inside fenced code block with language tag', () => {
+    const body = '```ts\nconst x = "@claude-7";\n```';
+    expect(registry.parseTargetTokens(body)).toEqual([]);
+  });
+
+  it('still captures real prose mentions when code blocks exist', () => {
+    const body = '@codex-14 see example: `@claude-7 fix` — got it?';
+    expect(registry.parseTargetTokens(body)).toEqual(['codex-14']);
+  });
+
+  it('does not capture regex literal characters as a mention token', () => {
+    // Real-world: claude-3 explained the bug using `/@(\\S+)/g` in a code block
+    // and the parser captured "(\S+)/g" as a recipient.
+    const body = 'the parser uses `/@(\\S+)/g` to scan';
+    expect(registry.parseTargetTokens(body)).toEqual([]);
+  });
+
+  it('handles mentions split across prose and code without leaking', () => {
+    const body = '@codex-14 here is the bug:\n```\n@self-loop here\n```\nfix it';
+    expect(registry.parseTargetTokens(body)).toEqual(['codex-14']);
+  });
+
+  // ── Markdown-immune mention parsing (recipient-garbage bug) ─────────
+  // Real-world: a chat message containing markdown bold around a mention
+  // like `**Coordination, @codex-3:**` previously captured `codex-3:**`
+  // as a token because /@(\S+)/g is too greedy and the trailing-punct
+  // strip only handled `[,.:;!?]+`.
+
+  it('does not capture trailing markdown-bold marker as part of mention', () => {
+    expect(registry.parseTargetTokens('**Coordination, @codex-3:**')).toEqual(['codex-3']);
+  });
+
+  it('does not capture leading markdown bold as part of mention', () => {
+    expect(registry.parseTargetTokens('**@user @codex-3** review')).toEqual(['user', 'codex-3']);
+  });
+
+  it('does not capture trailing underscore emphasis as part of mention', () => {
+    expect(registry.parseTargetTokens('emphasised _@claude-7_ here')).toEqual(['claude-7']);
+  });
+
+  it('does not capture trailing parenthesis as part of mention', () => {
+    expect(registry.parseTargetTokens('(see @codex-14) for context')).toEqual(['codex-14']);
+  });
+
+  it('does not capture trailing tilde or asterisk decoration', () => {
+    expect(registry.parseTargetTokens('~@claude-7~ *@codex-14*')).toEqual(['claude-7', 'codex-14']);
+  });
+
+  // ── Comma-separated `to` param (parser stored it as one literal) ────
+  // Real-world: an MCP caller passed `to: "codex-3,pi-1"` and the parser
+  // stored that whole string as a single token, which then leaked into
+  // both the unresolved targets AND the displayed `msg.to` header.
+
+  it('splits comma-separated to param into separate tokens', () => {
+    expect(registry.parseTargetTokens('hello', 'codex-7,pi-1', 'llm')).toEqual(['codex-7', 'pi-1']);
+  });
+
+  it('splits comma+space-separated to param', () => {
+    expect(registry.parseTargetTokens('hello', 'codex-7, pi-1', 'llm')).toEqual(['codex-7', 'pi-1']);
+  });
+
+  it('dedupes comma-separated to param against body @mentions', () => {
+    expect(registry.parseTargetTokens('@codex-7 review', 'codex-7,pi-1', 'llm'))
+      .toEqual(['codex-7', 'pi-1']);
+  });
+
+  it('drops empty entries from comma-separated to param', () => {
+    expect(registry.parseTargetTokens('hi', 'codex-7,,pi-1,', 'llm')).toEqual(['codex-7', 'pi-1']);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════
@@ -227,7 +310,12 @@ describe('buildDeliveryPlan', () => {
 
   it('user with @unknown: no fallback (issue 1 fix — had target intent)', () => {
     const plan = registry.buildDeliveryPlan('user', '@nonexistent check this', undefined, 'user', 'project-test');
-    expect(plan.targetLabels).toEqual(['nonexistent']);
+    // `targetLabels` now contains only validated display targets — unresolved
+    // garbage is excluded so the dashboard never renders it as a "to" header.
+    // The "had target intent" semantics live in `fallbackBroadcast=false` and
+    // the unresolved name is reported separately via `unresolvedTargets`.
+    expect(plan.targetLabels).toEqual([]);
+    expect(plan.unresolvedTargets).toEqual(['nonexistent']);
     expect(plan.recipients).toEqual([]);
     expect(plan.fallbackBroadcast).toBe(false);
   });
@@ -245,6 +333,68 @@ describe('buildDeliveryPlan', () => {
     expect(plan.recipients.sort()).toEqual([agent1.name, agent2.name].sort());
     expect(plan.concreteAssignees).toEqual([]);
     expect(plan.fallbackBroadcast).toBe(false);
+  });
+
+  // ── Self-loop guard (rendered as "claude-2 → claude-2") ─────────────
+  // Even if a sender's own alias somehow ends up in the token list (e.g.
+  // legacy data, bug, or an explicit `to` param), the displayed
+  // targetLabels should never include the sender — there is no such thing
+  // as sending a message to yourself.
+
+  it('strips sender alias from targetLabels when echoed in body prose', () => {
+    // Simulates an LLM that types its own alias in prose for whatever reason.
+    const body = `@${agent2.name} and @${agent1.name} both — heads up`;
+    const plan = registry.buildDeliveryPlan(agent1.name, body, undefined, 'llm', 'project-test');
+    expect(plan.targetLabels).toEqual([agent2.name]);
+    expect(plan.targetLabels).not.toContain(agent1.name);
+  });
+
+  it('strips sender alias from targetLabels when passed via to param', () => {
+    const plan = registry.buildDeliveryPlan(agent1.name, 'hello', agent1.name, 'llm', 'project-test');
+    expect(plan.targetLabels).not.toContain(agent1.name);
+  });
+
+  it('LLM with only own alias in code example: targetLabels empty (real-world bug)', () => {
+    // The exact shape of the message that produced "claude-2 → claude-2"
+    // in the chat history: code-fence example containing the sender's own
+    // alias. After the parser fix this should not even tokenize, and after
+    // the sender-strip defense it cannot leak even if it did.
+    const body = 'try one of:\n```\n@claude fix\n@claude implement\n```';
+    const plan = registry.buildDeliveryPlan(agent1.name, body, undefined, 'llm', 'project-test');
+    expect(plan.targetLabels).toEqual([]);
+    expect(plan.recipients).toEqual([]);
+  });
+
+  // ── targetLabels must contain only validated targets (display sanity) ──
+  // Real-world bug: targetLabels was built from raw `tokens`, so any
+  // garbage the parser captured (markdown leftovers, unknown names, the
+  // literal comma-string from a comma-separated `to` param) leaked into
+  // the persisted `msg.to` and the dashboard renderer showed it as the
+  // "to" line — e.g. `claude-2 → mention,codex-3:**`.
+
+  it('targetLabels excludes @mention to nonexistent participant', () => {
+    const plan = registry.buildDeliveryPlan(agent1.name, '@nobody-here please', undefined, 'llm', 'project-test');
+    expect(plan.targetLabels).toEqual([]);
+  });
+
+  it('targetLabels still keeps @all literally (it is a valid display target)', () => {
+    const plan = registry.buildDeliveryPlan(agent1.name, '@all heads up', undefined, 'llm', 'project-test');
+    expect(plan.targetLabels).toEqual(['all']);
+  });
+
+  it('targetLabels excludes @mention captured as raw token (defense in depth)', () => {
+    // Even if the parser regressed and produced a garbage token, the
+    // display layer must not surface it. Verified by mixing a real and a
+    // fake mention: only the real one should appear in targetLabels.
+    const body = `@${agent2.name} and @ghost-rider please`;
+    const plan = registry.buildDeliveryPlan(agent1.name, body, undefined, 'llm', 'project-test');
+    expect(plan.targetLabels).toEqual([agent2.name]);
+  });
+
+  it('targetLabels handles comma-split to param targeting two real recipients', () => {
+    const plan = registry.buildDeliveryPlan(agent1.name, 'multi target', `${agent2.name},${agent2.name}`, 'llm', 'project-test');
+    // Same name twice is deduped → exactly one entry
+    expect(plan.targetLabels).toEqual([agent2.name]);
   });
 });
 
@@ -426,5 +576,88 @@ describe('send() targeted PTY delivery', () => {
 
     const after = registry.listParticipants().map(p => ({ name: p.name, status: p.status }));
     expect(after).toEqual(before);
+  });
+
+  // ── msg.to display format (recipient-garbage bug) ────────────────────
+  // The persisted `msg.to` field is what the dashboard renderer reads to
+  // build the `@sender → @t1, @t2` header. It must contain ONLY validated
+  // names (or 'all' for broadcast), separated by ", " for multi-target,
+  // never the literal comma-string from a comma-separated `to` param.
+
+  it('msg.to is single name for one targeted recipient', async () => {
+    const p = registry.send(a1.name, `@${a2.name} review this`);
+    await drainDeliveries(1);
+    await p;
+    const sendCall = chatStoreMock.appendMessage.mock.calls[0][0] as Record<string, unknown>;
+    expect(sendCall.to).toBe(a2.name);
+  });
+
+  it('msg.to is comma-space separated for multiple targeted recipients', async () => {
+    const p = registry.send(a1.name, `@${a2.name} @${a3.name} review`);
+    await drainDeliveries(2);
+    await p;
+    const sendCall = chatStoreMock.appendMessage.mock.calls[0][0] as Record<string, unknown>;
+    expect(sendCall.to).toBe(`${a2.name}, ${a3.name}`);
+  });
+
+  it('msg.to omits markdown-leaked garbage even with bold-wrapped mention', async () => {
+    const p = registry.send(a1.name, `**Coordination, @${a2.name}:** stand down`);
+    await drainDeliveries(1);
+    await p;
+    const sendCall = chatStoreMock.appendMessage.mock.calls[0][0] as Record<string, unknown>;
+    // No `:**`, no `mention`, no garbage — just the validated participant.
+    expect(sendCall.to).toBe(a2.name);
+  });
+
+  it('msg.to omits unresolved garbage when body has fake mention', async () => {
+    // Even if a peer LLM produces an @mention to a nonexistent name,
+    // msg.to must only contain validated participants.
+    const p = registry.send(a1.name, `@${a2.name} @ghost-here please`);
+    await drainDeliveries(1);
+    await p;
+    const sendCall = chatStoreMock.appendMessage.mock.calls[0][0] as Record<string, unknown>;
+    expect(sendCall.to).toBe(a2.name);
+    // The unresolved one is reported separately, not in `to`.
+    expect(sendCall.unresolvedTargets).toContain('ghost-here');
+  });
+
+  it('msg.to handles comma-split to param targeting two real recipients', async () => {
+    // Caller passed `to: "a2,a3"` — server must split, not store as one token.
+    const p = registry.send(a1.name, 'multi target', `${a2.name},${a3.name}`);
+    await drainDeliveries(2);
+    await p;
+    const sendCall = chatStoreMock.appendMessage.mock.calls[0][0] as Record<string, unknown>;
+    expect(sendCall.to).toBe(`${a2.name}, ${a3.name}`);
+  });
+
+  // ── Implicit broadcast header (codex review feedback) ──────────────
+  // The user's example header `@user → @all` should appear for ALL user
+  // broadcasts, including unaddressed ones (Option B fallback). Without
+  // this, the dashboard renders no header for the user's typical pattern
+  // of plain unaddressed messages, which leaves the addressing intent
+  // invisible.
+
+  it('msg.to is "all" for implicit user broadcast (no @mention, fallback)', async () => {
+    const p = registry.send('user', 'hello everyone');
+    await drainDeliveries(3);
+    await p;
+    const sendCall = chatStoreMock.appendMessage.mock.calls[0][0] as Record<string, unknown>;
+    expect(sendCall.to).toBe('all');
+  });
+
+  it('msg.to is "all" for unaddressed system message (system also fallbacks)', async () => {
+    const p = registry.send('system', 'server restarted');
+    await drainDeliveries(3);
+    await p;
+    const sendCall = chatStoreMock.appendMessage.mock.calls[0][0] as Record<string, unknown>;
+    expect(sendCall.to).toBe('all');
+  });
+
+  it('msg.to stays null for LLM with no @mention (LLMs do not fallback)', async () => {
+    const p = registry.send(a1.name, 'thinking out loud');
+    await flushDeliveryQueue();
+    await p;
+    const sendCall = chatStoreMock.appendMessage.mock.calls[0][0] as Record<string, unknown>;
+    expect(sendCall.to).toBeNull();
   });
 });

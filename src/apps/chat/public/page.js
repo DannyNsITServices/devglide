@@ -5,7 +5,8 @@
 import { escapeHtml, escapeAttr, sanitizeHtml } from '/shared-assets/ui-utils.js';
 import { dashboardSocket } from '/state.js';
 import { createHeader } from '/shared-ui/components/header.js';
-import { getMentionMatches, getPipeAssigneeMatches } from './mention-suggestions.js';
+import { confirmModal } from '/shared-ui/components/modal.js';
+import { formatRecipientHeader, getMentionMatches, getPipeAssigneeMatches } from './mention-suggestions.js';
 import { DEFAULT_VISIBLE_TERMINAL, getVisiblePipeSummaries } from './pipe-visibility.js';
 
 let _container = null;
@@ -726,7 +727,7 @@ function buildPipeOutputEl({ id, from, to = null, pipeId, label, content, ts, co
   el.dataset.id = id;
   el.style.borderLeftColor = color;
 
-  const header = buildPipeHeaderEl((from || 'system') + (to ? ` \u2192 ${to}` : ''), color, pipeId, label);
+  const header = buildPipeHeaderEl(formatRecipientHeader(from || 'system', to), color, pipeId, label);
 
   const body = document.createElement('div');
   body.className = 'chat-msg-body chat-markdown';
@@ -1060,9 +1061,12 @@ function buildPipeDetailEl(pipe) {
     cancelBtn.textContent = 'Cancel pipe';
     cancelBtn.addEventListener('click', async (event) => {
       event.stopPropagation();
-      const confirmed = globalThis.confirm?.(
-        `Cancel pipe ${getPipeShortId(pipe.pipeId)}? This will release all leases and stop pending stages.`,
-      ) ?? true;
+      const confirmed = await confirmModal(_container, {
+        title: 'Cancel pipe?',
+        message: `Cancel pipe <strong>${escapeHtml(getPipeShortId(pipe.pipeId))}</strong>? This will release all leases and stop pending stages.`,
+        confirmLabel: 'Cancel pipe',
+        confirmCls: 'btn-danger',
+      });
       if (!confirmed) return;
       cancelBtn.disabled = true;
       try {
@@ -1450,6 +1454,13 @@ function appendMessageEl(msg, doScroll = true) {
     }
   } else if (msg.from === 'user') {
     el.classList.add('from-user');
+    // Show a sender header only when the user explicitly addressed someone
+    // (e.g. `@all check status` → "@user → @all"). Unaddressed user messages
+    // stay header-less so they look like normal user bubbles.
+    if (msg.to) {
+      const userColor = getParticipantColor(findParticipant('user'));
+      el.appendChild(createSenderEl(formatRecipientHeader('user', msg.to), userColor));
+    }
     const body = document.createElement('div');
     body.className = 'chat-msg-body chat-markdown';
     body.innerHTML = renderMarkdown(msg.body);
@@ -1485,7 +1496,7 @@ function appendMessageEl(msg, doScroll = true) {
     } else {
       el.classList.add('from-llm');
       el.style.borderLeftColor = color;
-      const sender = createSenderEl(msg.from + (msg.to ? ` \u2192 ${msg.to}` : ''), color);
+      const sender = createSenderEl(formatRecipientHeader(msg.from, msg.to), color);
       const body = document.createElement('div');
       body.className = 'chat-msg-body chat-markdown';
       body.innerHTML = renderMarkdown(msg.body);

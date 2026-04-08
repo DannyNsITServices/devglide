@@ -738,11 +738,17 @@ export async function send(from: string, body: string, to?: string, projectId?: 
     }
   }
 
+  // Display `to` field — what the dashboard renders as `@sender → <to>`.
+  // For explicit targets, list the validated names. For implicit user/system
+  // broadcasts (Option B fallback), show "all" so the header reads
+  // `@user → @all` instead of being silently absent.
   const displayTo = plan.targetLabels.length === 1
     ? plan.targetLabels[0]
     : plan.targetLabels.length > 1
-      ? plan.targetLabels.join(',')
-      : null;
+      ? plan.targetLabels.join(', ')
+      : plan.fallbackBroadcast
+        ? 'all'
+        : null;
 
   // ─── Compute delivery count BEFORE persisting ──────────────────────
   // So deliveredTo is included in the persisted message and socket emit.
@@ -809,25 +815,56 @@ export async function send(from: string, body: string, to?: string, projectId?: 
 /** Reserved pseudo-targets that are semantic only (no PTY delivery). */
 const SEMANTIC_ONLY_TARGETS = new Set(['user', 'system']);
 
+/** Strip fenced code blocks (```...```) and inline code spans (`...`) from
+ *  body text so the @mention regex doesn't pick up example syntax as real
+ *  recipients. Replaces them with whitespace so character offsets stay sane
+ *  and adjacent tokens don't accidentally fuse together. */
+function stripCodeRegions(body: string): string {
+  // Fenced first (greedy on whole blocks; non-greedy on the inner content).
+  // Matches ``` optionally followed by a language tag, then anything until
+  // the next ``` on its own boundary.
+  let stripped = body.replace(/```[\s\S]*?```/g, (m) => ' '.repeat(m.length));
+  // Inline code spans — single backticks. Run after fenced so we don't bite
+  // into the fence markers themselves.
+  stripped = stripped.replace(/`[^`\n]*`/g, (m) => ' '.repeat(m.length));
+  return stripped;
+}
+
 /** Extract raw @mention tokens from message body (pure string parsing, no state).
  *  Returns tokens like ["all"], ["claude-7", "codex-14"], ["team-ui"], or [].
- *  Handles explicit `to` param for non-LLM senders, merging with body @mentions. */
+ *  Handles explicit `to` param (which may be comma-separated), merging with
+ *  body @mentions. Mentions inside inline code spans and fenced code blocks
+ *  are ignored — they are example syntax, not real addressees. */
+// senderKind kept in signature for backward compatibility / future use; the
+// merge behavior is identical for user and llm senders.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function parseTargetTokens(body: string, to?: string, senderKind?: 'user' | 'llm'): string[] {
   const tokens: string[] = [];
 
-  // Explicit `to` param — merge into token list (union approach).
-  // Merged for ALL senders including LLMs so code matches docs.
+  // Explicit `to` param — split on commas, trim, lowercase, drop empties.
+  // Real-world: callers sometimes pass `to: "codex-3,pi-1"` instead of a
+  // single name. Splitting here keeps the rest of the pipeline simple and
+  // prevents the literal comma-string from leaking into displayed `msg.to`.
   if (to) {
-    const normalized = to.trim().toLowerCase();
-    if (normalized && !tokens.includes(normalized)) tokens.push(normalized);
+    for (const raw of to.split(',')) {
+      const normalized = raw.trim().toLowerCase();
+      if (normalized && !tokens.includes(normalized)) tokens.push(normalized);
+    }
   }
 
-  // Scan body for all @mentions
-  const regex = /@(\S+)/g;
+  // Scan body for all @mentions, but only outside code regions. The
+  // capture is restricted to `[a-zA-Z0-9-]+` (letters, digits, hyphens)
+  // so markdown formatting (`**`, `_`, `~`), trailing punctuation, and
+  // parentheses cannot leak into the token. Note: underscore is excluded
+  // because it's a markdown emphasis marker (`_@claude_`); chat aliases
+  // in DevGlide use `-` as the separator. This is the parser-side
+  // defense; `buildDeliveryPlan` adds a second defense by filtering
+  // tokens that don't resolve to a real participant.
+  const scannable = stripCodeRegions(body);
+  const regex = /@([a-zA-Z0-9-]+)/g;
   let match: RegExpExecArray | null;
-  while ((match = regex.exec(body)) !== null) {
-    // Strip trailing punctuation (handles "@claude-7," or "@all:")
-    const token = match[1].replace(/[,.:;!?]+$/, '');
+  while ((match = regex.exec(scannable)) !== null) {
+    const token = match[1];
     if (token && !tokens.includes(token)) tokens.push(token);
   }
 
@@ -901,8 +938,21 @@ export function buildDeliveryPlan(
   const fallbackBroadcast = !hadTargetIntent && recipients.length === 0
     && (senderKind === 'user' || from === 'system');
 
-  // Filter tokens for display (remove semantic-only targets from msg.to)
-  const targetLabels = tokens.filter(t => !SEMANTIC_ONLY_TARGETS.has(t));
+  // Display label list: only tokens that resolved to a real participant
+  // or the literal `all` group expansion. Unresolved garbage (markdown
+  // leaks, typos, the literal comma-string from a comma-separated `to`
+  // param, semantic-only `user`/`system`) is excluded so the dashboard
+  // renderer never shows it. Sender alias is also excluded — sending to
+  // yourself is nonsense. Order from `tokens` is preserved.
+  const fromLower = from.toLowerCase();
+  const concreteSet = new Set(concreteAssignees);
+  const targetLabels: string[] = [];
+  for (const token of tokens) {
+    if (token === fromLower) continue;
+    if (token === 'all' || concreteSet.has(token)) {
+      if (!targetLabels.includes(token)) targetLabels.push(token);
+    }
+  }
 
   return { targetLabels, recipients, concreteAssignees, fallbackBroadcast, unresolvedTargets };
 }
@@ -1522,24 +1572,20 @@ async function runPipeReducer(pipeId: string, projectId: string | null): Promise
     pipeStore.markPipeStatus(pipeId, 'completed', projectId);
     provenance.recordProvenance(projectId, { pipeId, event: 'completed', actor: 'system', actorKind: 'system' });
 
-    // Read the final output from pipe state and broadcast it to all participants.
-    // This is the ONLY pipe output that enters chat history and LLM context.
+    // Read the final output from pipe state and persist it for the user.
+    // Final output is user-only: persisted in chat history and emitted to
+    // dashboard via Socket.IO, but NOT PTY-delivered to LLM participants.
+    // This prevents long output from cluttering LLM terminals.
     const finalContent = readFinalOutput(pipeId, projectId);
     if (finalContent) {
-      // Render pipe result as a normal chat message from the actual author
       const resultMsg = appendMessage({
-        from: finalContent.from, to: null,
+        from: finalContent.from, to: 'user',
         body: ensurePipeAnchor(finalContent.body, pipeId),
         type: 'message',
         pipe: { pipeId, mode: state.mode, role: 'final' },
       }, projectId);
       emitToProject('chat:message', resultMsg, projectId);
-      // Broadcast to all PTYs — this is the public final result
-      for (const p of participants.values()) {
-        if (p.paneId && p.projectId === projectId && !p.detached) {
-          await deliverToPty(p.name, projectId, resultMsg);
-        }
-      }
+      // No PTY delivery — user sees it on dashboard only.
     }
 
     emitPipeEvent({ type: 'complete', pipeId }, projectId);
