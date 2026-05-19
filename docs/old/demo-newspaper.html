@@ -1,0 +1,1978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The DevGlide Chronicle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,700&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Special+Elite&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   THE DEVGLIDE CHRONICLE — Vintage Newspaper Design System
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --newsprint: #f4eed5;
+  --newsprint-dark: #e8e0c0;
+  --ink: #1a1a1a;
+  --ink-light: #3a3a3a;
+  --ink-faded: #6b6355;
+  --rule-color: #8a8070;
+  --red: #8b0000;
+  --red-light: #a50000;
+  --cream-highlight: #efe8cc;
+  --column-gap: 1.5rem;
+  --rule-width: 1px;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+body {
+  background-color: var(--newsprint);
+  color: var(--ink);
+  font-family: 'Libre Baskerville', 'Georgia', serif;
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+  position: relative;
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* Paper grain texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1000;
+  background-image:
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+  opacity: 0.5;
+}
+
+/* Slight page edge shadow */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999;
+  box-shadow: inset 0 0 100px rgba(0,0,0,0.08);
+}
+
+.newspaper {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2rem 4rem;
+  position: relative;
+}
+
+/* ============================================================
+   BREAKING NEWS BANNER
+   ============================================================ */
+
+.breaking-news {
+  background: var(--red);
+  color: #fff;
+  text-align: center;
+  padding: 6px 1rem;
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  position: relative;
+  overflow: hidden;
+}
+
+.breaking-news::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 2px,
+    rgba(255,255,255,0.03) 2px,
+    rgba(255,255,255,0.03) 4px
+  );
+}
+
+.breaking-news-inner {
+  display: inline-block;
+  animation: ticker 20s linear infinite;
+}
+
+@keyframes ticker {
+  0% { transform: translateX(60%); }
+  100% { transform: translateX(-100%); }
+}
+
+.breaking-news .label {
+  background: #fff;
+  color: var(--red);
+  padding: 1px 8px;
+  margin-right: 12px;
+  font-weight: 900;
+  font-size: 11px;
+}
+
+/* ============================================================
+   MASTHEAD
+   ============================================================ */
+
+.masthead {
+  text-align: center;
+  padding: 1.5rem 0 0.5rem;
+  border-bottom: 4px double var(--ink);
+  position: relative;
+}
+
+.masthead-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'Libre Baskerville', serif;
+  font-size: 11px;
+  color: var(--ink-faded);
+  padding-bottom: 0.5rem;
+  letter-spacing: 0.5px;
+}
+
+.masthead-title {
+  font-family: 'UnifrakturMaguntia', 'Playfair Display', serif;
+  font-size: clamp(2.5rem, 7vw, 5.5rem);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 2px;
+  color: var(--ink);
+  margin: 0.3rem 0;
+  text-shadow: 1px 1px 0 rgba(0,0,0,0.1);
+}
+
+.masthead-subtitle {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-faded);
+  letter-spacing: 1px;
+  margin-bottom: 0.25rem;
+}
+
+.masthead-rule {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.4rem 0;
+  font-family: 'Libre Baskerville', serif;
+  font-size: 10px;
+  color: var(--ink-faded);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.masthead-rule::before,
+.masthead-rule::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule-color);
+}
+
+.price-badge {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 18px;
+  border: 2px solid var(--ink);
+  padding: 2px 10px;
+  line-height: 1.2;
+}
+
+/* ============================================================
+   NAV / EDITION BAR
+   ============================================================ */
+
+.edition-bar {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--rule-color);
+  font-family: 'Playfair Display', serif;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--ink-light);
+  flex-wrap: wrap;
+}
+
+.edition-bar a {
+  color: var(--ink-light);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.edition-bar a:hover {
+  color: var(--red);
+}
+
+/* ============================================================
+   HEADLINES & TYPOGRAPHY
+   ============================================================ */
+
+.headline-primary {
+  font-family: 'Playfair Display', serif;
+  font-weight: 900;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 1.08;
+  letter-spacing: -0.5px;
+  margin-bottom: 0.3rem;
+  color: var(--ink);
+}
+
+.headline-secondary {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: clamp(1.4rem, 2.5vw, 2rem);
+  line-height: 1.15;
+  margin-bottom: 0.3rem;
+  color: var(--ink);
+}
+
+.headline-tertiary {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  line-height: 1.25;
+  margin-bottom: 0.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.subheadline {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 1.05rem;
+  color: var(--ink-light);
+  margin-bottom: 0.4rem;
+  line-height: 1.3;
+}
+
+.byline {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 11px;
+  color: var(--ink-faded);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 0.8rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rule-color);
+}
+
+.dateline {
+  font-style: italic;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.body-text {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ink-light);
+  margin-bottom: 0.8rem;
+  text-align: justify;
+  hyphens: auto;
+}
+
+.body-text::first-letter {
+  font-size: 1em;
+}
+
+.dropcap::first-letter {
+  font-family: 'Playfair Display', serif;
+  font-size: 4.2em;
+  float: left;
+  line-height: 0.8;
+  padding-right: 8px;
+  padding-top: 4px;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.small-caps {
+  font-variant: small-caps;
+  letter-spacing: 0.5px;
+}
+
+/* ============================================================
+   COLUMN LAYOUTS
+   ============================================================ */
+
+.columns-2 {
+  column-count: 2;
+  column-gap: var(--column-gap);
+  column-rule: var(--rule-width) solid var(--rule-color);
+}
+
+.columns-3 {
+  column-count: 3;
+  column-gap: var(--column-gap);
+  column-rule: var(--rule-width) solid var(--rule-color);
+}
+
+.columns-4 {
+  column-count: 4;
+  column-gap: var(--column-gap);
+  column-rule: var(--rule-width) solid var(--rule-color);
+}
+
+.avoid-break {
+  break-inside: avoid;
+}
+
+/* Full-width top story layout */
+.front-page-hero {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 0;
+  border-bottom: 2px solid var(--ink);
+  padding: 1.5rem 0;
+  position: relative;
+}
+
+.front-page-hero > *:first-child {
+  padding-right: var(--column-gap);
+  border-right: var(--rule-width) solid var(--rule-color);
+}
+
+.front-page-hero > *:last-child {
+  padding-left: var(--column-gap);
+}
+
+/* Three-column feature grid */
+.feature-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--rule-color);
+}
+
+.feature-grid > * {
+  padding: 0 var(--column-gap);
+  border-right: var(--rule-width) solid var(--rule-color);
+}
+
+.feature-grid > *:first-child {
+  padding-left: 0;
+}
+
+.feature-grid > *:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+/* Section dividers */
+.section-rule {
+  border: none;
+  border-top: 1px solid var(--rule-color);
+  margin: 1.5rem 0;
+}
+
+.section-rule-heavy {
+  border: none;
+  border-top: 3px solid var(--ink);
+  margin: 1.5rem 0;
+}
+
+.section-rule-double {
+  border: none;
+  border-top: 4px double var(--ink);
+  margin: 1.5rem 0;
+}
+
+/* Section header */
+.section-header {
+  text-align: center;
+  padding: 0.5rem 0;
+  margin: 1.5rem 0 1rem;
+  border-top: 2px solid var(--ink);
+  border-bottom: 1px solid var(--rule-color);
+}
+
+.section-header h2 {
+  font-family: 'Playfair Display', serif;
+  font-weight: 900;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  color: var(--ink);
+}
+
+.section-header .section-label {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--ink-faded);
+}
+
+/* ============================================================
+   PULL QUOTE
+   ============================================================ */
+
+.pull-quote {
+  break-inside: avoid;
+  padding: 1.2rem 0;
+  margin: 0.8rem 0;
+  border-top: 3px solid var(--ink);
+  border-bottom: 1px solid var(--rule-color);
+  text-align: center;
+  position: relative;
+}
+
+.pull-quote blockquote {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 1.5rem;
+  line-height: 1.35;
+  color: var(--ink);
+  position: relative;
+  padding: 0 1rem;
+}
+
+.pull-quote blockquote::before {
+  content: '\201C';
+  font-family: 'Playfair Display', serif;
+  font-size: 4rem;
+  color: var(--rule-color);
+  position: absolute;
+  top: -0.6rem;
+  left: -0.5rem;
+  line-height: 1;
+}
+
+.pull-quote blockquote::after {
+  content: '\201D';
+  font-family: 'Playfair Display', serif;
+  font-size: 4rem;
+  color: var(--rule-color);
+  position: absolute;
+  bottom: -1.4rem;
+  right: -0.2rem;
+  line-height: 1;
+}
+
+.pull-quote cite {
+  display: block;
+  font-family: 'Libre Baskerville', serif;
+  font-style: normal;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--ink-faded);
+  margin-top: 0.8rem;
+}
+
+/* ============================================================
+   HALFTONE IMAGE PLACEHOLDER
+   ============================================================ */
+
+.halftone-placeholder {
+  position: relative;
+  background: var(--ink-light);
+  aspect-ratio: 4/3;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.halftone-placeholder::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle, var(--newsprint) 1px, transparent 1px);
+  background-size: 4px 4px;
+  opacity: 0.4;
+  z-index: 1;
+}
+
+.halftone-placeholder::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(0,0,0,0.15) 0%,
+    transparent 50%,
+    rgba(0,0,0,0.1) 100%
+  );
+  z-index: 2;
+}
+
+.halftone-placeholder .caption-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0,0,0,0.7);
+  color: var(--newsprint);
+  font-family: 'Libre Baskerville', serif;
+  font-size: 10px;
+  padding: 4px 8px;
+  z-index: 3;
+  letter-spacing: 0.5px;
+}
+
+.halftone-inner {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Special Elite', monospace;
+  color: var(--newsprint);
+  font-size: 2rem;
+  opacity: 0.5;
+  z-index: 0;
+  position: relative;
+}
+
+.photo-caption {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--ink-faded);
+  margin-bottom: 1rem;
+  line-height: 1.4;
+}
+
+/* ============================================================
+   CLASSIFIED ADVERTISEMENTS (KANBAN)
+   ============================================================ */
+
+.classifieds {
+  padding: 1.5rem 0;
+}
+
+.classifieds-header {
+  text-align: center;
+  border-top: 3px solid var(--ink);
+  border-bottom: 3px solid var(--ink);
+  padding: 0.4rem 0;
+  margin-bottom: 1rem;
+}
+
+.classifieds-header h2 {
+  font-family: 'Playfair Display', serif;
+  font-weight: 900;
+  font-size: 1.6rem;
+  text-transform: uppercase;
+  letter-spacing: 6px;
+}
+
+.classifieds-header p {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--ink-faded);
+}
+
+.classifieds-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+}
+
+.classifieds-column {
+  border-right: var(--rule-width) solid var(--rule-color);
+  padding: 0 0.75rem;
+}
+
+.classifieds-column:first-child {
+  padding-left: 0;
+}
+
+.classifieds-column:last-child {
+  border-right: none;
+  padding-right: 0;
+}
+
+.classifieds-column-header {
+  font-family: 'Playfair Display', serif;
+  font-weight: 900;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-align: center;
+  padding: 0.3rem 0;
+  border-bottom: 2px solid var(--ink);
+  margin-bottom: 0.6rem;
+  color: var(--ink);
+}
+
+.classified-ad {
+  border: 1px solid var(--rule-color);
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-family: 'Special Elite', monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  position: relative;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.classified-ad:hover {
+  background: var(--cream-highlight);
+}
+
+.classified-ad .ad-category {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+
+.classified-ad .ad-text {
+  color: var(--ink-light);
+  font-size: 11px;
+}
+
+.classified-ad .ad-ref {
+  font-size: 9px;
+  color: var(--ink-faded);
+  text-align: right;
+  margin-top: 4px;
+  letter-spacing: 1px;
+}
+
+.classified-ad.urgent {
+  border: 2px solid var(--red);
+}
+
+.classified-ad.urgent .ad-category {
+  color: var(--red);
+}
+
+.classified-ad .ad-badge {
+  display: inline-block;
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border: 1px solid currentColor;
+  padding: 0 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.ad-badge-urgent {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.ad-badge-new {
+  color: var(--ink);
+}
+
+.ad-badge-approved {
+  color: var(--ink-faded);
+}
+
+/* ============================================================
+   WEATHER WIDGET / STATUS
+   ============================================================ */
+
+.weather-status {
+  break-inside: avoid;
+  border: 2px solid var(--ink);
+  padding: 1rem;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.weather-status .weather-title {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  margin-bottom: 0.4rem;
+  border-bottom: 1px solid var(--rule-color);
+  padding-bottom: 0.3rem;
+}
+
+.weather-status .weather-icon {
+  font-size: 2.5rem;
+  margin: 0.3rem 0;
+}
+
+.weather-status .weather-report {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+.weather-status .weather-detail {
+  font-family: 'Special Elite', monospace;
+  font-size: 11px;
+  color: var(--ink-faded);
+  margin-top: 0.4rem;
+}
+
+/* ============================================================
+   AD-STYLE BADGES
+   ============================================================ */
+
+.badge-box {
+  display: inline-block;
+  border: 2px solid var(--ink);
+  padding: 4px 12px;
+  font-family: 'Playfair Display', serif;
+  font-weight: 900;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin: 2px;
+  position: relative;
+}
+
+.badge-box.double-border {
+  border: 4px double var(--ink);
+}
+
+.badge-box.urgent-badge {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.badge-box.star-badge::before {
+  content: '\2605 ';
+}
+
+.badge-box.star-badge::after {
+  content: ' \2605';
+}
+
+/* ============================================================
+   PAGE FOLD
+   ============================================================ */
+
+.page-fold {
+  position: relative;
+  height: 24px;
+  margin: 2rem 0;
+  overflow: visible;
+}
+
+.page-fold::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--rule-color) 10%,
+    var(--rule-color) 90%,
+    transparent 100%
+  );
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+
+.page-fold::after {
+  content: 'BELOW THE FOLD';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--newsprint);
+  padding: 0 1rem;
+  font-family: 'Libre Baskerville', serif;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: var(--ink-faded);
+}
+
+/* ============================================================
+   TABLE OF CONTENTS / SIDEBAR
+   ============================================================ */
+
+.toc-sidebar {
+  border: 2px solid var(--ink);
+  padding: 0;
+  break-inside: avoid;
+  margin-bottom: 1rem;
+}
+
+.toc-header {
+  background: var(--ink);
+  color: var(--newsprint);
+  text-align: center;
+  padding: 0.4rem 0.5rem;
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+}
+
+.toc-list {
+  list-style: none;
+  padding: 0.5rem 0.75rem;
+}
+
+.toc-list li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.2rem 0;
+  border-bottom: 1px dotted var(--rule-color);
+  font-family: 'Libre Baskerville', serif;
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.toc-list li:last-child {
+  border-bottom: none;
+}
+
+.toc-list li:hover {
+  color: var(--red);
+}
+
+.toc-list .toc-section {
+  font-weight: 700;
+  font-family: 'Playfair Display', serif;
+  letter-spacing: 0.5px;
+}
+
+.toc-list .toc-page {
+  color: var(--ink-faded);
+  font-style: italic;
+}
+
+/* ============================================================
+   COMPONENT SHOWCASE
+   ============================================================ */
+
+/* Buttons */
+.btn-newspaper {
+  display: inline-block;
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  padding: 8px 20px;
+  border: 2px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.btn-newspaper:hover {
+  background: var(--ink);
+  color: var(--newsprint);
+}
+
+.btn-newspaper.btn-primary {
+  background: var(--ink);
+  color: var(--newsprint);
+}
+
+.btn-newspaper.btn-primary:hover {
+  background: var(--ink-light);
+}
+
+.btn-newspaper.btn-urgent {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.btn-newspaper.btn-urgent:hover {
+  background: var(--red);
+  color: #fff;
+}
+
+.btn-newspaper.btn-small {
+  font-size: 10px;
+  padding: 4px 12px;
+  letter-spacing: 1px;
+}
+
+/* Inputs */
+.input-typewriter {
+  font-family: 'Special Elite', monospace;
+  font-size: 14px;
+  padding: 8px 12px;
+  border: none;
+  border-bottom: 2px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+
+.input-typewriter:focus {
+  border-bottom-color: var(--red);
+}
+
+.input-typewriter::placeholder {
+  color: var(--ink-faded);
+  font-style: italic;
+}
+
+.input-group {
+  margin-bottom: 1rem;
+}
+
+.input-label {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--ink-faded);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.textarea-typewriter {
+  font-family: 'Special Elite', monospace;
+  font-size: 13px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule-color);
+  background: transparent;
+  color: var(--ink);
+  outline: none;
+  width: 100%;
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.6;
+  transition: border-color 0.2s;
+}
+
+.textarea-typewriter:focus {
+  border-color: var(--ink);
+}
+
+/* Select */
+.select-newspaper {
+  font-family: 'Special Elite', monospace;
+  font-size: 13px;
+  padding: 8px 30px 8px 12px;
+  border: none;
+  border-bottom: 2px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%231a1a1a' stroke-width='2' fill='none'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+/* Toggle/checkbox */
+.checkbox-vintage {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-family: 'Libre Baskerville', serif;
+  font-size: 13px;
+}
+
+.checkbox-vintage input {
+  display: none;
+}
+
+.checkbox-vintage .check-box {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Playfair Display', serif;
+  font-weight: 900;
+  font-size: 14px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.checkbox-vintage input:checked + .check-box {
+  background: var(--ink);
+  color: var(--newsprint);
+}
+
+.checkbox-vintage input:checked + .check-box::after {
+  content: '\2713';
+}
+
+/* ============================================================
+   DASHBOARD MOCKUP
+   ============================================================ */
+
+.dashboard-mockup {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 0;
+  border: 2px solid var(--ink);
+  margin: 1.5rem 0;
+  min-height: 400px;
+}
+
+.dashboard-sidebar {
+  background: var(--ink);
+  color: var(--newsprint);
+  padding: 1rem 0;
+  border-right: 2px solid var(--ink);
+}
+
+.dashboard-sidebar-title {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-align: center;
+  padding: 0 0.5rem 0.5rem;
+  border-bottom: 1px solid var(--ink-faded);
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-nav {
+  list-style: none;
+}
+
+.dashboard-nav li {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 11px;
+  padding: 0.35rem 1rem;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  transition: background 0.2s;
+  border-left: 3px solid transparent;
+}
+
+.dashboard-nav li:hover {
+  background: rgba(244, 238, 213, 0.08);
+}
+
+.dashboard-nav li.active {
+  background: rgba(244, 238, 213, 0.12);
+  border-left-color: var(--newsprint);
+}
+
+.dashboard-nav .nav-section {
+  color: var(--ink-faded);
+  font-family: 'Special Elite', monospace;
+  font-size: 10px;
+}
+
+.dashboard-main {
+  padding: 1rem 1.25rem;
+  overflow: hidden;
+}
+
+.dashboard-main .dashboard-title-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Mini kanban inside dashboard */
+.mini-kanban {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+
+.mini-kanban-col {
+  min-height: 180px;
+}
+
+.mini-kanban-col-header {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  text-align: center;
+  padding: 4px;
+  background: var(--ink);
+  color: var(--newsprint);
+  margin-bottom: 0.4rem;
+}
+
+.mini-card {
+  border: 1px solid var(--rule-color);
+  padding: 0.35rem 0.4rem;
+  margin-bottom: 0.35rem;
+  font-family: 'Special Elite', monospace;
+  font-size: 10px;
+  line-height: 1.3;
+  background: var(--newsprint);
+  cursor: move;
+  transition: box-shadow 0.2s;
+}
+
+.mini-card:hover {
+  box-shadow: 2px 2px 0 var(--rule-color);
+}
+
+.mini-card .card-id {
+  font-size: 8px;
+  color: var(--ink-faded);
+}
+
+.mini-card.card-urgent {
+  border-left: 3px solid var(--red);
+}
+
+/* ============================================================
+   ADVERTISEMENT BOX
+   ============================================================ */
+
+.advert-box {
+  border: 3px double var(--ink);
+  padding: 1rem;
+  text-align: center;
+  break-inside: avoid;
+  margin-bottom: 1rem;
+}
+
+.advert-box .advert-title {
+  font-family: 'Playfair Display', serif;
+  font-weight: 900;
+  font-size: 1.3rem;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  margin-bottom: 0.3rem;
+}
+
+.advert-box .advert-subtitle {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+  color: var(--ink-light);
+}
+
+.advert-box .advert-body {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-light);
+  margin-bottom: 0.5rem;
+}
+
+.advert-box .advert-cta {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  border-top: 1px solid var(--rule-color);
+  padding-top: 0.5rem;
+}
+
+.advert-ornament {
+  font-size: 14px;
+  letter-spacing: 6px;
+  color: var(--rule-color);
+  margin: 0.3rem 0;
+}
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+
+.page-footer {
+  border-top: 3px solid var(--ink);
+  margin-top: 2rem;
+  padding-top: 0.8rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.footer-continued {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-faded);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.footer-continued:hover {
+  color: var(--red);
+}
+
+.footer-page-num {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.footer-colophon {
+  width: 100%;
+  text-align: center;
+  font-family: 'Libre Baskerville', serif;
+  font-size: 10px;
+  color: var(--ink-faded);
+  letter-spacing: 1px;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--rule-color);
+  margin-top: 0.5rem;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 900px) {
+  .front-page-hero {
+    grid-template-columns: 1fr;
+  }
+  .front-page-hero > *:first-child {
+    border-right: none;
+    padding-right: 0;
+    border-bottom: 1px solid var(--rule-color);
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+  }
+  .front-page-hero > *:last-child {
+    padding-left: 0;
+  }
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+  .feature-grid > * {
+    border-right: none;
+    border-bottom: 1px solid var(--rule-color);
+    padding: 1rem 0;
+  }
+  .feature-grid > *:last-child {
+    border-bottom: none;
+  }
+  .columns-3, .columns-4 {
+    column-count: 2;
+  }
+  .classifieds-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .classifieds-column:nth-child(2) {
+    border-right: none;
+  }
+  .classifieds-column:nth-child(3) {
+    padding-left: 0;
+  }
+  .dashboard-mockup {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-sidebar {
+    border-right: none;
+    border-bottom: 2px solid var(--ink);
+  }
+}
+
+@media (max-width: 600px) {
+  .columns-2, .columns-3, .columns-4 {
+    column-count: 1;
+  }
+  .classifieds-grid {
+    grid-template-columns: 1fr;
+  }
+  .classifieds-column {
+    border-right: none !important;
+    border-bottom: 1px solid var(--rule-color);
+    padding: 0.5rem 0 !important;
+  }
+  .mini-kanban {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .newspaper {
+    padding: 0 1rem 3rem;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     BREAKING NEWS BANNER
+     ============================================================ -->
+<div class="breaking-news" role="alert">
+  <div class="breaking-news-inner">
+    <span class="label">BREAKING</span>
+    PIPELINE FAILURE ON MAIN BRANCH &mdash; Build #4,721 reports critical dependency conflict in production deployment &mdash; All hands on deck &mdash; Senior engineers dispatched to investigate &mdash; Full report on page A3
+  </div>
+</div>
+
+<div class="newspaper">
+
+  <!-- ============================================================
+       MASTHEAD
+       ============================================================ -->
+  <header class="masthead">
+    <div class="masthead-top">
+      <span>VOL. CXXVII &middot; No. 43,891</span>
+      <span class="price-badge">5&cent;</span>
+      <span>FRIDAY, APRIL 3, 2026</span>
+    </div>
+    <h1 class="masthead-title">The DevGlide Chronicle</h1>
+    <p class="masthead-subtitle">&ldquo;All the Code That&rsquo;s Fit to Ship&rdquo;</p>
+    <div class="masthead-rule">
+      FINAL EDITION &bull; LATE CITY &bull; WEATHER: ALL SYSTEMS OPERATIONAL
+    </div>
+  </header>
+
+  <!-- ============================================================
+       EDITION BAR / NAV
+       ============================================================ -->
+  <nav class="edition-bar" role="navigation">
+    <a href="#front-page">Front Page</a>
+    <a href="#classifieds">Classifieds</a>
+    <a href="#components">Components</a>
+    <a href="#dashboard">Dashboard</a>
+    <a href="#weather">Forecast</a>
+    <a href="#advertisements">Notices</a>
+  </nav>
+
+  <!-- ============================================================
+       FRONT PAGE HERO
+       ============================================================ -->
+  <section id="front-page">
+    <div class="front-page-hero">
+      <div>
+        <h2 class="headline-primary">DevGlide Unveils Revolutionary<br>MCP Toolkit for Modern Developers</h2>
+        <p class="subheadline">Nine integrated servers promise to unify kanban, shell, testing, workflows, and voice into a single coherent platform</p>
+        <p class="byline">By <span class="small-caps">Claude</span>, Staff Correspondent &mdash; <span class="dateline">San Francisco, April 3</span></p>
+
+        <div class="columns-2">
+          <p class="body-text dropcap">In what industry observers are calling the most significant advancement in developer tooling since the introduction of the language server protocol, DevGlide today announced the general availability of its comprehensive Model Context Protocol toolkit, featuring nine integrated MCP servers designed to transform how developers interact with their development environments.</p>
+
+          <p class="body-text">The platform, which has been in private beta since early this year, introduces a novel approach to developer workflow management by treating every aspect of the development process&mdash;from task tracking to terminal management, from test automation to voice transcription&mdash;as a unified, AI-accessible surface.</p>
+
+          <p class="body-text">&ldquo;We believe the future of development tools lies not in building yet another IDE or another project management application,&rdquo; said a spokesperson for the project. &ldquo;Rather, it lies in making every tool in a developer&rsquo;s arsenal accessible through a common protocol that any AI assistant can leverage.&rdquo;</p>
+
+          <div class="pull-quote">
+            <blockquote>The age of context switching between a dozen browser tabs and terminal windows is over.</blockquote>
+            <cite>&mdash; DevGlide Engineering Team</cite>
+          </div>
+
+          <p class="body-text">The toolkit operates on a single HTTP server, defaulting to port 7000, with each application maintaining its own MCP server for stdio communication. State is managed through a structured directory at <code>~/.devglide/</code>, with per-project isolation for kanban boards, test scenarios, and chat histories, while voice configuration and global workflows remain shared across all projects.</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="halftone-placeholder">
+          <div class="halftone-inner">{ }</div>
+          <div class="caption-overlay">THE DEVGLIDE DASHBOARD &mdash; ARTIST&rsquo;S IMPRESSION</div>
+        </div>
+        <p class="photo-caption">Above: An artist&rsquo;s rendering of the DevGlide unified dashboard, showing the newspaper-inspired design language that has captivated the developer community.</p>
+
+        <div class="weather-status" id="weather">
+          <div class="weather-title">Today&rsquo;s System Forecast</div>
+          <div class="weather-icon">&#9728;</div>
+          <div class="weather-report">All Systems Operational</div>
+          <div class="weather-detail">
+            API Latency: 42ms &bull; Uptime: 99.97%<br>
+            CPU: Fair &bull; Memory: Clear Skies<br>
+            Disk: Mostly Sunny
+          </div>
+        </div>
+
+        <div class="toc-sidebar">
+          <div class="toc-header">Table of Contents</div>
+          <ul class="toc-list">
+            <li><span class="toc-section">Kanban Board</span><span class="toc-page">A1</span></li>
+            <li><span class="toc-section">Shell Terminal</span><span class="toc-page">A2</span></li>
+            <li><span class="toc-section">Test Runner</span><span class="toc-page">A3</span></li>
+            <li><span class="toc-section">Workflows</span><span class="toc-page">B1</span></li>
+            <li><span class="toc-section">Vocabulary</span><span class="toc-page">B2</span></li>
+            <li><span class="toc-section">Voice &amp; STT</span><span class="toc-page">B3</span></li>
+            <li><span class="toc-section">Chat Room</span><span class="toc-page">C1</span></li>
+            <li><span class="toc-section">Prompts</span><span class="toc-page">C2</span></li>
+            <li><span class="toc-section">Log Viewer</span><span class="toc-page">C3</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       THREE-COLUMN FEATURES
+       ============================================================ -->
+  <section class="feature-grid">
+    <article class="avoid-break">
+      <h3 class="headline-tertiary">Shell Server Brings Terminal Panes Under MCP Control</h3>
+      <p class="byline">By <span class="small-caps">Claude</span>, Technology Desk</p>
+      <p class="body-text">The shell server introduces managed terminal panes that can be created, commanded, and monitored through MCP tool calls. Developers can now script complex multi-pane workflows without leaving their AI conversation context.</p>
+      <p class="body-text">Panes are ephemeral and in-memory, belonging to a project session with no disk persistence. The scrollback buffer captures output for later analysis, enabling AI assistants to monitor build processes and test runs.</p>
+    </article>
+
+    <article class="avoid-break">
+      <h3 class="headline-tertiary">Voice Transcription Adds AI Cleanup &amp; Analytics</h3>
+      <p class="byline">By <span class="small-caps">Claude</span>, Features Editor</p>
+      <p class="body-text">The voice server now supports multiple STT providers including OpenAI, Groq, and local whisper.cpp, with a novel &ldquo;cleanup&rdquo; mode that applies AI post-processing to remove filler words and fix grammar automatically.</p>
+      <p class="body-text">Every transcription is recorded with text analysis metrics including words per minute, filler word detection, and duration. A history search API enables developers to revisit past voice notes.</p>
+      <p class="body-text">Text-to-speech uses Microsoft Edge Read Aloud with automatic sentence-level chunking and pipelined generation for responsive playback of lengthy passages.</p>
+    </article>
+
+    <article class="avoid-break">
+      <h3 class="headline-tertiary">Multi-Agent Chat Room Enables LLM Collaboration</h3>
+      <p class="byline">By <span class="small-caps">Claude</span>, Special Correspondent</p>
+      <p class="body-text">Perhaps the most novel feature of the toolkit is its chat server, which creates a shared room where the user and multiple LLM instances communicate via @mention addressing. Messages are delivered through PTY injection when linked to shell panes.</p>
+      <p class="body-text">The system includes sophisticated collision handling: if a pane is already bound to a participant, the existing session is preserved and newcomers receive a 409 error, ensuring orderly multi-agent coordination.</p>
+    </article>
+  </section>
+
+  <!-- ============================================================
+       PAGE FOLD
+       ============================================================ -->
+  <div class="page-fold"></div>
+
+  <!-- ============================================================
+       CLASSIFIED ADVERTISEMENTS (KANBAN BOARD)
+       ============================================================ -->
+  <section class="classifieds" id="classifieds">
+    <div class="classifieds-header">
+      <h2>Classified Advertisements</h2>
+      <p>Kanban Task Board &mdash; Rates: 5&cent; per line &mdash; Minimum 3 lines</p>
+    </div>
+
+    <div class="classifieds-grid">
+      <!-- BACKLOG -->
+      <div class="classifieds-column">
+        <div class="classifieds-column-header">Backlog</div>
+
+        <div class="classified-ad">
+          <div class="ad-category">TASK &mdash; UI <span class="ad-badge ad-badge-new">NEW!</span></div>
+          <div class="ad-text">WANTED: Responsive mobile layout for dashboard sidebar. Must support gesture navigation. Experience with CSS Grid preferred.</div>
+          <div class="ad-ref">Ref. #KAN-0042</div>
+        </div>
+
+        <div class="classified-ad">
+          <div class="ad-category">TASK &mdash; API</div>
+          <div class="ad-text">SEEKING: Rate limiting middleware for REST endpoints. Must handle 1000 req/min per client. Token bucket algorithm preferred.</div>
+          <div class="ad-ref">Ref. #KAN-0043</div>
+        </div>
+
+        <div class="classified-ad">
+          <div class="ad-category">BUG &mdash; VOICE</div>
+          <div class="ad-text">LOST: Audio playback on WSL when PulseAudio unavailable. Fallback chain not triggering. Last seen: v2.1.3.</div>
+          <div class="ad-ref">Ref. #KAN-0044</div>
+        </div>
+      </div>
+
+      <!-- TODO -->
+      <div class="classifieds-column">
+        <div class="classifieds-column-header">To-Do</div>
+
+        <div class="classified-ad urgent">
+          <div class="ad-category">BUG &mdash; SHELL <span class="ad-badge ad-badge-urgent">URGENT</span></div>
+          <div class="ad-text">EMERGENCY: Pane scrollback truncation at 10K lines causes data loss during long builds. Fix required immediately.</div>
+          <div class="ad-ref">Ref. #KAN-0038</div>
+        </div>
+
+        <div class="classified-ad">
+          <div class="ad-category">TASK &mdash; WORKFLOW</div>
+          <div class="ad-text">HELP WANTED: DAG visualization component for workflow editor. Must render nodes, edges, triggers. Apply within.</div>
+          <div class="ad-ref">Ref. #KAN-0039</div>
+        </div>
+      </div>
+
+      <!-- IN PROGRESS -->
+      <div class="classifieds-column">
+        <div class="classifieds-column-header">In Progress</div>
+
+        <div class="classified-ad">
+          <div class="ad-category">TASK &mdash; CHAT <span class="ad-badge ad-badge-approved">APPROVED</span></div>
+          <div class="ad-text">NOW HIRING: PTY injection delivery optimization. Must reduce submit-key delay below 50ms. Senior engineers only.</div>
+          <div class="ad-ref">Ref. #KAN-0035</div>
+        </div>
+
+        <div class="classified-ad">
+          <div class="ad-category">TASK &mdash; DOCS</div>
+          <div class="ad-text">POSITION FILLED: Documentation seed content for all nine MCP servers. Writer on staff, delivery expected this week.</div>
+          <div class="ad-ref">Ref. #KAN-0036</div>
+        </div>
+
+        <div class="classified-ad">
+          <div class="ad-category">BUG &mdash; KANBAN</div>
+          <div class="ad-text">UNDER REPAIR: SQLite WAL checkpoint not triggering on graceful shutdown. Data integrity at stake. Mechanic dispatched.</div>
+          <div class="ad-ref">Ref. #KAN-0037</div>
+        </div>
+      </div>
+
+      <!-- IN REVIEW / DONE -->
+      <div class="classifieds-column">
+        <div class="classifieds-column-header">In Review</div>
+
+        <div class="classified-ad">
+          <div class="ad-category">TASK &mdash; TEST</div>
+          <div class="ad-text">FOR INSPECTION: Browser automation scenario runner with natural language test descriptions. Awaiting editorial review.</div>
+          <div class="ad-ref">Ref. #KAN-0031</div>
+        </div>
+
+        <div class="classified-ad">
+          <div class="ad-category">TASK &mdash; PROMPTS <span class="ad-badge ad-badge-approved">APPROVED</span></div>
+          <div class="ad-text">CERTIFIED: Prompt template library with {{variable}} rendering. Passed all inspections. Awaiting final sign-off.</div>
+          <div class="ad-ref">Ref. #KAN-0032</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       COMPONENT SHOWCASE
+       ============================================================ -->
+  <div class="section-header" id="components">
+    <span class="section-label">Section B &bull; Page 1</span>
+    <h2>Component Showcase &amp; Typography Specimens</h2>
+  </div>
+
+  <div class="feature-grid">
+    <!-- Column 1: Buttons & Badges -->
+    <div class="avoid-break">
+      <h3 class="headline-tertiary">Buttons &amp; Actions</h3>
+      <p class="byline">Interactive Elements Catalogue</p>
+
+      <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 1.2rem;">
+        <div><button class="btn-newspaper btn-primary">Place Advertisement</button></div>
+        <div><button class="btn-newspaper">Submit Letter to Editor</button></div>
+        <div><button class="btn-newspaper btn-urgent">Report Breaking News</button></div>
+        <div>
+          <button class="btn-newspaper btn-small">Subscribe</button>
+          <button class="btn-newspaper btn-small">Renew</button>
+          <button class="btn-newspaper btn-small btn-urgent">Cancel</button>
+        </div>
+      </div>
+
+      <h3 class="headline-tertiary" style="margin-top: 1rem;">Editorial Badges</h3>
+      <div style="margin-top: 0.5rem; display: flex; flex-wrap: wrap; gap: 6px;">
+        <span class="badge-box star-badge">Approved</span>
+        <span class="badge-box urgent-badge">Urgent</span>
+        <span class="badge-box double-border">New!</span>
+        <span class="badge-box">Verified</span>
+        <span class="badge-box">Exclusive</span>
+        <span class="badge-box double-border star-badge">Editor&rsquo;s Pick</span>
+      </div>
+    </div>
+
+    <!-- Column 2: Form Inputs -->
+    <div class="avoid-break">
+      <h3 class="headline-tertiary">Typewriter Forms</h3>
+      <p class="byline">Input Elements with Period Character</p>
+
+      <div class="input-group">
+        <label class="input-label">Correspondent Name</label>
+        <input type="text" class="input-typewriter" placeholder="Enter your name...">
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">Assignment Desk</label>
+        <select class="select-newspaper">
+          <option>Front Page</option>
+          <option>Technology</option>
+          <option>Classifieds</option>
+          <option>Editorial</option>
+          <option>Obituaries</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">Story Lead</label>
+        <textarea class="textarea-typewriter" placeholder="Write your lead paragraph here..."></textarea>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <label class="checkbox-vintage"><input type="checkbox" checked><span class="check-box"></span> Above the fold placement</label>
+        <label class="checkbox-vintage"><input type="checkbox"><span class="check-box"></span> Include halftone photograph</label>
+        <label class="checkbox-vintage"><input type="checkbox" checked><span class="check-box"></span> Copy desk review required</label>
+      </div>
+    </div>
+
+    <!-- Column 3: Typography -->
+    <div class="avoid-break">
+      <h3 class="headline-tertiary">Typography Specimens</h3>
+      <p class="byline">A Survey of Available Typefaces</p>
+
+      <div style="margin-bottom: 1rem;">
+        <p style="font-family: 'Playfair Display', serif; font-weight: 900; font-size: 1.6rem; line-height: 1.1; margin-bottom: 4px;">Playfair Display</p>
+        <p style="font-family: 'Playfair Display', serif; font-style: italic; font-size: 1rem; color: var(--ink-light); margin-bottom: 0.6rem;">The quick brown fox jumps over the lazy dog</p>
+
+        <p style="font-family: 'Libre Baskerville', serif; font-weight: 700; font-size: 1.1rem; margin-bottom: 4px;">Libre Baskerville</p>
+        <p style="font-family: 'Libre Baskerville', serif; font-size: 0.85rem; color: var(--ink-light); margin-bottom: 0.6rem;">The quick brown fox jumps over the lazy dog</p>
+
+        <p style="font-family: 'Special Elite', monospace; font-size: 1.1rem; margin-bottom: 4px;">Special Elite</p>
+        <p style="font-family: 'Special Elite', monospace; font-size: 0.85rem; color: var(--ink-light); margin-bottom: 0.6rem;">The quick brown fox jumps over the lazy dog</p>
+
+        <p style="font-family: 'UnifrakturMaguntia', serif; font-size: 1.4rem; margin-bottom: 4px;">UnifrakturMaguntia</p>
+        <p style="font-family: 'UnifrakturMaguntia', serif; font-size: 0.95rem; color: var(--ink-light);">The quick brown fox jumps</p>
+      </div>
+
+      <h3 class="headline-tertiary" style="margin-top: 0.8rem;">Headline Hierarchy</h3>
+      <p class="headline-primary" style="font-size: 1.8rem; margin-bottom: 6px;">Primary Headline</p>
+      <p class="headline-secondary" style="font-size: 1.3rem; margin-bottom: 6px;">Secondary Headline</p>
+      <p class="headline-tertiary" style="margin-bottom: 6px;">Tertiary Headline</p>
+      <p class="subheadline" style="margin-bottom: 6px;">Subheadline in Italic Serif</p>
+      <p class="byline">Byline &mdash; All Caps Spaced</p>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       HALFTONE & PULL QUOTE SECTION
+       ============================================================ -->
+  <hr class="section-rule">
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0;">
+    <div style="padding-right: var(--column-gap); border-right: var(--rule-width) solid var(--rule-color);">
+      <h3 class="headline-secondary">The Halftone Technique:<br>Images in the Machine Age</h3>
+      <p class="byline">By <span class="small-caps">Claude</span>, Art Department</p>
+
+      <div class="halftone-placeholder" style="aspect-ratio: 16/9;">
+        <div class="halftone-inner" style="flex-direction: column; font-size: 1.2rem;">
+          <span style="font-size: 3rem; margin-bottom: 0.3rem;">&#9881;</span>
+          MCP Server Architecture
+        </div>
+        <div class="caption-overlay">EXCLUSIVE PHOTOGRAPH &mdash; THE ENGINE ROOM OF DEVGLIDE</div>
+      </div>
+      <p class="photo-caption">The halftone dot pattern, pioneered in the 1880s, enabled newspapers to reproduce photographs using only black ink. Here we apply the technique to developer tool imagery using CSS radial gradients.</p>
+
+      <p class="body-text">The effect is achieved through a carefully calibrated radial-gradient overlay that simulates the mechanical screen process used in rotogravure printing. Each dot represents a single point of ink, and the varying density creates the illusion of continuous tone from pure black and white.</p>
+    </div>
+
+    <div style="padding-left: var(--column-gap);">
+      <div class="pull-quote" style="margin-top: 0;">
+        <blockquote>We don&rsquo;t just build tools. We compose symphonies of developer experience, where every MCP server is an instrument in the orchestra.</blockquote>
+        <cite>&mdash; The DevGlide Manifesto, Chapter VII</cite>
+      </div>
+
+      <h3 class="headline-tertiary" style="margin-top: 1.2rem;">Color Palette &amp; Ink Standards</h3>
+      <p class="byline">Official Chromatic Registry</p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 0.6rem;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 32px; height: 32px; background: #f4eed5; border: 1px solid var(--rule-color);"></div>
+          <div style="font-family: 'Special Elite', monospace; font-size: 11px;">
+            <div>Newsprint</div>
+            <div style="color: var(--ink-faded);">#f4eed5</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 32px; height: 32px; background: #1a1a1a;"></div>
+          <div style="font-family: 'Special Elite', monospace; font-size: 11px;">
+            <div>Ink Black</div>
+            <div style="color: var(--ink-faded);">#1a1a1a</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 32px; height: 32px; background: #3a3a3a;"></div>
+          <div style="font-family: 'Special Elite', monospace; font-size: 11px;">
+            <div>Ink Light</div>
+            <div style="color: var(--ink-faded);">#3a3a3a</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 32px; height: 32px; background: #8b0000;"></div>
+          <div style="font-family: 'Special Elite', monospace; font-size: 11px;">
+            <div>Newspaper Red</div>
+            <div style="color: var(--ink-faded);">#8b0000</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 32px; height: 32px; background: #6b6355;"></div>
+          <div style="font-family: 'Special Elite', monospace; font-size: 11px;">
+            <div>Faded Ink</div>
+            <div style="color: var(--ink-faded);">#6b6355</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="width: 32px; height: 32px; background: #8a8070;"></div>
+          <div style="font-family: 'Special Elite', monospace; font-size: 11px;">
+            <div>Column Rule</div>
+            <div style="color: var(--ink-faded);">#8a8070</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="advert-box" style="margin-top: 1.2rem;">
+        <div class="advert-ornament">&diams; &diams; &diams;</div>
+        <div class="advert-title">DevGlide MCP</div>
+        <div class="advert-subtitle">The Modern Developer&rsquo;s Companion</div>
+        <div class="advert-body">Nine integrated servers. One unified protocol.<br>Kanban &bull; Shell &bull; Test &bull; Workflow &bull; Voice &bull; Chat &bull; Prompts &bull; Vocabulary &bull; Log</div>
+        <div class="advert-ornament">&diams; &diams; &diams;</div>
+        <div class="advert-cta">Available Now &mdash; Port 7000</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       DASHBOARD MOCKUP
+       ============================================================ -->
+  <div class="section-header" id="dashboard">
+    <span class="section-label">Section C &bull; Page 1</span>
+    <h2>Dashboard &mdash; Full Application Mockup</h2>
+  </div>
+
+  <div class="dashboard-mockup">
+    <aside class="dashboard-sidebar">
+      <div class="dashboard-sidebar-title">Section Index</div>
+      <ul class="dashboard-nav">
+        <li class="active"><span>Kanban Board</span><span class="nav-section">A1</span></li>
+        <li><span>Shell Terminal</span><span class="nav-section">A2</span></li>
+        <li><span>Test Runner</span><span class="nav-section">A3</span></li>
+        <li><span>Workflows</span><span class="nav-section">B1</span></li>
+        <li><span>Vocabulary</span><span class="nav-section">B2</span></li>
+        <li><span>Voice &amp; STT</span><span class="nav-section">B3</span></li>
+        <li><span>Chat Room</span><span class="nav-section">C1</span></li>
+        <li><span>Prompt Library</span><span class="nav-section">C2</span></li>
+        <li><span>Log Viewer</span><span class="nav-section">C3</span></li>
+        <li><span>Documentation</span><span class="nav-section">D1</span></li>
+      </ul>
+    </aside>
+
+    <main class="dashboard-main">
+      <div class="dashboard-title-bar">
+        <div>
+          <span class="headline-tertiary" style="margin: 0;">Kanban Board</span>
+          <span style="font-family: 'Libre Baskerville', serif; font-size: 10px; color: var(--ink-faded); margin-left: 8px;">Feature: DevGlide v3.0 Launch</span>
+        </div>
+        <div>
+          <button class="btn-newspaper btn-small">New Task</button>
+          <button class="btn-newspaper btn-small btn-primary">Filter</button>
+        </div>
+      </div>
+
+      <div class="mini-kanban">
+        <div class="mini-kanban-col">
+          <div class="mini-kanban-col-header">Backlog</div>
+          <div class="mini-card">
+            <div class="card-id">#0042 &bull; TASK</div>
+            Mobile responsive layout
+          </div>
+          <div class="mini-card">
+            <div class="card-id">#0043 &bull; TASK</div>
+            Rate limiting middleware
+          </div>
+          <div class="mini-card">
+            <div class="card-id">#0044 &bull; BUG</div>
+            WSL audio fallback
+          </div>
+          <div class="mini-card">
+            <div class="card-id">#0045 &bull; TASK</div>
+            Workflow DAG export
+          </div>
+        </div>
+
+        <div class="mini-kanban-col">
+          <div class="mini-kanban-col-header">To-Do</div>
+          <div class="mini-card card-urgent">
+            <div class="card-id">#0038 &bull; BUG &bull; URGENT</div>
+            Scrollback truncation fix
+          </div>
+          <div class="mini-card">
+            <div class="card-id">#0039 &bull; TASK</div>
+            DAG visualization
+          </div>
+        </div>
+
+        <div class="mini-kanban-col">
+          <div class="mini-kanban-col-header">In Progress</div>
+          <div class="mini-card">
+            <div class="card-id">#0035 &bull; TASK</div>
+            PTY injection optimization
+          </div>
+          <div class="mini-card">
+            <div class="card-id">#0036 &bull; TASK</div>
+            Documentation seed content
+          </div>
+          <div class="mini-card">
+            <div class="card-id">#0037 &bull; BUG</div>
+            SQLite WAL checkpoint
+          </div>
+        </div>
+
+        <div class="mini-kanban-col">
+          <div class="mini-kanban-col-header">In Review</div>
+          <div class="mini-card">
+            <div class="card-id">#0031 &bull; TASK</div>
+            Browser test runner
+          </div>
+          <div class="mini-card">
+            <div class="card-id">#0032 &bull; TASK</div>
+            Prompt template library
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ============================================================
+       ADVERTISEMENTS SECTION
+       ============================================================ -->
+  <div class="section-header" id="advertisements">
+    <span class="section-label">Section D &bull; Notices</span>
+    <h2>Paid Notices &amp; Advertisements</h2>
+  </div>
+
+  <div class="feature-grid" style="border-bottom: none; padding-bottom: 0;">
+    <div class="avoid-break">
+      <div class="advert-box">
+        <div class="advert-ornament">&#10045; &#10045; &#10045;</div>
+        <div class="advert-title">Wanted</div>
+        <div class="advert-subtitle">Experienced MCP Server Developers</div>
+        <div class="advert-body">Must have knowledge of Model Context Protocol, Express.js routing, and SQLite. Familiarity with PTY management and stdio transport a distinct advantage. Positions available in all nine server divisions.</div>
+        <div class="advert-ornament">&#10045; &#10045; &#10045;</div>
+        <div class="advert-cta">Apply to: HR@devglide.local</div>
+      </div>
+    </div>
+
+    <div class="avoid-break">
+      <div class="advert-box">
+        <div class="advert-ornament">&bull; &bull; &bull;</div>
+        <div class="advert-title" style="font-size: 1rem;">Public Notice</div>
+        <div class="advert-subtitle">Scheduled Maintenance Window</div>
+        <div class="advert-body">Be advised that port 7000 will undergo routine maintenance this Saturday from 02:00 to 04:00 UTC. All MCP servers will be temporarily unavailable. Kanban data will be preserved. Shell panes will be terminated.</div>
+        <div class="advert-ornament">&bull; &bull; &bull;</div>
+        <div class="advert-cta">Management &mdash; The DevGlide Chronicle</div>
+      </div>
+    </div>
+
+    <div class="avoid-break">
+      <div class="advert-box">
+        <div class="advert-ornament">&#9733; &#9733; &#9733;</div>
+        <div class="advert-title" style="font-size: 1.1rem;">Special Offer</div>
+        <div class="advert-subtitle">Voice Transcription Package</div>
+        <div class="advert-body">Subscribe to the Premium STT plan and receive: OpenAI Whisper, Groq acceleration, local whisper.cpp, AI text cleanup, vocabulary biasing, and full analytics dashboard. All providers included!</div>
+        <div class="advert-ornament">&#9733; &#9733; &#9733;</div>
+        <div class="advert-cta">Visit the Voice Dashboard Today</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       FOOTER
+       ============================================================ -->
+  <footer class="page-footer">
+    <span class="footer-continued">Continued on page A7&hellip;</span>
+    <span class="footer-page-num">A1</span>
+    <span class="footer-continued">See KANBAN, page B3&hellip;</span>
+
+    <div class="footer-colophon">
+      THE DEVGLIDE CHRONICLE IS PUBLISHED DAILY BY THE DEVGLIDE ENGINEERING GUILD &bull;
+      ESTABLISHED MMXXVI &bull; ALL RIGHTS RESERVED &bull;
+      &ldquo;ALL THE CODE THAT&rsquo;S FIT TO SHIP&rdquo;
+    </div>
+  </footer>
+
+</div>
+
+<!-- ============================================================
+     MINIMAL JS: Checkbox interactivity + Breaking news reset
+     ============================================================ -->
+<script>
+(function() {
+  // Smooth scroll for nav links
+  document.querySelectorAll('.edition-bar a').forEach(function(a) {
+    a.addEventListener('click', function(e) {
+      var href = this.getAttribute('href');
+      if (href && href.startsWith('#')) {
+        e.preventDefault();
+        var target = document.querySelector(href);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    });
+  });
+
+  // Dashboard nav active state
+  document.querySelectorAll('.dashboard-nav li').forEach(function(li) {
+    li.addEventListener('click', function() {
+      document.querySelectorAll('.dashboard-nav li').forEach(function(el) {
+        el.classList.remove('active');
+      });
+      this.classList.add('active');
+    });
+  });
+
+  // Animate classified ads on hover with subtle "picked up" effect
+  document.querySelectorAll('.classified-ad').forEach(function(ad) {
+    ad.addEventListener('mouseenter', function() {
+      this.style.transform = 'translateY(-1px)';
+      this.style.transition = 'transform 0.15s ease, background 0.2s';
+    });
+    ad.addEventListener('mouseleave', function() {
+      this.style.transform = 'translateY(0)';
+    });
+  });
+
+  // Mini kanban card drag hint
+  document.querySelectorAll('.mini-card').forEach(function(card) {
+    card.addEventListener('mouseenter', function() {
+      this.style.transform = 'rotate(-0.5deg) translateY(-1px)';
+      this.style.transition = 'transform 0.15s ease, box-shadow 0.2s';
+    });
+    card.addEventListener('mouseleave', function() {
+      this.style.transform = 'rotate(0) translateY(0)';
+    });
+  });
+
+  // TOC hover effect
+  document.querySelectorAll('.toc-list li').forEach(function(li) {
+    li.addEventListener('click', function() {
+      var section = this.querySelector('.toc-section').textContent;
+      var target = document.querySelector('.dashboard-nav li span');
+      // Flash the sidebar entry
+      this.style.background = 'var(--cream-highlight)';
+      var self = this;
+      setTimeout(function() { self.style.background = ''; }, 300);
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

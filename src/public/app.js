@@ -520,11 +520,16 @@ function openProjectModal(mode, project) {
       folderPath.title = data.path;
       folderList.innerHTML = '';
 
+      // Disable "go up" when at or above user home directory
+      const normPath = data.path.replace(/\\/g, '/').replace(/\/$/, '');
+      const normHome = (data.home || '').replace(/\\/g, '/').replace(/\/$/, '');
+      folderUpBtn.disabled = !normHome || normPath.length <= normHome.length;
+
       for (const name of data.dirs) {
         const item = document.createElement('button');
         item.className = 'folder-picker-item';
         item.textContent = name;
-        item.addEventListener('click', () => loadFolder(data.path + '/' + name));
+        item.addEventListener('click', () => loadFolder(data.path.replace(/[/\\]?$/, '/') + name));
         folderList.appendChild(item);
       }
 
@@ -547,7 +552,7 @@ function openProjectModal(mode, project) {
   });
 
   folderUpBtn.addEventListener('click', () => {
-    const parent = browseCurrentPath.replace(/\/[^/]+$/, '') || '/';
+    const parent = browseCurrentPath.replace(/[/\\][^/\\]+$/, '') || browseCurrentPath;
     loadFolder(parent);
   });
 
@@ -556,7 +561,7 @@ function openProjectModal(mode, project) {
     folderPicker.classList.add('hidden');
     // Auto-fill name from folder basename if empty
     if (!nameInput.value.trim()) {
-      const basename = browseCurrentPath.split('/').filter(Boolean).pop();
+      const basename = browseCurrentPath.split(/[/\\]/).filter(Boolean).pop();
       if (basename) nameInput.value = basename;
     }
   });
@@ -721,6 +726,26 @@ function showVoiceError(message) {
   }, 4000);
 }
 
+let mobileVoiceErrorTimer = null;
+function showMobileVoiceError(message) {
+  let toast = document.getElementById('mobile-voice-error-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'mobile-voice-error-toast';
+    toast.className = 'mobile-voice-error-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.remove('hidden');
+  toast.getBoundingClientRect();
+  toast.classList.add('visible');
+  clearTimeout(mobileVoiceErrorTimer);
+  mobileVoiceErrorTimer = setTimeout(() => {
+    toast.classList.remove('visible');
+    toast.addEventListener('transitionend', () => toast.classList.add('hidden'), { once: true });
+  }, 5000);
+}
+
 if (typeof VoiceWidget !== 'undefined') {
   voiceWidget = VoiceWidget.create({
     voiceUrl: window.location.origin,
@@ -735,6 +760,22 @@ if (typeof VoiceWidget !== 'undefined') {
 
   const voiceMountEl = document.getElementById('voice-widget-mount');
   if (voiceMountEl) voiceWidget.mount(voiceMountEl);
+
+  // Mobile topbar — separate instance so the full widget state machine is independent
+  const voiceMountMobileEl = document.getElementById('voice-widget-mount-mobile');
+  if (voiceMountMobileEl) {
+    VoiceWidget.create({
+      voiceUrl: window.location.origin,
+      onResult(text) {
+        document.dispatchEvent(new CustomEvent('voice:result', { detail: { text } }));
+      },
+      onError(err) {
+        // On mobile the sidebar (and its #voice-error-popup) is hidden — show a
+        // toast anchored to the mobile topbar instead.
+        showMobileVoiceError(err.message || 'Voice error');
+      },
+    }).mount(voiceMountMobileEl);
+  }
 
   // Handle Ctrl+Alt+Shift hold-to-speak when the shell has focus
   let voiceKeyActive = false;

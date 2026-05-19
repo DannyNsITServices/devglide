@@ -50,7 +50,7 @@
     "build": "turbo build && node scripts/build-mcp.mjs && node scripts/check-structure.mjs",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
-    "test": "vitest run",
+    "test": "vitest run --pool threads",
     "build:mcp": "node scripts/build-mcp.mjs",
     "check:structure": "node scripts/check-structure.mjs",
     "clean": "turbo clean && rm -rf node_modules"

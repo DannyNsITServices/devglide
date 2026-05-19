@@ -1,0 +1,2000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexus — DevGlide Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   RESET & FOUNDATION
+   ============================================================ */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* Surfaces */
+  --bg: #0f0f0f;
+  --surface: #171717;
+  --surface-raised: #1c1c1c;
+
+  /* Borders — progressive system */
+  --border-subtle: #242424;
+  --border-default: #2e2e2e;
+  --border-strong: #363636;
+  --border-hover: #444444;
+
+  /* Accents */
+  --purple: #8e32e9;
+  --cyan: #0693e3;
+  --green: #3ecf8e;
+  --rose: #ff4d6b;
+  --sunglow: #ffde73;
+
+  /* Text */
+  --text-primary: #efefef;
+  --text-secondary: #898989;
+  --text-muted: #5a5a5a;
+
+  /* Fonts */
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Radii */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 100px;
+}
+
+html {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  overflow-x: hidden;
+}
+
+/* ============================================================
+   SIDEBAR — Icon-only, 48px wide
+   ============================================================ */
+.sidebar {
+  width: 48px;
+  min-width: 48px;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 0;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg);
+  z-index: 100;
+  gap: 4px;
+}
+
+.sidebar-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--purple), var(--cyan));
+  margin-bottom: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-logo svg {
+  width: 16px;
+  height: 16px;
+  fill: #fff;
+}
+
+.sidebar-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.sidebar-icon:hover {
+  color: var(--text-secondary);
+  background: var(--surface);
+}
+
+.sidebar-icon.active {
+  color: var(--purple);
+  background: rgba(142, 50, 233, 0.1);
+}
+
+.sidebar-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Tooltip on hover */
+.sidebar-icon::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  z-index: 200;
+}
+
+.sidebar-icon:hover::after {
+  opacity: 1;
+}
+
+.sidebar-spacer {
+  flex: 1;
+}
+
+.sidebar-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  border: 1px solid var(--border-default);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+/* ============================================================
+   MAIN LAYOUT
+   ============================================================ */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ============================================================
+   TOP BAR
+   ============================================================ */
+.topbar {
+  height: 52px;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border-subtle);
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  background: rgba(15, 15, 15, 0.85);
+  backdrop-filter: blur(12px);
+  z-index: 50;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.breadcrumb span {
+  color: var(--text-secondary);
+}
+
+.breadcrumb .sep {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.breadcrumb .current {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Pill Tabs */
+.pill-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+  margin-left: 8px;
+}
+
+.pill-tab {
+  padding: 5px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: none;
+  background: none;
+  white-space: nowrap;
+}
+
+.pill-tab:hover {
+  color: var(--text-secondary);
+}
+
+.pill-tab.active {
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+}
+
+.topbar-spacer {
+  flex: 1;
+}
+
+/* Search Trigger */
+.search-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.search-trigger:hover {
+  border-color: var(--border-default);
+}
+
+.search-trigger svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+
+.search-trigger kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 5px;
+  background: var(--bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.topbar-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--purple), var(--cyan));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+}
+
+/* ============================================================
+   BENTO GRID
+   ============================================================ */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  padding: 24px;
+  flex: 1;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  padding: 20px;
+  min-width: 0;
+  overflow: hidden;
+  transition: border-color 0.15s ease;
+  opacity: 0;
+  transform: translateY(12px);
+  animation: cardFadeIn 0.5s ease forwards;
+}
+
+.card:hover {
+  border-color: var(--border-hover);
+}
+
+/* Staggered entrance */
+.card:nth-child(1)  { animation-delay: 0.00s; }
+.card:nth-child(2)  { animation-delay: 0.04s; }
+.card:nth-child(3)  { animation-delay: 0.08s; }
+.card:nth-child(4)  { animation-delay: 0.12s; }
+.card:nth-child(5)  { animation-delay: 0.16s; }
+.card:nth-child(6)  { animation-delay: 0.20s; }
+.card:nth-child(7)  { animation-delay: 0.24s; }
+.card:nth-child(8)  { animation-delay: 0.28s; }
+.card:nth-child(9)  { animation-delay: 0.32s; }
+.card:nth-child(10) { animation-delay: 0.36s; }
+.card:nth-child(11) { animation-delay: 0.40s; }
+.card:nth-child(12) { animation-delay: 0.44s; }
+
+@keyframes cardFadeIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Grid spans */
+.card-hero      { grid-column: span 2; grid-row: span 2; }
+.card-wide      { grid-column: span 2; }
+.card-tall      { grid-row: span 2; }
+
+/* ============================================================
+   GLASSMORPHISM SPOTLIGHT CARD
+   ============================================================ */
+.card-spotlight {
+  background: rgba(142, 50, 233, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(142, 50, 233, 0.15);
+}
+
+.card-spotlight:hover {
+  border-color: rgba(142, 50, 233, 0.25);
+}
+
+/* ============================================================
+   CARD HEADERS
+   ============================================================ */
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  letter-spacing: -0.01em;
+}
+
+.card-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+  line-height: 1;
+}
+
+/* ============================================================
+   STAT DISPLAY — Bloomberg density
+   ============================================================ */
+.stat {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 36px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -2px;
+  color: var(--text-primary);
+  font-feature-settings: "tnum";
+}
+
+.stat-value.sm {
+  font-size: 28px;
+}
+
+.stat-label {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Trend Pill */
+.trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  line-height: 1;
+  font-feature-settings: "tnum";
+}
+
+.trend-up {
+  color: var(--green);
+  background: rgba(62, 207, 142, 0.1);
+  border: 1px solid rgba(62, 207, 142, 0.15);
+}
+
+.trend-down {
+  color: var(--rose);
+  background: rgba(255, 77, 107, 0.1);
+  border: 1px solid rgba(255, 77, 107, 0.15);
+}
+
+/* Sparkline */
+.sparkline {
+  flex-shrink: 0;
+}
+
+.sparkline path {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: sparklineDraw 1.2s ease forwards;
+}
+
+@keyframes sparklineDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ============================================================
+   HERO CHART CARD
+   ============================================================ */
+.hero-chart-wrapper {
+  position: relative;
+  width: 100%;
+  margin-top: 8px;
+  flex: 1;
+  min-height: 200px;
+}
+
+.hero-chart-wrapper svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.hero-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.hero-stat-block .stat-value {
+  font-size: 28px;
+}
+
+/* ============================================================
+   DONUT CHART
+   ============================================================ */
+.donut-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.donut-svg {
+  flex-shrink: 0;
+}
+
+.donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.donut-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.donut-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.donut-legend-val {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-feature-settings: "tnum";
+  color: var(--text-primary);
+  margin-left: auto;
+}
+
+/* ============================================================
+   BAR CHART — Horizontal
+   ============================================================ */
+.bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bar-label {
+  width: 80px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--border-subtle);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+
+.bar-val {
+  width: 40px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-feature-settings: "tnum";
+  text-align: right;
+}
+
+/* ============================================================
+   ACTIVITY FEED
+   ============================================================ */
+.activity-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.activity-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+.activity-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.activity-text {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-text strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.activity-time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  font-feature-settings: "tnum";
+}
+
+/* ============================================================
+   DATA TABLE
+   ============================================================ */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.data-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-default);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.data-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-feature-settings: "tnum";
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.data-table .mono {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.data-table .status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+/* ============================================================
+   PROGRESS RINGS
+   ============================================================ */
+.progress-rings {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  justify-content: center;
+}
+
+.progress-ring-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.progress-ring-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.progress-ring-value {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-feature-settings: "tnum";
+}
+
+/* ============================================================
+   COMMAND PALETTE (Cmd+K)
+   ============================================================ */
+.cmd-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.cmd-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.cmd-palette {
+  width: 560px;
+  max-height: 420px;
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transform: scale(0.96) translateY(-8px);
+  transition: transform 0.15s ease;
+}
+
+.cmd-overlay.open .cmd-palette {
+  transform: scale(1) translateY(0);
+}
+
+.cmd-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.cmd-input-wrap svg {
+  width: 18px;
+  height: 18px;
+  stroke: var(--text-muted);
+  fill: none;
+  stroke-width: 2;
+  flex-shrink: 0;
+}
+
+.cmd-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.cmd-input::placeholder {
+  color: var(--text-muted);
+}
+
+.cmd-results {
+  overflow-y: auto;
+  padding: 8px;
+  flex: 1;
+}
+
+.cmd-group-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 8px 8px 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.cmd-item:hover, .cmd-item.selected {
+  background: var(--surface-raised);
+}
+
+.cmd-item-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cmd-item-icon svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--text-secondary);
+  fill: none;
+  stroke-width: 2;
+}
+
+.cmd-item-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
+.cmd-item-hint {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.cmd-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.cmd-footer kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 5px;
+  background: var(--bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+/* ============================================================
+   MISC UTILITIES
+   ============================================================ */
+.text-purple { color: var(--purple); }
+.text-cyan   { color: var(--cyan); }
+.text-green  { color: var(--green); }
+.text-rose   { color: var(--rose); }
+.text-sunglow { color: var(--sunglow); }
+
+.mt-8  { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; }
+
+.flex { display: flex; }
+.items-center { align-items: center; }
+.gap-8  { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+.flex-1 { flex: 1; }
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* ============================================================
+   RESPONSIVE — collapse to 2 columns below 960px
+   ============================================================ */
+@media (max-width: 960px) {
+  .bento {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     SIDEBAR
+     ============================================================ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <svg viewBox="0 0 16 16"><polygon points="8,1 15,5 15,11 8,15 1,11 1,5"/></svg>
+  </div>
+
+  <div class="sidebar-icon active" data-tooltip="Dashboard">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="4" rx="1"/><rect x="14" y="11" width="7" height="10" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+  </div>
+  <div class="sidebar-icon" data-tooltip="Kanban">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+  </div>
+  <div class="sidebar-icon" data-tooltip="Terminal">
+    <svg viewBox="0 0 24 24"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+  </div>
+  <div class="sidebar-icon" data-tooltip="Tests">
+    <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+  </div>
+  <div class="sidebar-icon" data-tooltip="Workflows">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/></svg>
+  </div>
+  <div class="sidebar-icon" data-tooltip="Voice">
+    <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+  </div>
+  <div class="sidebar-icon" data-tooltip="Chat">
+    <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+  </div>
+  <div class="sidebar-icon" data-tooltip="Logs">
+    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+  </div>
+
+  <div class="sidebar-spacer"></div>
+
+  <div class="sidebar-icon" data-tooltip="Settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+  </div>
+
+  <div class="sidebar-avatar">DK</div>
+</aside>
+
+<!-- ============================================================
+     MAIN CONTENT
+     ============================================================ -->
+<div class="main">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <nav class="breadcrumb">
+      <span>DevGlide</span>
+      <span class="sep">/</span>
+      <span class="current">Nexus Dashboard</span>
+    </nav>
+
+    <div class="pill-tabs">
+      <button class="pill-tab active">Overview</button>
+      <button class="pill-tab">Analytics</button>
+      <button class="pill-tab">Pipelines</button>
+      <button class="pill-tab">Agents</button>
+    </div>
+
+    <div class="topbar-spacer"></div>
+
+    <div class="search-trigger" id="searchTrigger">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <span>Search...</span>
+      <kbd>Ctrl K</kbd>
+    </div>
+
+    <div class="topbar-avatar">DK</div>
+  </header>
+
+  <!-- BENTO GRID -->
+  <div class="bento">
+
+    <!-- ========== CARD 1: Hero Area Chart (2x2) ========== -->
+    <div class="card card-hero" id="heroCard">
+      <div class="card-header">
+        <span class="card-title">Request Volume</span>
+        <span class="card-badge">Last 30d</span>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat-block">
+          <div class="stat-row">
+            <span class="stat-value sm" id="heroStat1">2.4M</span>
+            <span class="trend trend-up">&#8593; 18%</span>
+          </div>
+          <div class="stat-label">Total Requests</div>
+        </div>
+        <div class="hero-stat-block">
+          <div class="stat-row">
+            <span class="stat-value sm">47ms</span>
+            <svg class="sparkline" width="60" height="20" viewBox="0 0 60 20"><path d="M0,15 L8,12 L16,14 L24,8 L32,10 L40,5 L48,7 L56,3 L60,4" fill="none" stroke="#0693e3" stroke-width="1.5"/></svg>
+          </div>
+          <div class="stat-label">Avg Latency</div>
+        </div>
+        <div class="hero-stat-block">
+          <div class="stat-row">
+            <span class="stat-value sm">99.97<span style="font-size:18px;color:var(--text-muted)">%</span></span>
+            <span class="trend trend-up">&#8593; 0.02</span>
+          </div>
+          <div class="stat-label">Uptime</div>
+        </div>
+      </div>
+      <div class="hero-chart-wrapper" id="heroChartWrapper">
+        <svg id="heroChart" viewBox="0 0 600 200" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="heroGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#8e32e9" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#8e32e9" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="heroStrokeGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#8e32e9"/>
+              <stop offset="100%" stop-color="#0693e3"/>
+            </linearGradient>
+          </defs>
+          <!-- Grid lines -->
+          <line x1="0" y1="50" x2="600" y2="50" stroke="#242424" stroke-width="0.5"/>
+          <line x1="0" y1="100" x2="600" y2="100" stroke="#242424" stroke-width="0.5"/>
+          <line x1="0" y1="150" x2="600" y2="150" stroke="#242424" stroke-width="0.5"/>
+          <!-- Area fill -->
+          <path id="heroArea" fill="url(#heroGrad)" opacity="0"/>
+          <!-- Line -->
+          <path id="heroLine" fill="none" stroke="url(#heroStrokeGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ========== CARD 2: Glassmorphism Spotlight (1x1) ========== -->
+    <div class="card card-spotlight">
+      <div class="card-header">
+        <span class="card-title">MCP Tool Calls</span>
+        <span class="card-badge" style="border-color: rgba(142,50,233,0.2); color: var(--purple);">Live</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value" style="background: linear-gradient(135deg, var(--purple), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">18,492</span>
+      </div>
+      <div class="stat-row mt-8">
+        <svg class="sparkline" width="60" height="20" viewBox="0 0 60 20"><path d="M0,18 L6,14 L12,16 L18,9 L24,11 L30,6 L36,8 L42,4 L48,6 L54,2 L60,3" fill="none" stroke="#8e32e9" stroke-width="1.5"/></svg>
+        <span class="trend trend-up">&#8593; 24%</span>
+      </div>
+      <div class="stat-label mt-12">Last 24 hours</div>
+
+      <div style="margin-top: 20px; display: flex; gap: 12px;">
+        <div style="flex:1;">
+          <div style="font-family: var(--font-mono); font-size: 18px; font-weight: 600; font-feature-settings: 'tnum'; color: var(--text-primary);">6,841</div>
+          <div class="stat-label">kanban</div>
+        </div>
+        <div style="flex:1;">
+          <div style="font-family: var(--font-mono); font-size: 18px; font-weight: 600; font-feature-settings: 'tnum'; color: var(--text-primary);">4,207</div>
+          <div class="stat-label">shell</div>
+        </div>
+        <div style="flex:1;">
+          <div style="font-family: var(--font-mono); font-size: 18px; font-weight: 600; font-feature-settings: 'tnum'; color: var(--text-primary);">3,612</div>
+          <div class="stat-label">voice</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== CARD 3: Stat — Workflows (1x1) ========== -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Active Workflows</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-value">37</span>
+        <svg class="sparkline" width="60" height="20" viewBox="0 0 60 20"><path d="M0,16 L10,12 L20,14 L30,6 L40,9 L50,3 L60,5" fill="none" stroke="#3ecf8e" stroke-width="1.5"/></svg>
+        <span class="trend trend-up">&#8593; 8%</span>
+      </div>
+      <div class="stat-label">12 triggered today</div>
+
+      <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 12px; color: var(--text-secondary);">ci-deploy</span>
+          <span style="font-family: var(--font-mono); font-size: 11px; font-feature-settings: 'tnum'; color: var(--green);">passing</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 12px; color: var(--text-secondary);">lint-fix</span>
+          <span style="font-family: var(--font-mono); font-size: 11px; font-feature-settings: 'tnum'; color: var(--green);">passing</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 12px; color: var(--text-secondary);">test-e2e</span>
+          <span style="font-family: var(--font-mono); font-size: 11px; font-feature-settings: 'tnum'; color: var(--sunglow);">running</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== CARD 4: Stat — Error Rate (1x1) ========== -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Error Rate</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-value">0.03<span style="font-size:20px; color: var(--text-muted);">%</span></span>
+        <svg class="sparkline" width="60" height="20" viewBox="0 0 60 20"><path d="M0,5 L10,8 L20,6 L30,12 L40,10 L50,15 L60,13" fill="none" stroke="#ff4d6b" stroke-width="1.5"/></svg>
+        <span class="trend trend-down">&#8595; 0.01</span>
+      </div>
+      <div class="stat-label">vs. 0.04% last week</div>
+
+      <div style="margin-top:16px; display:flex; gap:6px; align-items:flex-end; height:40px;">
+        <div style="flex:1; background: rgba(255,77,107,0.15); border-radius:3px; height:35%;"></div>
+        <div style="flex:1; background: rgba(255,77,107,0.15); border-radius:3px; height:20%;"></div>
+        <div style="flex:1; background: rgba(255,77,107,0.15); border-radius:3px; height:55%;"></div>
+        <div style="flex:1; background: rgba(255,77,107,0.15); border-radius:3px; height:30%;"></div>
+        <div style="flex:1; background: rgba(255,77,107,0.15); border-radius:3px; height:15%;"></div>
+        <div style="flex:1; background: rgba(255,77,107,0.15); border-radius:3px; height:45%;"></div>
+        <div style="flex:1; background: rgba(255,77,107,0.2); border-radius:3px; height:25%;"></div>
+        <div style="flex:1; background: rgba(255,77,107,0.15); border-radius:3px; height:10%;"></div>
+        <div style="flex:1; background: rgba(255,77,107,0.15); border-radius:3px; height:18%;"></div>
+        <div style="flex:1; background: rgba(255,77,107,0.15); border-radius:3px; height:8%;"></div>
+      </div>
+    </div>
+
+    <!-- ========== CARD 5: Stat — Tokens (1x1) ========== -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Token Usage</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-value">1.2<span style="font-size:20px; color: var(--text-muted);">B</span></span>
+        <svg class="sparkline" width="60" height="20" viewBox="0 0 60 20"><path d="M0,17 L8,14 L16,15 L24,10 L32,12 L40,7 L48,8 L56,4 L60,5" fill="none" stroke="#8e32e9" stroke-width="1.5"/></svg>
+        <span class="trend trend-up">&#8593; 31%</span>
+      </div>
+      <div class="stat-label">Tokens processed this month</div>
+    </div>
+
+    <!-- ========== CARD 6: Donut Chart (2x1) ========== -->
+    <div class="card card-wide">
+      <div class="card-header">
+        <span class="card-title">Tool Distribution</span>
+        <span class="card-badge">Today</span>
+      </div>
+      <div class="donut-wrapper">
+        <svg class="donut-svg" width="140" height="140" viewBox="0 0 140 140">
+          <circle cx="70" cy="70" r="54" fill="none" stroke="var(--border-subtle)" stroke-width="14"/>
+          <!-- Kanban: 34% -->
+          <circle cx="70" cy="70" r="54" fill="none" stroke="#8e32e9" stroke-width="14"
+            stroke-dasharray="115.3 224.3" stroke-dashoffset="0"
+            transform="rotate(-90 70 70)" stroke-linecap="round"/>
+          <!-- Shell: 26% -->
+          <circle cx="70" cy="70" r="54" fill="none" stroke="#0693e3" stroke-width="14"
+            stroke-dasharray="88.2 251.4" stroke-dashoffset="-115.3"
+            transform="rotate(-90 70 70)" stroke-linecap="round"/>
+          <!-- Voice: 20% -->
+          <circle cx="70" cy="70" r="54" fill="none" stroke="#3ecf8e" stroke-width="14"
+            stroke-dasharray="67.9 271.7" stroke-dashoffset="-203.5"
+            transform="rotate(-90 70 70)" stroke-linecap="round"/>
+          <!-- Test: 12% -->
+          <circle cx="70" cy="70" r="54" fill="none" stroke="#ffde73" stroke-width="14"
+            stroke-dasharray="40.7 298.9" stroke-dashoffset="-271.4"
+            transform="rotate(-90 70 70)" stroke-linecap="round"/>
+          <!-- Other: 8% -->
+          <circle cx="70" cy="70" r="54" fill="none" stroke="#ff4d6b" stroke-width="14"
+            stroke-dasharray="27.1 312.5" stroke-dashoffset="-312.1"
+            transform="rotate(-90 70 70)" stroke-linecap="round"/>
+          <text x="70" y="66" text-anchor="middle" fill="var(--text-primary)" font-family="var(--font-mono)" font-size="22" font-weight="600">8.4K</text>
+          <text x="70" y="82" text-anchor="middle" fill="var(--text-muted)" font-family="var(--font-sans)" font-size="11">calls</text>
+        </svg>
+        <div class="donut-legend">
+          <div class="donut-legend-item">
+            <span class="donut-legend-dot" style="background:#8e32e9"></span>
+            <span>Kanban</span>
+            <span class="donut-legend-val">34%</span>
+          </div>
+          <div class="donut-legend-item">
+            <span class="donut-legend-dot" style="background:#0693e3"></span>
+            <span>Shell</span>
+            <span class="donut-legend-val">26%</span>
+          </div>
+          <div class="donut-legend-item">
+            <span class="donut-legend-dot" style="background:#3ecf8e"></span>
+            <span>Voice</span>
+            <span class="donut-legend-val">20%</span>
+          </div>
+          <div class="donut-legend-item">
+            <span class="donut-legend-dot" style="background:#ffde73"></span>
+            <span>Test</span>
+            <span class="donut-legend-val">12%</span>
+          </div>
+          <div class="donut-legend-item">
+            <span class="donut-legend-dot" style="background:#ff4d6b"></span>
+            <span>Other</span>
+            <span class="donut-legend-val">8%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== CARD 7: Horizontal Bar Chart (2x1) ========== -->
+    <div class="card card-wide">
+      <div class="card-header">
+        <span class="card-title">Top Endpoints</span>
+        <span class="card-badge">24h</span>
+      </div>
+      <div class="bar-chart">
+        <div class="bar-row">
+          <span class="bar-label">/api/kanban</span>
+          <div class="bar-track"><div class="bar-fill" style="width:92%; background: linear-gradient(90deg, #8e32e9, #0693e3);"></div></div>
+          <span class="bar-val">4,821</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">/api/shell</span>
+          <div class="bar-track"><div class="bar-fill" style="width:71%; background: linear-gradient(90deg, #8e32e9, #0693e3);"></div></div>
+          <span class="bar-val">3,714</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">/api/voice</span>
+          <div class="bar-track"><div class="bar-fill" style="width:58%; background: linear-gradient(90deg, #8e32e9, #0693e3);"></div></div>
+          <span class="bar-val">3,042</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">/api/chat</span>
+          <div class="bar-track"><div class="bar-fill" style="width:43%; background: linear-gradient(90deg, #8e32e9, #0693e3);"></div></div>
+          <span class="bar-val">2,256</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">/api/test</span>
+          <div class="bar-track"><div class="bar-fill" style="width:28%; background: linear-gradient(90deg, #8e32e9, #0693e3);"></div></div>
+          <span class="bar-val">1,467</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">/api/workflow</span>
+          <div class="bar-track"><div class="bar-fill" style="width:17%; background: linear-gradient(90deg, #8e32e9, #0693e3);"></div></div>
+          <span class="bar-val">892</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== CARD 8: Progress Rings (1x1) ========== -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">System Health</span>
+      </div>
+      <div class="progress-rings">
+        <div class="progress-ring-item">
+          <svg width="64" height="64" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="26" fill="none" stroke="var(--border-subtle)" stroke-width="5"/>
+            <circle cx="32" cy="32" r="26" fill="none" stroke="var(--green)" stroke-width="5"
+              stroke-dasharray="147.7 163.4" stroke-dashoffset="0"
+              transform="rotate(-90 32 32)" stroke-linecap="round"/>
+          </svg>
+          <span class="progress-ring-value">92%</span>
+          <span class="progress-ring-label">CPU</span>
+        </div>
+        <div class="progress-ring-item">
+          <svg width="64" height="64" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="26" fill="none" stroke="var(--border-subtle)" stroke-width="5"/>
+            <circle cx="32" cy="32" r="26" fill="none" stroke="var(--cyan)" stroke-width="5"
+              stroke-dasharray="109.0 163.4" stroke-dashoffset="0"
+              transform="rotate(-90 32 32)" stroke-linecap="round"/>
+          </svg>
+          <span class="progress-ring-value">67%</span>
+          <span class="progress-ring-label">Memory</span>
+        </div>
+        <div class="progress-ring-item">
+          <svg width="64" height="64" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="26" fill="none" stroke="var(--border-subtle)" stroke-width="5"/>
+            <circle cx="32" cy="32" r="26" fill="none" stroke="var(--purple)" stroke-width="5"
+              stroke-dasharray="57.2 163.4" stroke-dashoffset="0"
+              transform="rotate(-90 32 32)" stroke-linecap="round"/>
+          </svg>
+          <span class="progress-ring-value">35%</span>
+          <span class="progress-ring-label">Disk</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== CARD 9: Stat — Active Agents (1x1) ========== -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Active Agents</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-value">12</span>
+        <svg class="sparkline" width="60" height="20" viewBox="0 0 60 20"><path d="M0,10 L8,12 L16,8 L24,14 L32,6 L40,10 L48,4 L56,8 L60,6" fill="none" stroke="#0693e3" stroke-width="1.5"/></svg>
+        <span class="trend trend-up">&#8593; 3</span>
+      </div>
+      <div class="stat-label">Claude, Codex, GPT instances</div>
+
+      <div style="margin-top: 16px; display: flex; gap: 6px;">
+        <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#8e32e9,#0693e3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;">C1</div>
+        <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#8e32e9,#0693e3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;">C2</div>
+        <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#3ecf8e,#0693e3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;">X1</div>
+        <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#ffde73,#ff4d6b);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;">G1</div>
+        <div style="width:28px;height:28px;border-radius:50%;background:var(--border-strong);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:var(--text-muted);">+8</div>
+      </div>
+    </div>
+
+    <!-- ========== CARD 10: Activity Feed (1x1, tall) ========== -->
+    <div class="card card-tall">
+      <div class="card-header">
+        <span class="card-title">Activity Feed</span>
+        <span class="card-badge">Live</span>
+      </div>
+      <div class="activity-feed">
+        <div class="activity-item">
+          <span class="activity-dot" style="background: var(--green);"></span>
+          <span class="activity-text"><strong>claude-1</strong> completed task #142</span>
+          <span class="activity-time">2m ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot" style="background: var(--purple);"></span>
+          <span class="activity-text"><strong>workflow</strong> ci-deploy triggered</span>
+          <span class="activity-time">5m ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot" style="background: var(--cyan);"></span>
+          <span class="activity-text"><strong>codex-1</strong> shell command ran</span>
+          <span class="activity-time">8m ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot" style="background: var(--rose);"></span>
+          <span class="activity-text"><strong>test</strong> e2e scenario failed: login</span>
+          <span class="activity-time">12m ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot" style="background: var(--green);"></span>
+          <span class="activity-text"><strong>claude-2</strong> moved item to Review</span>
+          <span class="activity-time">15m ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot" style="background: var(--sunglow);"></span>
+          <span class="activity-text"><strong>voice</strong> transcription 1:42 mins</span>
+          <span class="activity-time">18m ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot" style="background: var(--purple);"></span>
+          <span class="activity-text"><strong>gpt-1</strong> joined chat room</span>
+          <span class="activity-time">23m ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot" style="background: var(--green);"></span>
+          <span class="activity-text"><strong>workflow</strong> lint-fix passed</span>
+          <span class="activity-time">31m ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot" style="background: var(--cyan);"></span>
+          <span class="activity-text"><strong>claude-1</strong> created feature board</span>
+          <span class="activity-time">42m ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot" style="background: var(--rose);"></span>
+          <span class="activity-text"><strong>test</strong> snapshot drift detected</span>
+          <span class="activity-time">1h ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot" style="background: var(--green);"></span>
+          <span class="activity-text"><strong>codex-1</strong> resolved merge conflict</span>
+          <span class="activity-time">1h ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot" style="background: var(--sunglow);"></span>
+          <span class="activity-text"><strong>voice</strong> config updated: groq</span>
+          <span class="activity-time">2h ago</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== CARD 11: Data Table (2x1) ========== -->
+    <div class="card card-wide">
+      <div class="card-header">
+        <span class="card-title">Recent MCP Sessions</span>
+        <span class="card-badge">12 active</span>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Session</th>
+            <th>Agent</th>
+            <th>Server</th>
+            <th>Calls</th>
+            <th>Latency</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">mcp_8f3a</td>
+            <td>claude-1</td>
+            <td>kanban</td>
+            <td class="mono">847</td>
+            <td class="mono">23ms</td>
+            <td><span class="status-dot" style="background:var(--green)"></span>Active</td>
+          </tr>
+          <tr>
+            <td class="mono">mcp_2b1c</td>
+            <td>codex-1</td>
+            <td>shell</td>
+            <td class="mono">612</td>
+            <td class="mono">18ms</td>
+            <td><span class="status-dot" style="background:var(--green)"></span>Active</td>
+          </tr>
+          <tr>
+            <td class="mono">mcp_9e4d</td>
+            <td>claude-2</td>
+            <td>voice</td>
+            <td class="mono">394</td>
+            <td class="mono">156ms</td>
+            <td><span class="status-dot" style="background:var(--sunglow)"></span>Slow</td>
+          </tr>
+          <tr>
+            <td class="mono">mcp_7f2e</td>
+            <td>gpt-1</td>
+            <td>chat</td>
+            <td class="mono">281</td>
+            <td class="mono">31ms</td>
+            <td><span class="status-dot" style="background:var(--green)"></span>Active</td>
+          </tr>
+          <tr>
+            <td class="mono">mcp_4a8b</td>
+            <td>claude-1</td>
+            <td>test</td>
+            <td class="mono">156</td>
+            <td class="mono">892ms</td>
+            <td><span class="status-dot" style="background:var(--rose)"></span>Error</td>
+          </tr>
+          <tr>
+            <td class="mono">mcp_1c3f</td>
+            <td>codex-1</td>
+            <td>workflow</td>
+            <td class="mono">93</td>
+            <td class="mono">45ms</td>
+            <td><span class="status-dot" style="background:var(--green)"></span>Active</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ========== CARD 12: Stat — Shell Panes (1x1) ========== -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Shell Panes</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-value">8</span>
+        <svg class="sparkline" width="60" height="20" viewBox="0 0 60 20"><path d="M0,14 L10,10 L20,12 L30,8 L40,6 L50,9 L60,5" fill="none" stroke="#3ecf8e" stroke-width="1.5"/></svg>
+        <span class="trend trend-up">&#8593; 2</span>
+      </div>
+      <div class="stat-label">Active terminal sessions</div>
+
+      <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--green);"></span>
+          <span style="font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); font-feature-settings: 'tnum';">pane-1</span>
+          <span style="margin-left: auto; font-size: 11px; color: var(--text-muted);">claude-1</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--green);"></span>
+          <span style="font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); font-feature-settings: 'tnum';">pane-2</span>
+          <span style="margin-left: auto; font-size: 11px; color: var(--text-muted);">codex-1</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--sunglow);"></span>
+          <span style="font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); font-feature-settings: 'tnum';">pane-3</span>
+          <span style="margin-left: auto; font-size: 11px; color: var(--text-muted);">idle</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== CARD 13: Stat — Projects (1x1) ========== -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Projects</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-value">24</span>
+        <svg class="sparkline" width="60" height="20" viewBox="0 0 60 20"><path d="M0,16 L10,14 L20,15 L30,11 L40,12 L50,8 L60,9" fill="none" stroke="#8e32e9" stroke-width="1.5"/></svg>
+      </div>
+      <div class="stat-label">Registered projects</div>
+
+      <div style="margin-top: 16px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px;">
+          <span style="color: var(--text-secondary);">devglide</span>
+          <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-primary); font-feature-settings: 'tnum';">1,247 items</span>
+        </div>
+        <div style="height: 4px; background: var(--border-subtle); border-radius: 2px; overflow: hidden;">
+          <div style="width: 78%; height: 100%; background: linear-gradient(90deg, #8e32e9, #0693e3); border-radius: 2px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== CARD 14: Stat — Transcriptions (1x1) ========== -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Transcriptions</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-value">482</span>
+        <svg class="sparkline" width="60" height="20" viewBox="0 0 60 20"><path d="M0,18 L8,15 L16,16 L24,11 L32,13 L40,8 L48,9 L56,5 L60,6" fill="none" stroke="#ffde73" stroke-width="1.5"/></svg>
+        <span class="trend trend-up">&#8593; 12%</span>
+      </div>
+      <div class="stat-label">This week</div>
+
+      <div style="margin-top: 16px; display: flex; gap: 16px;">
+        <div>
+          <div style="font-family: var(--font-mono); font-size: 16px; font-weight: 600; font-feature-settings: 'tnum'; color: var(--text-primary);">142</div>
+          <div class="stat-label">WPM avg</div>
+        </div>
+        <div>
+          <div style="font-family: var(--font-mono); font-size: 16px; font-weight: 600; font-feature-settings: 'tnum'; color: var(--text-primary);">3.2<span style="font-size:11px;color:var(--text-muted)">%</span></div>
+          <div class="stat-label">Filler rate</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== CARD 15: Stat — Prompt Templates (1x1) ========== -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Prompt Templates</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-value">56</span>
+        <svg class="sparkline" width="60" height="20" viewBox="0 0 60 20"><path d="M0,14 L12,11 L24,13 L36,7 L48,9 L60,4" fill="none" stroke="#0693e3" stroke-width="1.5"/></svg>
+        <span class="trend trend-up">&#8593; 7</span>
+      </div>
+      <div class="stat-label">Active templates</div>
+
+      <div style="margin-top: 16px; display: flex; gap: 6px; flex-wrap: wrap;">
+        <span style="font-size: 11px; padding: 3px 8px; border-radius: 100px; border: 1px solid var(--border-subtle); color: var(--text-muted);">code-review</span>
+        <span style="font-size: 11px; padding: 3px 8px; border-radius: 100px; border: 1px solid var(--border-subtle); color: var(--text-muted);">bug-report</span>
+        <span style="font-size: 11px; padding: 3px 8px; border-radius: 100px; border: 1px solid var(--border-subtle); color: var(--text-muted);">refactor</span>
+        <span style="font-size: 11px; padding: 3px 8px; border-radius: 100px; border: 1px solid rgba(142,50,233,0.2); color: var(--purple);">+53</span>
+      </div>
+    </div>
+
+  </div><!-- /.bento -->
+</div><!-- /.main -->
+
+<!-- ============================================================
+     COMMAND PALETTE OVERLAY
+     ============================================================ -->
+<div class="cmd-overlay" id="cmdOverlay">
+  <div class="cmd-palette">
+    <div class="cmd-input-wrap">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input class="cmd-input" id="cmdInput" type="text" placeholder="Search commands, tools, tasks..." autofocus>
+    </div>
+    <div class="cmd-results" id="cmdResults">
+      <div class="cmd-group-label">Quick Actions</div>
+      <div class="cmd-item selected">
+        <div class="cmd-item-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="4" rx="1"/><rect x="14" y="11" width="7" height="10" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></div>
+        <span class="cmd-item-text">Go to Dashboard</span>
+        <span class="cmd-item-hint">Ctrl+D</span>
+      </div>
+      <div class="cmd-item">
+        <div class="cmd-item-icon"><svg viewBox="0 0 24 24"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></div>
+        <span class="cmd-item-text">New Terminal Pane</span>
+        <span class="cmd-item-hint">Ctrl+`</span>
+      </div>
+      <div class="cmd-item">
+        <div class="cmd-item-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
+        <span class="cmd-item-text">Create Task</span>
+        <span class="cmd-item-hint">Ctrl+N</span>
+      </div>
+
+      <div class="cmd-group-label">MCP Tools</div>
+      <div class="cmd-item">
+        <div class="cmd-item-icon" style="background: rgba(142,50,233,0.1);"><svg viewBox="0 0 24 24" style="stroke: #8e32e9;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg></div>
+        <span class="cmd-item-text">kanban_list_items</span>
+        <span class="cmd-item-hint">kanban</span>
+      </div>
+      <div class="cmd-item">
+        <div class="cmd-item-icon" style="background: rgba(6,147,227,0.1);"><svg viewBox="0 0 24 24" style="stroke: #0693e3;"><polyline points="4,17 10,11 4,5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></div>
+        <span class="cmd-item-text">shell_run_command</span>
+        <span class="cmd-item-hint">shell</span>
+      </div>
+      <div class="cmd-item">
+        <div class="cmd-item-icon" style="background: rgba(62,207,142,0.1);"><svg viewBox="0 0 24 24" style="stroke: #3ecf8e;"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg></div>
+        <span class="cmd-item-text">voice_transcribe</span>
+        <span class="cmd-item-hint">voice</span>
+      </div>
+
+      <div class="cmd-group-label">Navigation</div>
+      <div class="cmd-item">
+        <div class="cmd-item-icon"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+        <span class="cmd-item-text">Open Chat Room</span>
+        <span class="cmd-item-hint">Ctrl+Shift+C</span>
+      </div>
+      <div class="cmd-item">
+        <div class="cmd-item-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/></svg></div>
+        <span class="cmd-item-text">Workflow Editor</span>
+        <span class="cmd-item-hint">Ctrl+W</span>
+      </div>
+    </div>
+    <div class="cmd-footer">
+      <span><kbd>&#8593;</kbd><kbd>&#8595;</kbd> Navigate</span>
+      <span><kbd>&#8629;</kbd> Select</span>
+      <span><kbd>Esc</kbd> Close</span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     JAVASCRIPT
+     ============================================================ -->
+<script>
+(function() {
+  'use strict';
+
+  /* ----------------------------------------------------------
+     HERO AREA CHART — Generate smooth curve with data points
+     ---------------------------------------------------------- */
+  function generateHeroChart() {
+    const svg = document.getElementById('heroChart');
+    const areaPath = document.getElementById('heroArea');
+    const linePath = document.getElementById('heroLine');
+    if (!svg || !areaPath || !linePath) return;
+
+    const W = 600;
+    const H = 200;
+    const points = 30;
+    const data = [];
+
+    // Generate realistic-looking request volume data with upward trend
+    let val = 100;
+    for (let i = 0; i < points; i++) {
+      val += (Math.random() - 0.35) * 30;
+      val = Math.max(30, Math.min(180, val));
+      data.push(val);
+    }
+
+    // Normalize to SVG coordinates
+    const maxVal = Math.max(...data);
+    const minVal = Math.min(...data);
+    const range = maxVal - minVal || 1;
+    const padding = 10;
+
+    const coords = data.map((v, i) => ({
+      x: (i / (points - 1)) * W,
+      y: padding + ((maxVal - v) / range) * (H - padding * 2)
+    }));
+
+    // Build smooth curve using cubic bezier (catmull-rom to bezier)
+    function catmullRomToBezier(pts) {
+      const d = [];
+      d.push(`M${pts[0].x},${pts[0].y}`);
+
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[Math.max(0, i - 1)];
+        const p1 = pts[i];
+        const p2 = pts[Math.min(pts.length - 1, i + 1)];
+        const p3 = pts[Math.min(pts.length - 1, i + 2)];
+
+        const cp1x = p1.x + (p2.x - p0.x) / 6;
+        const cp1y = p1.y + (p2.y - p0.y) / 6;
+        const cp2x = p2.x - (p3.x - p1.x) / 6;
+        const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+        d.push(`C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`);
+      }
+
+      return d.join(' ');
+    }
+
+    const curvePath = catmullRomToBezier(coords);
+
+    // Line
+    linePath.setAttribute('d', curvePath);
+
+    // Area (close path to bottom)
+    const areaD = curvePath + ` L${W},${H} L0,${H} Z`;
+    areaPath.setAttribute('d', areaD);
+
+    // Animate area fill in
+    requestAnimationFrame(() => {
+      areaPath.style.transition = 'opacity 1s ease';
+      areaPath.style.opacity = '1';
+    });
+
+    // Animate line drawing
+    const lineLen = linePath.getTotalLength();
+    linePath.style.strokeDasharray = lineLen;
+    linePath.style.strokeDashoffset = lineLen;
+    linePath.style.transition = 'none';
+
+    requestAnimationFrame(() => {
+      linePath.style.transition = 'stroke-dashoffset 1.5s ease';
+      linePath.style.strokeDashoffset = '0';
+    });
+  }
+
+  /* ----------------------------------------------------------
+     BAR CHART ANIMATION — Animate widths on load
+     ---------------------------------------------------------- */
+  function animateBars() {
+    const bars = document.querySelectorAll('.bar-fill');
+    bars.forEach((bar, i) => {
+      const targetWidth = bar.style.width;
+      bar.style.width = '0%';
+      setTimeout(() => {
+        bar.style.width = targetWidth;
+      }, 100 + i * 80);
+    });
+  }
+
+  /* ----------------------------------------------------------
+     SPARKLINE ANIMATION — Stagger sparkline draw animations
+     ---------------------------------------------------------- */
+  function animateSparklines() {
+    const sparklines = document.querySelectorAll('.sparkline path');
+    sparklines.forEach((path, i) => {
+      const len = path.getTotalLength();
+      path.style.strokeDasharray = len;
+      path.style.strokeDashoffset = len;
+      path.style.transition = 'none';
+
+      setTimeout(() => {
+        path.style.transition = `stroke-dashoffset 1s ease`;
+        path.style.strokeDashoffset = '0';
+      }, 200 + i * 100);
+    });
+  }
+
+  /* ----------------------------------------------------------
+     PROGRESS RING ANIMATION
+     ---------------------------------------------------------- */
+  function animateProgressRings() {
+    const rings = document.querySelectorAll('.progress-ring-item svg circle:nth-child(2)');
+    rings.forEach((ring, i) => {
+      const target = ring.getAttribute('stroke-dasharray');
+      ring.setAttribute('stroke-dasharray', '0 163.4');
+      setTimeout(() => {
+        ring.style.transition = 'stroke-dasharray 1s ease';
+        ring.setAttribute('stroke-dasharray', target);
+      }, 300 + i * 150);
+    });
+  }
+
+  /* ----------------------------------------------------------
+     COMMAND PALETTE
+     ---------------------------------------------------------- */
+  const cmdOverlay = document.getElementById('cmdOverlay');
+  const cmdInput = document.getElementById('cmdInput');
+  const searchTrigger = document.getElementById('searchTrigger');
+  const cmdResults = document.getElementById('cmdResults');
+  let selectedIdx = 0;
+
+  function openPalette() {
+    cmdOverlay.classList.add('open');
+    setTimeout(() => cmdInput.focus(), 50);
+  }
+
+  function closePalette() {
+    cmdOverlay.classList.remove('open');
+    cmdInput.value = '';
+    filterResults('');
+  }
+
+  function getItems() {
+    return cmdResults.querySelectorAll('.cmd-item');
+  }
+
+  function updateSelection(idx) {
+    const items = getItems();
+    items.forEach((item, i) => {
+      item.classList.toggle('selected', i === idx);
+    });
+    selectedIdx = idx;
+  }
+
+  function filterResults(query) {
+    const items = getItems();
+    const q = query.toLowerCase().trim();
+    let visibleCount = 0;
+
+    items.forEach(item => {
+      const text = item.querySelector('.cmd-item-text').textContent.toLowerCase();
+      const hint = item.querySelector('.cmd-item-hint')?.textContent.toLowerCase() || '';
+      const match = !q || text.includes(q) || hint.includes(q);
+      item.style.display = match ? '' : 'none';
+      if (match) visibleCount++;
+    });
+
+    // Also hide group labels if their items are all hidden
+    const groups = cmdResults.querySelectorAll('.cmd-group-label');
+    groups.forEach(group => {
+      let next = group.nextElementSibling;
+      let hasVisible = false;
+      while (next && !next.classList.contains('cmd-group-label')) {
+        if (next.style.display !== 'none') hasVisible = true;
+        next = next.nextElementSibling;
+      }
+      group.style.display = hasVisible ? '' : 'none';
+    });
+
+    // Select first visible
+    const visibleItems = Array.from(getItems()).filter(i => i.style.display !== 'none');
+    if (visibleItems.length > 0) {
+      selectedIdx = Array.from(getItems()).indexOf(visibleItems[0]);
+      updateSelection(selectedIdx);
+    }
+  }
+
+  // Open on click
+  searchTrigger.addEventListener('click', openPalette);
+
+  // Close on overlay click
+  cmdOverlay.addEventListener('click', (e) => {
+    if (e.target === cmdOverlay) closePalette();
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    // Open palette: Ctrl+K or any printable key when not focused on input
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      if (cmdOverlay.classList.contains('open')) {
+        closePalette();
+      } else {
+        openPalette();
+      }
+      return;
+    }
+
+    // If palette is open
+    if (cmdOverlay.classList.contains('open')) {
+      if (e.key === 'Escape') {
+        closePalette();
+        return;
+      }
+
+      const items = Array.from(getItems()).filter(i => i.style.display !== 'none');
+      const currentVisibleIdx = items.indexOf(getItems()[selectedIdx]);
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const nextIdx = Math.min(currentVisibleIdx + 1, items.length - 1);
+        selectedIdx = Array.from(getItems()).indexOf(items[nextIdx]);
+        updateSelection(selectedIdx);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prevIdx = Math.max(currentVisibleIdx - 1, 0);
+        selectedIdx = Array.from(getItems()).indexOf(items[prevIdx]);
+        updateSelection(selectedIdx);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        // Flash selection
+        const selected = getItems()[selectedIdx];
+        if (selected) {
+          selected.style.background = 'rgba(142, 50, 233, 0.1)';
+          setTimeout(() => {
+            selected.style.background = '';
+            closePalette();
+          }, 150);
+        }
+      }
+    }
+  });
+
+  // Filter on input
+  cmdInput.addEventListener('input', (e) => {
+    filterResults(e.target.value);
+  });
+
+  // Hover selection
+  cmdResults.addEventListener('mouseover', (e) => {
+    const item = e.target.closest('.cmd-item');
+    if (item) {
+      const idx = Array.from(getItems()).indexOf(item);
+      if (idx !== -1) updateSelection(idx);
+    }
+  });
+
+  /* ----------------------------------------------------------
+     PILL TAB SWITCHING
+     ---------------------------------------------------------- */
+  document.querySelectorAll('.pill-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.pill-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
+
+  /* ----------------------------------------------------------
+     SIDEBAR ICON SWITCHING
+     ---------------------------------------------------------- */
+  document.querySelectorAll('.sidebar-icon').forEach(icon => {
+    icon.addEventListener('click', () => {
+      document.querySelectorAll('.sidebar-icon').forEach(i => i.classList.remove('active'));
+      icon.classList.add('active');
+    });
+  });
+
+  /* ----------------------------------------------------------
+     COUNTER ANIMATION — Animate stat numbers on load
+     ---------------------------------------------------------- */
+  function animateCounter(el, target, duration) {
+    const start = 0;
+    const startTime = performance.now();
+    const suffix = el.innerHTML.replace(/[\d,.]+/, '');
+    const hasDecimal = target % 1 !== 0;
+
+    function update(now) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // Ease out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = start + (target - start) * eased;
+
+      if (hasDecimal) {
+        el.textContent = current.toFixed(1);
+      } else {
+        el.textContent = Math.round(current).toLocaleString();
+      }
+
+      if (progress < 1) {
+        requestAnimationFrame(update);
+      }
+    }
+
+    requestAnimationFrame(update);
+  }
+
+  /* ----------------------------------------------------------
+     INIT
+     ---------------------------------------------------------- */
+  function init() {
+    generateHeroChart();
+    animateBars();
+    animateSparklines();
+    animateProgressRings();
+
+    // Animate the hero stat counter
+    const heroStat = document.getElementById('heroStat1');
+    if (heroStat) {
+      heroStat.textContent = '0';
+      setTimeout(() => {
+        const startTime = performance.now();
+        function update(now) {
+          const elapsed = now - startTime;
+          const progress = Math.min(elapsed / 1200, 1);
+          const eased = 1 - Math.pow(1 - progress, 3);
+          const val = eased * 2.4;
+          heroStat.textContent = val.toFixed(1) + 'M';
+          if (progress < 1) requestAnimationFrame(update);
+        }
+        requestAnimationFrame(update);
+      }, 300);
+    }
+  }
+
+  // Run on DOMContentLoaded
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>

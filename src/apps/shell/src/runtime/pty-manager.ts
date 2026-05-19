@@ -7,6 +7,7 @@ import {
   getShellNsp,
   SCROLLBACK_LIMIT,
 } from './shell-state.js';
+import { noteCursorReportRequests } from './cursor-report.js';
 
 /** Send SIGHUP, then SIGKILL after 2 s if still alive. */
 export function killPty(p: IPty): void {
@@ -65,12 +66,20 @@ export function spawnGlobalPty(
   };
   const ptyProcess: IPty = pty.spawn(command, args, spawnOpts as Parameters<typeof pty.spawn>[2]);
 
-  const entry: PtyEntry = { ptyProcess, chunks: [], totalLen: 0 };
+  const entry: PtyEntry = {
+    ptyProcess,
+    chunks: [],
+    totalLen: 0,
+    cursorReportRequestCarry: '',
+    pendingCursorReportRequests: 0,
+    lastCursorReportRequestAt: 0,
+  };
   globalPtys.set(id, entry);
 
   let cwdTimer: ReturnType<typeof setTimeout> | null = null;
 
   ptyProcess.onData((data: string) => {
+    noteCursorReportRequests(entry, data);
     entry.chunks.push(data);
     entry.totalLen += data.length;
     if (entry.totalLen > SCROLLBACK_LIMIT * 1.5) {

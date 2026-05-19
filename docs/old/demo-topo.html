@@ -1,0 +1,2126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Topographic Map — Design System for DevGlide</title>
+
+<!-- Fonts: IBM Plex Mono from fontsource CDN -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/ibm-plex-mono@latest/latin-300-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/ibm-plex-mono@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/ibm-plex-mono@latest/latin-500-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/ibm-plex-mono@latest/latin-600-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/ibm-plex-mono@latest/latin-700-normal.css">
+
+<style>
+/* ============================================================
+   CSS CUSTOM PROPERTIES — Topographic Terrain Palette
+   ============================================================ */
+:root {
+  /* Elevation layers (lowest to highest) */
+  --elev-abyss:    #0a1210;
+  --elev-deep:     #0f1a14;
+  --elev-low:      #152119;
+  --elev-mid:      #1e3024;
+  --elev-high:     #2d4a32;
+  --elev-ridge:    #4a6b3a;
+  --elev-peak:     #6b8c42;
+  --elev-summit:   #8ba84e;
+  --elev-snow:     #c4b991;
+  --elev-cream:    #ddd5b8;
+
+  /* Terrain functional colors */
+  --terrain-forest:   #2d5a2e;
+  --terrain-olive:    #5c6b3a;
+  --terrain-sand:     #b8a878;
+  --terrain-brown:    #7a5c3a;
+  --terrain-warm:     #a07848;
+
+  /* Contour line colors */
+  --contour-faint:    rgba(75, 120, 60, 0.12);
+  --contour-subtle:   rgba(75, 120, 60, 0.22);
+  --contour-visible:  rgba(90, 140, 70, 0.35);
+  --contour-strong:   rgba(107, 140, 66, 0.50);
+  --contour-accent:   rgba(139, 168, 78, 0.65);
+
+  /* Text on terrain */
+  --text-primary:     #d4cfb8;
+  --text-secondary:   #9a9578;
+  --text-tertiary:    #6b6750;
+  --text-label:       #8ba84e;
+  --text-coord:       #6b8c42;
+  --text-inverse:     #0f1a14;
+
+  /* Functional / alert colors (heat map) */
+  --heat-cool:     #3a7a6b;
+  --heat-warm:     #8ba84e;
+  --heat-hot:      #c4883a;
+  --heat-danger:   #c44a3a;
+  --heat-critical: #e04030;
+
+  --success:  #4a8b4a;
+  --warning:  #c4883a;
+  --error:    #c44a3a;
+  --info:     #3a7a8b;
+
+  /* Borders — contour-style */
+  --border-contour:    1px dashed rgba(107, 140, 66, 0.25);
+  --border-contour-md: 1px dashed rgba(107, 140, 66, 0.35);
+  --border-contour-lg: 2px dashed rgba(107, 140, 66, 0.45);
+  --border-dotted:     1px dotted rgba(107, 140, 66, 0.20);
+  --border-solid-sub:  1px solid rgba(107, 140, 66, 0.10);
+
+  /* Shadows (terrain depth) */
+  --shadow-sm:  0 1px 4px rgba(0, 0, 0, 0.40);
+  --shadow-md:  0 4px 16px rgba(0, 0, 0, 0.45);
+  --shadow-lg:  0 8px 32px rgba(0, 0, 0, 0.50);
+  --shadow-inner: inset 0 1px 4px rgba(0, 0, 0, 0.30);
+
+  /* Radii */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-base: 250ms ease;
+  --transition-slow: 500ms ease;
+
+  /* Typography */
+  --font-mono: 'IBM Plex Mono', 'Cascadia Code', 'Fira Code', monospace;
+
+  /* Grid lines */
+  --grid-color: rgba(107, 140, 66, 0.06);
+  --grid-color-strong: rgba(107, 140, 66, 0.10);
+}
+
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-mono);
+  background: var(--elev-deep);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* ============================================================
+   BACKGROUND — Lat/Long grid overlay
+   ============================================================ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    /* Major grid lines */
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 199px,
+      var(--grid-color-strong) 199px,
+      var(--grid-color-strong) 200px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 199px,
+      var(--grid-color-strong) 199px,
+      var(--grid-color-strong) 200px
+    ),
+    /* Minor grid lines */
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 39px,
+      var(--grid-color) 39px,
+      var(--grid-color) 40px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 39px,
+      var(--grid-color) 39px,
+      var(--grid-color) 40px
+    );
+}
+
+/* ============================================================
+   ANIMATED SVG CONTOUR BACKGROUND
+   ============================================================ */
+.contour-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.contour-bg svg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+/* Animate contour groups */
+@keyframes contourShift1 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
+  25%  { transform: translate(8px, -5px) scale(1.01); opacity: 0.75; }
+  50%  { transform: translate(-4px, 8px) scale(0.99); opacity: 0.55; }
+  75%  { transform: translate(5px, 3px) scale(1.005); opacity: 0.7; }
+}
+
+@keyframes contourShift2 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.45; }
+  33%  { transform: translate(-10px, 6px) scale(1.015); opacity: 0.55; }
+  66%  { transform: translate(7px, -8px) scale(0.985); opacity: 0.4; }
+}
+
+@keyframes contourShift3 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0.35; }
+  50%  { transform: translate(5px, -5px) rotate(0.5deg); opacity: 0.5; }
+}
+
+@keyframes contourPulse {
+  0%, 100% { stroke-width: 0.8; }
+  50%  { stroke-width: 1.3; }
+}
+
+.contour-group-1 { animation: contourShift1 25s ease-in-out infinite; }
+.contour-group-2 { animation: contourShift2 32s ease-in-out infinite; }
+.contour-group-3 { animation: contourShift3 20s ease-in-out infinite; }
+
+.contour-bg path {
+  animation: contourPulse 8s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * 0.7s);
+}
+
+/* ============================================================
+   MAIN CONTENT WRAPPER
+   ============================================================ */
+.content-wrapper {
+  position: relative;
+  z-index: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+.topo-header {
+  padding: 3rem 0 2rem;
+  border-bottom: var(--border-contour-lg);
+  margin-bottom: 3rem;
+  position: relative;
+}
+
+.topo-header::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  border-bottom: var(--border-contour);
+}
+
+.header-coords {
+  font-size: 0.7rem;
+  color: var(--text-coord);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.header-title {
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--elev-cream);
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
+}
+
+.header-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+
+.header-elevation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 1rem;
+  padding: 0.3rem 0.8rem;
+  background: var(--elev-mid);
+  border: var(--border-contour);
+  border-radius: var(--radius-full);
+  font-size: 0.7rem;
+  color: var(--text-label);
+  letter-spacing: 0.1em;
+}
+
+/* ============================================================
+   SECTION HEADINGS — Coordinate-style
+   ============================================================ */
+.section {
+  margin-bottom: 4rem;
+}
+
+.section-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding-bottom: 0.75rem;
+  border-bottom: var(--border-contour-md);
+  position: relative;
+}
+
+.section-heading::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 60%;
+  border-bottom: var(--border-dotted);
+}
+
+.section-coord {
+  font-size: 0.65rem;
+  color: var(--text-coord);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--elev-cream);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.section-elev {
+  font-size: 0.6rem;
+  color: var(--terrain-olive);
+  margin-left: auto;
+  letter-spacing: 0.1em;
+}
+
+/* ============================================================
+   COLOR PALETTE — Elevation strips
+   ============================================================ */
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
+}
+
+.palette-swatch {
+  position: relative;
+  border: var(--border-contour);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--elev-low);
+  transition: transform var(--transition-fast);
+}
+
+.palette-swatch:hover {
+  transform: translateY(-2px);
+}
+
+.swatch-color {
+  height: 64px;
+  position: relative;
+}
+
+/* Contour lines inside swatches */
+.swatch-color::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    transparent,
+    transparent 6px,
+    rgba(255,255,255,0.04) 6px,
+    rgba(255,255,255,0.04) 7px
+  );
+}
+
+.swatch-info {
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.swatch-name {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: 0.06em;
+}
+
+.swatch-value {
+  font-size: 0.6rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.08em;
+}
+
+.swatch-elev {
+  font-size: 0.55rem;
+  color: var(--text-coord);
+  letter-spacing: 0.1em;
+  margin-top: 0.15rem;
+}
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+.type-specimen {
+  background: var(--elev-low);
+  border: var(--border-contour);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.type-specimen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, var(--elev-peak), var(--terrain-olive), var(--elev-mid));
+}
+
+.type-row {
+  padding: 1rem 0 1rem 1.5rem;
+  border-bottom: var(--border-dotted);
+  display: flex;
+  align-items: baseline;
+  gap: 2rem;
+}
+
+.type-row:last-child {
+  border-bottom: none;
+}
+
+.type-meta {
+  min-width: 140px;
+  flex-shrink: 0;
+}
+
+.type-meta-label {
+  font-size: 0.6rem;
+  color: var(--text-coord);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.type-meta-size {
+  font-size: 0.55rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.08em;
+}
+
+.type-sample-h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--elev-cream);
+  letter-spacing: 0.04em;
+}
+
+.type-sample-h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--elev-snow);
+  letter-spacing: 0.05em;
+}
+
+.type-sample-h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.06em;
+}
+
+.type-sample-body {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--text-primary);
+  line-height: 1.7;
+}
+
+.type-sample-caption {
+  font-size: 0.7rem;
+  font-weight: 300;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+}
+
+.type-sample-code {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-label);
+  background: var(--elev-abyss);
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: var(--border-solid-sub);
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.component-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.component-row-label {
+  width: 100%;
+  font-size: 0.6rem;
+  color: var(--text-coord);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.2rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  border: none;
+  position: relative;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: var(--elev-ridge);
+  color: var(--elev-cream);
+  border: 1px dashed rgba(139, 168, 78, 0.5);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover {
+  background: var(--elev-peak);
+  box-shadow: var(--shadow-md), 0 0 20px rgba(107, 140, 66, 0.15);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--elev-mid);
+  color: var(--text-primary);
+  border: var(--border-contour-md);
+}
+
+.btn-secondary:hover {
+  background: var(--elev-high);
+  border-color: rgba(107, 140, 66, 0.5);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-label);
+  border: var(--border-contour);
+}
+
+.btn-ghost:hover {
+  background: rgba(107, 140, 66, 0.08);
+  border-color: rgba(107, 140, 66, 0.4);
+}
+
+.btn-danger {
+  background: rgba(196, 74, 58, 0.15);
+  color: #e06050;
+  border: 1px dashed rgba(196, 74, 58, 0.4);
+}
+
+.btn-danger:hover {
+  background: rgba(196, 74, 58, 0.25);
+  border-color: rgba(196, 74, 58, 0.6);
+}
+
+.btn-sm {
+  padding: 0.35rem 0.8rem;
+  font-size: 0.65rem;
+}
+
+.btn-lg {
+  padding: 0.75rem 1.8rem;
+  font-size: 0.85rem;
+}
+
+/* ============================================================
+   INPUTS
+   ============================================================ */
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 240px;
+}
+
+.input-label {
+  font-size: 0.6rem;
+  color: var(--text-coord);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.input {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--elev-abyss);
+  border: var(--border-contour-md);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  outline: none;
+  transition: all var(--transition-fast);
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.input:focus {
+  border-color: rgba(107, 140, 66, 0.6);
+  box-shadow: 0 0 0 3px rgba(107, 140, 66, 0.1), var(--shadow-inner);
+}
+
+.input-hint {
+  font-size: 0.55rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.08em;
+}
+
+textarea.input {
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.6;
+}
+
+select.input {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b8c42' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.8rem center;
+  padding-right: 2.4rem;
+}
+
+/* ============================================================
+   BADGES — Elevation indicators
+   ============================================================ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.65rem;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  border-radius: var(--radius-full);
+  border: 1px dashed transparent;
+}
+
+.badge-elev {
+  background: rgba(107, 140, 66, 0.12);
+  color: var(--text-label);
+  border-color: rgba(107, 140, 66, 0.25);
+}
+
+.badge-summit {
+  background: rgba(196, 185, 145, 0.12);
+  color: var(--elev-cream);
+  border-color: rgba(196, 185, 145, 0.3);
+}
+
+.badge-heat {
+  background: rgba(196, 136, 58, 0.12);
+  color: var(--heat-hot);
+  border-color: rgba(196, 136, 58, 0.3);
+}
+
+.badge-danger {
+  background: rgba(196, 74, 58, 0.12);
+  color: var(--heat-danger);
+  border-color: rgba(196, 74, 58, 0.3);
+}
+
+.badge-cool {
+  background: rgba(58, 122, 107, 0.12);
+  color: var(--heat-cool);
+  border-color: rgba(58, 122, 107, 0.3);
+}
+
+.badge-depth {
+  background: rgba(30, 48, 36, 0.5);
+  color: var(--text-secondary);
+  border-color: rgba(107, 140, 66, 0.15);
+}
+
+/* ============================================================
+   TOASTS
+   ============================================================ */
+.toast-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1.1rem;
+  border-radius: var(--radius-md);
+  background: var(--elev-low);
+  border: var(--border-contour);
+  position: relative;
+  overflow: hidden;
+  max-width: 440px;
+}
+
+.toast::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+}
+
+.toast-success::before { background: var(--success); }
+.toast-warning::before { background: var(--warning); }
+.toast-error::before { background: var(--error); }
+.toast-info::before { background: var(--info); }
+
+.toast-icon {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.toast-content {
+  flex: 1;
+}
+
+.toast-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.06em;
+  margin-bottom: 0.15rem;
+}
+
+.toast-message {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+}
+
+.toast-coord {
+  font-size: 0.55rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.08em;
+  margin-top: 0.3rem;
+}
+
+/* ============================================================
+   CARDS — Map legend entries
+   ============================================================ */
+.card {
+  background: var(--elev-low);
+  border: var(--border-contour);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  transition: all var(--transition-base);
+  position: relative;
+}
+
+.card:hover {
+  border-color: rgba(107, 140, 66, 0.4);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.card-elevation-strip {
+  width: 6px;
+  flex-shrink: 0;
+}
+
+.card-body {
+  flex: 1;
+  padding: 1rem 1.2rem;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.card-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--elev-cream);
+  letter-spacing: 0.04em;
+}
+
+.card-coord {
+  font-size: 0.55rem;
+  color: var(--text-coord);
+  letter-spacing: 0.1em;
+}
+
+.card-description {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 0.75rem;
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: var(--border-dotted);
+}
+
+/* ============================================================
+   DASHBOARD MOCKUP
+   ============================================================ */
+.dashboard {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 0;
+  min-height: 600px;
+  background: var(--elev-abyss);
+  border: var(--border-contour-lg);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+/* Top bar spans full width */
+.dash-topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1.5rem;
+  background: var(--elev-low);
+  border-bottom: var(--border-contour-md);
+  position: relative;
+}
+
+.dash-topbar::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  right: 0;
+  border-bottom: var(--border-dotted);
+}
+
+.dash-topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.dash-topbar-logo {
+  width: 28px;
+  height: 28px;
+}
+
+.dash-topbar-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--elev-cream);
+  letter-spacing: 0.06em;
+}
+
+.dash-topbar-version {
+  font-size: 0.55rem;
+  color: var(--text-coord);
+  letter-spacing: 0.1em;
+  margin-left: -0.2rem;
+}
+
+.dash-topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.dash-topbar-coord {
+  font-size: 0.6rem;
+  color: var(--text-coord);
+  letter-spacing: 0.1em;
+}
+
+.dash-topbar-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.6rem;
+  color: var(--text-label);
+}
+
+.indicator-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px rgba(74, 139, 74, 0.5);
+  animation: dotPulse 2s ease-in-out infinite;
+}
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Sidebar — Map Legend */
+.dash-sidebar {
+  background: var(--elev-deep);
+  border-right: var(--border-contour-md);
+  padding: 1.2rem 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+}
+
+.dash-sidebar::after {
+  content: '';
+  position: absolute;
+  right: -4px;
+  top: 0;
+  bottom: 0;
+  border-right: var(--border-dotted);
+}
+
+.sidebar-section-label {
+  font-size: 0.5rem;
+  color: var(--text-coord);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 0.75rem 1.2rem 0.35rem;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 1.2rem;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-left: 3px solid transparent;
+  text-decoration: none;
+}
+
+.sidebar-item:hover {
+  color: var(--text-primary);
+  background: rgba(107, 140, 66, 0.06);
+  border-left-color: rgba(107, 140, 66, 0.3);
+}
+
+.sidebar-item.active {
+  color: var(--text-label);
+  background: rgba(107, 140, 66, 0.1);
+  border-left-color: var(--elev-peak);
+}
+
+.sidebar-icon {
+  font-size: 0.85rem;
+  width: 1.4rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.sidebar-item-label {
+  flex: 1;
+}
+
+.sidebar-item-elev {
+  font-size: 0.5rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.08em;
+}
+
+.sidebar-legend {
+  margin-top: auto;
+  padding: 1rem 1.2rem;
+  border-top: var(--border-contour);
+}
+
+.sidebar-legend-title {
+  font-size: 0.5rem;
+  color: var(--text-coord);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 0.6rem;
+}
+
+.legend-scale {
+  display: flex;
+  height: 8px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: 0.3rem;
+}
+
+.legend-scale-seg {
+  flex: 1;
+}
+
+.legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.45rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+}
+
+/* Main content — Kanban as elevation zones */
+.dash-main {
+  background: var(--elev-abyss);
+  padding: 1.5rem;
+  overflow-x: auto;
+  position: relative;
+}
+
+.dash-main-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.dash-main-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--elev-cream);
+  letter-spacing: 0.06em;
+}
+
+.dash-main-breadcrumb {
+  font-size: 0.55rem;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+}
+
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  min-height: 420px;
+}
+
+.kanban-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: var(--elev-deep);
+  border: var(--border-contour);
+  border-radius: var(--radius-lg);
+  padding: 0.8rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Contour-like decoration inside columns */
+.kanban-col::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.06;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 18px,
+    rgba(107, 140, 66, 0.5) 18px,
+    rgba(107, 140, 66, 0.5) 19px
+  );
+}
+
+.kanban-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.5rem;
+  border-bottom: var(--border-contour);
+  margin-bottom: 0.3rem;
+  position: relative;
+  z-index: 1;
+}
+
+.kanban-col-name {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.kanban-col-elev {
+  font-size: 0.5rem;
+  color: var(--text-coord);
+  letter-spacing: 0.1em;
+}
+
+.kanban-col-count {
+  font-size: 0.55rem;
+  color: var(--text-tertiary);
+  background: var(--elev-mid);
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-full);
+  border: var(--border-solid-sub);
+}
+
+.kanban-card {
+  background: var(--elev-low);
+  border: var(--border-contour);
+  border-radius: var(--radius-md);
+  padding: 0.7rem 0.8rem;
+  position: relative;
+  z-index: 1;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.kanban-card:hover {
+  background: var(--elev-mid);
+  border-color: rgba(107, 140, 66, 0.4);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.kanban-card-title {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: 0.03em;
+  margin-bottom: 0.35rem;
+}
+
+.kanban-card-desc {
+  font-size: 0.6rem;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+  margin-bottom: 0.5rem;
+}
+
+.kanban-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.kanban-card-tag {
+  font-size: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.06em;
+}
+
+.tag-terrain { background: rgba(107, 140, 66, 0.15); color: var(--text-label); }
+.tag-sand   { background: rgba(184, 168, 120, 0.15); color: var(--terrain-sand); }
+.tag-brown  { background: rgba(160, 120, 72, 0.15); color: var(--terrain-warm); }
+.tag-cool   { background: rgba(58, 122, 139, 0.15); color: var(--heat-cool); }
+.tag-heat   { background: rgba(196, 136, 58, 0.15); color: var(--heat-hot); }
+
+.kanban-card-priority {
+  font-size: 0.5rem;
+  margin-left: auto;
+  letter-spacing: 0.08em;
+}
+
+.priority-high   { color: var(--heat-hot); }
+.priority-medium { color: var(--terrain-sand); }
+.priority-low    { color: var(--text-tertiary); }
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+.flex-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+.flex-col { display: flex; flex-direction: column; gap: 0.75rem; }
+.gap-2 { gap: 2rem; }
+.mt-1 { margin-top: 1rem; }
+.mt-2 { margin-top: 2rem; }
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 900px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
+  .dash-sidebar {
+    display: none;
+  }
+  .kanban {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .palette-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .content-wrapper {
+    padding: 1rem;
+  }
+  .kanban {
+    grid-template-columns: 1fr;
+  }
+  .header-title {
+    font-size: 1.6rem;
+  }
+}
+
+/* ============================================================
+   SCROLL BAR STYLING
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--elev-abyss);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--elev-mid);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--elev-high);
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     ANIMATED SVG CONTOUR BACKGROUND
+     ============================================================ -->
+<div class="contour-bg" aria-hidden="true">
+  <svg viewBox="0 0 1400 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+    <!-- Contour Group 1 — Large outer rings -->
+    <g class="contour-group-1" fill="none">
+      <path style="--i:0" stroke="rgba(45,90,46,0.18)" stroke-width="1"
+        d="M700,450 C750,300 900,280 1000,350 C1100,420 1120,550 1050,650 C980,750 830,770 720,710 C610,650 620,520 700,450Z"/>
+      <path style="--i:1" stroke="rgba(45,90,46,0.14)" stroke-width="0.8"
+        d="M700,430 C760,290 920,260 1030,340 C1140,420 1160,570 1080,680 C1000,790 840,810 720,740 C600,670 600,510 700,430Z"/>
+      <path style="--i:2" stroke="rgba(45,90,46,0.10)" stroke-width="0.8"
+        d="M700,410 C770,270 940,240 1060,330 C1180,420 1200,590 1110,710 C1020,830 850,850 720,770 C590,690 580,490 700,410Z"/>
+      <path style="--i:3" stroke="rgba(45,90,46,0.08)" stroke-width="0.6"
+        d="M700,390 C780,240 960,210 1090,310 C1220,410 1240,610 1140,740 C1040,870 860,890 720,800 C580,710 560,470 700,390Z"/>
+      <!-- Inner rings -->
+      <path style="--i:4" stroke="rgba(92,107,58,0.22)" stroke-width="1"
+        d="M710,460 C740,370 830,350 900,390 C970,430 980,510 940,570 C900,630 810,640 740,600 C670,560 670,500 710,460Z"/>
+      <path style="--i:5" stroke="rgba(92,107,58,0.18)" stroke-width="0.8"
+        d="M720,470 C740,400 810,385 860,410 C910,435 915,490 890,530 C865,570 800,580 755,555 C710,530 700,490 720,470Z"/>
+    </g>
+
+    <!-- Contour Group 2 — Secondary formation -->
+    <g class="contour-group-2" fill="none">
+      <path style="--i:0" stroke="rgba(75,120,60,0.15)" stroke-width="1"
+        d="M250,350 C290,220 420,190 520,260 C620,330 640,460 580,560 C520,660 390,680 290,610 C190,540 190,430 250,350Z"/>
+      <path style="--i:1" stroke="rgba(75,120,60,0.12)" stroke-width="0.8"
+        d="M260,330 C300,200 440,170 550,240 C660,310 680,460 610,570 C540,680 400,700 290,620 C180,540 180,420 260,330Z"/>
+      <path style="--i:2" stroke="rgba(75,120,60,0.09)" stroke-width="0.6"
+        d="M270,310 C310,170 460,140 580,220 C700,300 720,470 640,590 C560,710 410,730 290,640 C170,550 170,400 270,310Z"/>
+      <!-- Inner peak -->
+      <path style="--i:3" stroke="rgba(107,140,66,0.25)" stroke-width="1.2"
+        d="M280,380 C310,300 390,280 440,320 C490,360 500,430 470,480 C440,530 370,540 320,500 C270,460 260,410 280,380Z"/>
+      <path style="--i:4" stroke="rgba(107,140,66,0.20)" stroke-width="0.8"
+        d="M300,400 C320,350 370,340 400,360 C430,380 435,420 415,450 C395,480 355,485 330,465 C305,445 290,425 300,400Z"/>
+    </g>
+
+    <!-- Contour Group 3 — Small isolated hill -->
+    <g class="contour-group-3" fill="none">
+      <path style="--i:0" stroke="rgba(139,168,78,0.12)" stroke-width="0.8"
+        d="M1100,200 C1120,140 1180,120 1230,155 C1280,190 1290,250 1260,300 C1230,350 1170,360 1120,325 C1070,290 1060,240 1100,200Z"/>
+      <path style="--i:1" stroke="rgba(139,168,78,0.18)" stroke-width="1"
+        d="M1120,220 C1135,175 1175,160 1210,180 C1245,200 1250,240 1230,270 C1210,300 1175,305 1145,285 C1115,265 1105,240 1120,220Z"/>
+      <path style="--i:2" stroke="rgba(139,168,78,0.25)" stroke-width="1"
+        d="M1145,240 C1155,215 1180,205 1200,218 C1220,231 1222,255 1210,272 C1198,289 1175,292 1158,278 C1141,264 1135,250 1145,240Z"/>
+    </g>
+
+    <!-- Contour Group — Bottom-left depression -->
+    <g class="contour-group-2" fill="none" style="transform-origin: 200px 750px;">
+      <path style="--i:5" stroke="rgba(45,74,50,0.15)" stroke-width="0.8" stroke-dasharray="4,4"
+        d="M150,700 C170,640 250,620 310,660 C370,700 380,770 340,820 C300,870 220,880 170,840 C120,800 120,740 150,700Z"/>
+      <path style="--i:6" stroke="rgba(45,74,50,0.12)" stroke-width="0.6" stroke-dasharray="4,4"
+        d="M170,710 C185,665 245,650 290,680 C335,710 340,760 310,800 C280,840 220,845 185,815 C150,785 150,740 170,710Z"/>
+    </g>
+
+    <!-- Decorative index contours (thicker, labeled lines) -->
+    <g fill="none">
+      <path stroke="rgba(107,140,66,0.06)" stroke-width="1.5"
+        d="M0,200 C200,180 400,250 600,200 C800,150 1000,220 1200,190 C1300,180 1400,210 1400,210"/>
+      <path stroke="rgba(107,140,66,0.04)" stroke-width="1.5"
+        d="M0,500 C150,520 350,470 550,510 C750,550 950,480 1150,520 C1300,540 1400,510 1400,510"/>
+      <path stroke="rgba(107,140,66,0.05)" stroke-width="1.5"
+        d="M0,750 C250,730 450,780 650,740 C850,700 1050,760 1250,730 C1350,720 1400,740 1400,740"/>
+    </g>
+  </svg>
+</div>
+
+<!-- ============================================================
+     MAIN CONTENT
+     ============================================================ -->
+<div class="content-wrapper">
+
+  <!-- HEADER -->
+  <header class="topo-header">
+    <div class="header-coords">N 48&deg;12'36" &middot; E 11&deg;34'48" &middot; DATUM WGS84</div>
+    <h1 class="header-title">Topographic Map</h1>
+    <p class="header-subtitle">Design System for DevGlide &mdash; Terrain-mapped interface language</p>
+    <span class="header-elevation-badge">&#9650; 2847m &middot; SUMMIT SURVEY REV 1.0</span>
+  </header>
+
+  <!-- ================================
+       COLOR PALETTE
+       ================================ -->
+  <section class="section">
+    <div class="section-heading">
+      <span class="section-coord">N 48&deg;13' E 11&deg;35'</span>
+      <h2 class="section-title">Elevation Palette</h2>
+      <span class="section-elev">&#9650; 0m &ndash; 2847m</span>
+    </div>
+
+    <div class="palette-grid">
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #0a1210;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Abyss</span>
+          <span class="swatch-value">#0a1210</span>
+          <span class="swatch-elev">&#9660; -50m &middot; ocean floor</span>
+        </div>
+      </div>
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #0f1a14;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Deep Basin</span>
+          <span class="swatch-value">#0f1a14</span>
+          <span class="swatch-elev">&#9650; 0m &middot; base surface</span>
+        </div>
+      </div>
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #152119;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Lowland</span>
+          <span class="swatch-value">#152119</span>
+          <span class="swatch-elev">&#9650; 200m &middot; card surface</span>
+        </div>
+      </div>
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #1e3024;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Valley Floor</span>
+          <span class="swatch-value">#1e3024</span>
+          <span class="swatch-elev">&#9650; 400m &middot; hover state</span>
+        </div>
+      </div>
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #2d4a32;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Highland</span>
+          <span class="swatch-value">#2d4a32</span>
+          <span class="swatch-elev">&#9650; 800m &middot; selected</span>
+        </div>
+      </div>
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #4a6b3a;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Ridge</span>
+          <span class="swatch-value">#4a6b3a</span>
+          <span class="swatch-elev">&#9650; 1200m &middot; primary</span>
+        </div>
+      </div>
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #6b8c42;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Peak</span>
+          <span class="swatch-value">#6b8c42</span>
+          <span class="swatch-elev">&#9650; 1800m &middot; accent</span>
+        </div>
+      </div>
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #8ba84e;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Summit</span>
+          <span class="swatch-value">#8ba84e</span>
+          <span class="swatch-elev">&#9650; 2200m &middot; emphasis</span>
+        </div>
+      </div>
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #c4b991;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Snowline</span>
+          <span class="swatch-value">#c4b991</span>
+          <span class="swatch-elev">&#9650; 2600m &middot; headings</span>
+        </div>
+      </div>
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #ddd5b8;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Cream Cap</span>
+          <span class="swatch-value">#ddd5b8</span>
+          <span class="swatch-elev">&#9650; 2847m &middot; titles</span>
+        </div>
+      </div>
+
+      <!-- Functional colors -->
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #c4883a;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Heat Spot</span>
+          <span class="swatch-value">#c4883a</span>
+          <span class="swatch-elev">&#x1f321; warning zone</span>
+        </div>
+      </div>
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #c44a3a;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Lava</span>
+          <span class="swatch-value">#c44a3a</span>
+          <span class="swatch-elev">&#x1f321; danger zone</span>
+        </div>
+      </div>
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #3a7a6b;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Glacial</span>
+          <span class="swatch-value">#3a7a6b</span>
+          <span class="swatch-elev">&#x2744; info / cool</span>
+        </div>
+      </div>
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #5c6b3a;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Olive</span>
+          <span class="swatch-value">#5c6b3a</span>
+          <span class="swatch-elev">&#x1f33f; terrain mid</span>
+        </div>
+      </div>
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #b8a878;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Sand</span>
+          <span class="swatch-value">#b8a878</span>
+          <span class="swatch-elev">&#x1f3dc; secondary text</span>
+        </div>
+      </div>
+      <div class="palette-swatch">
+        <div class="swatch-color" style="background: #7a5c3a;"></div>
+        <div class="swatch-info">
+          <span class="swatch-name">Brown Earth</span>
+          <span class="swatch-value">#7a5c3a</span>
+          <span class="swatch-elev">&#x26f0; terrain accent</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================
+       TYPOGRAPHY
+       ================================ -->
+  <section class="section">
+    <div class="section-heading">
+      <span class="section-coord">N 48&deg;14' E 11&deg;36'</span>
+      <h2 class="section-title">Typography Specimens</h2>
+      <span class="section-elev">IBM PLEX MONO</span>
+    </div>
+
+    <div class="type-specimen">
+      <div class="type-row">
+        <div class="type-meta">
+          <div class="type-meta-label">DISPLAY / H1</div>
+          <div class="type-meta-size">2rem &middot; 700</div>
+        </div>
+        <span class="type-sample-h1">Summit Control Point</span>
+      </div>
+      <div class="type-row">
+        <div class="type-meta">
+          <div class="type-meta-label">HEADING / H2</div>
+          <div class="type-meta-size">1.5rem &middot; 600</div>
+        </div>
+        <span class="type-sample-h2">Ridge Survey Station</span>
+      </div>
+      <div class="type-row">
+        <div class="type-meta">
+          <div class="type-meta-label">SUBHEADING / H3</div>
+          <div class="type-meta-size">1.1rem &middot; 600</div>
+        </div>
+        <span class="type-sample-h3">Contour Interval: 20m</span>
+      </div>
+      <div class="type-row">
+        <div class="type-meta">
+          <div class="type-meta-label">BODY</div>
+          <div class="type-meta-size">0.85rem &middot; 400</div>
+        </div>
+        <span class="type-sample-body">Terrain features are rendered at scale with index contour lines every 100m. Supplementary contours appear at half intervals in areas of gentle slope. Depression contours are indicated with tick marks pointing downslope.</span>
+      </div>
+      <div class="type-row">
+        <div class="type-meta">
+          <div class="type-meta-label">CAPTION</div>
+          <div class="type-meta-size">0.7rem &middot; 300</div>
+        </div>
+        <span class="type-sample-caption">Map projection: UTM Zone 32N &middot; Spheroid: WGS84 &middot; Grid: MGRS</span>
+      </div>
+      <div class="type-row">
+        <div class="type-meta">
+          <div class="type-meta-label">CODE / INLINE</div>
+          <div class="type-meta-size">0.8rem &middot; 400</div>
+        </div>
+        <span class="type-sample-code">devglide mcp kanban --port 7000</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================
+       BUTTONS
+       ================================ -->
+  <section class="section">
+    <div class="section-heading">
+      <span class="section-coord">N 48&deg;15' E 11&deg;37'</span>
+      <h2 class="section-title">Controls & Actions</h2>
+      <span class="section-elev">INTERACTIVE LAYER</span>
+    </div>
+
+    <div class="component-row-label">BUTTONS</div>
+    <div class="component-row">
+      <button class="btn btn-primary">&#9650; Survey Point</button>
+      <button class="btn btn-secondary">Mark Waypoint</button>
+      <button class="btn btn-ghost">View Contours</button>
+      <button class="btn btn-danger">&#9888; Landslide Zone</button>
+    </div>
+
+    <div class="component-row-label">SIZE VARIANTS</div>
+    <div class="component-row">
+      <button class="btn btn-primary btn-sm">SM &middot; Plot</button>
+      <button class="btn btn-primary">MD &middot; Survey</button>
+      <button class="btn btn-primary btn-lg">LG &middot; Expedition</button>
+    </div>
+
+    <div class="component-row-label mt-2">INPUTS</div>
+    <div class="flex-row gap-2 mt-1">
+      <div class="input-group">
+        <label class="input-label">LATITUDE</label>
+        <input class="input" type="text" placeholder="N 48&deg;12'36.0&quot;" />
+        <span class="input-hint">decimal degrees or DMS format</span>
+      </div>
+      <div class="input-group">
+        <label class="input-label">LONGITUDE</label>
+        <input class="input" type="text" placeholder="E 11&deg;34'48.0&quot;" />
+        <span class="input-hint">decimal degrees or DMS format</span>
+      </div>
+      <div class="input-group">
+        <label class="input-label">ELEVATION ZONE</label>
+        <select class="input">
+          <option>Abyss (-50m)</option>
+          <option>Lowland (200m)</option>
+          <option selected>Highland (800m)</option>
+          <option>Ridge (1200m)</option>
+          <option>Summit (2200m)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="input-group mt-2" style="max-width: 520px;">
+      <label class="input-label">FIELD NOTES</label>
+      <textarea class="input" placeholder="Describe terrain features observed at this survey point..."></textarea>
+    </div>
+  </section>
+
+  <!-- ================================
+       BADGES
+       ================================ -->
+  <section class="section">
+    <div class="section-heading">
+      <span class="section-coord">N 48&deg;16' E 11&deg;38'</span>
+      <h2 class="section-title">Elevation Badges</h2>
+      <span class="section-elev">STATUS MARKERS</span>
+    </div>
+
+    <div class="component-row">
+      <span class="badge badge-elev">&#9650; 1200m RIDGE</span>
+      <span class="badge badge-summit">&#9650; 2847m SUMMIT</span>
+      <span class="badge badge-heat">&#9888; HEAT SPOT</span>
+      <span class="badge badge-danger">&#9888; LANDSLIDE</span>
+      <span class="badge badge-cool">&#10052; GLACIAL</span>
+      <span class="badge badge-depth">&#9660; -50m DEPRESSION</span>
+    </div>
+
+    <div class="component-row mt-1">
+      <span class="badge badge-elev">TASK</span>
+      <span class="badge badge-summit">IN PROGRESS</span>
+      <span class="badge badge-cool">IN REVIEW</span>
+      <span class="badge badge-heat">URGENT</span>
+      <span class="badge badge-danger">BUG</span>
+      <span class="badge badge-depth">BACKLOG</span>
+    </div>
+  </section>
+
+  <!-- ================================
+       TOASTS
+       ================================ -->
+  <section class="section">
+    <div class="section-heading">
+      <span class="section-coord">N 48&deg;17' E 11&deg;39'</span>
+      <h2 class="section-title">Survey Notifications</h2>
+      <span class="section-elev">ALERT LAYER</span>
+    </div>
+
+    <div class="toast-stack">
+      <div class="toast toast-success">
+        <span class="toast-icon">&#9650;</span>
+        <div class="toast-content">
+          <div class="toast-title">Survey Point Recorded</div>
+          <div class="toast-message">Triangulation station Alpha established at summit ridge.</div>
+          <div class="toast-coord">N 48&deg;12'36" E 11&deg;34'48" &middot; &#9650; 2847m</div>
+        </div>
+      </div>
+      <div class="toast toast-warning">
+        <span class="toast-icon">&#9888;</span>
+        <div class="toast-content">
+          <div class="toast-title">Terrain Instability Detected</div>
+          <div class="toast-message">Slope gradient exceeds 45&deg; in sector 7. Proceed with caution.</div>
+          <div class="toast-coord">N 48&deg;11'20" E 11&deg;33'15" &middot; &#9650; 1840m</div>
+        </div>
+      </div>
+      <div class="toast toast-error">
+        <span class="toast-icon">&#9760;</span>
+        <div class="toast-content">
+          <div class="toast-title">Connection to Base Camp Lost</div>
+          <div class="toast-message">Radio relay station offline. Last telemetry 4m ago.</div>
+          <div class="toast-coord">N 48&deg;10'05" E 11&deg;32'40" &middot; &#9650; 890m</div>
+        </div>
+      </div>
+      <div class="toast toast-info">
+        <span class="toast-icon">&#10052;</span>
+        <div class="toast-content">
+          <div class="toast-title">Weather Advisory</div>
+          <div class="toast-message">Cloud base descending to 2200m. Visibility below 500m expected.</div>
+          <div class="toast-coord">REGION-WIDE &middot; VALID 0600-1800Z</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================
+       CARDS — Map Legend Entries
+       ================================ -->
+  <section class="section">
+    <div class="section-heading">
+      <span class="section-coord">N 48&deg;18' E 11&deg;40'</span>
+      <h2 class="section-title">Terrain Cards</h2>
+      <span class="section-elev">LEGEND ENTRIES</span>
+    </div>
+
+    <div class="flex-col gap-2">
+      <div class="card">
+        <div class="card-elevation-strip" style="background: linear-gradient(180deg, #8ba84e, #4a6b3a);"></div>
+        <div class="card-body">
+          <div class="card-header">
+            <span class="card-title">MCP Server Framework</span>
+            <span class="card-coord">&#9650; 2200m &middot; SUMMIT ZONE</span>
+          </div>
+          <div class="card-description">Core framework providing createDevglideMcpServer factory, tool registration, and stdio transport. Each app exports its own MCP server mounted on the unified HTTP daemon.</div>
+          <div class="card-footer">
+            <span class="badge badge-elev">ARCHITECTURE</span>
+            <span class="badge badge-summit">ACTIVE</span>
+            <span class="badge badge-depth">v1.0.0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-elevation-strip" style="background: linear-gradient(180deg, #c4883a, #7a5c3a);"></div>
+        <div class="card-body">
+          <div class="card-header">
+            <span class="card-title">Voice Transcription Pipeline</span>
+            <span class="card-coord">&#9650; 1600m &middot; RIDGE ZONE</span>
+          </div>
+          <div class="card-description">Speech-to-text pipeline with provider abstraction. Supports OpenAI, Groq, local whisper.cpp, and vLLM backends. AI cleanup mode for post-processing filler word removal.</div>
+          <div class="card-footer">
+            <span class="badge badge-heat">STT</span>
+            <span class="badge badge-cool">MULTI-PROVIDER</span>
+            <span class="badge badge-depth">5 backends</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-elevation-strip" style="background: linear-gradient(180deg, #3a7a6b, #1e3024);"></div>
+        <div class="card-body">
+          <div class="card-header">
+            <span class="card-title">Shell Pane Management</span>
+            <span class="card-coord">&#9650; 800m &middot; VALLEY ZONE</span>
+          </div>
+          <div class="card-description">Terminal pane lifecycle management with PTY sessions. Commands are executed in managed panes, scrollback is readable, and panes are ephemeral per project session.</div>
+          <div class="card-footer">
+            <span class="badge badge-elev">SHELL</span>
+            <span class="badge badge-summit">IN-MEMORY</span>
+            <span class="badge badge-depth">ephemeral</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================
+       DASHBOARD MOCKUP
+       ================================ -->
+  <section class="section">
+    <div class="section-heading">
+      <span class="section-coord">N 48&deg;19' E 11&deg;41'</span>
+      <h2 class="section-title">Dashboard &mdash; Terrain Overview</h2>
+      <span class="section-elev">FULL SURVEY MAP</span>
+    </div>
+
+    <div class="dashboard">
+      <!-- Top Bar -->
+      <div class="dash-topbar">
+        <div class="dash-topbar-brand">
+          <!-- Inline SVG topo logo -->
+          <svg class="dash-topbar-logo" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="16" cy="16" r="14" stroke="rgba(107,140,66,0.4)" stroke-width="1" stroke-dasharray="3,2"/>
+            <circle cx="16" cy="16" r="10" stroke="rgba(107,140,66,0.5)" stroke-width="1" stroke-dasharray="3,2"/>
+            <circle cx="16" cy="16" r="6" stroke="rgba(139,168,78,0.6)" stroke-width="1.2" stroke-dasharray="3,2"/>
+            <circle cx="16" cy="16" r="2.5" fill="#8ba84e"/>
+            <!-- Cross hairs -->
+            <line x1="16" y1="2" x2="16" y2="6" stroke="rgba(107,140,66,0.3)" stroke-width="0.5"/>
+            <line x1="16" y1="26" x2="16" y2="30" stroke="rgba(107,140,66,0.3)" stroke-width="0.5"/>
+            <line x1="2" y1="16" x2="6" y2="16" stroke="rgba(107,140,66,0.3)" stroke-width="0.5"/>
+            <line x1="26" y1="16" x2="30" y2="16" stroke="rgba(107,140,66,0.3)" stroke-width="0.5"/>
+          </svg>
+          <span class="dash-topbar-name">DevGlide</span>
+          <span class="dash-topbar-version">v1.0</span>
+        </div>
+        <div class="dash-topbar-nav">
+          <span class="dash-topbar-coord">N 48&deg;12' E 11&deg;34' &middot; UTM 32T</span>
+          <span class="dash-topbar-indicator">
+            <span class="indicator-dot"></span>
+            SERVER &#9650; 7000
+          </span>
+        </div>
+      </div>
+
+      <!-- Sidebar — Map Legend -->
+      <div class="dash-sidebar">
+        <div class="sidebar-section-label">&#9670; MAP LAYERS</div>
+        <a class="sidebar-item" href="#">
+          <span class="sidebar-icon">&#9673;</span>
+          <span class="sidebar-item-label">Overview</span>
+          <span class="sidebar-item-elev">&#9650; 0m</span>
+        </a>
+        <a class="sidebar-item active" href="#">
+          <span class="sidebar-icon">&#9638;</span>
+          <span class="sidebar-item-label">Kanban</span>
+          <span class="sidebar-item-elev">&#9650; 400m</span>
+        </a>
+        <a class="sidebar-item" href="#">
+          <span class="sidebar-icon">&#9655;</span>
+          <span class="sidebar-item-label">Shell</span>
+          <span class="sidebar-item-elev">&#9650; 800m</span>
+        </a>
+        <a class="sidebar-item" href="#">
+          <span class="sidebar-icon">&#9834;</span>
+          <span class="sidebar-item-label">Voice</span>
+          <span class="sidebar-item-elev">&#9650; 1200m</span>
+        </a>
+        <a class="sidebar-item" href="#">
+          <span class="sidebar-icon">&#9881;</span>
+          <span class="sidebar-item-label">Workflows</span>
+          <span class="sidebar-item-elev">&#9650; 1600m</span>
+        </a>
+
+        <div class="sidebar-section-label">&#9670; TOOLS</div>
+        <a class="sidebar-item" href="#">
+          <span class="sidebar-icon">&#9998;</span>
+          <span class="sidebar-item-label">Vocabulary</span>
+          <span class="sidebar-item-elev">&#9650; 1800m</span>
+        </a>
+        <a class="sidebar-item" href="#">
+          <span class="sidebar-icon">&#9888;</span>
+          <span class="sidebar-item-label">Test Runner</span>
+          <span class="sidebar-item-elev">&#9650; 2000m</span>
+        </a>
+        <a class="sidebar-item" href="#">
+          <span class="sidebar-icon">&#9993;</span>
+          <span class="sidebar-item-label">Chat Room</span>
+          <span class="sidebar-item-elev">&#9650; 2200m</span>
+        </a>
+        <a class="sidebar-item" href="#">
+          <span class="sidebar-icon">&#9776;</span>
+          <span class="sidebar-item-label">Logs</span>
+          <span class="sidebar-item-elev">&#9650; 2400m</span>
+        </a>
+
+        <!-- Legend at bottom -->
+        <div class="sidebar-legend">
+          <div class="sidebar-legend-title">&#9670; ELEVATION LEGEND</div>
+          <div class="legend-scale">
+            <div class="legend-scale-seg" style="background: #0a1210;"></div>
+            <div class="legend-scale-seg" style="background: #0f1a14;"></div>
+            <div class="legend-scale-seg" style="background: #152119;"></div>
+            <div class="legend-scale-seg" style="background: #1e3024;"></div>
+            <div class="legend-scale-seg" style="background: #2d4a32;"></div>
+            <div class="legend-scale-seg" style="background: #4a6b3a;"></div>
+            <div class="legend-scale-seg" style="background: #6b8c42;"></div>
+            <div class="legend-scale-seg" style="background: #8ba84e;"></div>
+            <div class="legend-scale-seg" style="background: #c4b991;"></div>
+            <div class="legend-scale-seg" style="background: #ddd5b8;"></div>
+          </div>
+          <div class="legend-labels">
+            <span>-50m</span>
+            <span>1400m</span>
+            <span>2847m</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main content — Kanban Board -->
+      <div class="dash-main">
+        <div class="dash-main-header">
+          <span class="dash-main-title">&#9638; Feature: AI Workflow Toolkit</span>
+          <span class="dash-main-breadcrumb">HOME / KANBAN / ACTIVE SURVEY</span>
+        </div>
+
+        <div class="kanban">
+          <!-- Column: Backlog (lowest elevation) -->
+          <div class="kanban-col">
+            <div class="kanban-col-header">
+              <div>
+                <div class="kanban-col-name">Backlog</div>
+                <div class="kanban-col-elev">&#9660; BASIN &middot; 0m</div>
+              </div>
+              <span class="kanban-col-count">3</span>
+            </div>
+            <div class="kanban-card">
+              <div class="kanban-card-title">Add prompt versioning</div>
+              <div class="kanban-card-desc">Track prompt template revision history</div>
+              <div class="kanban-card-footer">
+                <span class="kanban-card-tag tag-sand">prompts</span>
+                <span class="kanban-card-priority priority-low">LOW</span>
+              </div>
+            </div>
+            <div class="kanban-card">
+              <div class="kanban-card-title">Vocabulary import/export</div>
+              <div class="kanban-card-desc">CSV and JSON bulk operations for terms</div>
+              <div class="kanban-card-footer">
+                <span class="kanban-card-tag tag-terrain">vocabulary</span>
+                <span class="kanban-card-priority priority-medium">MED</span>
+              </div>
+            </div>
+            <div class="kanban-card">
+              <div class="kanban-card-title">Shell pane resize events</div>
+              <div class="kanban-card-desc">Handle terminal resize via PTY signals</div>
+              <div class="kanban-card-footer">
+                <span class="kanban-card-tag tag-cool">shell</span>
+                <span class="kanban-card-priority priority-low">LOW</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column: In Progress (mid elevation) -->
+          <div class="kanban-col">
+            <div class="kanban-col-header">
+              <div>
+                <div class="kanban-col-name">In Progress</div>
+                <div class="kanban-col-elev">&#9650; RIDGE &middot; 1200m</div>
+              </div>
+              <span class="kanban-col-count">2</span>
+            </div>
+            <div class="kanban-card">
+              <div class="kanban-card-title">Multi-LLM chat coordination</div>
+              <div class="kanban-card-desc">Implement broadcast delivery and @mention routing for chat room</div>
+              <div class="kanban-card-footer">
+                <span class="kanban-card-tag tag-terrain">chat</span>
+                <span class="kanban-card-tag tag-brown">mcp</span>
+                <span class="kanban-card-priority priority-high">HIGH</span>
+              </div>
+            </div>
+            <div class="kanban-card">
+              <div class="kanban-card-title">Edge TTS chunk pipeline</div>
+              <div class="kanban-card-desc">Sentence splitting with parallel generation and playback</div>
+              <div class="kanban-card-footer">
+                <span class="kanban-card-tag tag-heat">voice</span>
+                <span class="kanban-card-priority priority-medium">MED</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column: In Review (high elevation) -->
+          <div class="kanban-col">
+            <div class="kanban-col-header">
+              <div>
+                <div class="kanban-col-name">In Review</div>
+                <div class="kanban-col-elev">&#9650; PEAK &middot; 2000m</div>
+              </div>
+              <span class="kanban-col-count">2</span>
+            </div>
+            <div class="kanban-card">
+              <div class="kanban-card-title">Workflow DAG visualizer</div>
+              <div class="kanban-card-desc">Render workflow node graph on the dashboard canvas</div>
+              <div class="kanban-card-footer">
+                <span class="kanban-card-tag tag-terrain">workflow</span>
+                <span class="kanban-card-tag tag-sand">ui</span>
+                <span class="kanban-card-priority priority-medium">MED</span>
+              </div>
+            </div>
+            <div class="kanban-card">
+              <div class="kanban-card-title">Kanban SQLite migrations</div>
+              <div class="kanban-card-desc">Schema migration runner for kanban.db versioning</div>
+              <div class="kanban-card-footer">
+                <span class="kanban-card-tag tag-brown">kanban</span>
+                <span class="kanban-card-priority priority-high">HIGH</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column: Testing (summit) -->
+          <div class="kanban-col">
+            <div class="kanban-col-header">
+              <div>
+                <div class="kanban-col-name">Testing</div>
+                <div class="kanban-col-elev">&#9650; SUMMIT &middot; 2847m</div>
+              </div>
+              <span class="kanban-col-count">1</span>
+            </div>
+            <div class="kanban-card">
+              <div class="kanban-card-title">Documentation seed content</div>
+              <div class="kanban-card-desc">Auto-install tool guides, workflows, and troubleshooting on first use</div>
+              <div class="kanban-card-footer">
+                <span class="kanban-card-tag tag-terrain">docs</span>
+                <span class="kanban-card-tag tag-cool">auto</span>
+                <span class="kanban-card-priority priority-medium">MED</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================
+       FOOTER
+       ================================ -->
+  <footer style="
+    margin-top: 2rem;
+    padding: 2rem 0 1rem;
+    border-top: var(--border-contour-lg);
+    text-align: center;
+    position: relative;
+  ">
+    <div style="
+      position: absolute;
+      top: -5px;
+      left: 0;
+      right: 0;
+      border-top: var(--border-dotted);
+    "></div>
+    <div style="
+      font-size: 0.6rem;
+      color: var(--text-coord);
+      letter-spacing: 0.15em;
+      margin-bottom: 0.5rem;
+    ">SURVEY COMPLETE &middot; ALL ELEVATIONS MAPPED</div>
+    <div style="
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      letter-spacing: 0.06em;
+    ">Topographic Map Design System &mdash; DevGlide &copy; 2026</div>
+    <div style="
+      font-size: 0.55rem;
+      color: var(--text-tertiary);
+      letter-spacing: 0.1em;
+      margin-top: 0.5rem;
+    ">N 48&deg;12'36" E 11&deg;34'48" &middot; PROJECTION: UTM ZONE 32N &middot; DATUM: WGS84 &middot; SCALE 1:25000</div>
+  </footer>
+
+</div>
+
+<!-- ============================================================
+     NO EXTERNAL JS — Inline interactivity
+     ============================================================ -->
+<script>
+(function() {
+  'use strict';
+
+  // ---- Animate contour line stroke-dashoffset for movement effect ----
+  const contourPaths = document.querySelectorAll('.contour-bg path');
+  contourPaths.forEach((path, i) => {
+    const len = path.getTotalLength ? path.getTotalLength() : 300;
+    // Apply a slow dash animation for selected paths
+    if (i % 3 === 0) {
+      path.style.strokeDasharray = (len * 0.15) + ',' + (len * 0.05);
+      path.style.strokeDashoffset = '0';
+      path.style.animation = `dashDrift ${18 + i * 2}s linear infinite, contourPulse ${8 + i}s ease-in-out infinite`;
+    }
+  });
+
+  // Add the dash drift keyframes dynamically
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes dashDrift {
+      0%   { stroke-dashoffset: 0; }
+      100% { stroke-dashoffset: -600; }
+    }
+  `;
+  document.head.appendChild(style);
+
+  // ---- Interactive button ripple (terrain-style) ----
+  document.querySelectorAll('.btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      const ripple = document.createElement('span');
+      const rect = this.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height);
+      const x = e.clientX - rect.left - size / 2;
+      const y = e.clientY - rect.top - size / 2;
+
+      Object.assign(ripple.style, {
+        position: 'absolute',
+        width: size + 'px',
+        height: size + 'px',
+        left: x + 'px',
+        top: y + 'px',
+        borderRadius: '50%',
+        border: '1px dashed rgba(139, 168, 78, 0.5)',
+        pointerEvents: 'none',
+        animation: 'topoRipple 0.6s ease-out forwards',
+      });
+
+      this.style.position = 'relative';
+      this.style.overflow = 'hidden';
+      this.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 700);
+    });
+  });
+
+  // Ripple keyframes
+  const rippleStyle = document.createElement('style');
+  rippleStyle.textContent = `
+    @keyframes topoRipple {
+      0%   { transform: scale(0); opacity: 0.7; }
+      100% { transform: scale(2.5); opacity: 0; }
+    }
+  `;
+  document.head.appendChild(rippleStyle);
+
+  // ---- Toast auto-dismiss animation ----
+  document.querySelectorAll('.toast').forEach((toast, i) => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-12px)';
+    toast.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+
+    setTimeout(() => {
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateX(0)';
+    }, 200 + i * 150);
+  });
+
+  // ---- Sidebar active state toggle ----
+  document.querySelectorAll('.sidebar-item').forEach(item => {
+    item.addEventListener('click', function(e) {
+      e.preventDefault();
+      document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  // ---- Kanban card drag hint (visual only) ----
+  document.querySelectorAll('.kanban-card').forEach(card => {
+    card.addEventListener('mousedown', function() {
+      this.style.boxShadow = '0 4px 20px rgba(107, 140, 66, 0.15), var(--shadow-md)';
+      this.style.borderColor = 'rgba(139, 168, 78, 0.5)';
+    });
+    card.addEventListener('mouseup', function() {
+      this.style.boxShadow = '';
+      this.style.borderColor = '';
+    });
+    card.addEventListener('mouseleave', function() {
+      this.style.boxShadow = '';
+      this.style.borderColor = '';
+    });
+  });
+
+  // ---- Coordinate label clock update (top bar) ----
+  const coordEl = document.querySelector('.dash-topbar-coord');
+  if (coordEl) {
+    function updateCoord() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      coordEl.textContent = `N 48\u00B012' E 11\u00B034' \u00B7 ${h}:${m}:${s}Z`;
+    }
+    updateCoord();
+    setInterval(updateCoord, 1000);
+  }
+
+})();
+</script>
+
+</body>
+</html>

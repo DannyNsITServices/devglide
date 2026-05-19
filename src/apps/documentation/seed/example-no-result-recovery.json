@@ -1,0 +1,35 @@
+{
+  "id": "ex-no-result-recovery",
+  "type": "example",
+  "toolName": "devglide-test",
+  "scenario": "Scenario returns no result found — recovery steps",
+  "startingAssumptions": [
+    "You submitted a scenario via test_run_scenario.",
+    "test_get_result returns 'no result found' after waiting."
+  ],
+  "toolSequence": [
+    "test_get_result — confirm the 'no result found' response.",
+    "log_read — check if devtools.js is posting any log entries. If no recent entries, devtools.js is not active.",
+    "shell_run_command to check if the dev server process is running.",
+    "If the dev server is running: the issue is the browser. Ask the user to verify the browser tab is open on the app.",
+    "If devtools.js is not in the page source: instruct the user to add the devtools.js script tag.",
+    "After the browser is confirmed ready: re-submit the scenario via test_run_scenario.",
+    "test_get_result — should now return a real result."
+  ],
+  "whatGoodLooksLike": [
+    "After recovery, test_get_result returns 'passed' or 'failed' (not 'no result found').",
+    "log_read shows fresh entries from the current browser session."
+  ],
+  "whatBadLooksLike": [
+    "test_get_result still returns 'no result found' after recovery steps.",
+    "log_read shows no entries — devtools.js is still not connected."
+  ],
+  "whatToDoNext": [
+    "If still no result: check that the DevGlide server port matches what devtools.js is configured for.",
+    "Check the browser console directly for devtools.js initialization errors.",
+    "As a last resort, fully close and reopen the browser, navigate to the app, and retry."
+  ],
+  "tags": ["example", "test", "no-result", "recovery"],
+  "createdAt": "2026-03-24T00:00:00.000Z",
+  "updatedAt": "2026-03-24T00:00:00.000Z"
+}

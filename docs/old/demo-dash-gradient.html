@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevGlide Dashboard — Gradient Mesh / Aurora Dark</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-base: #0a0a0f;
+  --card-bg: rgba(15, 15, 20, 0.7);
+  --card-border: rgba(255, 255, 255, 0.06);
+  --card-hover-border: rgba(255, 255, 255, 0.12);
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #475569;
+  --cyan: #06b6d4;
+  --purple: #8b5cf6;
+  --rose: #f43f5e;
+  --emerald: #10b981;
+  --amber: #f59e0b;
+  --sidebar-width: 240px;
+  --topbar-height: 64px;
+  --radius-panel: 12px;
+  --radius-card: 10px;
+  --radius-button: 8px;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================================
+   GRADIENT MESH AURORA BLOBS
+   ============================================================ */
+.aurora-mesh {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  will-change: transform;
+}
+
+/* Blob 1: Cyan-teal, top-left */
+.aurora-blob--1 {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.30) 0%, transparent 70%);
+  top: -100px;
+  left: -50px;
+  animation: drift1 25s ease-in-out infinite;
+}
+
+/* Blob 2: Purple, center-right */
+.aurora-blob--2 {
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.25) 0%, transparent 70%);
+  top: 20%;
+  right: -100px;
+  animation: drift2 30s ease-in-out infinite;
+}
+
+/* Blob 3: Rose, bottom-left */
+.aurora-blob--3 {
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(244, 63, 94, 0.20) 0%, transparent 70%);
+  bottom: -50px;
+  left: 15%;
+  animation: drift3 22s ease-in-out infinite;
+}
+
+/* Blob 4: Emerald, bottom-right */
+.aurora-blob--4 {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.20) 0%, transparent 70%);
+  bottom: -80px;
+  right: 10%;
+  animation: drift4 28s ease-in-out infinite;
+}
+
+/* Blob 5: Amber, top-center */
+.aurora-blob--5 {
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.15) 0%, transparent 70%);
+  top: -60px;
+  left: 40%;
+  animation: drift5 35s ease-in-out infinite;
+}
+
+/* Blob 6: Extra subtle blue-purple for depth */
+.aurora-blob--6 {
+  width: 450px;
+  height: 450px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%);
+  top: 50%;
+  left: 30%;
+  animation: drift6 32s ease-in-out infinite;
+}
+
+@keyframes drift1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(60px, 40px) scale(1.1); }
+  50%      { transform: translate(30px, 80px) scale(0.95); }
+  75%      { transform: translate(-20px, 50px) scale(1.05); }
+}
+
+@keyframes drift2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(-50px, 30px) scale(1.08); }
+  50%      { transform: translate(-80px, -20px) scale(0.92); }
+  75%      { transform: translate(-30px, -50px) scale(1.04); }
+}
+
+@keyframes drift3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(70px, -40px) scale(1.12); }
+  66%      { transform: translate(40px, -70px) scale(0.9); }
+}
+
+@keyframes drift4 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(-40px, -60px) scale(1.06); }
+  50%      { transform: translate(-70px, -30px) scale(0.94); }
+  75%      { transform: translate(-20px, -80px) scale(1.1); }
+}
+
+@keyframes drift5 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  30%      { transform: translate(50px, 50px) scale(1.15); }
+  60%      { transform: translate(-30px, 70px) scale(0.88); }
+}
+
+@keyframes drift6 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(40px, -40px) scale(1.1); }
+  50%      { transform: translate(-50px, -60px) scale(0.95); }
+  75%      { transform: translate(-20px, 30px) scale(1.05); }
+}
+
+/* ============================================================
+   LAYOUT: SHELL
+   ============================================================ */
+.app-shell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: var(--topbar-height) 1fr;
+  grid-template-areas:
+    "sidebar topbar"
+    "sidebar main";
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ============================================================
+   TOPBAR
+   ============================================================ */
+.topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  background: rgba(10, 10, 15, 0.6);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--card-border);
+  z-index: 10;
+}
+
+.topbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: -0.3px;
+}
+
+.topbar-logo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--cyan), var(--purple));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.topbar-search {
+  flex: 0 1 360px;
+  position: relative;
+}
+
+.topbar-search input {
+  width: 100%;
+  height: 38px;
+  border-radius: var(--radius-button);
+  border: 1px solid var(--card-border);
+  background: rgba(15, 15, 20, 0.6);
+  color: var(--text-primary);
+  padding: 0 14px 0 38px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.topbar-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.topbar-search input:focus {
+  border-color: rgba(6, 182, 212, 0.4);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.08);
+}
+
+.topbar-search svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.topbar-notif {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-button);
+  border: 1px solid var(--card-border);
+  background: rgba(15, 15, 20, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.topbar-notif:hover {
+  border-color: var(--card-hover-border);
+  background: rgba(15, 15, 20, 0.8);
+}
+
+.topbar-notif-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rose);
+  border: 2px solid var(--bg-base);
+}
+
+.topbar-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--purple), var(--rose));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.08);
+  transition: border-color 0.2s;
+}
+
+.topbar-avatar:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+.sidebar {
+  grid-area: sidebar;
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 10, 15, 0.55);
+  backdrop-filter: blur(16px);
+  border-right: 1px solid var(--card-border);
+  padding: 20px 0;
+  z-index: 10;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px 24px;
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: -0.3px;
+}
+
+.sidebar-brand-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--cyan), var(--purple));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.sidebar-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--text-muted);
+  padding: 16px 20px 8px;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 10px;
+  flex: 1;
+}
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-button);
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  border-left: 3px solid transparent;
+}
+
+.sidebar-nav-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+}
+
+.sidebar-nav-item.active {
+  background: rgba(6, 182, 212, 0.06);
+  color: var(--text-primary);
+  border-left: 3px solid transparent;
+  border-image: linear-gradient(180deg, var(--cyan), var(--purple)) 1;
+}
+
+.sidebar-nav-item svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.sidebar-nav-item.active svg {
+  opacity: 1;
+}
+
+.sidebar-bottom {
+  padding: 16px 10px 0;
+  border-top: 1px solid var(--card-border);
+  margin-top: auto;
+}
+
+.sidebar-bottom-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-button);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sidebar-bottom-item:hover {
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sidebar-bottom-item svg {
+  width: 18px;
+  height: 18px;
+  opacity: 0.5;
+}
+
+/* ============================================================
+   MAIN CONTENT
+   ============================================================ */
+.main-content {
+  grid-area: main;
+  overflow-y: auto;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.main-content::-webkit-scrollbar {
+  width: 6px;
+}
+.main-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.main-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+}
+
+/* ============================================================
+   STAT CARDS
+   ============================================================ */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+
+.stat-card {
+  background: var(--card-bg);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-panel);
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+}
+
+.stat-card--cyan::before {
+  background: linear-gradient(90deg, var(--cyan), rgba(6, 182, 212, 0.3));
+}
+.stat-card--purple::before {
+  background: linear-gradient(90deg, var(--purple), rgba(139, 92, 246, 0.3));
+}
+.stat-card--emerald::before {
+  background: linear-gradient(90deg, var(--emerald), rgba(16, 185, 129, 0.3));
+}
+.stat-card--amber::before {
+  background: linear-gradient(90deg, var(--amber), rgba(245, 158, 11, 0.3));
+}
+
+.stat-card:hover {
+  border-color: var(--card-hover-border);
+}
+.stat-card--cyan:hover {
+  box-shadow: 0 4px 24px rgba(6, 182, 212, 0.08);
+}
+.stat-card--purple:hover {
+  box-shadow: 0 4px 24px rgba(139, 92, 246, 0.08);
+}
+.stat-card--emerald:hover {
+  box-shadow: 0 4px 24px rgba(16, 185, 129, 0.08);
+}
+.stat-card--amber:hover {
+  box-shadow: 0 4px 24px rgba(245, 158, 11, 0.08);
+}
+
+.stat-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.stat-card-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.stat-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-button);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-card--cyan .stat-card-icon {
+  background: rgba(6, 182, 212, 0.1);
+  color: var(--cyan);
+}
+.stat-card--purple .stat-card-icon {
+  background: rgba(139, 92, 246, 0.1);
+  color: var(--purple);
+}
+.stat-card--emerald .stat-card-icon {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--emerald);
+}
+.stat-card--amber .stat-card-icon {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--amber);
+}
+
+.stat-card-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  margin-bottom: 4px;
+}
+
+.stat-card-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-card-sub .up {
+  color: var(--emerald);
+}
+.stat-card-sub .down {
+  color: var(--rose);
+}
+
+/* ============================================================
+   PANELS: GLASS CARD
+   ============================================================ */
+.panel {
+  background: var(--card-bg);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-panel);
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.panel:hover {
+  border-color: var(--card-hover-border);
+  box-shadow: 0 4px 32px rgba(6, 182, 212, 0.04);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+.panel-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(6, 182, 212, 0.1);
+  color: var(--cyan);
+}
+
+.panel-body {
+  padding: 20px 22px;
+}
+
+/* ============================================================
+   TWO-COLUMN GRID
+   ============================================================ */
+.two-col {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 18px;
+}
+
+/* ============================================================
+   CHART
+   ============================================================ */
+.chart-container {
+  padding: 20px 22px 16px;
+}
+
+.chart-container svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ============================================================
+   ACTIVITY FEED
+   ============================================================ */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 22px;
+  transition: background 0.2s;
+}
+
+.activity-item:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.activity-item + .activity-item {
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.activity-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.activity-dot--cyan   { background: var(--cyan); box-shadow: 0 0 8px rgba(6, 182, 212, 0.4); }
+.activity-dot--purple { background: var(--purple); box-shadow: 0 0 8px rgba(139, 92, 246, 0.4); }
+.activity-dot--emerald{ background: var(--emerald); box-shadow: 0 0 8px rgba(16, 185, 129, 0.4); }
+.activity-dot--amber  { background: var(--amber); box-shadow: 0 0 8px rgba(245, 158, 11, 0.4); }
+.activity-dot--rose   { background: var(--rose); box-shadow: 0 0 8px rgba(244, 63, 94, 0.4); }
+
+.activity-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.activity-text strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.activity-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin-top: 2px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ============================================================
+   KANBAN BOARD
+   ============================================================ */
+.kanban-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.kanban-col {
+  background: rgba(15, 15, 20, 0.4);
+  backdrop-filter: blur(4px);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-panel);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.kanban-col-header {
+  padding: 14px 16px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+}
+
+.kanban-col-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 16px;
+  right: 16px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.kanban-col--backlog .kanban-col-header::after {
+  background: linear-gradient(90deg, var(--text-muted), transparent);
+}
+.kanban-col--todo .kanban-col-header::after {
+  background: linear-gradient(90deg, var(--cyan), transparent);
+}
+.kanban-col--progress .kanban-col-header::after {
+  background: linear-gradient(90deg, var(--amber), transparent);
+}
+.kanban-col--done .kanban-col-header::after {
+  background: linear-gradient(90deg, var(--emerald), transparent);
+}
+
+.kanban-col-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.kanban-col-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kanban-col--backlog .kanban-col-count {
+  background: rgba(71, 85, 105, 0.2);
+  color: var(--text-muted);
+}
+.kanban-col--todo .kanban-col-count {
+  background: rgba(6, 182, 212, 0.12);
+  color: var(--cyan);
+}
+.kanban-col--progress .kanban-col-count {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--amber);
+}
+.kanban-col--done .kanban-col-count {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--emerald);
+}
+
+.kanban-cards {
+  padding: 10px 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kanban-card {
+  background: rgba(15, 15, 20, 0.8);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-card);
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.kanban-card:hover {
+  border-color: var(--card-hover-border);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  transform: translateY(-1px);
+}
+
+.kanban-card-title {
+  font-size: 12.5px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  line-height: 1.45;
+}
+
+.kanban-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kanban-card-tag {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tag-task {
+  background: rgba(6, 182, 212, 0.1);
+  color: var(--cyan);
+}
+.tag-bug {
+  background: rgba(244, 63, 94, 0.1);
+  color: var(--rose);
+}
+.tag-feature {
+  background: rgba(139, 92, 246, 0.1);
+  color: var(--purple);
+}
+
+.kanban-card-priority {
+  display: flex;
+  gap: 2px;
+}
+
+.kanban-card-priority span {
+  width: 4px;
+  height: 12px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.priority-high span:nth-child(-n+3) {
+  background: var(--rose);
+}
+.priority-med span:nth-child(-n+2) {
+  background: var(--amber);
+}
+.priority-low span:nth-child(-n+1) {
+  background: var(--emerald);
+}
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 1024px) {
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .two-col { grid-template-columns: 1fr; }
+  .kanban-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "topbar"
+      "main";
+  }
+  .sidebar { display: none; }
+  .stats-row { grid-template-columns: 1fr 1fr; }
+  .kanban-grid { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     AURORA MESH BACKGROUND
+     ============================================================ -->
+<div class="aurora-mesh">
+  <div class="aurora-blob aurora-blob--1"></div>
+  <div class="aurora-blob aurora-blob--2"></div>
+  <div class="aurora-blob aurora-blob--3"></div>
+  <div class="aurora-blob aurora-blob--4"></div>
+  <div class="aurora-blob aurora-blob--5"></div>
+  <div class="aurora-blob aurora-blob--6"></div>
+</div>
+
+<!-- ============================================================
+     APP SHELL
+     ============================================================ -->
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-brand-icon">D</div>
+      <span>DevGlide</span>
+    </div>
+
+    <div class="sidebar-section-label">Navigation</div>
+    <nav class="sidebar-nav">
+      <div class="sidebar-nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1"/>
+          <rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/>
+          <rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        Kanban
+      </div>
+      <div class="sidebar-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 17 10 11 4 5"/>
+          <line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+        Shell
+      </div>
+      <div class="sidebar-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+        </svg>
+        Test
+      </div>
+      <div class="sidebar-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        Workflow
+      </div>
+      <div class="sidebar-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+        Voice
+      </div>
+      <div class="sidebar-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        Chat
+      </div>
+      <div class="sidebar-nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+        Docs
+      </div>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="sidebar-bottom-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        Settings
+      </div>
+    </div>
+  </aside>
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="topbar-logo">
+      <div class="topbar-logo-icon">D</div>
+      <span>DevGlide</span>
+    </div>
+
+    <div class="topbar-search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" placeholder="Search tasks, commands, tests..." />
+    </div>
+
+    <div class="topbar-actions">
+      <div class="topbar-notif">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <div class="topbar-notif-badge"></div>
+      </div>
+      <div class="topbar-avatar">DK</div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+
+    <!-- STATS ROW -->
+    <section class="stats-row">
+      <div class="stat-card stat-card--cyan">
+        <div class="stat-card-header">
+          <span class="stat-card-label">Active Tasks</span>
+          <div class="stat-card-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 11l3 3L22 4"/>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+          </div>
+        </div>
+        <div class="stat-card-value">47</div>
+        <div class="stat-card-sub"><span class="up">+12%</span> from last week</div>
+      </div>
+
+      <div class="stat-card stat-card--purple">
+        <div class="stat-card-header">
+          <span class="stat-card-label">MCP Calls</span>
+          <div class="stat-card-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+          </div>
+        </div>
+        <div class="stat-card-value">2,841</div>
+        <div class="stat-card-sub"><span class="up">+8%</span> from last week</div>
+      </div>
+
+      <div class="stat-card stat-card--emerald">
+        <div class="stat-card-header">
+          <span class="stat-card-label">Test Pass Rate</span>
+          <div class="stat-card-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+          </div>
+        </div>
+        <div class="stat-card-value">98%</div>
+        <div class="stat-card-sub"><span class="up">+2%</span> from last week</div>
+      </div>
+
+      <div class="stat-card stat-card--amber">
+        <div class="stat-card-header">
+          <span class="stat-card-label">Voice Commands</span>
+          <div class="stat-card-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          </div>
+        </div>
+        <div class="stat-card-value">87</div>
+        <div class="stat-card-sub"><span class="down">-3%</span> from last week</div>
+      </div>
+    </section>
+
+    <!-- TWO-COLUMN: CHART + ACTIVITY -->
+    <section class="two-col">
+
+      <!-- CHART PANEL -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">MCP Call Volume</span>
+          <span class="panel-badge">This Week</span>
+        </div>
+        <div class="chart-container">
+          <svg viewBox="0 0 700 220" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <linearGradient id="chartStroke" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stop-color="#06b6d4"/>
+                <stop offset="100%" stop-color="#8b5cf6"/>
+              </linearGradient>
+              <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.12"/>
+                <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.02"/>
+              </linearGradient>
+            </defs>
+
+            <!-- Grid lines -->
+            <line x1="60" y1="20" x2="680" y2="20" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+            <line x1="60" y1="70" x2="680" y2="70" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+            <line x1="60" y1="120" x2="680" y2="120" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+            <line x1="60" y1="170" x2="680" y2="170" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+
+            <!-- Y-axis labels -->
+            <text x="50" y="24" fill="#475569" font-size="11" text-anchor="end" font-family="JetBrains Mono, monospace">250</text>
+            <text x="50" y="74" fill="#475569" font-size="11" text-anchor="end" font-family="JetBrains Mono, monospace">200</text>
+            <text x="50" y="124" fill="#475569" font-size="11" text-anchor="end" font-family="JetBrains Mono, monospace">150</text>
+            <text x="50" y="174" fill="#475569" font-size="11" text-anchor="end" font-family="JetBrains Mono, monospace">100</text>
+
+            <!-- Area fill -->
+            <path d="M 100 136 C 140 136, 160 76, 200 76 C 240 76, 260 100, 300 100 C 340 100, 360 28, 400 28 C 440 28, 460 52, 500 52 C 540 52, 560 4, 600 4 C 640 4, 650 28, 660 28 L 660 190 L 100 190 Z" fill="url(#chartFill)"/>
+
+            <!-- Line -->
+            <path d="M 100 136 C 140 136, 160 76, 200 76 C 240 76, 260 100, 300 100 C 340 100, 360 28, 400 28 C 440 28, 460 52, 500 52 C 540 52, 560 4, 600 4 C 640 4, 650 28, 660 28" fill="none" stroke="url(#chartStroke)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+            <!-- Data points with glow -->
+            <circle cx="100" cy="136" r="4" fill="#06b6d4" stroke="#0a0a0f" stroke-width="2"/>
+            <circle cx="100" cy="136" r="8" fill="rgba(6, 182, 212, 0.15)"/>
+            <circle cx="200" cy="76" r="4" fill="#1ea7c7" stroke="#0a0a0f" stroke-width="2"/>
+            <circle cx="200" cy="76" r="8" fill="rgba(6, 182, 212, 0.12)"/>
+            <circle cx="300" cy="100" r="4" fill="#4b8cdd" stroke="#0a0a0f" stroke-width="2"/>
+            <circle cx="300" cy="100" r="8" fill="rgba(75, 140, 221, 0.12)"/>
+            <circle cx="400" cy="28" r="4" fill="#6d72e8" stroke="#0a0a0f" stroke-width="2"/>
+            <circle cx="400" cy="28" r="8" fill="rgba(109, 114, 232, 0.12)"/>
+            <circle cx="500" cy="52" r="4" fill="#7b67e3" stroke="#0a0a0f" stroke-width="2"/>
+            <circle cx="500" cy="52" r="8" fill="rgba(123, 103, 227, 0.12)"/>
+            <circle cx="600" cy="4" r="4" fill="#8b5cf6" stroke="#0a0a0f" stroke-width="2"/>
+            <circle cx="600" cy="4" r="8" fill="rgba(139, 92, 246, 0.15)"/>
+            <circle cx="660" cy="28" r="4" fill="#8b5cf6" stroke="#0a0a0f" stroke-width="2"/>
+            <circle cx="660" cy="28" r="8" fill="rgba(139, 92, 246, 0.12)"/>
+
+            <!-- X-axis labels -->
+            <text x="100" y="210" fill="#475569" font-size="11" text-anchor="middle" font-family="JetBrains Mono, monospace">Mon</text>
+            <text x="200" y="210" fill="#475569" font-size="11" text-anchor="middle" font-family="JetBrains Mono, monospace">Tue</text>
+            <text x="300" y="210" fill="#475569" font-size="11" text-anchor="middle" font-family="JetBrains Mono, monospace">Wed</text>
+            <text x="400" y="210" fill="#475569" font-size="11" text-anchor="middle" font-family="JetBrains Mono, monospace">Thu</text>
+            <text x="500" y="210" fill="#475569" font-size="11" text-anchor="middle" font-family="JetBrains Mono, monospace">Fri</text>
+            <text x="600" y="210" fill="#475569" font-size="11" text-anchor="middle" font-family="JetBrains Mono, monospace">Sat</text>
+            <text x="660" y="210" fill="#475569" font-size="11" text-anchor="middle" font-family="JetBrains Mono, monospace">Sun</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- ACTIVITY FEED -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Recent Activity</span>
+          <span class="panel-badge">Live</span>
+        </div>
+        <div class="activity-list">
+          <div class="activity-item">
+            <div class="activity-dot activity-dot--cyan"></div>
+            <div>
+              <div class="activity-text"><strong>Auth module</strong> moved to In Review</div>
+              <div class="activity-time">2 min ago</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-dot activity-dot--purple"></div>
+            <div>
+              <div class="activity-text"><strong>Shell pane #3</strong> executed build script</div>
+              <div class="activity-time">5 min ago</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-dot activity-dot--emerald"></div>
+            <div>
+              <div class="activity-text"><strong>API tests</strong> passed (24/24 specs)</div>
+              <div class="activity-time">12 min ago</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-dot activity-dot--amber"></div>
+            <div>
+              <div class="activity-text"><strong>Voice command</strong> transcribed (14 words)</div>
+              <div class="activity-time">18 min ago</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-dot activity-dot--rose"></div>
+            <div>
+              <div class="activity-text"><strong>Chat</strong> claude-1 responded to review</div>
+              <div class="activity-time">25 min ago</div>
+            </div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-dot activity-dot--cyan"></div>
+            <div>
+              <div class="activity-text"><strong>Workflow</strong> deploy-staging triggered</div>
+              <div class="activity-time">32 min ago</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- KANBAN BOARD -->
+    <section>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Kanban Board</span>
+          <span class="panel-badge">4 columns</span>
+        </div>
+        <div class="panel-body">
+          <div class="kanban-grid">
+
+            <!-- BACKLOG -->
+            <div class="kanban-col kanban-col--backlog">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">Backlog</span>
+                <span class="kanban-col-count">3</span>
+              </div>
+              <div class="kanban-cards">
+                <div class="kanban-card">
+                  <div class="kanban-card-title">Refactor MCP transport layer</div>
+                  <div class="kanban-card-meta">
+                    <span class="kanban-card-tag tag-task">Task</span>
+                    <div class="kanban-card-priority priority-med"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+                <div class="kanban-card">
+                  <div class="kanban-card-title">Add WebSocket reconnect logic</div>
+                  <div class="kanban-card-meta">
+                    <span class="kanban-card-tag tag-feature">Feature</span>
+                    <div class="kanban-card-priority priority-low"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+                <div class="kanban-card">
+                  <div class="kanban-card-title">Update dependency versions</div>
+                  <div class="kanban-card-meta">
+                    <span class="kanban-card-tag tag-task">Task</span>
+                    <div class="kanban-card-priority priority-low"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- TODO -->
+            <div class="kanban-col kanban-col--todo">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">Todo</span>
+                <span class="kanban-col-count">4</span>
+              </div>
+              <div class="kanban-cards">
+                <div class="kanban-card">
+                  <div class="kanban-card-title">Design voice settings panel</div>
+                  <div class="kanban-card-meta">
+                    <span class="kanban-card-tag tag-task">Task</span>
+                    <div class="kanban-card-priority priority-high"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+                <div class="kanban-card">
+                  <div class="kanban-card-title">Fix shell pane scroll overflow</div>
+                  <div class="kanban-card-meta">
+                    <span class="kanban-card-tag tag-bug">Bug</span>
+                    <div class="kanban-card-priority priority-high"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+                <div class="kanban-card">
+                  <div class="kanban-card-title">Implement workflow DAG viewer</div>
+                  <div class="kanban-card-meta">
+                    <span class="kanban-card-tag tag-feature">Feature</span>
+                    <div class="kanban-card-priority priority-med"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+                <div class="kanban-card">
+                  <div class="kanban-card-title">Add keyboard shortcuts help</div>
+                  <div class="kanban-card-meta">
+                    <span class="kanban-card-tag tag-task">Task</span>
+                    <div class="kanban-card-priority priority-low"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- IN PROGRESS -->
+            <div class="kanban-col kanban-col--progress">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">In Progress</span>
+                <span class="kanban-col-count">2</span>
+              </div>
+              <div class="kanban-cards">
+                <div class="kanban-card">
+                  <div class="kanban-card-title">Build chat multi-agent UI</div>
+                  <div class="kanban-card-meta">
+                    <span class="kanban-card-tag tag-feature">Feature</span>
+                    <div class="kanban-card-priority priority-high"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+                <div class="kanban-card">
+                  <div class="kanban-card-title">Integrate test runner with CI</div>
+                  <div class="kanban-card-meta">
+                    <span class="kanban-card-tag tag-task">Task</span>
+                    <div class="kanban-card-priority priority-med"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- DONE -->
+            <div class="kanban-col kanban-col--done">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">Done</span>
+                <span class="kanban-col-count">5</span>
+              </div>
+              <div class="kanban-cards">
+                <div class="kanban-card">
+                  <div class="kanban-card-title">Setup MCP server framework</div>
+                  <div class="kanban-card-meta">
+                    <span class="kanban-card-tag tag-task">Task</span>
+                    <div class="kanban-card-priority priority-high"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+                <div class="kanban-card">
+                  <div class="kanban-card-title">Kanban CRUD operations</div>
+                  <div class="kanban-card-meta">
+                    <span class="kanban-card-tag tag-feature">Feature</span>
+                    <div class="kanban-card-priority priority-high"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+                <div class="kanban-card">
+                  <div class="kanban-card-title">Voice transcription pipeline</div>
+                  <div class="kanban-card-meta">
+                    <span class="kanban-card-tag tag-feature">Feature</span>
+                    <div class="kanban-card-priority priority-med"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+                <div class="kanban-card">
+                  <div class="kanban-card-title">Shell pane management</div>
+                  <div class="kanban-card-meta">
+                    <span class="kanban-card-tag tag-task">Task</span>
+                    <div class="kanban-card-priority priority-med"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+                <div class="kanban-card">
+                  <div class="kanban-card-title">Fix login token refresh bug</div>
+                  <div class="kanban-card-meta">
+                    <span class="kanban-card-tag tag-bug">Bug</span>
+                    <div class="kanban-card-priority priority-high"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+</body>
+</html>

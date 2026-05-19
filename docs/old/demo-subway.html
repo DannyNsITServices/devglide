@@ -1,0 +1,1996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevGlide Metro — Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+/* ================================================================
+   RESET & BASE
+   ================================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+body {
+  font-family: 'Barlow Semi Condensed', 'Gill Sans', 'Segoe UI', sans-serif;
+  background: #f8f6f0;
+  color: #1a1a2e;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+/* ================================================================
+   ROUTE COLORS — THE TRANSIT PALETTE
+   ================================================================ */
+:root {
+  --line-kanban:    #0060af;  /* Kanban Line — classic metro blue */
+  --line-shell:     #e05a00;  /* Shell Line — bold orange */
+  --line-test:      #00843d;  /* Test Line — signal green */
+  --line-workflow:  #d4003a;  /* Workflow Line — urgent red */
+  --line-voice:     #8b3fa0;  /* Voice Line — regal purple */
+  --line-chat:      #00a5a8;  /* Chat Line — teal */
+  --line-log:       #bfad60;  /* Log Line — muted gold */
+  --line-docs:      #6b6b6b;  /* Documentation Line — graphite */
+
+  --bg-primary:     #f8f6f0;
+  --bg-card:        #ffffff;
+  --bg-sidebar:     #1a1a2e;
+  --text-primary:   #1a1a2e;
+  --text-secondary: #5a5a72;
+  --text-inverse:   #f8f6f0;
+  --border-light:   #e0ddd4;
+
+  --station-size:   14px;
+  --line-width:     8px;
+  --zone-border:    2px dashed #c0bdb4;
+}
+
+/* ================================================================
+   TYPOGRAPHY
+   ================================================================ */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+h1 { font-size: 2.4rem; }
+h2 { font-size: 1.8rem; }
+h3 { font-size: 1.35rem; }
+h4 { font-size: 1.1rem; }
+p { color: var(--text-secondary); }
+
+/* ================================================================
+   SCROLLBAR
+   ================================================================ */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #c0bdb4; border-radius: 3px; }
+
+/* ================================================================
+   HEADER — TRANSIT AUTHORITY BRANDING
+   ================================================================ */
+.transit-header {
+  background: var(--bg-sidebar);
+  color: var(--text-inverse);
+  padding: 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.transit-header-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 16px 32px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.transit-roundel {
+  width: 52px;
+  height: 52px;
+  position: relative;
+  flex-shrink: 0;
+}
+.transit-roundel .ring {
+  width: 52px;
+  height: 52px;
+  border: 5px solid var(--line-workflow);
+  border-radius: 50%;
+  position: absolute;
+}
+.transit-roundel .bar {
+  position: absolute;
+  top: 50%;
+  left: -3px;
+  right: -3px;
+  height: 18px;
+  transform: translateY(-50%);
+  background: var(--line-kanban);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  color: #fff;
+  text-transform: uppercase;
+}
+.header-text h1 {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.header-text p {
+  font-size: 0.82rem;
+  color: rgba(248,246,240,0.55);
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  margin-top: 2px;
+}
+.header-route-strip {
+  display: flex;
+  gap: 0;
+  height: 4px;
+}
+.header-route-strip span {
+  flex: 1;
+  display: block;
+}
+
+/* ================================================================
+   LAYOUT
+   ================================================================ */
+.page-wrap {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 40px 32px;
+}
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 28px;
+  padding-bottom: 12px;
+  border-bottom: 3px solid var(--text-primary);
+}
+.section-title .zone-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+section {
+  margin-bottom: 64px;
+}
+
+/* ================================================================
+   ZONE CONTAINERS
+   ================================================================ */
+.zone-container {
+  border: var(--zone-border);
+  border-radius: 24px;
+  padding: 32px;
+  position: relative;
+  background: rgba(255,255,255,0.3);
+}
+.zone-label {
+  position: absolute;
+  top: -14px;
+  left: 28px;
+  background: var(--bg-primary);
+  padding: 2px 16px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ================================================================
+   ROUTE LEGEND
+   ================================================================ */
+.route-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 40px;
+}
+.route-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.route-legend-line {
+  width: 40px;
+  height: var(--line-width);
+  border-radius: 4px;
+}
+.route-legend-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+.route-legend-sub {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+/* ================================================================
+   ROUTE MAP — CSS-DRAWN TRANSIT DIAGRAM
+   ================================================================ */
+.route-map {
+  position: relative;
+  padding: 60px 20px 40px;
+  overflow-x: auto;
+  min-height: 400px;
+}
+.route-map-inner {
+  position: relative;
+  min-width: 900px;
+  height: 380px;
+}
+
+/* Horizontal route lines */
+.map-line {
+  position: absolute;
+  height: var(--line-width);
+  border-radius: 4px;
+}
+
+/* Station dots */
+.map-station {
+  position: absolute;
+  width: var(--station-size);
+  height: var(--station-size);
+  border-radius: 50%;
+  background: #fff;
+  border: 3.5px solid currentColor;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+.map-station:hover {
+  transform: translate(-50%, -50%) scale(1.4);
+}
+
+/* Interchange — larger multi-ring station */
+.map-interchange {
+  width: 22px;
+  height: 22px;
+  border-width: 3px;
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px currentColor;
+  z-index: 5;
+}
+
+/* Station labels — angled 45deg */
+.map-label {
+  position: absolute;
+  transform-origin: left center;
+  transform: translate(-4px, -28px) rotate(-45deg);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-primary);
+  z-index: 4;
+  pointer-events: none;
+}
+
+/* Duration labels between stations */
+.map-duration {
+  position: absolute;
+  font-size: 0.6rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  padding: 1px 5px;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 2;
+  transform: translateY(12px);
+}
+
+/* You Are Here pulsing marker */
+.you-are-here {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  pointer-events: none;
+}
+.you-are-here::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--line-workflow);
+  opacity: 0.35;
+  animation: pulse-ring 2s ease-out infinite;
+}
+.you-are-here::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background: var(--line-workflow);
+}
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.35; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+.you-are-here-label {
+  position: absolute;
+  transform: translate(-50%, 18px);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--line-workflow);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+/* Night service icon */
+.night-service {
+  position: absolute;
+  font-size: 0.7rem;
+  z-index: 5;
+  transform: translate(-50%, -50%);
+}
+
+/* Vertical connector lines for interchanges */
+.map-connector {
+  position: absolute;
+  width: var(--line-width);
+  border-radius: 4px;
+  z-index: 1;
+}
+
+/* ================================================================
+   STATION CARDS (KANBAN TASKS)
+   ================================================================ */
+.station-card {
+  background: var(--bg-card);
+  border-left: 5px solid;
+  padding: 14px 18px;
+  border-radius: 0 8px 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.15s ease;
+  cursor: pointer;
+}
+.station-card:hover {
+  transform: translateX(4px);
+}
+.station-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.station-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid;
+  flex-shrink: 0;
+}
+.station-card-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.station-card-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-left: 22px;
+}
+.station-zone-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #f0ede5;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.station-service-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  color: #fff;
+}
+
+/* Active station — You Are Here */
+.station-card.active {
+  position: relative;
+  box-shadow: 0 0 0 2px var(--line-workflow);
+}
+.station-card.active::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -16px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--line-workflow);
+  transform: translateY(-50%);
+  animation: pulse-dot 2s ease-out infinite;
+}
+@keyframes pulse-dot {
+  0% { box-shadow: 0 0 0 0 rgba(212,0,58,0.4); }
+  100% { box-shadow: 0 0 0 12px rgba(212,0,58,0); }
+}
+
+/* ================================================================
+   BUTTONS — TAP TO BOARD
+   ================================================================ */
+.btn {
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  border: none;
+  border-radius: 24px;
+  padding: 10px 24px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  position: relative;
+  overflow: hidden;
+}
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0);
+  transition: background 0.15s ease;
+}
+.btn:hover::after {
+  background: rgba(255,255,255,0.15);
+}
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn-kanban  { background: var(--line-kanban);   color: #fff; }
+.btn-shell   { background: var(--line-shell);    color: #fff; }
+.btn-test    { background: var(--line-test);     color: #fff; }
+.btn-workflow{ background: var(--line-workflow);  color: #fff; }
+.btn-voice   { background: var(--line-voice);    color: #fff; }
+.btn-chat    { background: var(--line-chat);     color: #fff; }
+.btn-outline {
+  background: transparent;
+  border: 2px solid var(--text-primary);
+  color: var(--text-primary);
+}
+.btn-outline:hover::after { background: rgba(0,0,0,0.06); }
+
+.btn-sm { padding: 6px 16px; font-size: 0.78rem; }
+.btn-lg { padding: 14px 32px; font-size: 1rem; }
+.btn-icon {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  justify-content: center;
+}
+
+/* ================================================================
+   BADGES — ZONE & ROUTE MARKERS
+   ================================================================ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  color: #fff;
+  flex-shrink: 0;
+}
+.badge-pill {
+  border-radius: 14px;
+  width: auto;
+  padding: 0 12px;
+  height: 24px;
+  font-size: 0.7rem;
+}
+.badge-kanban  { background: var(--line-kanban); }
+.badge-shell   { background: var(--line-shell); }
+.badge-test    { background: var(--line-test); }
+.badge-workflow{ background: var(--line-workflow); }
+.badge-voice   { background: var(--line-voice); }
+.badge-chat    { background: var(--line-chat); }
+.badge-log     { background: var(--line-log); color: var(--text-primary); }
+.badge-docs    { background: var(--line-docs); }
+
+.badge-zone {
+  background: transparent;
+  color: var(--text-primary);
+  border: 2.5px solid var(--text-primary);
+  font-size: 0.75rem;
+}
+
+/* ================================================================
+   INPUTS — KIOSK STYLE
+   ================================================================ */
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.input-group label {
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+.input-field {
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: 12px 18px;
+  border: 2px solid var(--border-light);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.input-field:focus {
+  border-color: var(--line-kanban);
+}
+.input-field::placeholder {
+  color: #b0aEa4;
+}
+.input-search {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23b0aea4' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 14px center;
+  padding-left: 42px;
+}
+
+/* ================================================================
+   TOASTS — DEPARTURE BOARD STYLE
+   ================================================================ */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 1000;
+  pointer-events: none;
+}
+.toast {
+  background: var(--bg-sidebar);
+  color: var(--text-inverse);
+  padding: 14px 22px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  min-width: 320px;
+  animation: toast-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: auto;
+  border-left: 4px solid;
+}
+.toast.toast-out {
+  animation: toast-out 0.3s ease forwards;
+}
+@keyframes toast-in {
+  from { transform: translateY(30px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+@keyframes toast-out {
+  from { transform: translateY(0); opacity: 1; }
+  to   { transform: translateY(20px); opacity: 0; }
+}
+.toast-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+.toast-body {
+  flex: 1;
+}
+.toast-title {
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.6;
+}
+.toast-message {
+  margin-top: 2px;
+}
+.toast-time {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* ================================================================
+   DASHBOARD MOCKUP — ROUTE PLANNER + KANBAN MAP
+   ================================================================ */
+.dashboard {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  border-radius: 16px;
+  overflow: hidden;
+  min-height: 600px;
+  border: 1px solid var(--border-light);
+}
+
+/* Sidebar — Route Planner */
+.sidebar {
+  background: var(--bg-sidebar);
+  color: var(--text-inverse);
+  padding: 28px 0;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar-header {
+  padding: 0 22px 22px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.sidebar-header h3 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(248,246,240,0.45);
+  font-weight: 600;
+}
+.sidebar-header h2 {
+  font-size: 1.2rem;
+  margin-top: 4px;
+}
+.sidebar-routes {
+  padding: 16px 0;
+  flex: 1;
+  overflow-y: auto;
+}
+.sidebar-route {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 22px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  border-left: 3px solid transparent;
+}
+.sidebar-route:hover {
+  background: rgba(255,255,255,0.04);
+}
+.sidebar-route.active {
+  background: rgba(255,255,255,0.07);
+  border-left-color: currentColor;
+}
+.sidebar-route-circle {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.6rem;
+  color: #fff;
+}
+.sidebar-route-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.sidebar-route-count {
+  margin-left: auto;
+  font-size: 0.72rem;
+  opacity: 0.4;
+  font-weight: 500;
+}
+.sidebar-section-label {
+  padding: 18px 22px 8px;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(248,246,240,0.3);
+  font-weight: 600;
+}
+.sidebar-footer {
+  padding: 18px 22px 0;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.sidebar-footer-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: rgba(248,246,240,0.5);
+}
+.sidebar-footer-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line-test);
+  animation: pulse-dot 2s ease-out infinite;
+}
+
+/* Main kanban area */
+.kanban-area {
+  background: var(--bg-primary);
+  padding: 28px;
+  overflow-x: auto;
+}
+.kanban-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.kanban-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.kanban-columns {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  min-width: 700px;
+}
+.kanban-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.kanban-column-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  position: relative;
+}
+.kanban-column-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--line-width);
+  border-radius: 4px;
+}
+.kanban-column-header .count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0.5;
+}
+/* Route-colored column underlines */
+.col-backlog  .kanban-column-header::after { background: var(--line-kanban); }
+.col-progress .kanban-column-header::after { background: var(--line-shell); }
+.col-review   .kanban-column-header::after { background: var(--line-voice); }
+.col-done     .kanban-column-header::after { background: var(--line-test); }
+
+.kanban-column-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  padding-left: 14px;
+}
+/* Vertical route line running down the column */
+.kanban-column-body::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-radius: 2px;
+  opacity: 0.15;
+}
+.col-backlog  .kanban-column-body::before { background: var(--line-kanban); }
+.col-progress .kanban-column-body::before { background: var(--line-shell); }
+.col-review   .kanban-column-body::before { background: var(--line-voice); }
+.col-done     .kanban-column-body::before { background: var(--line-test); }
+
+/* ================================================================
+   COMPONENT SHOWCASE GRID
+   ================================================================ */
+.showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 28px;
+}
+.showcase-item {
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.showcase-item h4 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+/* Button row */
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Badge row */
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ================================================================
+   DEPARTURE BOARD (inline demo)
+   ================================================================ */
+.departure-board {
+  background: var(--bg-sidebar);
+  border-radius: 12px;
+  padding: 20px 24px;
+  color: var(--text-inverse);
+  font-size: 0.85rem;
+}
+.departure-board h4 {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(248,246,240,0.4);
+  margin-bottom: 14px;
+  font-weight: 600;
+}
+.departure-row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.departure-row:last-child { border-bottom: none; }
+.departure-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.departure-dest {
+  font-weight: 600;
+}
+.departure-time {
+  font-weight: 700;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+.departure-time.soon {
+  color: #ff6b4a;
+  animation: blink-time 1.5s step-end infinite;
+}
+@keyframes blink-time {
+  50% { opacity: 0.4; }
+}
+
+/* ================================================================
+   NIGHT SERVICE INDICATOR
+   ================================================================ */
+.night-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: #1a1a2e;
+  color: #f0ede5;
+  padding: 4px 12px;
+  border-radius: 10px;
+}
+.night-moon {
+  font-size: 0.8rem;
+}
+
+/* ================================================================
+   INTERCHANGE DIAGRAM (COMPONENT)
+   ================================================================ */
+.interchange-demo {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 20px 0;
+}
+.interchange-line-segment {
+  height: var(--line-width);
+  width: 60px;
+  border-radius: 4px;
+}
+.interchange-station {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  border: 4px solid;
+  box-shadow: 0 0 0 3px #fff;
+  flex-shrink: 0;
+  z-index: 2;
+  position: relative;
+}
+.interchange-station.multi::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 3px solid;
+  opacity: 0.4;
+}
+
+/* ================================================================
+   RESPONSIVE
+   ================================================================ */
+@media (max-width: 900px) {
+  .dashboard { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .kanban-columns { grid-template-columns: repeat(2, 1fr); }
+  .route-map-inner { min-width: 700px; }
+}
+@media (max-width: 600px) {
+  .page-wrap { padding: 24px 16px; }
+  .kanban-columns { grid-template-columns: 1fr; }
+  h1 { font-size: 1.8rem; }
+}
+
+/* ================================================================
+   TRANSFER DIAGRAM IN SIDEBAR
+   ================================================================ */
+.transfer-map-mini {
+  padding: 16px 22px;
+}
+.transfer-map-mini svg {
+  width: 100%;
+  height: auto;
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     HEADER — TRANSIT AUTHORITY BRANDING
+     ============================================================ -->
+<header class="transit-header">
+  <div class="transit-header-inner">
+    <div class="transit-roundel">
+      <div class="ring"></div>
+      <div class="bar">DG</div>
+    </div>
+    <div class="header-text">
+      <h1>DevGlide Metro</h1>
+      <p>Developer Transit Authority &mdash; Design System v2.0</p>
+    </div>
+    <div style="margin-left:auto; display:flex; align-items:center; gap:14px;">
+      <span class="night-indicator"><span class="night-moon">&#9790;</span> Night service active</span>
+      <button class="btn btn-workflow btn-sm" onclick="showToast('Service Alert','All lines running normally.','var(--line-test)')">System Status</button>
+    </div>
+  </div>
+  <div class="header-route-strip">
+    <span style="background:var(--line-kanban)"></span>
+    <span style="background:var(--line-shell)"></span>
+    <span style="background:var(--line-test)"></span>
+    <span style="background:var(--line-workflow)"></span>
+    <span style="background:var(--line-voice)"></span>
+    <span style="background:var(--line-chat)"></span>
+    <span style="background:var(--line-log)"></span>
+    <span style="background:var(--line-docs)"></span>
+  </div>
+</header>
+
+<div class="page-wrap">
+
+  <!-- ===========================================================
+       SECTION 1: ROUTE LEGEND
+       =========================================================== -->
+  <section>
+    <div class="section-title">
+      <div class="zone-badge">1</div>
+      <div>
+        <h2>Route Legend</h2>
+        <p style="font-size:0.85rem;">Official DevGlide Metro network lines</p>
+      </div>
+    </div>
+
+    <div class="route-legend">
+      <div class="route-legend-item">
+        <div class="route-legend-line" style="background:var(--line-kanban)"></div>
+        <div>
+          <div class="route-legend-name">Kanban Line</div>
+          <div class="route-legend-sub">Task management &amp; boards</div>
+        </div>
+      </div>
+      <div class="route-legend-item">
+        <div class="route-legend-line" style="background:var(--line-shell)"></div>
+        <div>
+          <div class="route-legend-name">Shell Line</div>
+          <div class="route-legend-sub">Terminal &amp; pane management</div>
+        </div>
+      </div>
+      <div class="route-legend-item">
+        <div class="route-legend-line" style="background:var(--line-test)"></div>
+        <div>
+          <div class="route-legend-name">Test Line</div>
+          <div class="route-legend-sub">Browser automation</div>
+        </div>
+      </div>
+      <div class="route-legend-item">
+        <div class="route-legend-line" style="background:var(--line-workflow)"></div>
+        <div>
+          <div class="route-legend-name">Workflow Line</div>
+          <div class="route-legend-sub">DAG pipelines &amp; orchestration</div>
+        </div>
+      </div>
+      <div class="route-legend-item">
+        <div class="route-legend-line" style="background:var(--line-voice)"></div>
+        <div>
+          <div class="route-legend-name">Voice Line</div>
+          <div class="route-legend-sub">Speech &amp; transcription</div>
+        </div>
+      </div>
+      <div class="route-legend-item">
+        <div class="route-legend-line" style="background:var(--line-chat)"></div>
+        <div>
+          <div class="route-legend-name">Chat Line</div>
+          <div class="route-legend-sub">Multi-LLM communication</div>
+        </div>
+      </div>
+      <div class="route-legend-item">
+        <div class="route-legend-line" style="background:var(--line-log)"></div>
+        <div>
+          <div class="route-legend-name">Log Line</div>
+          <div class="route-legend-sub">Structured logging</div>
+        </div>
+      </div>
+      <div class="route-legend-item">
+        <div class="route-legend-line" style="background:var(--line-docs)"></div>
+        <div>
+          <div class="route-legend-name">Documentation Line</div>
+          <div class="route-legend-sub">Operational guidance</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Night service legend items -->
+    <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:8px;">
+      <div class="route-legend-item">
+        <span style="font-size:0.9rem;">&#9790;</span>
+        <div>
+          <div class="route-legend-name" style="font-size:0.82rem;">Night Service</div>
+          <div class="route-legend-sub">Available after hours</div>
+        </div>
+      </div>
+      <div class="route-legend-item">
+        <div style="width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid var(--line-kanban);box-shadow:0 0 0 3px #fff,0 0 0 6px var(--line-shell);"></div>
+        <div>
+          <div class="route-legend-name" style="font-size:0.82rem;">Interchange</div>
+          <div class="route-legend-sub">Transfer between lines</div>
+        </div>
+      </div>
+      <div class="route-legend-item">
+        <div style="position:relative;width:22px;height:22px;">
+          <div style="width:22px;height:22px;border-radius:50;position:relative;">
+            <div style="position:absolute;inset:4px;border-radius:50%;background:var(--line-workflow);"></div>
+            <div style="position:absolute;inset:0;border-radius:50%;background:var(--line-workflow);opacity:0.25;animation:pulse-ring 2s ease-out infinite;"></div>
+          </div>
+        </div>
+        <div>
+          <div class="route-legend-name" style="font-size:0.82rem;">You Are Here</div>
+          <div class="route-legend-sub">Current active station</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===========================================================
+       SECTION 2: ROUTE MAP DIAGRAM
+       =========================================================== -->
+  <section>
+    <div class="section-title">
+      <div class="zone-badge">2</div>
+      <div>
+        <h2>Network Map</h2>
+        <p style="font-size:0.85rem;">CSS-drawn transit diagram showing the DevGlide service network</p>
+      </div>
+    </div>
+
+    <div class="zone-container">
+      <div class="zone-label">Zone 1 &mdash; Core Services</div>
+      <div class="route-map">
+        <div class="route-map-inner" id="routeMap">
+          <!-- Lines and stations are rendered by JS -->
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===========================================================
+       SECTION 3: COMPONENTS
+       =========================================================== -->
+  <section>
+    <div class="section-title">
+      <div class="zone-badge">3</div>
+      <div>
+        <h2>Component Showcase</h2>
+        <p style="font-size:0.85rem;">UI primitives styled as transit system elements</p>
+      </div>
+    </div>
+
+    <div class="showcase-grid">
+
+      <!-- Buttons -->
+      <div class="showcase-item">
+        <h4>Buttons &mdash; Tap to Board</h4>
+        <div class="btn-row">
+          <button class="btn btn-kanban">Board Task</button>
+          <button class="btn btn-shell">Open Terminal</button>
+          <button class="btn btn-test">Run Test</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-workflow btn-sm">Start Workflow</button>
+          <button class="btn btn-voice btn-sm">Transcribe</button>
+          <button class="btn btn-chat btn-sm">Join Chat</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-outline">Plan Route</button>
+          <button class="btn btn-outline btn-sm">Transfer</button>
+          <button class="btn btn-kanban btn-icon" title="Add station">+</button>
+        </div>
+      </div>
+
+      <!-- Badges -->
+      <div class="showcase-item">
+        <h4>Badges &mdash; Zone &amp; Route Markers</h4>
+        <div class="badge-row">
+          <span class="badge badge-kanban">K</span>
+          <span class="badge badge-shell">S</span>
+          <span class="badge badge-test">T</span>
+          <span class="badge badge-workflow">W</span>
+          <span class="badge badge-voice">V</span>
+          <span class="badge badge-chat">C</span>
+          <span class="badge badge-log">L</span>
+          <span class="badge badge-docs">D</span>
+        </div>
+        <div class="badge-row">
+          <span class="badge badge-zone">1</span>
+          <span class="badge badge-zone">2</span>
+          <span class="badge badge-zone">3</span>
+          <span class="badge badge-zone">4</span>
+        </div>
+        <div class="badge-row">
+          <span class="badge badge-pill badge-kanban">Backlog</span>
+          <span class="badge badge-pill badge-shell">In Progress</span>
+          <span class="badge badge-pill badge-test">Done</span>
+          <span class="badge badge-pill badge-workflow">Blocked</span>
+        </div>
+        <div class="badge-row" style="margin-top:4px;">
+          <span class="night-indicator"><span class="night-moon">&#9790;</span> Shell</span>
+          <span class="night-indicator"><span class="night-moon">&#9790;</span> Workflow</span>
+        </div>
+      </div>
+
+      <!-- Inputs -->
+      <div class="showcase-item">
+        <h4>Inputs &mdash; Kiosk Interface</h4>
+        <div class="input-group">
+          <label>Destination</label>
+          <input class="input-field input-search" type="text" placeholder="Search stations...">
+        </div>
+        <div class="input-group">
+          <label>Task Name</label>
+          <input class="input-field" type="text" placeholder="Enter station name">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="input-group">
+            <label>Zone</label>
+            <select class="input-field" style="padding:10px 14px;">
+              <option>Zone 1</option>
+              <option>Zone 2</option>
+              <option>Zone 3</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label>Priority</label>
+            <select class="input-field" style="padding:10px 14px;">
+              <option>Medium</option>
+              <option>High</option>
+              <option>Urgent</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Interchange Diagram -->
+      <div class="showcase-item">
+        <h4>Interchange &mdash; Transfer Stations</h4>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="interchange-demo">
+            <div class="interchange-line-segment" style="background:var(--line-kanban)"></div>
+            <div class="interchange-station" style="border-color:var(--line-kanban);color:var(--line-kanban)"></div>
+            <div class="interchange-line-segment" style="background:var(--line-kanban)"></div>
+            <div class="interchange-station multi" style="border-color:var(--line-shell);color:var(--line-shell)"></div>
+            <div class="interchange-line-segment" style="background:var(--line-shell)"></div>
+          </div>
+          <div style="font-size:0.82rem;color:var(--text-secondary);">
+            Standard station (left) and interchange station (right) with transfer ring. Interchanges appear where two or more route lines converge.
+          </div>
+        </div>
+      </div>
+
+      <!-- Departure Board -->
+      <div class="showcase-item" style="padding:0;overflow:hidden;">
+        <div class="departure-board">
+          <h4>Next Departures</h4>
+          <div class="departure-row">
+            <div class="departure-dot" style="background:var(--line-kanban)"></div>
+            <div class="departure-dest">Build #247 &rarr; Deploy</div>
+            <div class="departure-time soon">1 min</div>
+          </div>
+          <div class="departure-row">
+            <div class="departure-dot" style="background:var(--line-test)"></div>
+            <div class="departure-dest">Test Suite &rarr; E2E Pass</div>
+            <div class="departure-time">3 min</div>
+          </div>
+          <div class="departure-row">
+            <div class="departure-dot" style="background:var(--line-shell)"></div>
+            <div class="departure-dest">Dev Server &rarr; Hot Reload</div>
+            <div class="departure-time">5 min</div>
+          </div>
+          <div class="departure-row">
+            <div class="departure-dot" style="background:var(--line-workflow)"></div>
+            <div class="departure-dest">CI Pipeline &rarr; Staging</div>
+            <div class="departure-time">8 min</div>
+          </div>
+          <div class="departure-row">
+            <div class="departure-dot" style="background:var(--line-voice)"></div>
+            <div class="departure-dest">Transcription &rarr; Processed</div>
+            <div class="departure-time">12 min</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Station Card Samples -->
+      <div class="showcase-item">
+        <h4>Station Cards &mdash; Task Entries</h4>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div class="station-card" style="border-left-color:var(--line-kanban);">
+            <div class="station-card-header">
+              <div class="station-dot" style="border-color:var(--line-kanban);"></div>
+              <div class="station-card-title">Implement OAuth flow</div>
+            </div>
+            <div class="station-card-meta">
+              <span class="station-zone-badge">Zone 2</span>
+              <span class="station-service-badge" style="background:var(--line-kanban);">API</span>
+              <span class="station-service-badge" style="background:var(--line-test);">Tested</span>
+            </div>
+          </div>
+          <div class="station-card active" style="border-left-color:var(--line-workflow);">
+            <div class="station-card-header">
+              <div class="station-dot" style="border-color:var(--line-workflow);"></div>
+              <div class="station-card-title">Fix CI pipeline timeout</div>
+            </div>
+            <div class="station-card-meta">
+              <span class="station-zone-badge">Zone 1</span>
+              <span class="station-service-badge" style="background:var(--line-workflow);">Urgent</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===========================================================
+       SECTION 4: DASHBOARD MOCKUP
+       =========================================================== -->
+  <section>
+    <div class="section-title">
+      <div class="zone-badge">4</div>
+      <div>
+        <h2>Dashboard</h2>
+        <p style="font-size:0.85rem;">Route planner sidebar with station-based kanban board</p>
+      </div>
+    </div>
+
+    <div class="zone-container" style="padding:0;overflow:hidden;">
+      <div class="zone-label">Zone 2 &mdash; Project View</div>
+      <div class="dashboard">
+
+        <!-- Sidebar — Route Planner -->
+        <div class="sidebar">
+          <div class="sidebar-header">
+            <h3>Route Planner</h3>
+            <h2>DevGlide Metro</h2>
+          </div>
+
+          <div class="sidebar-routes">
+            <div class="sidebar-section-label">Lines</div>
+            <div class="sidebar-route active" style="color:var(--line-kanban);">
+              <div class="sidebar-route-circle" style="background:var(--line-kanban);">K</div>
+              <div class="sidebar-route-name">Kanban Line</div>
+              <div class="sidebar-route-count">12</div>
+            </div>
+            <div class="sidebar-route" style="color:var(--line-shell);">
+              <div class="sidebar-route-circle" style="background:var(--line-shell);">S</div>
+              <div class="sidebar-route-name">Shell Line</div>
+              <div class="sidebar-route-count">4</div>
+            </div>
+            <div class="sidebar-route" style="color:var(--line-test);">
+              <div class="sidebar-route-circle" style="background:var(--line-test);">T</div>
+              <div class="sidebar-route-name">Test Line</div>
+              <div class="sidebar-route-count">8</div>
+            </div>
+            <div class="sidebar-route" style="color:var(--line-workflow);">
+              <div class="sidebar-route-circle" style="background:var(--line-workflow);">W</div>
+              <div class="sidebar-route-name">Workflow Line</div>
+              <div class="sidebar-route-count">3</div>
+            </div>
+            <div class="sidebar-route" style="color:var(--line-voice);">
+              <div class="sidebar-route-circle" style="background:var(--line-voice);">V</div>
+              <div class="sidebar-route-name">Voice Line</div>
+              <div class="sidebar-route-count">2</div>
+            </div>
+            <div class="sidebar-route" style="color:var(--line-chat);">
+              <div class="sidebar-route-circle" style="background:var(--line-chat);">C</div>
+              <div class="sidebar-route-name">Chat Line</div>
+              <div class="sidebar-route-count">5</div>
+            </div>
+
+            <div class="sidebar-section-label">Quick Transfer</div>
+            <div class="sidebar-route" style="color:var(--line-log);">
+              <div class="sidebar-route-circle" style="background:var(--line-log);">L</div>
+              <div class="sidebar-route-name">Log Line</div>
+              <div class="sidebar-route-count">--</div>
+            </div>
+            <div class="sidebar-route" style="color:var(--line-docs);">
+              <div class="sidebar-route-circle" style="background:var(--line-docs);">D</div>
+              <div class="sidebar-route-name">Docs Line</div>
+              <div class="sidebar-route-count">--</div>
+            </div>
+          </div>
+
+          <!-- Mini transfer map in sidebar -->
+          <div class="transfer-map-mini">
+            <svg viewBox="0 0 216 80" fill="none">
+              <!-- Kanban line -->
+              <line x1="10" y1="20" x2="206" y2="20" stroke="#0060af" stroke-width="4" stroke-linecap="round"/>
+              <!-- Shell line -->
+              <line x1="10" y1="45" x2="140" y2="45" stroke="#e05a00" stroke-width="4" stroke-linecap="round"/>
+              <line x1="140" y1="45" x2="170" y2="20" stroke="#e05a00" stroke-width="4" stroke-linecap="round"/>
+              <!-- Test line -->
+              <line x1="60" y1="65" x2="110" y2="65" stroke="#00843d" stroke-width="4" stroke-linecap="round"/>
+              <line x1="110" y1="65" x2="140" y2="45" stroke="#00843d" stroke-width="4" stroke-linecap="round"/>
+              <!-- Station dots -->
+              <circle cx="40" cy="20" r="5" fill="#fff" stroke="#0060af" stroke-width="3"/>
+              <circle cx="100" cy="20" r="5" fill="#fff" stroke="#0060af" stroke-width="3"/>
+              <circle cx="170" cy="20" r="7" fill="#fff" stroke="#0060af" stroke-width="3"/>
+              <circle cx="170" cy="20" r="11" fill="none" stroke="#e05a00" stroke-width="2" opacity="0.5"/>
+              <circle cx="60" cy="45" r="5" fill="#fff" stroke="#e05a00" stroke-width="3"/>
+              <circle cx="140" cy="45" r="7" fill="#fff" stroke="#e05a00" stroke-width="3"/>
+              <circle cx="140" cy="45" r="11" fill="none" stroke="#00843d" stroke-width="2" opacity="0.5"/>
+              <circle cx="60" cy="65" r="5" fill="#fff" stroke="#00843d" stroke-width="3"/>
+              <circle cx="110" cy="65" r="5" fill="#fff" stroke="#00843d" stroke-width="3"/>
+            </svg>
+          </div>
+
+          <div class="sidebar-footer">
+            <div class="sidebar-footer-status">
+              <div class="sidebar-footer-dot"></div>
+              All lines operational
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Kanban Area -->
+        <div class="kanban-area">
+          <div class="kanban-header">
+            <div class="kanban-title">
+              <span class="badge badge-kanban">K</span>
+              <h3>Kanban Line &mdash; Feature Board</h3>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-outline btn-sm" onclick="showToast('Station Added','New task created in Backlog.','var(--line-kanban)')">+ Add Station</button>
+              <button class="btn btn-kanban btn-sm">Filter Routes</button>
+            </div>
+          </div>
+
+          <div class="kanban-columns">
+            <!-- Backlog -->
+            <div class="kanban-column col-backlog">
+              <div class="kanban-column-header">
+                <span class="badge badge-kanban" style="width:24px;height:24px;font-size:0.65rem;">B</span>
+                <h4>Backlog</h4>
+                <span class="count">4</span>
+              </div>
+              <div class="kanban-column-body">
+                <div class="station-card" style="border-left-color:var(--line-kanban);">
+                  <div class="station-card-header">
+                    <div class="station-dot" style="border-color:var(--line-kanban);"></div>
+                    <div class="station-card-title">Add dark mode</div>
+                  </div>
+                  <div class="station-card-meta">
+                    <span class="station-zone-badge">Zone 3</span>
+                    <span class="station-service-badge" style="background:var(--line-kanban);">UI</span>
+                  </div>
+                </div>
+                <div class="station-card" style="border-left-color:var(--line-kanban);">
+                  <div class="station-card-header">
+                    <div class="station-dot" style="border-color:var(--line-kanban);"></div>
+                    <div class="station-card-title">Audit log export</div>
+                  </div>
+                  <div class="station-card-meta">
+                    <span class="station-zone-badge">Zone 2</span>
+                    <span class="station-service-badge" style="background:var(--line-log);color:var(--text-primary);">Log</span>
+                  </div>
+                </div>
+                <div class="station-card" style="border-left-color:var(--line-kanban);">
+                  <div class="station-card-header">
+                    <div class="station-dot" style="border-color:var(--line-kanban);"></div>
+                    <div class="station-card-title">Webhook integrations</div>
+                  </div>
+                  <div class="station-card-meta">
+                    <span class="station-zone-badge">Zone 2</span>
+                    <span class="station-service-badge" style="background:var(--line-shell);">API</span>
+                  </div>
+                </div>
+                <div class="station-card" style="border-left-color:var(--line-kanban);">
+                  <div class="station-card-header">
+                    <div class="station-dot" style="border-color:var(--line-kanban);"></div>
+                    <div class="station-card-title">Performance dashboard</div>
+                  </div>
+                  <div class="station-card-meta">
+                    <span class="station-zone-badge">Zone 3</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- In Progress -->
+            <div class="kanban-column col-progress">
+              <div class="kanban-column-header">
+                <span class="badge badge-shell" style="width:24px;height:24px;font-size:0.65rem;">P</span>
+                <h4>In Progress</h4>
+                <span class="count">3</span>
+              </div>
+              <div class="kanban-column-body">
+                <div class="station-card active" style="border-left-color:var(--line-shell);">
+                  <div class="station-card-header">
+                    <div class="station-dot" style="border-color:var(--line-shell);"></div>
+                    <div class="station-card-title">MCP server refactor</div>
+                  </div>
+                  <div class="station-card-meta">
+                    <span class="station-zone-badge">Zone 1</span>
+                    <span class="station-service-badge" style="background:var(--line-workflow);">Urgent</span>
+                    <span class="station-service-badge" style="background:var(--line-shell);">Shell</span>
+                  </div>
+                </div>
+                <div class="station-card" style="border-left-color:var(--line-shell);">
+                  <div class="station-card-header">
+                    <div class="station-dot" style="border-color:var(--line-shell);"></div>
+                    <div class="station-card-title">Voice provider config</div>
+                  </div>
+                  <div class="station-card-meta">
+                    <span class="station-zone-badge">Zone 2</span>
+                    <span class="station-service-badge" style="background:var(--line-voice);">Voice</span>
+                  </div>
+                </div>
+                <div class="station-card" style="border-left-color:var(--line-shell);">
+                  <div class="station-card-header">
+                    <div class="station-dot" style="border-color:var(--line-shell);"></div>
+                    <div class="station-card-title">Chat message threading</div>
+                  </div>
+                  <div class="station-card-meta">
+                    <span class="station-zone-badge">Zone 1</span>
+                    <span class="station-service-badge" style="background:var(--line-chat);">Chat</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- In Review -->
+            <div class="kanban-column col-review">
+              <div class="kanban-column-header">
+                <span class="badge badge-voice" style="width:24px;height:24px;font-size:0.65rem;">R</span>
+                <h4>In Review</h4>
+                <span class="count">2</span>
+              </div>
+              <div class="kanban-column-body">
+                <div class="station-card" style="border-left-color:var(--line-voice);">
+                  <div class="station-card-header">
+                    <div class="station-dot" style="border-color:var(--line-voice);"></div>
+                    <div class="station-card-title">Test scenario builder</div>
+                  </div>
+                  <div class="station-card-meta">
+                    <span class="station-zone-badge">Zone 1</span>
+                    <span class="station-service-badge" style="background:var(--line-test);">Test</span>
+                    <span class="station-service-badge" style="background:var(--line-kanban);">UI</span>
+                  </div>
+                </div>
+                <div class="station-card" style="border-left-color:var(--line-voice);">
+                  <div class="station-card-header">
+                    <div class="station-dot" style="border-color:var(--line-voice);"></div>
+                    <div class="station-card-title">Workflow DAG editor</div>
+                  </div>
+                  <div class="station-card-meta">
+                    <span class="station-zone-badge">Zone 1</span>
+                    <span class="station-service-badge" style="background:var(--line-workflow);">Workflow</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Done -->
+            <div class="kanban-column col-done">
+              <div class="kanban-column-header">
+                <span class="badge badge-test" style="width:24px;height:24px;font-size:0.65rem;">D</span>
+                <h4>Done</h4>
+                <span class="count">3</span>
+              </div>
+              <div class="kanban-column-body">
+                <div class="station-card" style="border-left-color:var(--line-test);opacity:0.7;">
+                  <div class="station-card-header">
+                    <div class="station-dot" style="border-color:var(--line-test);"></div>
+                    <div class="station-card-title">Project registry</div>
+                  </div>
+                  <div class="station-card-meta">
+                    <span class="station-zone-badge">Zone 1</span>
+                  </div>
+                </div>
+                <div class="station-card" style="border-left-color:var(--line-test);opacity:0.7;">
+                  <div class="station-card-header">
+                    <div class="station-dot" style="border-color:var(--line-test);"></div>
+                    <div class="station-card-title">Kanban SQLite store</div>
+                  </div>
+                  <div class="station-card-meta">
+                    <span class="station-zone-badge">Zone 2</span>
+                    <span class="station-service-badge" style="background:var(--line-kanban);">Kanban</span>
+                  </div>
+                </div>
+                <div class="station-card" style="border-left-color:var(--line-test);opacity:0.7;">
+                  <div class="station-card-header">
+                    <div class="station-dot" style="border-color:var(--line-test);"></div>
+                    <div class="station-card-title">MCP stdio transport</div>
+                  </div>
+                  <div class="station-card-meta">
+                    <span class="station-zone-badge">Zone 1</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===========================================================
+       SECTION 5: STATUS COLUMNS (LINE STATUS BOARD)
+       =========================================================== -->
+  <section>
+    <div class="section-title">
+      <div class="zone-badge">5</div>
+      <div>
+        <h2>Line Status Board</h2>
+        <p style="font-size:0.85rem;">Kanban columns as transit route statuses</p>
+      </div>
+    </div>
+
+    <div class="zone-container">
+      <div class="zone-label">Zone 3 &mdash; Status Overview</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin-top:8px;">
+
+        <!-- Backlog = Blue Line -->
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+            <div style="width:32px;height:var(--line-width);background:var(--line-kanban);border-radius:4px;"></div>
+            <span style="font-weight:700;font-size:0.9rem;color:var(--line-kanban);">Backlog</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:10px;height:10px;border-radius:50%;background:#fff;border:3px solid var(--line-kanban);"></div>
+              <span style="font-size:0.82rem;font-weight:500;">Search indexing</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:10px;height:10px;border-radius:50%;background:#fff;border:3px solid var(--line-kanban);"></div>
+              <span style="font-size:0.82rem;font-weight:500;">i18n support</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:10px;height:10px;border-radius:50%;background:#fff;border:3px solid var(--line-kanban);"></div>
+              <span style="font-size:0.82rem;font-weight:500;">Batch operations</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- In Progress = Orange Line -->
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+            <div style="width:32px;height:var(--line-width);background:var(--line-shell);border-radius:4px;"></div>
+            <span style="font-weight:700;font-size:0.9rem;color:var(--line-shell);">In Progress</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;position:relative;">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--line-workflow);animation:pulse-dot 2s ease-out infinite;"></div>
+              <span style="font-size:0.82rem;font-weight:600;">MCP refactor</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:10px;height:10px;border-radius:50%;background:#fff;border:3px solid var(--line-shell);"></div>
+              <span style="font-size:0.82rem;font-weight:500;">Config migration</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Done = Green Line -->
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+            <div style="width:32px;height:var(--line-width);background:var(--line-test);border-radius:4px;"></div>
+            <span style="font-weight:700;font-size:0.9rem;color:var(--line-test);">Done</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;opacity:0.55;">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--line-test);"></div>
+              <span style="font-size:0.82rem;font-weight:500;">Auth module</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;opacity:0.55;">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--line-test);"></div>
+              <span style="font-size:0.82rem;font-weight:500;">DB schema v3</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;opacity:0.55;">
+              <div style="width:10px;height:10px;border-radius:50%;background:var(--line-test);"></div>
+              <span style="font-size:0.82rem;font-weight:500;">E2E test suite</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Blocked = Red Line -->
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+            <div style="width:32px;height:var(--line-width);background:var(--line-workflow);border-radius:4px;"></div>
+            <span style="font-weight:700;font-size:0.9rem;color:var(--line-workflow);">Blocked</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:10px;height:10px;border-radius:50%;background:#fff;border:3px solid var(--line-workflow);"></div>
+              <span style="font-size:0.82rem;font-weight:500;">SSO integration</span>
+              <span style="font-size:0.65rem;color:var(--line-workflow);font-weight:600;">BLOCKED</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===========================================================
+       SECTION 6: TYPOGRAPHY & COLOR SYSTEM
+       =========================================================== -->
+  <section>
+    <div class="section-title">
+      <div class="zone-badge">6</div>
+      <div>
+        <h2>Typography &amp; Colors</h2>
+        <p style="font-size:0.85rem;">The type system and transit palette</p>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;">
+      <div class="showcase-item">
+        <h4>Typography Scale</h4>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div>
+            <h1 style="margin-bottom:2px;">Heading 1</h1>
+            <span style="font-size:0.72rem;color:var(--text-secondary);">2.4rem / 700 / Barlow Semi Condensed</span>
+          </div>
+          <div>
+            <h2 style="margin-bottom:2px;">Heading 2</h2>
+            <span style="font-size:0.72rem;color:var(--text-secondary);">1.8rem / 700</span>
+          </div>
+          <div>
+            <h3 style="margin-bottom:2px;">Heading 3</h3>
+            <span style="font-size:0.72rem;color:var(--text-secondary);">1.35rem / 700</span>
+          </div>
+          <div>
+            <p style="font-size:1rem;color:var(--text-primary);margin-bottom:2px;">Body text — clear and functional, like station signage.</p>
+            <span style="font-size:0.72rem;color:var(--text-secondary);">1rem / 400</span>
+          </div>
+          <div>
+            <p style="font-size:0.85rem;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;margin-bottom:2px;">WAYFINDING LABEL</p>
+            <span style="font-size:0.72rem;color:var(--text-secondary);">0.85rem / 600 / uppercase / 0.08em tracking</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-item">
+        <h4>Transit Palette</h4>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+          <div>
+            <div style="width:100%;aspect-ratio:1;border-radius:10px;background:var(--line-kanban);"></div>
+            <div style="font-size:0.72rem;font-weight:600;margin-top:6px;">Kanban</div>
+            <div style="font-size:0.65rem;color:var(--text-secondary);">#0060af</div>
+          </div>
+          <div>
+            <div style="width:100%;aspect-ratio:1;border-radius:10px;background:var(--line-shell);"></div>
+            <div style="font-size:0.72rem;font-weight:600;margin-top:6px;">Shell</div>
+            <div style="font-size:0.65rem;color:var(--text-secondary);">#e05a00</div>
+          </div>
+          <div>
+            <div style="width:100%;aspect-ratio:1;border-radius:10px;background:var(--line-test);"></div>
+            <div style="font-size:0.72rem;font-weight:600;margin-top:6px;">Test</div>
+            <div style="font-size:0.65rem;color:var(--text-secondary);">#00843d</div>
+          </div>
+          <div>
+            <div style="width:100%;aspect-ratio:1;border-radius:10px;background:var(--line-workflow);"></div>
+            <div style="font-size:0.72rem;font-weight:600;margin-top:6px;">Workflow</div>
+            <div style="font-size:0.65rem;color:var(--text-secondary);">#d4003a</div>
+          </div>
+          <div>
+            <div style="width:100%;aspect-ratio:1;border-radius:10px;background:var(--line-voice);"></div>
+            <div style="font-size:0.72rem;font-weight:600;margin-top:6px;">Voice</div>
+            <div style="font-size:0.65rem;color:var(--text-secondary);">#8b3fa0</div>
+          </div>
+          <div>
+            <div style="width:100%;aspect-ratio:1;border-radius:10px;background:var(--line-chat);"></div>
+            <div style="font-size:0.72rem;font-weight:600;margin-top:6px;">Chat</div>
+            <div style="font-size:0.65rem;color:var(--text-secondary);">#00a5a8</div>
+          </div>
+          <div>
+            <div style="width:100%;aspect-ratio:1;border-radius:10px;background:var(--line-log);"></div>
+            <div style="font-size:0.72rem;font-weight:600;margin-top:6px;">Log</div>
+            <div style="font-size:0.65rem;color:var(--text-secondary);">#bfad60</div>
+          </div>
+          <div>
+            <div style="width:100%;aspect-ratio:1;border-radius:10px;background:var(--line-docs);"></div>
+            <div style="font-size:0.72rem;font-weight:600;margin-top:6px;">Docs</div>
+            <div style="font-size:0.65rem;color:var(--text-secondary);">#6b6b6b</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- .page-wrap -->
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ============================================================
+     JAVASCRIPT — Route Map Renderer & Toast System
+     ============================================================ -->
+<script>
+(function() {
+  'use strict';
+
+  // ---- ROUTE MAP DATA ----
+  const colors = {
+    kanban:   '#0060af',
+    shell:    '#e05a00',
+    test:     '#00843d',
+    workflow: '#d4003a',
+    voice:    '#8b3fa0',
+    chat:     '#00a5a8',
+    log:      '#bfad60',
+    docs:     '#6b6b6b'
+  };
+
+  // Each route: y position, color, stations [{x, name, interchange?, nightService?}], durations between stations
+  const routes = [
+    {
+      id: 'kanban', y: 50, color: colors.kanban,
+      stations: [
+        { x: 60,  name: 'Backlog',       nightService: false },
+        { x: 180, name: 'Todo',          nightService: false },
+        { x: 320, name: 'In Progress',   nightService: false },
+        { x: 470, name: 'In Review',     interchange: true },
+        { x: 620, name: 'Testing',       nightService: false },
+        { x: 780, name: 'Done',          nightService: false },
+        { x: 880, name: 'Archive',       nightService: false },
+      ],
+      durations: ['2 min', '3 min', '5 min', '2 min', '4 min', '1 min']
+    },
+    {
+      id: 'shell', y: 120, color: colors.shell,
+      stations: [
+        { x: 60,  name: 'Create Pane' },
+        { x: 220, name: 'Run Command', nightService: true },
+        { x: 400, name: 'Scrollback' },
+        { x: 560, name: 'List Panes' },
+        { x: 700, name: 'Close Pane' },
+      ],
+      durations: ['4 min', '3 min', '2 min', '2 min']
+    },
+    {
+      id: 'test', y: 190, color: colors.test,
+      stations: [
+        { x: 120, name: 'Describe Test' },
+        { x: 300, name: 'Generate Scenario' },
+        { x: 470, name: 'Run Browser',   interchange: true },
+        { x: 640, name: 'Assert Results' },
+        { x: 810, name: 'Save Scenario',  nightService: true },
+      ],
+      durations: ['3 min', '5 min', '3 min', '2 min']
+    },
+    {
+      id: 'workflow', y: 260, color: colors.workflow,
+      stations: [
+        { x: 40,  name: 'Match' },
+        { x: 160, name: 'Load DAG' },
+        { x: 310, name: 'Execute Nodes', nightService: true },
+        { x: 470, name: 'Decision Gate', interchange: true },
+        { x: 620, name: 'Loop' },
+        { x: 760, name: 'Complete' },
+      ],
+      durations: ['2 min', '4 min', '6 min', '3 min', '2 min']
+    },
+    {
+      id: 'voice', y: 330, color: colors.voice,
+      stations: [
+        { x: 100, name: 'Transcribe' },
+        { x: 270, name: 'AI Cleanup' },
+        { x: 420, name: 'History' },
+        { x: 580, name: 'Analytics' },
+        { x: 740, name: 'TTS Speak',   nightService: true },
+      ],
+      durations: ['3 min', '2 min', '2 min', '4 min']
+    },
+  ];
+
+  // Vertical connectors at interchanges
+  const interchangeConnectors = [
+    { x: 470, y1: 50, y2: 260, color: '#999' },  // Kanban "In Review" <-> Workflow "Decision Gate" <-> Test "Run Browser"
+  ];
+
+  // "You Are Here" position
+  const youAreHere = { x: 320, y: 50 }; // "In Progress" on Kanban line
+
+  // ---- RENDER ----
+  const map = document.getElementById('routeMap');
+
+  // Draw route lines
+  routes.forEach(route => {
+    const firstX = route.stations[0].x;
+    const lastX = route.stations[route.stations.length - 1].x;
+    const line = document.createElement('div');
+    line.className = 'map-line';
+    line.style.cssText = `background:${route.color};top:${route.y - 4}px;left:${firstX}px;width:${lastX - firstX}px;`;
+    map.appendChild(line);
+  });
+
+  // Draw vertical connectors
+  interchangeConnectors.forEach(c => {
+    const conn = document.createElement('div');
+    conn.className = 'map-connector';
+    conn.style.cssText = `background:${c.color};opacity:0.2;left:${c.x - 4}px;top:${c.y1}px;height:${c.y2 - c.y1}px;`;
+    map.appendChild(conn);
+  });
+
+  // Draw stations, labels, durations, and night service icons
+  routes.forEach(route => {
+    route.stations.forEach((station, i) => {
+      // Station dot
+      const dot = document.createElement('div');
+      dot.className = 'map-station' + (station.interchange ? ' map-interchange' : '');
+      dot.style.cssText = `color:${route.color};left:${station.x}px;top:${route.y}px;`;
+      dot.title = station.name;
+      map.appendChild(dot);
+
+      // Angled label
+      const label = document.createElement('div');
+      label.className = 'map-label';
+      label.textContent = station.name;
+      label.style.cssText = `left:${station.x + 10}px;top:${route.y - 6}px;`;
+      map.appendChild(label);
+
+      // Night service indicator
+      if (station.nightService) {
+        const moon = document.createElement('div');
+        moon.className = 'night-service';
+        moon.textContent = '\u263E';
+        moon.style.cssText = `left:${station.x}px;top:${route.y + 18}px;`;
+        moon.title = 'Night service available';
+        map.appendChild(moon);
+      }
+
+      // Duration label between this station and the next
+      if (i < route.stations.length - 1 && route.durations[i]) {
+        const dur = document.createElement('div');
+        dur.className = 'map-duration';
+        dur.textContent = route.durations[i];
+        const midX = (station.x + route.stations[i + 1].x) / 2;
+        dur.style.cssText = `left:${midX - 14}px;top:${route.y}px;`;
+        map.appendChild(dur);
+      }
+    });
+  });
+
+  // "You Are Here" marker
+  const yah = document.createElement('div');
+  yah.className = 'you-are-here';
+  yah.style.cssText = `left:${youAreHere.x}px;top:${youAreHere.y}px;`;
+  map.appendChild(yah);
+
+  const yahLabel = document.createElement('div');
+  yahLabel.className = 'you-are-here-label';
+  yahLabel.textContent = 'You are here';
+  yahLabel.style.cssText = `left:${youAreHere.x}px;top:${youAreHere.y}px;`;
+  map.appendChild(yahLabel);
+
+})();
+
+// ---- TOAST SYSTEM ----
+function showToast(title, message, borderColor) {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.style.borderLeftColor = borderColor || 'var(--line-kanban)';
+
+  const icons = { 'Service Alert': '\u{1F6C8}', 'Station Added': '\u{1F689}' };
+  const icon = icons[title] || '\u{1F687}';
+
+  toast.innerHTML = `
+    <div class="toast-icon">${icon}</div>
+    <div class="toast-body">
+      <div class="toast-title">${title}</div>
+      <div class="toast-message">${message}</div>
+    </div>
+    <div class="toast-time">Now</div>
+  `;
+
+  container.appendChild(toast);
+
+  // Auto-dismiss
+  setTimeout(() => {
+    toast.classList.add('toast-out');
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
+// Show a welcome toast after a brief delay
+setTimeout(() => {
+  showToast('Welcome Aboard', 'Next departure: Build #42 \u2014 Platform 3', 'var(--line-kanban)');
+}, 1200);
+</script>
+
+</body>
+</html>

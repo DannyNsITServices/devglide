@@ -1,0 +1,1825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevGlide Starship Bridge</title>
+<link href="https://fonts.googleapis.com/css2?family=Antonio:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --gold: #cc9933;
+  --blue: #6688cc;
+  --teal: #33aa99;
+  --red: #cc4444;
+  --bg: #050508;
+  --text: #e0dcc8;
+  --text-dim: #8a8672;
+  --panel-bg: rgba(10, 10, 18, 0.88);
+  --panel-border: rgba(100, 100, 120, 0.18);
+  --glow-gold: rgba(204, 153, 51, 0.3);
+  --glow-blue: rgba(102, 136, 204, 0.3);
+  --glow-teal: rgba(51, 170, 153, 0.3);
+  --glow-red: rgba(204, 68, 68, 0.3);
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: crosshair;
+}
+
+/* ============================================================
+   STAR VIEWPORT
+   ============================================================ */
+#viewport {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 45%;
+  overflow: hidden;
+  z-index: 0;
+}
+
+#star-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* HUD targeting grid overlay */
+#viewport::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(102, 136, 204, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(102, 136, 204, 0.04) 1px, transparent 1px);
+  background-size: 80px 80px;
+}
+
+/* Central targeting reticle */
+.reticle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 120px;
+  height: 120px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.reticle::before, .reticle::after {
+  content: '';
+  position: absolute;
+  border: 1px solid rgba(102, 136, 204, 0.2);
+  border-radius: 50%;
+}
+
+.reticle::before {
+  top: 10px; left: 10px; right: 10px; bottom: 10px;
+}
+
+.reticle::after {
+  top: 25px; left: 25px; right: 25px; bottom: 25px;
+}
+
+.reticle-cross {
+  position: absolute;
+  background: rgba(102, 136, 204, 0.15);
+}
+
+.reticle-cross.h {
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 1px;
+}
+
+.reticle-cross.v {
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 100%;
+}
+
+/* Viewport label overlays */
+.viewport-label {
+  position: absolute;
+  font-family: 'Antonio', sans-serif;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(102, 136, 204, 0.3);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.viewport-label.top-left {
+  top: 20px;
+  left: 30px;
+}
+
+.viewport-label.top-right {
+  top: 20px;
+  right: 30px;
+}
+
+.viewport-label.bottom-left {
+  bottom: 20px;
+  left: 30px;
+}
+
+.viewport-label.bottom-right {
+  bottom: 20px;
+  right: 30px;
+}
+
+/* Viewport edge vignette */
+#viewport::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(ellipse at center, transparent 50%, var(--bg) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ============================================================
+   3D SCENE CONTAINER
+   ============================================================ */
+#scene {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  perspective: 1000px;
+  perspective-origin: 50% 60%;
+  z-index: 10;
+  pointer-events: none;
+}
+
+#bridge {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.05s linear;
+}
+
+/* All panels are interactive */
+.panel {
+  pointer-events: auto;
+  position: absolute;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+
+/* ============================================================
+   LCARS PANEL DESIGN
+   ============================================================ */
+.lcars-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 0 20px 20px 0;
+  overflow: hidden;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.lcars-header {
+  display: flex;
+  align-items: stretch;
+  height: 38px;
+  gap: 0;
+}
+
+/* The LCARS elbow — thick left strip with rounded end */
+.lcars-elbow {
+  width: 18px;
+  min-width: 18px;
+  border-radius: 0 0 12px 0;
+  flex-shrink: 0;
+}
+
+.lcars-bar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 16px;
+  border-radius: 0 18px 0 0;
+  position: relative;
+}
+
+.lcars-bar::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: inherit;
+  opacity: 0.3;
+}
+
+.lcars-title {
+  font-family: 'Antonio', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--bg);
+}
+
+/* Color variants */
+.lcars-gold .lcars-elbow,
+.lcars-gold .lcars-bar { background: var(--gold); }
+.lcars-gold .lcars-panel { box-shadow: 0 0 20px var(--glow-gold); }
+
+.lcars-blue .lcars-elbow,
+.lcars-blue .lcars-bar { background: var(--blue); }
+.lcars-blue .lcars-panel { box-shadow: 0 0 20px var(--glow-blue); }
+
+.lcars-teal .lcars-elbow,
+.lcars-teal .lcars-bar { background: var(--teal); }
+.lcars-teal .lcars-panel { box-shadow: 0 0 20px var(--glow-teal); }
+
+.lcars-red .lcars-elbow,
+.lcars-red .lcars-bar { background: var(--red); }
+.lcars-red .lcars-panel { box-shadow: 0 0 20px var(--glow-red); }
+
+.lcars-body {
+  padding: 14px 16px;
+  min-height: 60px;
+}
+
+/* Left elbow decoration bar */
+.lcars-panel::before {
+  content: '';
+  position: absolute;
+  top: 38px;
+  left: 0;
+  width: 6px;
+  bottom: 0;
+  border-radius: 0 0 0 0;
+}
+
+.lcars-gold .lcars-panel::before { background: var(--gold); opacity: 0.3; }
+.lcars-blue .lcars-panel::before { background: var(--blue); opacity: 0.3; }
+.lcars-teal .lcars-panel::before { background: var(--teal); opacity: 0.3; }
+.lcars-red .lcars-panel::before { background: var(--red); opacity: 0.3; }
+
+/* ============================================================
+   WRAPAROUND DISPLAY ARC — LEFT WING
+   ============================================================ */
+#panel-nav {
+  top: 38%;
+  left: 2%;
+  width: 280px;
+  height: 260px;
+  transform: rotateY(22deg) translateZ(30px);
+}
+
+#panel-systems {
+  top: 60%;
+  left: 2%;
+  width: 280px;
+  height: 320px;
+  transform: rotateY(22deg) translateZ(20px);
+}
+
+/* ============================================================
+   CENTER PANELS
+   ============================================================ */
+#panel-stats {
+  top: 36%;
+  left: 50%;
+  width: 720px;
+  transform: translateX(-50%) translateZ(40px);
+  display: flex;
+  gap: 14px;
+  background: none;
+  border: none;
+}
+
+.stat-card {
+  flex: 1;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px 16px 16px 6px;
+  padding: 14px 16px;
+  text-align: center;
+  backdrop-filter: blur(6px);
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 5px;
+  height: 100%;
+}
+
+.stat-card.gold::before { background: var(--gold); }
+.stat-card.blue::before { background: var(--blue); }
+.stat-card.teal::before { background: var(--teal); }
+.stat-card.red::before { background: var(--red); }
+
+.stat-label {
+  font-family: 'Antonio', sans-serif;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.stat-value {
+  font-family: 'Antonio', sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.stat-card.gold .stat-value { color: var(--gold); }
+.stat-card.blue .stat-value { color: var(--blue); }
+.stat-card.teal .stat-value { color: var(--teal); }
+.stat-card.red .stat-value { color: var(--red); }
+
+/* Center Kanban */
+#panel-kanban {
+  top: 46%;
+  left: 50%;
+  width: 720px;
+  height: 330px;
+  transform: translateX(-50%) translateZ(35px);
+}
+
+/* ============================================================
+   RIGHT WING
+   ============================================================ */
+#panel-comms {
+  top: 38%;
+  right: 2%;
+  width: 280px;
+  height: 200px;
+  transform: rotateY(-22deg) translateZ(30px);
+}
+
+#panel-activity {
+  top: 56%;
+  right: 2%;
+  width: 280px;
+  height: 340px;
+  transform: rotateY(-22deg) translateZ(20px);
+}
+
+/* ============================================================
+   HOLOGRAPHIC TABLE
+   ============================================================ */
+#holo-table-container {
+  position: absolute;
+  bottom: 10%;
+  left: 50%;
+  width: 500px;
+  height: 240px;
+  transform: translateX(-50%) rotateX(52deg) translateZ(-30px);
+  transform-style: preserve-3d;
+}
+
+#holo-table {
+  width: 100%;
+  height: 100%;
+  background: rgba(51, 170, 153, 0.04);
+  border: 1px solid rgba(51, 170, 153, 0.2);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Holographic grid */
+#holo-table::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background:
+    linear-gradient(rgba(51, 170, 153, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(51, 170, 153, 0.08) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+
+/* Holographic glow */
+#holo-table::after {
+  content: '';
+  position: absolute;
+  top: -2px; left: -2px; right: -2px; bottom: -2px;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: 0 0 40px rgba(51, 170, 153, 0.15), inset 0 0 40px rgba(51, 170, 153, 0.05);
+  pointer-events: none;
+}
+
+.holo-label {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  font-family: 'Antonio', sans-serif;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(51, 170, 153, 0.5);
+}
+
+.holo-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.holo-dot::after {
+  content: '';
+  position: absolute;
+  top: -4px; left: -4px; right: -4px; bottom: -4px;
+  border-radius: 50%;
+  border: 1px solid;
+  opacity: 0.3;
+  animation: holo-pulse 2s ease-in-out infinite;
+}
+
+.holo-dot.online { background: var(--teal); }
+.holo-dot.online::after { border-color: var(--teal); }
+.holo-dot.warning { background: var(--gold); }
+.holo-dot.warning::after { border-color: var(--gold); }
+.holo-dot.critical { background: var(--red); }
+.holo-dot.critical::after { border-color: var(--red); }
+
+.holo-dot-label {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  color: rgba(224, 220, 200, 0.5);
+}
+
+@keyframes holo-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50% { transform: scale(1.8); opacity: 0; }
+}
+
+/* Stagger pulse animations */
+.holo-dot:nth-child(2)::after { animation-delay: 0.3s; }
+.holo-dot:nth-child(3)::after { animation-delay: 0.6s; }
+.holo-dot:nth-child(4)::after { animation-delay: 0.9s; }
+.holo-dot:nth-child(5)::after { animation-delay: 1.2s; }
+.holo-dot:nth-child(6)::after { animation-delay: 1.5s; }
+.holo-dot:nth-child(7)::after { animation-delay: 1.8s; }
+
+/* ============================================================
+   STATUS BAR / CONSOLE
+   ============================================================ */
+#console-bar {
+  position: absolute;
+  bottom: 1.5%;
+  left: 50%;
+  width: 88%;
+  height: 50px;
+  transform: translateX(-50%) rotateX(-5deg) translateZ(10px);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px 8px 4px 4px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 24px;
+  backdrop-filter: blur(6px);
+  overflow: hidden;
+}
+
+#console-bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--gold), var(--blue), var(--teal), var(--gold));
+  opacity: 0.6;
+}
+
+.console-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.console-label {
+  font-family: 'Antonio', sans-serif;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.console-value {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.console-divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(100, 100, 120, 0.2);
+}
+
+/* Speed gauge */
+.speed-gauge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.speed-bar {
+  width: 4px;
+  height: 18px;
+  border-radius: 2px;
+  background: rgba(51, 170, 153, 0.2);
+  transition: background 0.3s;
+}
+
+.speed-bar.active { background: var(--teal); }
+.speed-bar.active.hot { background: var(--gold); }
+
+/* Alert level indicator */
+.alert-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.alert-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--teal);
+  transition: background 0.3s;
+}
+
+.alert-dot.red-alert {
+  background: var(--red);
+  animation: alert-blink 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes alert-blink {
+  0% { opacity: 1; box-shadow: 0 0 8px var(--red); }
+  100% { opacity: 0.3; box-shadow: none; }
+}
+
+/* ============================================================
+   CONTROL BUTTONS
+   ============================================================ */
+.bridge-controls {
+  position: absolute;
+  bottom: 6%;
+  right: 3%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 50;
+  pointer-events: auto;
+}
+
+.bridge-btn {
+  font-family: 'Antonio', sans-serif;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 8px 18px;
+  border: 1px solid;
+  border-radius: 4px 14px 14px 4px;
+  background: rgba(10, 10, 18, 0.8);
+  cursor: pointer;
+  transition: all 0.2s;
+  backdrop-filter: blur(4px);
+  position: relative;
+  overflow: hidden;
+}
+
+.bridge-btn::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+}
+
+.btn-red {
+  color: var(--red);
+  border-color: rgba(204, 68, 68, 0.3);
+}
+.btn-red::before { background: var(--red); }
+.btn-red:hover { background: rgba(204, 68, 68, 0.15); box-shadow: 0 0 20px var(--glow-red); }
+
+.btn-teal {
+  color: var(--teal);
+  border-color: rgba(51, 170, 153, 0.3);
+}
+.btn-teal::before { background: var(--teal); }
+.btn-teal:hover { background: rgba(51, 170, 153, 0.15); box-shadow: 0 0 20px var(--glow-teal); }
+
+.btn-gold {
+  color: var(--gold);
+  border-color: rgba(204, 153, 51, 0.3);
+}
+.btn-gold::before { background: var(--gold); }
+.btn-gold:hover { background: rgba(204, 153, 51, 0.15); box-shadow: 0 0 20px var(--glow-gold); }
+
+/* ============================================================
+   RED ALERT OVERLAY
+   ============================================================ */
+#red-alert-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+#red-alert-overlay.active {
+  opacity: 1;
+  animation: red-alert-edge 1s ease-in-out infinite alternate;
+}
+
+@keyframes red-alert-edge {
+  0% {
+    box-shadow: inset 0 0 80px rgba(204, 68, 68, 0.3), inset 0 0 200px rgba(204, 68, 68, 0.1);
+  }
+  100% {
+    box-shadow: inset 0 0 120px rgba(204, 68, 68, 0.5), inset 0 0 300px rgba(204, 68, 68, 0.15);
+  }
+}
+
+#red-alert-text {
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Antonio', sans-serif;
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: 12px;
+  text-transform: uppercase;
+  color: var(--red);
+  opacity: 0;
+  transition: opacity 0.2s;
+  text-shadow: 0 0 30px rgba(204, 68, 68, 0.8);
+}
+
+#red-alert-overlay.active #red-alert-text {
+  opacity: 1;
+  animation: flash-text 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes flash-text {
+  0% { opacity: 1; }
+  100% { opacity: 0.3; }
+}
+
+/* ============================================================
+   WARP SPEED CANVAS
+   ============================================================ */
+#warp-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%;
+  height: 45%;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0;
+  transition: opacity 0.5s;
+}
+
+#warp-canvas.active {
+  opacity: 1;
+}
+
+/* ============================================================
+   KANBAN BOARD
+   ============================================================ */
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  height: calc(100% - 52px);
+}
+
+.kanban-column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kanban-col-header {
+  font-family: 'Antonio', sans-serif;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 6px 8px;
+  border-radius: 3px 10px 10px 3px;
+  margin-bottom: 4px;
+  position: relative;
+}
+
+.kanban-col-header::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 3px 0 0 3px;
+}
+
+.kcol-todo .kanban-col-header { background: rgba(102, 136, 204, 0.1); color: var(--blue); }
+.kcol-todo .kanban-col-header::before { background: var(--blue); }
+.kcol-progress .kanban-col-header { background: rgba(204, 153, 51, 0.1); color: var(--gold); }
+.kcol-progress .kanban-col-header::before { background: var(--gold); }
+.kcol-review .kanban-col-header { background: rgba(51, 170, 153, 0.1); color: var(--teal); }
+.kcol-review .kanban-col-header::before { background: var(--teal); }
+.kcol-done .kanban-col-header { background: rgba(102, 170, 102, 0.1); color: #66aa66; }
+.kcol-done .kanban-col-header::before { background: #66aa66; }
+
+.kanban-card {
+  background: rgba(20, 20, 30, 0.7);
+  border: 1px solid rgba(100, 100, 120, 0.12);
+  border-radius: 3px 8px 8px 3px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.3;
+  position: relative;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.kanban-card:hover {
+  border-color: rgba(100, 100, 120, 0.3);
+  box-shadow: 0 0 12px rgba(100, 100, 140, 0.1);
+}
+
+.kanban-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 3px 0 0 3px;
+}
+
+.kanban-card.pri-high::before { background: var(--red); }
+.kanban-card.pri-med::before { background: var(--gold); }
+.kanban-card.pri-low::before { background: var(--blue); }
+
+.kanban-card-title {
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.kanban-card-meta {
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+/* ============================================================
+   SYSTEM STATUS BARS
+   ============================================================ */
+.system-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(100, 100, 120, 0.06);
+}
+
+.system-row:last-child { border-bottom: none; }
+
+.system-name {
+  font-size: 11px;
+  width: 80px;
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+
+.system-bar-track {
+  flex: 1;
+  height: 8px;
+  background: rgba(100, 100, 120, 0.1);
+  border-radius: 0 4px 4px 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.system-bar-fill {
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  transition: width 1s ease-out;
+  position: relative;
+}
+
+.system-bar-fill::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15));
+}
+
+.system-bar-fill.gold { background: var(--gold); }
+.system-bar-fill.blue { background: var(--blue); }
+.system-bar-fill.teal { background: var(--teal); }
+.system-bar-fill.red { background: var(--red); }
+
+.system-pct {
+  width: 32px;
+  text-align: right;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+/* ============================================================
+   ACTIVITY LOG
+   ============================================================ */
+.activity-entry {
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(100, 100, 120, 0.06);
+}
+
+.activity-entry:last-child { border-bottom: none; }
+
+.activity-stardate {
+  font-family: 'Antonio', sans-serif;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+
+.activity-text {
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.activity-text .highlight-gold { color: var(--gold); }
+.activity-text .highlight-blue { color: var(--blue); }
+.activity-text .highlight-teal { color: var(--teal); }
+.activity-text .highlight-red { color: var(--red); }
+
+/* ============================================================
+   COMMUNICATIONS PANEL
+   ============================================================ */
+.comms-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(100, 100, 120, 0.06);
+}
+
+.comms-entry:last-child { border-bottom: none; }
+
+.comms-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.comms-indicator.active { background: var(--teal); }
+.comms-indicator.pending { background: var(--gold); }
+.comms-indicator.idle { background: var(--text-dim); }
+
+.comms-text {
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.comms-freq {
+  font-size: 9px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* ============================================================
+   NAVIGATION PANEL
+   ============================================================ */
+.nav-readout {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 11px;
+}
+
+.nav-label {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.nav-value {
+  color: var(--text);
+  text-align: right;
+}
+
+.nav-value.highlight { color: var(--teal); }
+
+/* Compass rose */
+.compass {
+  width: 80px;
+  height: 80px;
+  margin: 12px auto 0;
+  position: relative;
+  border: 1px solid rgba(51, 170, 153, 0.15);
+  border-radius: 50%;
+}
+
+.compass::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 60px; height: 60px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(51, 170, 153, 0.08);
+  border-radius: 50%;
+}
+
+.compass-needle {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 2px;
+  height: 30px;
+  background: linear-gradient(to bottom, var(--teal), transparent);
+  transform-origin: bottom center;
+  transform: translate(-50%, -100%) rotate(0deg);
+  border-radius: 1px;
+  animation: compass-spin 20s linear infinite;
+}
+
+@keyframes compass-spin {
+  0% { transform: translate(-50%, -100%) rotate(0deg); }
+  100% { transform: translate(-50%, -100%) rotate(360deg); }
+}
+
+.compass-label {
+  position: absolute;
+  font-family: 'Antonio', sans-serif;
+  font-size: 9px;
+  color: rgba(51, 170, 153, 0.4);
+  transform: translate(-50%, -50%);
+}
+
+.compass-label.n { top: 6px; left: 50%; }
+.compass-label.s { bottom: 0; left: 50%; }
+.compass-label.e { top: 50%; right: 0; transform: translate(50%, -50%); }
+.compass-label.w { top: 50%; left: 6px; }
+
+/* ============================================================
+   SCANLINE & AMBIENT EFFECTS
+   ============================================================ */
+#scanline {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 200;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}
+
+/* Ambient light sweep */
+#ambient-sweep {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 150;
+  background: linear-gradient(135deg, rgba(51, 170, 153, 0.02) 0%, transparent 40%, transparent 60%, rgba(204, 153, 51, 0.02) 100%);
+  animation: ambient-rotate 15s ease-in-out infinite alternate;
+}
+
+@keyframes ambient-rotate {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
+
+/* DevGlide branding */
+#bridge-title {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  font-family: 'Antonio', sans-serif;
+  font-size: 14px;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: rgba(224, 220, 200, 0.25);
+  pointer-events: none;
+}
+
+#bridge-subtitle {
+  position: fixed;
+  top: 34px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: rgba(224, 220, 200, 0.15);
+  pointer-events: none;
+}
+
+/* ============================================================
+   SCROLLBAR HIDE
+   ============================================================ */
+.lcars-body::-webkit-scrollbar { display: none; }
+.lcars-body { scrollbar-width: none; overflow-y: auto; }
+</style>
+</head>
+<body>
+
+<!-- Star Viewport -->
+<div id="viewport">
+  <canvas id="star-canvas"></canvas>
+  <div class="reticle">
+    <div class="reticle-cross h"></div>
+    <div class="reticle-cross v"></div>
+  </div>
+  <div class="viewport-label top-left">FORWARD ARRAY // SECTOR 7G</div>
+  <div class="viewport-label top-right">BEARING 127.4 MARK 3</div>
+  <div class="viewport-label bottom-left">RANGE: 2.4 LY</div>
+  <div class="viewport-label bottom-right">SIGNAL LOCK: NOMINAL</div>
+</div>
+
+<!-- Warp Speed Canvas -->
+<canvas id="warp-canvas"></canvas>
+
+<!-- Red Alert Overlay -->
+<div id="red-alert-overlay">
+  <div id="red-alert-text">RED ALERT</div>
+</div>
+
+<!-- Scanline overlay -->
+<div id="scanline"></div>
+<div id="ambient-sweep"></div>
+
+<!-- Bridge title -->
+<div id="bridge-title">DevGlide Command Bridge</div>
+<div id="bridge-subtitle">NCC-7000 // LCARS v4.7</div>
+
+<!-- 3D Scene -->
+<div id="scene">
+  <div id="bridge">
+
+    <!-- ========== STATS ROW (center top) ========== -->
+    <div id="panel-stats" class="panel">
+      <div class="stat-card gold">
+        <div class="stat-label">Active Tasks</div>
+        <div class="stat-value" data-counter="47">047</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">MCP Calls</div>
+        <div class="stat-value" data-counter="2841">2,841</div>
+      </div>
+      <div class="stat-card teal">
+        <div class="stat-label">Test Pass</div>
+        <div class="stat-value" data-counter="98">98%</div>
+      </div>
+      <div class="stat-card red">
+        <div class="stat-label">Transcriptions</div>
+        <div class="stat-value" data-counter="87">087</div>
+      </div>
+    </div>
+
+    <!-- ========== LEFT WING: Navigation ========== -->
+    <div id="panel-nav" class="panel lcars-teal">
+      <div class="lcars-panel">
+        <div class="lcars-header">
+          <div class="lcars-elbow"></div>
+          <div class="lcars-bar">
+            <span class="lcars-title">Navigation</span>
+          </div>
+        </div>
+        <div class="lcars-body">
+          <div class="nav-readout">
+            <span class="nav-label">Heading</span>
+            <span class="nav-value highlight">127.4</span>
+            <span class="nav-label">Bearing</span>
+            <span class="nav-value">Mark 3.0</span>
+            <span class="nav-label">Speed</span>
+            <span class="nav-value highlight">Warp 4.7</span>
+            <span class="nav-label">ETA</span>
+            <span class="nav-value">14h 22m</span>
+            <span class="nav-label">Sector</span>
+            <span class="nav-value">7G-Alpha</span>
+          </div>
+          <div class="compass">
+            <div class="compass-needle"></div>
+            <span class="compass-label n">N</span>
+            <span class="compass-label s">S</span>
+            <span class="compass-label e">E</span>
+            <span class="compass-label w">W</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== LEFT WING: System Status ========== -->
+    <div id="panel-systems" class="panel lcars-gold">
+      <div class="lcars-panel">
+        <div class="lcars-header">
+          <div class="lcars-elbow"></div>
+          <div class="lcars-bar">
+            <span class="lcars-title">System Status</span>
+          </div>
+        </div>
+        <div class="lcars-body" style="max-height: 260px;">
+          <div class="system-row">
+            <span class="system-name">Kanban</span>
+            <div class="system-bar-track"><div class="system-bar-fill teal" style="width: 96%"></div></div>
+            <span class="system-pct">96%</span>
+          </div>
+          <div class="system-row">
+            <span class="system-name">Shell</span>
+            <div class="system-bar-track"><div class="system-bar-fill teal" style="width: 100%"></div></div>
+            <span class="system-pct">100%</span>
+          </div>
+          <div class="system-row">
+            <span class="system-name">Voice</span>
+            <div class="system-bar-track"><div class="system-bar-fill gold" style="width: 88%"></div></div>
+            <span class="system-pct">88%</span>
+          </div>
+          <div class="system-row">
+            <span class="system-name">Test</span>
+            <div class="system-bar-track"><div class="system-bar-fill teal" style="width: 98%"></div></div>
+            <span class="system-pct">98%</span>
+          </div>
+          <div class="system-row">
+            <span class="system-name">Workflow</span>
+            <div class="system-bar-track"><div class="system-bar-fill teal" style="width: 94%"></div></div>
+            <span class="system-pct">94%</span>
+          </div>
+          <div class="system-row">
+            <span class="system-name">Chat</span>
+            <div class="system-bar-track"><div class="system-bar-fill blue" style="width: 82%"></div></div>
+            <span class="system-pct">82%</span>
+          </div>
+          <div class="system-row">
+            <span class="system-name">Docs</span>
+            <div class="system-bar-track"><div class="system-bar-fill teal" style="width: 100%"></div></div>
+            <span class="system-pct">100%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== CENTER: Kanban Board ========== -->
+    <div id="panel-kanban" class="panel lcars-blue">
+      <div class="lcars-panel">
+        <div class="lcars-header">
+          <div class="lcars-elbow"></div>
+          <div class="lcars-bar">
+            <span class="lcars-title">Mission Board</span>
+          </div>
+        </div>
+        <div class="lcars-body" style="max-height: 270px;">
+          <div class="kanban-board">
+            <!-- Todo Column -->
+            <div class="kanban-column kcol-todo">
+              <div class="kanban-col-header">Todo <span style="float:right; opacity:0.5">3</span></div>
+              <div class="kanban-card pri-high">
+                <div class="kanban-card-title">Voice STT provider failover chain</div>
+                <div class="kanban-card-meta">HIGH // voice</div>
+              </div>
+              <div class="kanban-card pri-med">
+                <div class="kanban-card-title">Workflow DAG visual editor</div>
+                <div class="kanban-card-meta">MED // workflow</div>
+              </div>
+              <div class="kanban-card pri-low">
+                <div class="kanban-card-title">Add dark mode toggle to dash</div>
+                <div class="kanban-card-meta">LOW // ui</div>
+              </div>
+            </div>
+            <!-- In Progress Column -->
+            <div class="kanban-column kcol-progress">
+              <div class="kanban-col-header">In Progress <span style="float:right; opacity:0.5">2</span></div>
+              <div class="kanban-card pri-high">
+                <div class="kanban-card-title">Multi-LLM chat pipe delivery</div>
+                <div class="kanban-card-meta">HIGH // chat</div>
+              </div>
+              <div class="kanban-card pri-med">
+                <div class="kanban-card-title">Test scenario replay engine</div>
+                <div class="kanban-card-meta">MED // test</div>
+              </div>
+            </div>
+            <!-- In Review Column -->
+            <div class="kanban-column kcol-review">
+              <div class="kanban-col-header">In Review <span style="float:right; opacity:0.5">2</span></div>
+              <div class="kanban-card pri-med">
+                <div class="kanban-card-title">Documentation seed content</div>
+                <div class="kanban-card-meta">MED // docs</div>
+              </div>
+              <div class="kanban-card pri-med">
+                <div class="kanban-card-title">Prompt template variables</div>
+                <div class="kanban-card-meta">MED // prompts</div>
+              </div>
+            </div>
+            <!-- Done Column -->
+            <div class="kanban-column kcol-done">
+              <div class="kanban-col-header">Done <span style="float:right; opacity:0.5">2</span></div>
+              <div class="kanban-card pri-high">
+                <div class="kanban-card-title">MCP server bundling pipeline</div>
+                <div class="kanban-card-meta">HIGH // infra</div>
+              </div>
+              <div class="kanban-card pri-med">
+                <div class="kanban-card-title">Kanban SQLite migration v2</div>
+                <div class="kanban-card-meta">MED // kanban</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== RIGHT WING: Communications ========== -->
+    <div id="panel-comms" class="panel lcars-red">
+      <div class="lcars-panel">
+        <div class="lcars-header">
+          <div class="lcars-elbow"></div>
+          <div class="lcars-bar">
+            <span class="lcars-title">Comms</span>
+          </div>
+        </div>
+        <div class="lcars-body">
+          <div class="comms-entry">
+            <div class="comms-indicator active"></div>
+            <div>
+              <div class="comms-text">claude-1 linked to pane #3</div>
+              <div class="comms-freq">CH 47.3 // PTY ACTIVE</div>
+            </div>
+          </div>
+          <div class="comms-entry">
+            <div class="comms-indicator active"></div>
+            <div>
+              <div class="comms-text">codex-2 linked to pane #5</div>
+              <div class="comms-freq">CH 47.5 // PTY ACTIVE</div>
+            </div>
+          </div>
+          <div class="comms-entry">
+            <div class="comms-indicator pending"></div>
+            <div>
+              <div class="comms-text">gemini-1 awaiting pane</div>
+              <div class="comms-freq">CH 47.7 // STANDBY</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== RIGHT WING: Activity Log ========== -->
+    <div id="panel-activity" class="panel lcars-gold">
+      <div class="lcars-panel">
+        <div class="lcars-header">
+          <div class="lcars-elbow"></div>
+          <div class="lcars-bar">
+            <span class="lcars-title">Activity Log</span>
+          </div>
+        </div>
+        <div class="lcars-body" style="max-height: 280px;">
+          <div class="activity-entry">
+            <div class="activity-stardate">SD 2026.093 // 14:27</div>
+            <div class="activity-text"><span class="highlight-teal">kanban_move_item</span> &mdash; MCP bundling pipeline moved to Done</div>
+          </div>
+          <div class="activity-entry">
+            <div class="activity-stardate">SD 2026.093 // 13:45</div>
+            <div class="activity-text"><span class="highlight-gold">voice_transcribe</span> &mdash; 847 words processed, cleanup mode</div>
+          </div>
+          <div class="activity-entry">
+            <div class="activity-stardate">SD 2026.093 // 12:18</div>
+            <div class="activity-text"><span class="highlight-blue">test_run_scenario</span> &mdash; Login flow: 4/4 assertions passed</div>
+          </div>
+          <div class="activity-entry">
+            <div class="activity-stardate">SD 2026.093 // 11:52</div>
+            <div class="activity-text"><span class="highlight-red">chat_send</span> &mdash; claude-1 requested code review from codex-2</div>
+          </div>
+          <div class="activity-entry">
+            <div class="activity-stardate">SD 2026.093 // 10:34</div>
+            <div class="activity-text"><span class="highlight-teal">workflow_match</span> &mdash; Matched "deploy-staging" workflow</div>
+          </div>
+          <div class="activity-entry">
+            <div class="activity-stardate">SD 2026.093 // 09:07</div>
+            <div class="activity-text"><span class="highlight-gold">shell_run_command</span> &mdash; pnpm build completed in 4.2s</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== HOLOGRAPHIC TABLE ========== -->
+    <div id="holo-table-container" class="panel">
+      <div id="holo-table">
+        <div class="holo-label">Tactical Overview // Service Mesh</div>
+        <!-- Service dots positioned on the grid -->
+        <div class="holo-dot online" style="top: 30%; left: 15%;">
+          <div class="holo-dot-label">Kanban</div>
+        </div>
+        <div class="holo-dot online" style="top: 25%; left: 35%;">
+          <div class="holo-dot-label">Shell</div>
+        </div>
+        <div class="holo-dot warning" style="top: 45%; left: 50%;">
+          <div class="holo-dot-label">Voice</div>
+        </div>
+        <div class="holo-dot online" style="top: 35%; left: 68%;">
+          <div class="holo-dot-label">Test</div>
+        </div>
+        <div class="holo-dot online" style="top: 55%; left: 25%;">
+          <div class="holo-dot-label">Workflow</div>
+        </div>
+        <div class="holo-dot online" style="top: 60%; left: 55%;">
+          <div class="holo-dot-label">Chat</div>
+        </div>
+        <div class="holo-dot online" style="top: 70%; left: 82%;">
+          <div class="holo-dot-label">Docs</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== CONSOLE BAR ========== -->
+    <div id="console-bar" class="panel">
+      <div class="console-section">
+        <span class="console-label">Stardate</span>
+        <span class="console-value" id="stardate">2026.093</span>
+      </div>
+      <div class="console-divider"></div>
+      <div class="console-section">
+        <span class="console-label">Uptime</span>
+        <span class="console-value" id="uptime">47h 13m</span>
+      </div>
+      <div class="console-divider"></div>
+      <div class="console-section">
+        <span class="console-label">Speed</span>
+        <div class="speed-gauge" id="speed-gauge">
+          <div class="speed-bar active"></div>
+          <div class="speed-bar active"></div>
+          <div class="speed-bar active"></div>
+          <div class="speed-bar active"></div>
+          <div class="speed-bar active hot"></div>
+          <div class="speed-bar"></div>
+          <div class="speed-bar"></div>
+          <div class="speed-bar"></div>
+        </div>
+        <span class="console-value">W4.7</span>
+      </div>
+      <div class="console-divider"></div>
+      <div class="console-section">
+        <span class="console-label">MCP</span>
+        <span class="console-value" style="color: var(--teal);">7/7 ONLINE</span>
+      </div>
+      <div class="console-divider"></div>
+      <div class="console-section">
+        <span class="console-label">Port</span>
+        <span class="console-value">:7000</span>
+      </div>
+      <div class="console-divider"></div>
+      <div class="alert-indicator">
+        <span class="console-label">Alert</span>
+        <div class="alert-dot" id="alert-dot"></div>
+        <span class="console-value" id="alert-level" style="color: var(--teal);">GREEN</span>
+      </div>
+    </div>
+
+  </div><!-- /bridge -->
+</div><!-- /scene -->
+
+<!-- Control Buttons -->
+<div class="bridge-controls">
+  <button class="bridge-btn btn-red" id="btn-red-alert">Red Alert</button>
+  <button class="bridge-btn btn-teal" id="btn-warp">Engage Warp</button>
+  <button class="bridge-btn btn-gold" id="btn-scan">Sensor Sweep</button>
+</div>
+
+<script>
+/* =============================================================
+   STAR FIELD — Canvas-based parallax star field
+   ============================================================= */
+(function() {
+  const canvas = document.getElementById('star-canvas');
+  const ctx = canvas.getContext('2d');
+  let stars = [];
+  const STAR_COUNT = 400;
+  let mouseOffsetX = 0, mouseOffsetY = 0;
+
+  function resize() {
+    canvas.width = canvas.offsetWidth * devicePixelRatio;
+    canvas.height = canvas.offsetHeight * devicePixelRatio;
+    ctx.scale(devicePixelRatio, devicePixelRatio);
+  }
+
+  function initStars() {
+    stars = [];
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+    for (let i = 0; i < STAR_COUNT; i++) {
+      stars.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        z: Math.random(), // depth 0..1
+        size: Math.random() * 1.8 + 0.3,
+        twinkle: Math.random() * Math.PI * 2,
+        speed: Math.random() * 0.02 + 0.005
+      });
+    }
+  }
+
+  function drawStars() {
+    const w = canvas.offsetWidth;
+    const h = canvas.offsetHeight;
+    ctx.clearRect(0, 0, w, h);
+
+    for (const star of stars) {
+      star.twinkle += star.speed;
+      const alpha = 0.3 + 0.7 * star.z * (0.5 + 0.5 * Math.sin(star.twinkle));
+      const parallaxX = mouseOffsetX * star.z * 30;
+      const parallaxY = mouseOffsetY * star.z * 30;
+      const x = star.x + parallaxX;
+      const y = star.y + parallaxY;
+
+      ctx.beginPath();
+      ctx.arc(x, y, star.size * star.z, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(220, 218, 210, ${alpha})`;
+      ctx.fill();
+
+      // Subtle glow on bright stars
+      if (star.z > 0.7 && star.size > 1) {
+        ctx.beginPath();
+        ctx.arc(x, y, star.size * star.z * 3, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(220, 218, 210, ${alpha * 0.08})`;
+        ctx.fill();
+      }
+    }
+  }
+
+  resize();
+  initStars();
+  window.addEventListener('resize', () => { resize(); initStars(); });
+
+  // Expose for mouse tracking
+  window._starField = {
+    setMouse: (mx, my) => { mouseOffsetX = mx; mouseOffsetY = my; },
+    draw: drawStars,
+    stars: stars
+  };
+})();
+
+/* =============================================================
+   WARP SPEED EFFECT
+   ============================================================= */
+(function() {
+  const warpCanvas = document.getElementById('warp-canvas');
+  const wCtx = warpCanvas.getContext('2d');
+  let warpStreaks = [];
+  let warpActive = false;
+  let warpFade = 0;
+
+  function resizeWarp() {
+    warpCanvas.width = warpCanvas.offsetWidth * devicePixelRatio;
+    warpCanvas.height = warpCanvas.offsetHeight * devicePixelRatio;
+    wCtx.scale(devicePixelRatio, devicePixelRatio);
+  }
+
+  function initStreaks() {
+    warpStreaks = [];
+    const w = warpCanvas.offsetWidth;
+    const h = warpCanvas.offsetHeight;
+    const cx = w / 2, cy = h / 2;
+    for (let i = 0; i < 200; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * 50 + 20;
+      warpStreaks.push({
+        x: cx + Math.cos(angle) * dist,
+        y: cy + Math.sin(angle) * dist,
+        angle: angle,
+        speed: Math.random() * 8 + 4,
+        length: Math.random() * 60 + 30,
+        alpha: Math.random() * 0.5 + 0.3,
+        dist: dist
+      });
+    }
+  }
+
+  function drawWarp() {
+    const w = warpCanvas.offsetWidth;
+    const h = warpCanvas.offsetHeight;
+    wCtx.clearRect(0, 0, w, h);
+
+    if (warpFade <= 0) return;
+
+    for (const s of warpStreaks) {
+      s.dist += s.speed;
+      s.x += Math.cos(s.angle) * s.speed;
+      s.y += Math.sin(s.angle) * s.speed;
+
+      const endX = s.x + Math.cos(s.angle) * s.length * warpFade;
+      const endY = s.y + Math.sin(s.angle) * s.length * warpFade;
+
+      wCtx.beginPath();
+      wCtx.moveTo(s.x, s.y);
+      wCtx.lineTo(endX, endY);
+      wCtx.strokeStyle = `rgba(200, 210, 255, ${s.alpha * warpFade})`;
+      wCtx.lineWidth = 1.2;
+      wCtx.stroke();
+
+      // Reset if off screen
+      if (s.x < -50 || s.x > w + 50 || s.y < -50 || s.y > h + 50) {
+        const cx = w / 2, cy = h / 2;
+        const angle = Math.random() * Math.PI * 2;
+        const dist = Math.random() * 30 + 10;
+        s.x = cx + Math.cos(angle) * dist;
+        s.y = cy + Math.sin(angle) * dist;
+        s.angle = angle;
+        s.dist = dist;
+      }
+    }
+  }
+
+  resizeWarp();
+  initStreaks();
+  window.addEventListener('resize', () => { resizeWarp(); initStreaks(); });
+
+  window._warpEffect = {
+    engage: () => {
+      warpActive = true;
+      warpCanvas.classList.add('active');
+      warpFade = 0;
+      initStreaks();
+      const fadeIn = setInterval(() => {
+        warpFade = Math.min(warpFade + 0.05, 1);
+        if (warpFade >= 1) clearInterval(fadeIn);
+      }, 30);
+      setTimeout(() => {
+        const fadeOut = setInterval(() => {
+          warpFade = Math.max(warpFade - 0.03, 0);
+          if (warpFade <= 0) {
+            clearInterval(fadeOut);
+            warpActive = false;
+            warpCanvas.classList.remove('active');
+          }
+        }, 30);
+      }, 3000);
+    },
+    draw: drawWarp,
+    isActive: () => warpActive
+  };
+})();
+
+/* =============================================================
+   MOUSE TRACKING + 3D TILT (with lerp)
+   ============================================================= */
+(function() {
+  const bridge = document.getElementById('bridge');
+  let targetTiltX = 0, targetTiltY = 0;
+  let currentTiltX = 0, currentTiltY = 0;
+  let mouseNormX = 0, mouseNormY = 0;
+
+  document.addEventListener('mousemove', (e) => {
+    mouseNormX = (e.clientX / window.innerWidth - 0.5) * 2;  // -1 to 1
+    mouseNormY = (e.clientY / window.innerHeight - 0.5) * 2;
+    targetTiltX = -mouseNormY * 2.5; // vertical mouse -> X rotation
+    targetTiltY = mouseNormX * 3;    // horizontal mouse -> Y rotation
+  });
+
+  function animate() {
+    // Lerp
+    currentTiltX += (targetTiltX - currentTiltX) * 0.08;
+    currentTiltY += (targetTiltY - currentTiltY) * 0.08;
+
+    bridge.style.transform = `rotateX(${currentTiltX}deg) rotateY(${currentTiltY}deg)`;
+
+    // Update star parallax
+    if (window._starField) {
+      window._starField.setMouse(mouseNormX, mouseNormY);
+      window._starField.draw();
+    }
+
+    // Warp effect
+    if (window._warpEffect) {
+      window._warpEffect.draw();
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  animate();
+})();
+
+/* =============================================================
+   RED ALERT
+   ============================================================= */
+(function() {
+  const btn = document.getElementById('btn-red-alert');
+  const overlay = document.getElementById('red-alert-overlay');
+  const alertDot = document.getElementById('alert-dot');
+  const alertLevel = document.getElementById('alert-level');
+  let isRedAlert = false;
+  let alertTimeout = null;
+
+  btn.addEventListener('click', () => {
+    if (isRedAlert) return;
+    isRedAlert = true;
+
+    overlay.classList.add('active');
+    alertDot.classList.add('red-alert');
+    alertLevel.textContent = 'RED';
+    alertLevel.style.color = 'var(--red)';
+    btn.textContent = 'Stand Down';
+
+    alertTimeout = setTimeout(() => {
+      deactivateAlert();
+    }, 8000);
+
+    btn.onclick = () => {
+      clearTimeout(alertTimeout);
+      deactivateAlert();
+    };
+  });
+
+  function deactivateAlert() {
+    isRedAlert = false;
+    overlay.classList.remove('active');
+    alertDot.classList.remove('red-alert');
+    alertLevel.textContent = 'GREEN';
+    alertLevel.style.color = 'var(--teal)';
+    btn.textContent = 'Red Alert';
+    btn.onclick = null;
+    // Re-attach the original listener
+    btn.addEventListener('click', arguments.callee, { once: false });
+  }
+})();
+
+/* =============================================================
+   WARP ENGAGE BUTTON
+   ============================================================= */
+(function() {
+  const btn = document.getElementById('btn-warp');
+  btn.addEventListener('click', () => {
+    if (window._warpEffect && !window._warpEffect.isActive()) {
+      window._warpEffect.engage();
+      btn.textContent = 'Warp Active';
+      btn.style.color = '#ffffff';
+      btn.style.borderColor = 'rgba(51, 170, 153, 0.8)';
+      btn.style.boxShadow = '0 0 20px rgba(51, 170, 153, 0.4)';
+      setTimeout(() => {
+        btn.textContent = 'Engage Warp';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+        btn.style.boxShadow = '';
+      }, 3500);
+    }
+  });
+})();
+
+/* =============================================================
+   SENSOR SWEEP — Animate system bars
+   ============================================================= */
+(function() {
+  const btn = document.getElementById('btn-scan');
+  const bars = document.querySelectorAll('.system-bar-fill');
+  const pcts = document.querySelectorAll('.system-pct');
+
+  btn.addEventListener('click', () => {
+    btn.textContent = 'Scanning...';
+    btn.style.color = '#ffffff';
+
+    // Randomize bar values
+    bars.forEach((bar, i) => {
+      const newPct = Math.floor(Math.random() * 20 + 80);
+      bar.style.width = '0%';
+      setTimeout(() => {
+        bar.style.width = newPct + '%';
+        pcts[i].textContent = newPct + '%';
+      }, 200 + i * 100);
+    });
+
+    // Flash holographic dots
+    document.querySelectorAll('.holo-dot').forEach(dot => {
+      dot.style.transition = 'transform 0.3s';
+      dot.style.transform = 'translate(-50%, -50%) scale(2)';
+      setTimeout(() => {
+        dot.style.transform = 'translate(-50%, -50%) scale(1)';
+      }, 600);
+    });
+
+    setTimeout(() => {
+      btn.textContent = 'Sensor Sweep';
+      btn.style.color = '';
+    }, 2000);
+  });
+})();
+
+/* =============================================================
+   COUNTER ANIMATION on load
+   ============================================================= */
+(function() {
+  const counters = document.querySelectorAll('[data-counter]');
+  counters.forEach(el => {
+    const target = parseInt(el.dataset.counter);
+    const suffix = el.textContent.includes('%') ? '%' : '';
+    const padLen = el.textContent.replace(/[^0-9]/g, '').length;
+    let current = 0;
+    const step = Math.max(1, Math.floor(target / 40));
+    const interval = setInterval(() => {
+      current = Math.min(current + step, target);
+      let display = current.toString();
+      if (!suffix && padLen > display.length) {
+        display = display.padStart(padLen, '0');
+      }
+      if (target >= 1000) {
+        display = current.toLocaleString();
+      }
+      el.textContent = display + suffix;
+      if (current >= target) clearInterval(interval);
+    }, 40);
+  });
+})();
+
+/* =============================================================
+   UPTIME TICKER
+   ============================================================= */
+(function() {
+  const el = document.getElementById('uptime');
+  let hours = 47, minutes = 13, seconds = 0;
+
+  setInterval(() => {
+    seconds++;
+    if (seconds >= 60) { seconds = 0; minutes++; }
+    if (minutes >= 60) { minutes = 0; hours++; }
+    el.textContent = hours + 'h ' + String(minutes).padStart(2, '0') + 'm';
+  }, 1000);
+})();
+
+/* =============================================================
+   STARDATE — real-time based
+   ============================================================= */
+(function() {
+  const el = document.getElementById('stardate');
+  function updateStardate() {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 0);
+    const diff = now - start;
+    const day = Math.floor(diff / 86400000);
+    el.textContent = now.getFullYear() + '.' + String(day).padStart(3, '0');
+  }
+  updateStardate();
+  setInterval(updateStardate, 60000);
+})();
+</script>
+</body>
+</html>

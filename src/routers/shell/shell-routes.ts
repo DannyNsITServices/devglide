@@ -8,7 +8,10 @@ import { asyncHandler, errorMessage, badRequest, forbidden, notFound, conflict, 
 import {
   globalPtys,
   dashboardState,
+  getAdjacentPaneIdWithinProject,
+  getPaneInfo,
   getShellNsp,
+  isPaneOwnedByProject,
   MAX_PANES,
   nextPaneId,
   nextNumForProject,
@@ -210,23 +213,27 @@ router.delete('/panes/:id', (req: Request, res: Response) => {
     return badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
   }
   const paneId = params.data.id;
-  const entry = globalPtys.get(paneId);
-  const existed = dashboardState.panes.some((p) => p.id === paneId);
-
-  if (!entry && !existed) {
+  const closingPane = getPaneInfo(paneId);
+  if (!closingPane) {
     return notFound(res, 'Pane not found');
   }
+
+  const currentProjectId = getActiveProject()?.id || null;
+  if (!isPaneOwnedByProject(closingPane, currentProjectId)) {
+    return forbidden(res, 'Pane does not belong to active project');
+  }
+
+  const entry = globalPtys.get(paneId);
+  const nextPane = getAdjacentPaneIdWithinProject(closingPane.projectId, paneId);
+  const shouldUpdateActivePane = dashboardState.activePaneId === paneId || dashboardState.activeTab === paneId;
 
   if (entry) {
     killPty(entry.ptyProcess);
     globalPtys.delete(paneId);
   }
 
-  // Notify chat before removing the pane (need projectId from pane info)
-  const closingPane = dashboardState.panes.find((p) => p.id === paneId);
   onChatPaneClosed(paneId, closingPane?.projectId ?? null);
 
-  const closedIdx = dashboardState.panes.findIndex((p) => p.id === paneId);
   dashboardState.panes = dashboardState.panes.filter((p) => p.id !== paneId);
   getShellNsp()?.emit('state:pane-removed', { id: paneId });
 
@@ -243,18 +250,16 @@ router.delete('/panes/:id', (req: Request, res: Response) => {
     );
   }
 
-  const prevIdx = Math.max(0, closedIdx - 1);
-  const nextPane = dashboardState.panes.length > 0 ? dashboardState.panes[prevIdx].id : null;
-
   if (dashboardState.activeTab === paneId) {
     const next = nextPane ?? 'grid';
     dashboardState.activeTab = next;
-    dashboardState.activePaneId = nextPane;
     getShellNsp()?.emit('state:active-tab', { tabId: next });
   }
 
-  dashboardState.activePaneId = nextPane;
-  getShellNsp()?.emit('state:active-pane', { paneId: nextPane });
+  if (shouldUpdateActivePane) {
+    dashboardState.activePaneId = nextPane;
+    getShellNsp()?.emit('state:active-pane', { paneId: nextPane });
+  }
 
   res.json({ ok: true, message: `Pane ${paneId} closed` });
 });

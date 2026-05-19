@@ -1,0 +1,37 @@
+{
+  "id": "ex-flaky-selector",
+  "type": "example",
+  "toolName": "devglide-test",
+  "scenario": "Flaky selector in React controlled form",
+  "startingAssumptions": [
+    "A test scenario intermittently fails on a click or type step targeting a form element.",
+    "The selector works when tested manually in the browser DevTools.",
+    "The app uses React with controlled form inputs."
+  ],
+  "toolSequence": [
+    "test_get_result — read the failure details. Note which step failed and the selector used.",
+    "Inspect the app source code to check if the element has stable attributes (id, data-testid, role, aria-label).",
+    "If the selector uses dynamic class names (CSS modules, styled-components): it will break between builds.",
+    "If the element is rendered conditionally or inside a transition: add a wait-for-element step before the interaction.",
+    "Add a data-testid attribute to the element in the app source code if no stable selector exists.",
+    "Update the scenario to use the data-testid selector and add a wait step.",
+    "Re-run the scenario multiple times to verify the fix is stable."
+  ],
+  "whatGoodLooksLike": [
+    "The scenario passes consistently across multiple runs.",
+    "The selector uses a stable attribute that will not change between builds.",
+    "The wait step ensures the element is rendered before interaction."
+  ],
+  "whatBadLooksLike": [
+    "The scenario still fails intermittently — the timing issue is not fully resolved.",
+    "Adding data-testid changes app behavior (unlikely but possible if the attribute conflicts)."
+  ],
+  "whatToDoNext": [
+    "If still flaky: increase the wait timeout or add an assertion that the element is visible before interacting.",
+    "If the form field is a complex component (date picker, autocomplete): interact via its UI controls rather than targeting the underlying input directly.",
+    "Consider whether the React component needs a fix for accessibility — stable selectors often align with proper ARIA attributes."
+  ],
+  "tags": ["example", "test", "selector", "react", "form", "flaky"],
+  "createdAt": "2026-03-24T00:00:00.000Z",
+  "updatedAt": "2026-03-24T00:00:00.000Z"
+}

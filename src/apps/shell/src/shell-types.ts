@@ -4,6 +4,9 @@ export interface PtyEntry {
   ptyProcess: IPty;
   chunks: string[];
   totalLen: number;
+  cursorReportRequestCarry?: string;
+  pendingCursorReportRequests?: number;
+  lastCursorReportRequestAt?: number;
 }
 
 export interface PaneInfo {
@@ -15,6 +18,10 @@ export interface PaneInfo {
   url?: string;
   projectId: string | null;
   chatName?: string | null;
+  /** Base CLI name for a launched LLM that has not necessarily joined chat yet. */
+  llmCli?: string | null;
+  /** Permission mode the LLM was launched with (set by invite). */
+  permissionMode?: 'supervised' | 'auto-accept' | 'unrestricted' | null;
 }
 
 export interface DashboardState {

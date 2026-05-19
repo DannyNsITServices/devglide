@@ -6,6 +6,9 @@ import type { PaneInfo, ShellConfig } from '../../apps/shell/src/shell-types.js'
 import {
   globalPtys,
   dashboardState,
+  getAdjacentPaneIdWithinProject,
+  getPaneInfo,
+  isPaneOwnedByProject,
   MAX_PANES,
   nextPaneId,
   panesForProject,
@@ -19,12 +22,16 @@ import { SHELL_CONFIGS, safeEnv } from '../../apps/shell/src/runtime/shell-confi
 import { spawnGlobalPty, killPty } from '../../apps/shell/src/runtime/pty-manager.js';
 import { detectEntryPoint } from './shell-routes.js';
 import { onPaneClosed as onChatPaneClosed } from '../../apps/chat/services/chat-registry.js';
+import {
+  consumePendingCursorReportRequests,
+  countStandaloneCursorReportResponses,
+} from '../../apps/shell/src/runtime/cursor-report.js';
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-// ── Socket.io namespace initializer ──────────────────────────────────────────
+// â”€â”€ Socket.io namespace initializer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function initShell(nsp: Namespace): void {
   setShellNsp(nsp);
@@ -57,7 +64,7 @@ export function initShell(nsp: Namespace): void {
       socket.emit('state:snapshot', { ...dashboardState, scrollbacks: sb, activeProject: getActiveProject() || null });
     });
 
-    // ── Create browser pane ─────────────────────────────────────────────────
+    // â”€â”€ Create browser pane â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     socket.on('browser:create', ({ url, currentTab }: { url?: string; currentTab?: string }) => {
       const currentProjectId = getActiveProject()?.id || null;
       if (panesForProject(currentProjectId) >= MAX_PANES) {
@@ -91,7 +98,7 @@ export function initShell(nsp: Namespace): void {
       nsp.emit('state:active-pane', { paneId: id });
     });
 
-    // ── Create terminal ───────────────────────────────────────────────────────
+    // â”€â”€ Create terminal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     socket.on('terminal:create', ({ shellType, cwd, cols, rows, currentTab }: { shellType: string; cwd?: string; cols?: number; rows?: number; currentTab?: string }) => {
       const currentProjectId = getActiveProject()?.id || null;
       if (panesForProject(currentProjectId) >= MAX_PANES) {
@@ -144,7 +151,7 @@ export function initShell(nsp: Namespace): void {
       }
     });
 
-    // ── SSH ──────────────────────────────────────────────────────────────────
+    // â”€â”€ SSH â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     socket.on('ssh:connect', ({ host, user, port, keyPath: kp, cols, rows }: { host: string; user: string; port?: number; keyPath?: string; cols?: number; rows?: number }) => {
       const currentProjectId = getActiveProject()?.id || null;
       if (panesForProject(currentProjectId) >= MAX_PANES) {
@@ -200,7 +207,7 @@ export function initShell(nsp: Namespace): void {
       }
     });
 
-    // ── Subscribe / unsubscribe ──────────────────────────────────────────────
+    // â”€â”€ Subscribe / unsubscribe â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     socket.on('terminal:subscribe', ({ id }: { id: string }) => {
       if (globalPtys.has(id) || dashboardState.panes.some((p: PaneInfo) => p.id === id)) {
         socket.join(`pane:${id}`);
@@ -211,18 +218,28 @@ export function initShell(nsp: Namespace): void {
       socket.leave(`pane:${id}`);
     });
 
-    // ── Input ────────────────────────────────────────────────────────────────
+    // â”€â”€ Input â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     socket.on('terminal:input', ({ id, data }: { id: string; data: string }) => {
       if (typeof data !== 'string' || data.length > 65536) return;
 
       const entry = globalPtys.get(id);
       if (!entry) return;
 
+      const cursorReportCount = countStandaloneCursorReportResponses(data);
+      if (cursorReportCount > 0) {
+        const activeSocketId = paneActiveSocket.get(id);
+        if (activeSocketId && activeSocketId !== socket.id) return;
+        if (!consumePendingCursorReportRequests(entry, cursorReportCount)) return;
+
+        try { entry.ptyProcess.write(data); } catch (e: unknown) { console.warn(`[write] ${id}:`, errorMessage(e)); }
+        return;
+      }
+
       // Auto-join room on first interaction
       socket.join(`pane:${id}`);
 
       // If this socket wasn't the active typer, take ownership and resize PTY
-      // to its own dimensions first — prevents SIGWINCH corruption on the prev device
+      // to its own dimensions first â€” prevents SIGWINCH corruption on the prev device
       if (paneActiveSocket.get(id) !== socket.id) {
         paneActiveSocket.set(id, socket.id);
         const dims = socketDimensions.get(socket.id)?.get(id);
@@ -234,7 +251,7 @@ export function initShell(nsp: Namespace): void {
       try { entry.ptyProcess.write(data); } catch (e: unknown) { console.warn(`[write] ${id}:`, errorMessage(e)); }
     });
 
-    // ── Resize ───────────────────────────────────────────────────────────────
+    // â”€â”€ Resize â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     socket.on('terminal:resize', ({ id, cols, rows }: { id: string; cols: number; rows: number }) => {
       if (!Number.isInteger(cols) || !Number.isInteger(rows)) return;
       cols = Math.max(1, Math.min(500, cols));
@@ -254,55 +271,51 @@ export function initShell(nsp: Namespace): void {
       }
     });
 
-    // ── Close terminal ────────────────────────────────────────────────────────
+    // â”€â”€ Close terminal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     socket.on('terminal:close', ({ id }: { id: string }) => {
-      const entry = globalPtys.get(id);
-      const existed: boolean = dashboardState.panes.some((p: PaneInfo) => p.id === id);
-      if (!entry && !existed) return;  // unknown pane — ignore
+      const paneToClose = getPaneInfo(id);
+      if (!paneToClose) return;
 
-      if (entry) {
-        killPty(entry.ptyProcess);
+      const currentProjectId = getActiveProject()?.id || null;
+      if (!isPaneOwnedByProject(paneToClose, currentProjectId)) {
+        console.warn(`[terminal:close] rejected pane ${id} for project ${currentProjectId ?? 'null'}`);
+        return;
+      }
+
+      const ptyEntry = globalPtys.get(id);
+      const nextPaneId = getAdjacentPaneIdWithinProject(paneToClose.projectId, id);
+      const shouldUpdateActivePane = dashboardState.activePaneId === id || dashboardState.activeTab === id;
+
+      if (ptyEntry) {
+        killPty(ptyEntry.ptyProcess);
         globalPtys.delete(id);
       }
 
-      // Notify chat that this pane was closed (unlinks participant, posts system message)
-      const closingPane = dashboardState.panes.find((p: PaneInfo) => p.id === id);
-      onChatPaneClosed(id, closingPane?.projectId ?? null);
-
-      // Find index of closing pane before removal so we can select the previous one
-      const closedIdx: number = dashboardState.panes.findIndex((p: PaneInfo) => p.id === id);
-
+      onChatPaneClosed(id, paneToClose.projectId ?? null);
       dashboardState.panes = dashboardState.panes.filter((p: PaneInfo) => p.id !== id);
       nsp.emit('state:pane-removed', { id });
 
-      // Clean up resize arbitration state for this pane
       paneActiveSocket.delete(id);
       for (const dims of socketDimensions.values()) dims.delete(id);
 
-      // Renumber remaining panes per-project (1-based sequential within each project)
       renumberPanes();
       if (dashboardState.panes.length > 0) {
         nsp.emit('state:panes-renumbered', dashboardState.panes.map(({ id: pid, num }: { id: string; num: number }) => ({ id: pid, num })));
       }
 
-      // Select the previous pane (or next if closing the first one)
-      const prevIdx: number = Math.max(0, closedIdx - 1);
-      const nextPane: string | null = dashboardState.panes.length > 0 ? dashboardState.panes[prevIdx].id : null;
-
       if (dashboardState.activeTab === id) {
-        // The closed pane was the focused tab — navigate to previous pane or back to grid
-        const next: string = nextPane ?? 'grid';
-        dashboardState.activeTab    = next;
-        dashboardState.activePaneId = nextPane;
-        nsp.emit('state:active-tab',  { tabId: next });
+        const next: string = nextPaneId ?? 'grid';
+        dashboardState.activeTab = next;
+        nsp.emit('state:active-tab', { tabId: next });
       }
 
-      // Always update active pane highlight (covers both tab view and grid/dashboard view)
-      dashboardState.activePaneId = nextPane;
-      nsp.emit('state:active-pane', { paneId: nextPane });
+      if (shouldUpdateActivePane) {
+        dashboardState.activePaneId = nextPaneId;
+        nsp.emit('state:active-pane', { paneId: nextPaneId });
+      }
     });
 
-    // ── Active tab / pane sync ────────────────────────────────────────────────
+    // â”€â”€ Active tab / pane sync â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Use socket.broadcast so the sender (who already applied locally) is excluded.
     socket.on('state:set-active-tab', ({ tabId }: { tabId: string }) => {
       if (tabId !== 'grid' && !dashboardState.panes.some((p: PaneInfo) => p.id === tabId)) return;
@@ -316,7 +329,7 @@ export function initShell(nsp: Namespace): void {
       socket.broadcast.emit('state:active-pane', { paneId });
     });
 
-    // ── Drag-to-reorder persistence ──────────────────────────────────────────
+    // â”€â”€ Drag-to-reorder persistence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     socket.on('state:reorder-panes', ({ order }: { order: string[] }) => {
       if (!Array.isArray(order) || order.length === 0) return;
       // Validate every ID exists in dashboardState
@@ -340,7 +353,7 @@ export function initShell(nsp: Namespace): void {
       socket.broadcast.emit('state:panes-reordered', { order: reordered.map((p: PaneInfo) => p.id) });
     });
 
-    // ── Disconnect ────────────────────────────────────────────────────────────
+    // â”€â”€ Disconnect â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     socket.on('disconnect', () => {
       console.log(`[shell:disconnect] ${socket.id}`);
       // PTY processes outlive individual socket connections.

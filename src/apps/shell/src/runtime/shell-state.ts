@@ -22,14 +22,43 @@ export function nextPaneId(): string {
 export const SCROLLBACK_LIMIT = 200_000;
 export const MAX_PANES = 9; // per project context
 
+export function getPaneInfo(paneId: string): PaneInfo | undefined {
+  return dashboardState.panes.find((p: PaneInfo) => p.id === paneId);
+}
+
+export function listPanesForProject(projectId: string | null): PaneInfo[] {
+  return dashboardState.panes.filter((p: PaneInfo) => p.projectId === projectId);
+}
+
 /** Count panes belonging to the given project (null = no project). */
 export function panesForProject(projectId: string | null): number {
-  return dashboardState.panes.filter((p: PaneInfo) => p.projectId === projectId).length;
+  return listPanesForProject(projectId).length;
+}
+
+export function isPaneOwnedByProject(pane: PaneInfo | undefined, projectId: string | null): pane is PaneInfo {
+  return !!pane && pane.projectId === projectId;
+}
+
+/**
+ * Pick the previous pane in the same project when possible, otherwise the next.
+ * The pane being removed must still be present in dashboardState.panes when called.
+ */
+export function getAdjacentPaneIdWithinProject(projectId: string | null, paneId: string): string | null {
+  const projectPanes = listPanesForProject(projectId);
+  const idx = projectPanes.findIndex((p: PaneInfo) => p.id === paneId);
+  if (idx === -1) return null;
+  if (idx > 0) return projectPanes[idx - 1]?.id ?? null;
+  return projectPanes[idx + 1]?.id ?? null;
 }
 
 /** Next sequential number for a pane within its project context. */
 export function nextNumForProject(projectId: string | null): number {
   return panesForProject(projectId) + 1;
+}
+
+function permissionModeSuffix(mode?: string | null): string {
+  if (!mode || mode === 'supervised') return '';
+  return mode === 'auto-accept' ? ' [AUTO]' : ' [UNRESTRICTED]';
 }
 
 /** Renumber panes per-project (1-based sequential within each project). */
@@ -40,7 +69,8 @@ export function renumberPanes(): void {
     const next = (counters.get(key) || 0) + 1;
     counters.set(key, next);
     p.num = next;
-    p.title = String(next);
+    const label = p.chatName || String(next);
+    p.title = `${next}: ${label}${permissionModeSuffix(p.permissionMode)}`;
   }
 }
 

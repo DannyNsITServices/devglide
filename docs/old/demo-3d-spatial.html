@@ -1,0 +1,1966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevGlide — 3D Spatial Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   RESET & FOUNDATIONS
+   ============================================================ */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --text-primary: #e8e8f0;
+  --text-secondary: #8888a0;
+  --text-muted: #555570;
+  --accent: #60a0ff;
+  --success: #50e0b0;
+  --error: #f06080;
+  --warning: #f0c040;
+  --info: #60a0ff;
+  --glass-bg: rgba(255, 255, 255, 0.04);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-top: rgba(255, 255, 255, 0.15);
+  --glass-blur: blur(30px) saturate(140%);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --glass-radius: 20px;
+  --font-ui: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #06060f;
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================================
+   BACKGROUND — GRADIENT MESH
+   ============================================================ */
+.background {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: #06060f;
+  overflow: hidden;
+}
+
+.bg-gradient {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.6;
+}
+
+.bg-gradient.g1 {
+  width: 800px;
+  height: 800px;
+  top: -15%;
+  left: -10%;
+  background: radial-gradient(circle, #1a1040 0%, transparent 70%);
+}
+
+.bg-gradient.g2 {
+  width: 900px;
+  height: 700px;
+  top: 20%;
+  right: -15%;
+  background: radial-gradient(circle, #0a2030 0%, transparent 70%);
+}
+
+.bg-gradient.g3 {
+  width: 600px;
+  height: 600px;
+  bottom: -10%;
+  left: 30%;
+  background: radial-gradient(circle, #200a15 0%, transparent 70%);
+}
+
+.bg-gradient.g4 {
+  width: 500px;
+  height: 500px;
+  top: 50%;
+  left: 10%;
+  background: radial-gradient(circle, #0a1a30 0%, transparent 70%);
+}
+
+/* ============================================================
+   STARFIELD — CSS ANIMATED
+   ============================================================ */
+.starfield {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.star {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: #ffffff;
+  border-radius: 50%;
+  animation: star-drift linear infinite;
+}
+
+@keyframes star-drift {
+  0% { transform: translate(0, 0); opacity: var(--star-opacity); }
+  25% { opacity: calc(var(--star-opacity) * 1.5); }
+  50% { transform: translate(var(--dx), var(--dy)); opacity: var(--star-opacity); }
+  75% { opacity: calc(var(--star-opacity) * 0.5); }
+  100% { transform: translate(calc(var(--dx) * 2), calc(var(--dy) * 2)); opacity: var(--star-opacity); }
+}
+
+/* ============================================================
+   FLOATING PARTICLES — 3D DEPTH
+   ============================================================ */
+.particles {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  perspective: 800px;
+  transform-style: preserve-3d;
+}
+
+.particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: rgba(96, 160, 255, 0.25);
+  border-radius: 50%;
+  animation: particle-float linear infinite;
+}
+
+@keyframes particle-float {
+  0% { transform: translate3d(0, 0, var(--pz)) scale(1); opacity: var(--p-opacity); }
+  33% { transform: translate3d(var(--pdx), var(--pdy), calc(var(--pz) + 20px)) scale(1.2); }
+  66% { transform: translate3d(calc(var(--pdx) * -0.5), calc(var(--pdy) * 1.5), var(--pz)) scale(0.8); }
+  100% { transform: translate3d(0, 0, var(--pz)) scale(1); opacity: var(--p-opacity); }
+}
+
+/* ============================================================
+   3D SCENE CONTAINER
+   ============================================================ */
+.scene {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  perspective: 1200px;
+  perspective-origin: 50% 42%;
+  overflow: hidden;
+}
+
+.stage {
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  display: grid;
+  grid-template-columns: 220px 1fr 1fr 1fr;
+  grid-template-rows: 60px auto auto 1fr;
+  gap: 20px;
+  padding: 20px 30px 30px 30px;
+  transition: transform 0.016s linear;
+}
+
+/* ============================================================
+   GLASS PANEL BASE
+   ============================================================ */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-top: 1px solid var(--glass-border-top);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+  transform-style: preserve-3d;
+  transition: transform 0.5s cubic-bezier(0.23, 1, 0.32, 1),
+              box-shadow 0.5s cubic-bezier(0.23, 1, 0.32, 1),
+              opacity 0.5s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Diagonal reflection sweep */
+.glass-panel::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -100%;
+  width: 60%;
+  height: 200%;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.03) 45%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.03) 55%,
+    transparent 60%
+  );
+  animation: reflection-sweep 7s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 100;
+}
+
+@keyframes reflection-sweep {
+  0%, 100% { transform: translateX(-50%) rotate(15deg); }
+  50% { transform: translateX(250%) rotate(15deg); }
+}
+
+/* Panel hover lift */
+.glass-panel:hover {
+  transform: var(--panel-base-transform, translateZ(0px))
+             translateZ(30px) scale(1.02) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5),
+              0 0 40px rgba(96, 160, 255, 0.06);
+}
+
+/* ============================================================
+   ENTRANCE ANIMATION
+   ============================================================ */
+.glass-panel {
+  opacity: 0;
+  animation: panel-materialize 1.2s cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+@keyframes panel-materialize {
+  0% {
+    opacity: 0;
+    filter: blur(10px) brightness(1.3);
+    transform: var(--panel-base-transform, translateZ(0px))
+               translateZ(-200px) scale(0.85);
+  }
+  30% {
+    opacity: 0.5;
+    filter: blur(4px) brightness(1.15);
+  }
+  70% {
+    filter: blur(1px) brightness(1.05);
+  }
+  100% {
+    opacity: var(--panel-final-opacity, 1);
+    filter: blur(0px) brightness(1);
+    transform: var(--panel-base-transform, translateZ(0px));
+  }
+}
+
+/* ============================================================
+   PANEL HEADER GRADIENT TEXT
+   ============================================================ */
+.panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.7) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 0.02em;
+}
+
+/* ============================================================
+   TOPBAR — translateZ(40px) — frontmost
+   ============================================================ */
+.topbar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  --panel-base-transform: translateZ(40px);
+  --panel-final-opacity: 1;
+  animation-delay: 0.05s;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 20px;
+  z-index: 50;
+}
+
+.topbar .logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.logo-icon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #60a0ff 0%, #a060ff 100%);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  box-shadow: 0 4px 12px rgba(96, 160, 255, 0.3);
+}
+
+.topbar .search-box {
+  flex: 1;
+  max-width: 400px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.search-box svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.notification-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.notification-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke: var(--text-secondary);
+}
+
+.notification-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  background: var(--error);
+  border-radius: 50%;
+  border: 1.5px solid #12121f;
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #4080d0 0%, #7050c0 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+}
+
+/* ============================================================
+   SIDEBAR — rotateY(3deg), fixed left
+   ============================================================ */
+.sidebar {
+  grid-column: 1;
+  grid-row: 2 / -1;
+  --panel-base-transform: rotateY(3deg) translateZ(10px);
+  --panel-final-opacity: 1;
+  animation-delay: 0.15s;
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar .section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  padding: 12px 12px 6px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background: rgba(96, 160, 255, 0.1);
+  color: var(--accent);
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  background: var(--accent);
+  border-radius: 0 3px 3px 0;
+}
+
+.nav-item svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  flex-shrink: 0;
+}
+
+.nav-badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 8px;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   STAT CARDS — translateZ(15px) — secondary depth
+   ============================================================ */
+.stat-card {
+  --panel-base-transform: translateZ(15px);
+  --panel-final-opacity: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-card:nth-child(3) { animation-delay: 0.25s; }
+.stat-card:nth-child(4) { animation-delay: 0.30s; }
+.stat-card:nth-child(5) { animation-delay: 0.35s; }
+.stat-card:nth-child(6) { animation-delay: 0.40s; }
+
+.stat-card .stat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.stat-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.stat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.stat-icon.blue { background: rgba(96, 160, 255, 0.12); }
+.stat-icon.blue svg { stroke: var(--accent); }
+.stat-icon.green { background: rgba(80, 224, 176, 0.12); }
+.stat-icon.green svg { stroke: var(--success); }
+.stat-icon.rose { background: rgba(240, 96, 128, 0.12); }
+.stat-icon.rose svg { stroke: var(--error); }
+.stat-icon.amber { background: rgba(240, 192, 64, 0.12); }
+.stat-icon.amber svg { stroke: var(--warning); }
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.stat-change {
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-change.up { color: var(--success); }
+.stat-change.down { color: var(--error); }
+
+/* ============================================================
+   CHART PANEL — translateZ(30px) — hero / closest
+   ============================================================ */
+.chart-panel {
+  grid-column: 2 / 5;
+  --panel-base-transform: translateZ(30px);
+  --panel-final-opacity: 1;
+  animation-delay: 0.50s;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-panel .chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.chart-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.chart-tab {
+  padding: 5px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.chart-tab.active {
+  background: rgba(96, 160, 255, 0.15);
+  color: var(--accent);
+}
+
+.chart-area {
+  flex: 1;
+  min-height: 180px;
+}
+
+.chart-area svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================================
+   ACTIVITY PANEL — translateZ(0px) — baseline
+   ============================================================ */
+.activity-panel {
+  grid-column: 2 / 5;
+  --panel-base-transform: translateZ(0px);
+  --panel-final-opacity: 0.97;
+  animation-delay: 0.60s;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.activity-panel .panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.activity-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  transition: background 0.2s ease;
+}
+
+.activity-item:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.activity-dot.success { background: var(--success); box-shadow: 0 0 8px rgba(80, 224, 176, 0.4); }
+.activity-dot.error { background: var(--error); box-shadow: 0 0 8px rgba(240, 96, 128, 0.4); }
+.activity-dot.warning { background: var(--warning); box-shadow: 0 0 8px rgba(240, 192, 64, 0.4); }
+.activity-dot.info { background: var(--info); box-shadow: 0 0 8px rgba(96, 160, 255, 0.4); }
+
+.activity-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.activity-text strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.activity-time {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   KANBAN PANEL — translateZ(-15px) — recessed
+   ============================================================ */
+.kanban-panel {
+  grid-column: 2 / 5;
+  --panel-base-transform: translateZ(-15px);
+  --panel-final-opacity: 0.92;
+  animation-delay: 0.70s;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.kanban-panel .panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.kanban-columns {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  flex: 1;
+}
+
+.kanban-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kanban-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px 8px;
+}
+
+.kanban-col-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.kanban-col-count {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+}
+
+.kanban-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.kanban-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+.kanban-card-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.kanban-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kanban-tag {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kanban-tag.task {
+  background: rgba(96, 160, 255, 0.12);
+  color: var(--accent);
+}
+
+.kanban-tag.bug {
+  background: rgba(240, 96, 128, 0.12);
+  color: var(--error);
+}
+
+.kanban-tag.urgent {
+  background: rgba(240, 192, 64, 0.12);
+  color: var(--warning);
+}
+
+.kanban-priority {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   BADGE / PILL UTILITIES
+   ============================================================ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 8px;
+}
+
+.badge.accent {
+  background: rgba(96, 160, 255, 0.12);
+  color: var(--accent);
+}
+
+.view-all {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.view-all:hover {
+  color: var(--accent);
+}
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+/* ============================================================
+   RESPONSIVE — TWEAK GRID ON SMALLER SCREENS
+   ============================================================ */
+@media (max-width: 1200px) {
+  .stage {
+    grid-template-columns: 200px 1fr 1fr;
+  }
+  .topbar { grid-column: 1 / -1; }
+  .stat-card:nth-child(6) { grid-column: span 1; }
+  .chart-panel { grid-column: 2 / -1; }
+  .activity-panel { grid-column: 2 / -1; }
+  .kanban-panel { grid-column: 2 / -1; }
+}
+
+/* ============================================================
+   STAGGERED REFLECTION DELAYS — variation per panel
+   ============================================================ */
+.stat-card:nth-child(3)::before { animation-delay: 0s; }
+.stat-card:nth-child(4)::before { animation-delay: 1.8s; }
+.stat-card:nth-child(5)::before { animation-delay: 3.5s; }
+.stat-card:nth-child(6)::before { animation-delay: 5.2s; }
+.chart-panel::before { animation-delay: 0.8s; }
+.activity-panel::before { animation-delay: 2.5s; }
+.kanban-panel::before { animation-delay: 4.0s; }
+.sidebar::before { animation-delay: 1.2s; }
+
+/* ============================================================
+   DEPTH-OF-FIELD SIMULATION
+   Panels further back get subtle opacity + desaturation
+   ============================================================ */
+.activity-panel {
+  filter: saturate(0.97);
+}
+
+.kanban-panel {
+  filter: saturate(0.93);
+}
+
+/* ============================================================
+   LAYOUT: force stat cards into a row inside the grid
+   ============================================================ */
+.stat-card:nth-child(3) { grid-column: 2; grid-row: 2; }
+.stat-card:nth-child(4) { grid-column: 3; grid-row: 2; }
+.stat-card:nth-child(5) { grid-column: 4; grid-row: 2; }
+
+/* We need a 5th column for 4 stat cards, or double up.
+   Let's use subgrid approach: wrap stats in their own row */
+
+/* Actually, let's restructure the grid to be cleaner */
+.stage {
+  grid-template-columns: 220px repeat(4, 1fr);
+  grid-template-rows: 60px auto auto auto 1fr;
+}
+
+.topbar { grid-column: 1 / -1; grid-row: 1; }
+.sidebar { grid-column: 1; grid-row: 2 / -1; }
+
+/* Stat cards across columns 2-5 */
+.stat-card:nth-child(3) { grid-column: 2; grid-row: 2; }
+.stat-card:nth-child(4) { grid-column: 3; grid-row: 2; }
+.stat-card:nth-child(5) { grid-column: 4; grid-row: 2; }
+.stat-card:nth-child(6) { grid-column: 5; grid-row: 2; }
+
+.chart-panel { grid-column: 2 / 6; grid-row: 3; }
+.activity-panel { grid-column: 2 / 6; grid-row: 4; }
+.kanban-panel { grid-column: 2 / 6; grid-row: 5; }
+
+/* ============================================================
+   CHART + ACTIVITY SPLIT LAYOUT
+   Make chart span 3 and activity span 1 on same row
+   ============================================================ */
+.chart-panel { grid-column: 2 / 5; grid-row: 3; }
+.activity-panel { grid-column: 5; grid-row: 3; }
+.kanban-panel { grid-column: 2 / 6; grid-row: 4; }
+
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     BACKGROUND LAYER — GRADIENT MESH
+     ============================================================ -->
+<div class="background">
+  <div class="bg-gradient g1"></div>
+  <div class="bg-gradient g2"></div>
+  <div class="bg-gradient g3"></div>
+  <div class="bg-gradient g4"></div>
+</div>
+
+<!-- ============================================================
+     STARFIELD
+     ============================================================ -->
+<div class="starfield" id="starfield"></div>
+
+<!-- ============================================================
+     FLOATING PARTICLES
+     ============================================================ -->
+<div class="particles" id="particles"></div>
+
+<!-- ============================================================
+     3D SCENE
+     ============================================================ -->
+<div class="scene">
+  <div class="stage" id="stage">
+
+    <!-- ======== TOPBAR ======== -->
+    <div class="glass-panel topbar">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/>
+            <line x1="12" y1="22" x2="12" y2="15.5"/>
+            <polyline points="22 8.5 12 15.5 2 8.5"/>
+            <polyline points="2 15.5 12 8.5 22 15.5"/>
+            <line x1="12" y1="2" x2="12" y2="8.5"/>
+          </svg>
+        </div>
+        DevGlide
+      </div>
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <span>Search tools, tasks, workflows...</span>
+      </div>
+      <div class="topbar-right">
+        <div class="notification-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <div class="notification-dot"></div>
+        </div>
+        <div class="avatar">DK</div>
+      </div>
+    </div>
+
+    <!-- ======== SIDEBAR ======== -->
+    <div class="glass-panel sidebar">
+      <div class="section-label">MCP Servers</div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1"/>
+          <rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/>
+          <rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        Kanban
+        <span class="nav-badge">47</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 17 10 11 4 5"/>
+          <line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+        Shell
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+        </svg>
+        Test
+        <span class="nav-badge">12</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+        </svg>
+        Workflow
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+        Voice
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        Chat
+        <span class="nav-badge">3</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+          <polyline points="10 9 9 9 8 9"/>
+        </svg>
+        Docs
+      </div>
+
+      <div class="section-label" style="margin-top: auto;">System</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        Settings
+      </div>
+    </div>
+
+    <!-- ======== STAT CARDS ======== -->
+    <div class="glass-panel stat-card">
+      <div class="stat-header">
+        <span class="stat-label">Active Tasks</span>
+        <div class="stat-icon blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 11l3 3L22 4"/>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+          </svg>
+        </div>
+      </div>
+      <div class="stat-value">47</div>
+      <div class="stat-change up">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+        +12% this week
+      </div>
+    </div>
+
+    <div class="glass-panel stat-card">
+      <div class="stat-header">
+        <span class="stat-label">MCP Calls</span>
+        <div class="stat-icon green">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+        </div>
+      </div>
+      <div class="stat-value">2,841</div>
+      <div class="stat-change up">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+        +8% this week
+      </div>
+    </div>
+
+    <div class="glass-panel stat-card">
+      <div class="stat-header">
+        <span class="stat-label">Test Pass Rate</span>
+        <div class="stat-icon rose">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+      </div>
+      <div class="stat-value">98%</div>
+      <div class="stat-change up">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+        +2.1% this week
+      </div>
+    </div>
+
+    <div class="glass-panel stat-card">
+      <div class="stat-header">
+        <span class="stat-label">Transcriptions</span>
+        <div class="stat-icon amber">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          </svg>
+        </div>
+      </div>
+      <div class="stat-value">87</div>
+      <div class="stat-change down">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        -3% this week
+      </div>
+    </div>
+
+    <!-- ======== CHART PANEL ======== -->
+    <div class="glass-panel chart-panel">
+      <div class="chart-header">
+        <span class="panel-title">MCP Activity</span>
+        <div class="chart-tabs">
+          <div class="chart-tab active">Week</div>
+          <div class="chart-tab">Month</div>
+          <div class="chart-tab">Year</div>
+        </div>
+      </div>
+      <div class="chart-area">
+        <svg viewBox="0 0 700 200" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="rgba(96, 160, 255, 0.3)"/>
+              <stop offset="100%" stop-color="rgba(96, 160, 255, 0)"/>
+            </linearGradient>
+            <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#4080d0"/>
+              <stop offset="50%" stop-color="#60a0ff"/>
+              <stop offset="100%" stop-color="#80b8ff"/>
+            </linearGradient>
+          </defs>
+          <!-- Grid lines -->
+          <line x1="0" y1="50" x2="700" y2="50" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <line x1="0" y1="100" x2="700" y2="100" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <line x1="0" y1="150" x2="700" y2="150" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <!-- Y labels -->
+          <text x="8" y="48" fill="#555570" font-size="10" font-family="JetBrains Mono, monospace">250</text>
+          <text x="8" y="98" fill="#555570" font-size="10" font-family="JetBrains Mono, monospace">200</text>
+          <text x="8" y="148" fill="#555570" font-size="10" font-family="JetBrains Mono, monospace">150</text>
+          <!-- Area fill -->
+          <path d="M50,152 L150,112 L250,132 L350,72 L450,92 L550,52 L650,72 L650,200 L50,200 Z" fill="url(#chartGrad)"/>
+          <!-- Line -->
+          <path d="M50,152 L150,112 L250,132 L350,72 L450,92 L550,52 L650,72" fill="none" stroke="url(#lineGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- Data points -->
+          <circle cx="50" cy="152" r="4" fill="#06060f" stroke="#60a0ff" stroke-width="2"/>
+          <circle cx="150" cy="112" r="4" fill="#06060f" stroke="#60a0ff" stroke-width="2"/>
+          <circle cx="250" cy="132" r="4" fill="#06060f" stroke="#60a0ff" stroke-width="2"/>
+          <circle cx="350" cy="72" r="4" fill="#06060f" stroke="#60a0ff" stroke-width="2"/>
+          <circle cx="450" cy="92" r="4" fill="#06060f" stroke="#60a0ff" stroke-width="2"/>
+          <circle cx="550" cy="52" r="4" fill="#06060f" stroke="#60a0ff" stroke-width="2"/>
+          <circle cx="650" cy="72" r="4" fill="#06060f" stroke="#60a0ff" stroke-width="2"/>
+          <!-- X labels -->
+          <text x="50" y="195" fill="#555570" font-size="10" font-family="JetBrains Mono, monospace" text-anchor="middle">Mon</text>
+          <text x="150" y="195" fill="#555570" font-size="10" font-family="JetBrains Mono, monospace" text-anchor="middle">Tue</text>
+          <text x="250" y="195" fill="#555570" font-size="10" font-family="JetBrains Mono, monospace" text-anchor="middle">Wed</text>
+          <text x="350" y="195" fill="#555570" font-size="10" font-family="JetBrains Mono, monospace" text-anchor="middle">Thu</text>
+          <text x="450" y="195" fill="#555570" font-size="10" font-family="JetBrains Mono, monospace" text-anchor="middle">Fri</text>
+          <text x="550" y="195" fill="#555570" font-size="10" font-family="JetBrains Mono, monospace" text-anchor="middle">Sat</text>
+          <text x="650" y="195" fill="#555570" font-size="10" font-family="JetBrains Mono, monospace" text-anchor="middle">Sun</text>
+          <!-- Glow pulse on latest point -->
+          <circle cx="550" cy="52" r="8" fill="none" stroke="rgba(96,160,255,0.3)" stroke-width="1.5">
+            <animate attributeName="r" values="8;14;8" dur="2s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0.6;0;0.6" dur="2s" repeatCount="indefinite"/>
+          </circle>
+        </svg>
+      </div>
+    </div>
+
+    <!-- ======== ACTIVITY PANEL ======== -->
+    <div class="glass-panel activity-panel">
+      <div class="panel-header">
+        <span class="panel-title">Activity</span>
+        <span class="view-all">View all</span>
+      </div>
+      <div class="activity-list">
+        <div class="activity-item">
+          <div class="activity-dot success"></div>
+          <div class="activity-text"><strong>Auth flow</strong> tests passed</div>
+          <div class="activity-time">2m ago</div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot info"></div>
+          <div class="activity-text"><strong>shell_run_command</strong> executed build</div>
+          <div class="activity-time">5m ago</div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot warning"></div>
+          <div class="activity-text"><strong>Voice</strong> transcription queued</div>
+          <div class="activity-time">12m ago</div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot error"></div>
+          <div class="activity-text"><strong>API endpoint</strong> /users 503</div>
+          <div class="activity-time">18m ago</div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot success"></div>
+          <div class="activity-text"><strong>Workflow</strong> deploy pipeline done</div>
+          <div class="activity-time">25m ago</div>
+        </div>
+        <div class="activity-item">
+          <div class="activity-dot info"></div>
+          <div class="activity-text"><strong>Chat</strong> claude-1 joined room</div>
+          <div class="activity-time">31m ago</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======== KANBAN PANEL ======== -->
+    <div class="glass-panel kanban-panel">
+      <div class="panel-header">
+        <span class="panel-title">Kanban Board</span>
+        <span class="badge accent">14 items</span>
+      </div>
+      <div class="kanban-columns">
+        <!-- Backlog -->
+        <div class="kanban-col">
+          <div class="kanban-col-header">
+            <span class="kanban-col-title">Backlog</span>
+            <span class="kanban-col-count">3</span>
+          </div>
+          <div class="kanban-card">
+            <div class="kanban-card-title">Refactor MCP transport layer</div>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag task">Task</span>
+              <span class="kanban-priority">Medium</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <div class="kanban-card-title">Add batch voice transcription</div>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag task">Task</span>
+              <span class="kanban-priority">Low</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <div class="kanban-card-title">Workflow DAG visualization</div>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag task">Task</span>
+              <span class="kanban-priority">Medium</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Todo -->
+        <div class="kanban-col">
+          <div class="kanban-col-header">
+            <span class="kanban-col-title">Todo</span>
+            <span class="kanban-col-count">4</span>
+          </div>
+          <div class="kanban-card">
+            <div class="kanban-card-title">Fix shell pane reconnection</div>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag bug">Bug</span>
+              <span class="kanban-priority">High</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <div class="kanban-card-title">Chat message persistence</div>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag task">Task</span>
+              <span class="kanban-priority">High</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <div class="kanban-card-title">Test scenario templates</div>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag task">Task</span>
+              <span class="kanban-priority">Medium</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <div class="kanban-card-title">Prompt variable validation</div>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag bug">Bug</span>
+              <span class="kanban-priority">Medium</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- In Progress -->
+        <div class="kanban-col">
+          <div class="kanban-col-header">
+            <span class="kanban-col-title">In Progress</span>
+            <span class="kanban-col-count">2</span>
+          </div>
+          <div class="kanban-card">
+            <div class="kanban-card-title">Dashboard 3D spatial UI</div>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag urgent">Urgent</span>
+              <span class="kanban-priority">Urgent</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <div class="kanban-card-title">Voice cleanup AI pipeline</div>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag task">Task</span>
+              <span class="kanban-priority">High</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Done -->
+        <div class="kanban-col">
+          <div class="kanban-col-header">
+            <span class="kanban-col-title">Done</span>
+            <span class="kanban-col-count">5</span>
+          </div>
+          <div class="kanban-card">
+            <div class="kanban-card-title">MCP server bundling</div>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag task">Task</span>
+              <span class="kanban-priority">High</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <div class="kanban-card-title">Chat pipe injection</div>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag task">Task</span>
+              <span class="kanban-priority">Medium</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <div class="kanban-card-title">Fix kanban drag crash</div>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag bug">Bug</span>
+              <span class="kanban-priority">High</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <div class="kanban-card-title">Vocabulary hybrid scoping</div>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag task">Task</span>
+              <span class="kanban-priority">Medium</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <div class="kanban-card-title">Documentation seed content</div>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag task">Task</span>
+              <span class="kanban-priority">Low</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /stage -->
+</div><!-- /scene -->
+
+<!-- ============================================================
+     JAVASCRIPT — 3D MOUSE TRACKING, STARFIELD, PARTICLES
+     ============================================================ -->
+<script>
+(function() {
+  'use strict';
+
+  // ================================================================
+  // STARFIELD GENERATION
+  // ================================================================
+  const starfield = document.getElementById('starfield');
+  const starCount = 50;
+  const starfieldFragment = document.createDocumentFragment();
+
+  for (let i = 0; i < starCount; i++) {
+    const star = document.createElement('div');
+    star.className = 'star';
+    const x = Math.random() * 100;
+    const y = Math.random() * 100;
+    const opacity = 0.15 + Math.random() * 0.35;
+    const size = 1 + Math.random() * 1.5;
+    const duration = 20 + Math.random() * 40;
+    const dx = (Math.random() - 0.5) * 60;
+    const dy = (Math.random() - 0.5) * 40;
+    const delay = Math.random() * -duration;
+
+    star.style.cssText = `
+      left: ${x}%;
+      top: ${y}%;
+      width: ${size}px;
+      height: ${size}px;
+      --star-opacity: ${opacity};
+      --dx: ${dx}px;
+      --dy: ${dy}px;
+      animation-duration: ${duration}s;
+      animation-delay: ${delay}s;
+    `;
+    starfieldFragment.appendChild(star);
+  }
+  starfield.appendChild(starfieldFragment);
+
+  // ================================================================
+  // FLOATING PARTICLES GENERATION
+  // ================================================================
+  const particlesEl = document.getElementById('particles');
+  const particleCount = 28;
+  const particlesFragment = document.createDocumentFragment();
+
+  for (let i = 0; i < particleCount; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const x = Math.random() * 100;
+    const y = Math.random() * 100;
+    const z = -100 + Math.random() * 200;
+    const opacity = 0.1 + Math.random() * 0.3;
+    const size = 2 + Math.random() * 3;
+    const duration = 15 + Math.random() * 25;
+    const dx = (Math.random() - 0.5) * 80;
+    const dy = (Math.random() - 0.5) * 60;
+    const delay = Math.random() * -duration;
+    const hue = Math.random() > 0.5 ? '96, 160, 255' : '80, 224, 176';
+
+    p.style.cssText = `
+      left: ${x}%;
+      top: ${y}%;
+      width: ${size}px;
+      height: ${size}px;
+      background: rgba(${hue}, ${opacity * 0.5});
+      --pz: ${z}px;
+      --p-opacity: ${opacity};
+      --pdx: ${dx}px;
+      --pdy: ${dy}px;
+      animation-duration: ${duration}s;
+      animation-delay: ${delay}s;
+    `;
+    particlesFragment.appendChild(p);
+  }
+  particlesEl.appendChild(particlesFragment);
+
+  // ================================================================
+  // 3D MOUSE TRACKING — SMOOTH LERP
+  // ================================================================
+  const stage = document.getElementById('stage');
+  let targetRotX = 0;
+  let targetRotY = 0;
+  let currentRotX = 0;
+  let currentRotY = 0;
+  const maxRotX = 3;   // max tilt degrees on Y-axis (left-right)
+  const maxRotY = 4;   // max tilt degrees on X-axis (up-down)
+  const lerpFactor = 0.06;
+
+  // Track mouse position
+  document.addEventListener('mousemove', function(e) {
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    // Normalize to -1..1
+    const nx = (e.clientX - centerX) / centerX;
+    const ny = (e.clientY - centerY) / centerY;
+    targetRotY = nx * maxRotX;   // rotateY based on horizontal mouse
+    targetRotX = -ny * maxRotY;  // rotateX based on vertical mouse (inverted)
+  });
+
+  // Reset on mouse leave
+  document.addEventListener('mouseleave', function() {
+    targetRotX = 0;
+    targetRotY = 0;
+  });
+
+  // Animation loop
+  function animate() {
+    currentRotX += (targetRotX - currentRotX) * lerpFactor;
+    currentRotY += (targetRotY - currentRotY) * lerpFactor;
+
+    stage.style.transform =
+      `rotateX(${currentRotX}deg) rotateY(${currentRotY}deg)`;
+
+    requestAnimationFrame(animate);
+  }
+
+  requestAnimationFrame(animate);
+
+  // ================================================================
+  // PANEL HOVER — INDEPENDENT LIFT WITH DEPTH-AWARE PARALLAX
+  // ================================================================
+  const panels = document.querySelectorAll('.glass-panel');
+
+  panels.forEach(function(panel) {
+    // Store original transform from CSS variable for proper hover
+    const style = getComputedStyle(panel);
+    const baseTransform = panel.style.getPropertyValue('--panel-base-transform') ||
+                          getComputedStyle(panel).getPropertyValue('--panel-base-transform') || '';
+
+    panel.addEventListener('mouseenter', function() {
+      // Let CSS :hover handle it via the --panel-base-transform variable
+    });
+  });
+
+  // ================================================================
+  // CHART TAB INTERACTION
+  // ================================================================
+  const tabs = document.querySelectorAll('.chart-tab');
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      tabs.forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+    });
+  });
+
+  // ================================================================
+  // ENTRANCE STAGGER — RE-TRIGGER WITH PROPER DELAYS
+  // We override the animation-delay via JS for precise control
+  // ================================================================
+  const allPanels = document.querySelectorAll('.glass-panel');
+  const delays = [
+    0.05,  // topbar
+    0.15,  // sidebar
+    0.30,  // stat 1
+    0.38,  // stat 2
+    0.46,  // stat 3
+    0.54,  // stat 4
+    0.70,  // chart
+    0.80,  // activity
+    0.95,  // kanban
+  ];
+
+  allPanels.forEach(function(panel, idx) {
+    const delay = delays[idx] || (0.3 + idx * 0.08);
+    panel.style.animationDelay = delay + 's';
+    // Also stagger the reflection sweep
+    if (panel.querySelector('::before')) {
+      // Can't access pseudo elements; handled via CSS nth-child
+    }
+  });
+
+  // ================================================================
+  // AMBIENT BACKGROUND ANIMATION — SLOW GRADIENT DRIFT
+  // ================================================================
+  const gradients = document.querySelectorAll('.bg-gradient');
+  let bgTime = 0;
+
+  function animateBackground() {
+    bgTime += 0.003;
+
+    gradients.forEach(function(g, i) {
+      const offsetX = Math.sin(bgTime + i * 1.5) * 30;
+      const offsetY = Math.cos(bgTime + i * 2.1) * 20;
+      g.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+    });
+
+    requestAnimationFrame(animateBackground);
+  }
+
+  requestAnimationFrame(animateBackground);
+
+  // ================================================================
+  // PARALLAX DEPTH EFFECT
+  // Panels at different Z depths shift slightly differently
+  // on mouse move for enhanced depth perception
+  // ================================================================
+  const depthMap = new Map();
+  depthMap.set('topbar', 40);
+  depthMap.set('sidebar', 10);
+
+  // Assign depth values to stat cards, chart, activity, kanban
+  allPanels.forEach(function(panel) {
+    if (panel.classList.contains('topbar')) depthMap.set(panel, 40);
+    else if (panel.classList.contains('sidebar')) depthMap.set(panel, 10);
+    else if (panel.classList.contains('stat-card')) depthMap.set(panel, 15);
+    else if (panel.classList.contains('chart-panel')) depthMap.set(panel, 30);
+    else if (panel.classList.contains('activity-panel')) depthMap.set(panel, 0);
+    else if (panel.classList.contains('kanban-panel')) depthMap.set(panel, -15);
+  });
+
+  let mouseNX = 0;
+  let mouseNY = 0;
+  let smoothMX = 0;
+  let smoothMY = 0;
+
+  document.addEventListener('mousemove', function(e) {
+    mouseNX = (e.clientX / window.innerWidth - 0.5) * 2;
+    mouseNY = (e.clientY / window.innerHeight - 0.5) * 2;
+  });
+
+  function parallaxLoop() {
+    smoothMX += (mouseNX - smoothMX) * 0.04;
+    smoothMY += (mouseNY - smoothMY) * 0.04;
+
+    allPanels.forEach(function(panel) {
+      const depth = depthMap.get(panel) || 0;
+      // Deeper panels (higher Z) move more, simulating parallax
+      const factor = depth * 0.04;
+      const px = smoothMX * factor;
+      const py = smoothMY * factor;
+
+      // Only apply subtle translation parallax, don't override the main transform
+      panel.style.setProperty('--parallax-x', px + 'px');
+      panel.style.setProperty('--parallax-y', py + 'px');
+    });
+
+    requestAnimationFrame(parallaxLoop);
+  }
+
+  requestAnimationFrame(parallaxLoop);
+
+})();
+</script>
+
+<!-- ============================================================
+     ADDITIONAL STYLES — PARALLAX INTEGRATION & POLISH
+     Applied after the main stylesheet to layer on parallax
+     and additional visual refinements
+     ============================================================ -->
+<style>
+/* Parallax translation layer — applied additively */
+.glass-panel {
+  will-change: transform;
+}
+
+/* Override hover to include parallax */
+.topbar {
+  transform: translateZ(40px)
+             translate(var(--parallax-x, 0), var(--parallax-y, 0));
+}
+
+.topbar:hover {
+  transform: translateZ(70px) scale(1.01)
+             translate(var(--parallax-x, 0), var(--parallax-y, 0)) !important;
+}
+
+.sidebar {
+  transform: rotateY(3deg) translateZ(10px)
+             translate(var(--parallax-x, 0), var(--parallax-y, 0));
+}
+
+.sidebar:hover {
+  transform: rotateY(3deg) translateZ(40px) scale(1.01)
+             translate(var(--parallax-x, 0), var(--parallax-y, 0)) !important;
+}
+
+.stat-card {
+  transform: translateZ(15px)
+             translate(var(--parallax-x, 0), var(--parallax-y, 0));
+}
+
+.stat-card:hover {
+  transform: translateZ(45px) scale(1.02)
+             translate(var(--parallax-x, 0), var(--parallax-y, 0)) !important;
+}
+
+.chart-panel {
+  transform: translateZ(30px)
+             translate(var(--parallax-x, 0), var(--parallax-y, 0));
+}
+
+.chart-panel:hover {
+  transform: translateZ(60px) scale(1.02)
+             translate(var(--parallax-x, 0), var(--parallax-y, 0)) !important;
+}
+
+.activity-panel {
+  transform: translateZ(0px)
+             translate(var(--parallax-x, 0), var(--parallax-y, 0));
+}
+
+.activity-panel:hover {
+  transform: translateZ(30px) scale(1.02)
+             translate(var(--parallax-x, 0), var(--parallax-y, 0)) !important;
+}
+
+.kanban-panel {
+  transform: translateZ(-15px)
+             translate(var(--parallax-x, 0), var(--parallax-y, 0));
+}
+
+.kanban-panel:hover {
+  transform: translateZ(15px) scale(1.02)
+             translate(var(--parallax-x, 0), var(--parallax-y, 0)) !important;
+}
+
+/* ============================================================
+   DEPTH-BASED SHADOW CASTING
+   Panels further from viewer get softer, more spread shadows
+   ============================================================ */
+.topbar {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.stat-card {
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+.chart-panel {
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.35),
+              0 0 60px rgba(96, 160, 255, 0.03);
+}
+
+.activity-panel {
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+}
+
+.kanban-panel {
+  box-shadow: 0 14px 50px rgba(0, 0, 0, 0.5);
+}
+
+/* ============================================================
+   SIDEBAR ACTIVE INDICATOR GLOW
+   ============================================================ */
+.nav-item.active {
+  box-shadow: inset 0 0 20px rgba(96, 160, 255, 0.05);
+}
+
+/* ============================================================
+   KANBAN COLUMN SEPARATORS
+   ============================================================ */
+.kanban-col + .kanban-col {
+  border-left: 1px solid rgba(255, 255, 255, 0.03);
+  padding-left: 14px;
+}
+
+/* ============================================================
+   STAT CARD VALUE GLOW ON HOVER
+   ============================================================ */
+.stat-card:hover .stat-value {
+  text-shadow: 0 0 20px rgba(96, 160, 255, 0.2);
+}
+
+/* ============================================================
+   LOADING SCREEN / INITIAL REVEAL
+   ============================================================ */
+.scene {
+  animation: scene-reveal 0.8s ease-out forwards;
+}
+
+@keyframes scene-reveal {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* ============================================================
+   ACTIVITY ITEM SUBTLE LEFT BORDER ON HOVER
+   ============================================================ */
+.activity-item:hover {
+  border-left: 2px solid rgba(96, 160, 255, 0.2);
+  padding-left: 10px;
+}
+
+/* ============================================================
+   KANBAN CARD SUBTLE GLOW ON HOVER
+   ============================================================ */
+.kanban-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3),
+              0 0 20px rgba(96, 160, 255, 0.04);
+}
+
+/* ============================================================
+   NOTIFICATION BUTTON PULSE
+   ============================================================ */
+.notification-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.7; }
+}
+
+/* ============================================================
+   TOPBAR BOTTOM EDGE GLOW LINE
+   ============================================================ */
+.topbar::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(96, 160, 255, 0.15) 30%,
+    rgba(96, 160, 255, 0.25) 50%,
+    rgba(96, 160, 255, 0.15) 70%,
+    transparent 100%
+  );
+}
+
+/* ============================================================
+   ADDITIONAL LAYOUT TUNING
+   ============================================================ */
+.stage {
+  overflow-y: auto;
+  overflow-x: hidden;
+  align-content: start;
+}
+
+/* Ensure chart + activity side by side */
+.chart-panel {
+  min-height: 260px;
+}
+
+.activity-panel {
+  min-height: 260px;
+  overflow-y: auto;
+}
+
+.kanban-panel {
+  min-height: 0;
+}
+
+/* ============================================================
+   LOGO ICON ROTATION ON HOVER
+   ============================================================ */
+.logo-icon {
+  transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.logo:hover .logo-icon {
+  transform: rotateY(180deg);
+}
+
+/* ============================================================
+   SEARCH BOX FOCUS STYLE (for visual only — no actual input)
+   ============================================================ */
+.search-box {
+  transition: all 0.3s ease;
+  cursor: text;
+}
+
+.search-box:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ============================================================
+   CHART DATA POINT HOVER GLOW VIA CSS
+   ============================================================ */
+.chart-area svg circle[stroke="#60a0ff"] {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.chart-area svg circle[stroke="#60a0ff"]:hover {
+  r: 6;
+  filter: drop-shadow(0 0 8px rgba(96, 160, 255, 0.6));
+}
+
+/* ============================================================
+   AVATAR RING ON HOVER
+   ============================================================ */
+.avatar {
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.avatar:hover {
+  box-shadow: 0 0 0 2px rgba(96, 160, 255, 0.4);
+}
+
+/* ============================================================
+   SMOOTH TRANSITION ON PANELS — PREVENT JANK
+   ============================================================ */
+.glass-panel {
+  transition: transform 0.5s cubic-bezier(0.23, 1, 0.32, 1),
+              box-shadow 0.5s cubic-bezier(0.23, 1, 0.32, 1),
+              filter 0.5s ease;
+}
+
+/* ============================================================
+   SIDE GRADIENT EDGE ON SIDEBAR
+   ============================================================ */
+.sidebar::after {
+  content: '';
+  position: absolute;
+  top: 10%;
+  right: 0;
+  bottom: 10%;
+  width: 1px;
+  background: linear-gradient(180deg,
+    transparent 0%,
+    rgba(96, 160, 255, 0.1) 30%,
+    rgba(96, 160, 255, 0.15) 50%,
+    rgba(96, 160, 255, 0.1) 70%,
+    transparent 100%
+  );
+}
+
+/* ============================================================
+   STAT CARD BOTTOM ACCENT LINE
+   ============================================================ */
+.stat-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 15%;
+  right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(255, 255, 255, 0.06),
+    transparent
+  );
+}
+
+/* ============================================================
+   KANBAN DONE COLUMN — SUBTLE COMPLETED STYLE
+   ============================================================ */
+.kanban-col:last-child .kanban-card {
+  opacity: 0.7;
+}
+
+.kanban-col:last-child .kanban-card:hover {
+  opacity: 1;
+}
+
+.kanban-col:last-child .kanban-col-title {
+  color: var(--success);
+}
+
+.kanban-col:last-child .kanban-col-count {
+  background: rgba(80, 224, 176, 0.1);
+  color: var(--success);
+}
+
+/* ============================================================
+   IN PROGRESS COLUMN — ACTIVE HIGHLIGHT
+   ============================================================ */
+.kanban-col:nth-child(3) .kanban-col-title {
+  color: var(--accent);
+}
+
+.kanban-col:nth-child(3) .kanban-col-count {
+  background: rgba(96, 160, 255, 0.1);
+  color: var(--accent);
+}
+
+/* ============================================================
+   FINE-TUNED RESPONSIVE BREAKPOINT
+   ============================================================ */
+@media (max-width: 1200px) {
+  .stage {
+    grid-template-columns: 200px repeat(3, 1fr);
+    grid-template-rows: 60px auto auto auto auto 1fr;
+  }
+
+  .stat-card:nth-child(3) { grid-column: 2; grid-row: 2; }
+  .stat-card:nth-child(4) { grid-column: 3; grid-row: 2; }
+  .stat-card:nth-child(5) { grid-column: 4; grid-row: 2; }
+  .stat-card:nth-child(6) { grid-column: 2; grid-row: 3; }
+
+  .chart-panel { grid-column: 2 / -1; grid-row: 4; }
+  .activity-panel { grid-column: 2 / -1; grid-row: 5; }
+  .kanban-panel { grid-column: 2 / -1; grid-row: 6; }
+}
+
+@media (max-width: 900px) {
+  .stage {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 60px repeat(auto-fill, auto);
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .sidebar { display: none; }
+  .topbar { grid-column: 1 / -1; }
+  .stat-card:nth-child(3) { grid-column: 1; grid-row: 2; }
+  .stat-card:nth-child(4) { grid-column: 2; grid-row: 2; }
+  .stat-card:nth-child(5) { grid-column: 1; grid-row: 3; }
+  .stat-card:nth-child(6) { grid-column: 2; grid-row: 3; }
+  .chart-panel { grid-column: 1 / -1; grid-row: 4; }
+  .activity-panel { grid-column: 1 / -1; grid-row: 5; }
+  .kanban-panel { grid-column: 1 / -1; grid-row: 6; }
+
+  .kanban-columns {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+</style>
+
+</body>
+</html>

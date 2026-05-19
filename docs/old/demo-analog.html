@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analog Dashboard — Physical Control Panel Design System</title>
+
+<!-- Fonts -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/share-tech-mono@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/exo-2@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/exo-2@latest/latin-600-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/exo-2@latest/latin-700-normal.css">
+
+<style>
+/* ============================================================
+   CSS CUSTOM PROPERTIES
+   ============================================================ */
+:root {
+  /* Wood */
+  --wood-dark: #3b2817;
+  --wood-mid: #5c3d2e;
+  --wood-light: #6b4830;
+  --wood-grain: #4a3222;
+
+  /* Metal */
+  --metal-light: #d0d0d8;
+  --metal-mid: #c0c0c8;
+  --metal-dark: #a0a0a8;
+  --metal-shadow: #808088;
+  --metal-edge: #e0e0e8;
+
+  /* Panel */
+  --panel-bg: linear-gradient(135deg, #c8c8d0 0%, #b8b8c0 30%, #c0c0c8 50%, #b0b0b8 80%, #c4c4cc 100%);
+  --panel-border: #909098;
+  --panel-inset: #a8a8b0;
+
+  /* LEDs */
+  --led-red: #ff2020;
+  --led-green: #20ff20;
+  --led-amber: #ffaa00;
+  --led-off: #331111;
+  --led-green-off: #113311;
+
+  /* Screen */
+  --screen-bg: #0a0a0a;
+  --screen-bezel: #2a2a2a;
+
+  /* Gauge */
+  --gauge-face: #f0efe8;
+  --gauge-rim: #888890;
+  --gauge-needle: #cc2222;
+  --gauge-pin: #444;
+
+  /* Text */
+  --text-label: #3a3a44;
+  --text-embossed: rgba(255,255,255,0.5);
+  --text-debossed: rgba(0,0,0,0.6);
+
+  /* Fonts */
+  --font-display: 'Share Tech Mono', 'Courier New', monospace;
+  --font-label: 'Exo 2', 'Segoe UI', system-ui, sans-serif;
+
+  /* Spacing */
+  --gap-sm: 8px;
+  --gap-md: 16px;
+  --gap-lg: 24px;
+  --gap-xl: 40px;
+}
+
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-label);
+  color: var(--text-label);
+  min-height: 100vh;
+  /* Dark walnut wood texture */
+  background:
+    repeating-linear-gradient(
+      87deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 8px,
+      rgba(90,55,30,0.08) 8px,
+      rgba(90,55,30,0.08) 12px
+    ),
+    repeating-linear-gradient(
+      88deg,
+      transparent,
+      transparent 30px,
+      rgba(0,0,0,0.04) 30px,
+      rgba(0,0,0,0.04) 32px
+    ),
+    linear-gradient(
+      180deg,
+      #3b2817 0%,
+      #4a3222 15%,
+      #5c3d2e 35%,
+      #4a3222 55%,
+      #3b2817 75%,
+      #2e1d10 100%
+    );
+  background-attachment: fixed;
+}
+
+/* ============================================================
+   SCREW (decorative corner screw)
+   ============================================================ */
+.screw {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #d8d8e0, #a0a0a8 60%, #808088 100%);
+  box-shadow:
+    inset 0 1px 2px rgba(255,255,255,0.4),
+    0 1px 3px rgba(0,0,0,0.4);
+  position: relative;
+  flex-shrink: 0;
+}
+.screw::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 20%;
+  right: 20%;
+  height: 1.5px;
+  background: rgba(0,0,0,0.4);
+  transform: translateY(-50%) rotate(-45deg);
+  border-radius: 1px;
+}
+.screw.phillips::after {
+  content: '';
+  width: 60%;
+  height: 1.5px;
+  left: 20%;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,0.35);
+}
+.screw.phillips::before {
+  content: '';
+  position: absolute;
+  width: 1.5px;
+  height: 60%;
+  left: 50%;
+  top: 20%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.35);
+  border-radius: 1px;
+}
+
+/* ============================================================
+   METAL PANEL
+   ============================================================ */
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.35),
+    inset 0 -1px 0 rgba(0,0,0,0.1),
+    0 4px 16px rgba(0,0,0,0.5),
+    0 1px 3px rgba(0,0,0,0.3);
+  position: relative;
+  padding: var(--gap-lg);
+}
+.panel-screws {
+  position: absolute;
+  inset: 8px;
+  pointer-events: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+.panel-screws .screw:nth-child(1) { align-self: start; justify-self: start; }
+.panel-screws .screw:nth-child(2) { align-self: start; justify-self: end; }
+.panel-screws .screw:nth-child(3) { align-self: end; justify-self: start; }
+.panel-screws .screw:nth-child(4) { align-self: end; justify-self: end; }
+
+/* ============================================================
+   EMBOSSED / ENGRAVED LABELS
+   ============================================================ */
+.label-embossed {
+  font-family: var(--font-label);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 11px;
+  color: var(--text-label);
+  text-shadow:
+    0 1px 0 var(--text-embossed),
+    0 -1px 0 var(--text-debossed);
+}
+.label-engraved {
+  font-family: var(--font-label);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-size: 10px;
+  color: transparent;
+  background: none;
+  text-shadow:
+    0 1px 1px rgba(255,255,255,0.5),
+    0 -1px 0 rgba(0,0,0,0.25);
+  -webkit-text-stroke: 0;
+}
+
+/* ============================================================
+   PAGE LAYOUT
+   ============================================================ */
+.page-wrapper {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--gap-xl) var(--gap-lg);
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+.header-panel {
+  text-align: center;
+  padding: var(--gap-xl) var(--gap-lg);
+  margin-bottom: var(--gap-xl);
+}
+.header-panel h1 {
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-size: 28px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-label);
+  text-shadow:
+    0 1px 0 rgba(255,255,255,0.6),
+    0 -1px 0 rgba(0,0,0,0.15),
+    0 2px 4px rgba(0,0,0,0.08);
+  margin-bottom: 6px;
+}
+.header-panel .subtitle {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--metal-shadow);
+  letter-spacing: 0.1em;
+}
+.header-badge {
+  display: inline-block;
+  margin-top: var(--gap-md);
+  padding: 4px 18px;
+  background: var(--screen-bg);
+  border: 2px solid var(--screen-bezel);
+  border-radius: 4px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: var(--led-green);
+  text-shadow: 0 0 8px rgba(32,255,32,0.5);
+  letter-spacing: 0.15em;
+}
+
+/* ============================================================
+   SECTION TITLE
+   ============================================================ */
+.section-title {
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: #c8c0b0;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  margin-bottom: var(--gap-md);
+  padding-left: 4px;
+}
+
+/* ============================================================
+   GRID HELPERS
+   ============================================================ */
+.grid-row {
+  display: grid;
+  gap: var(--gap-lg);
+  margin-bottom: var(--gap-xl);
+}
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+.grid-2 { grid-template-columns: 1fr 1fr; }
+.grid-sidebar { grid-template-columns: 260px 1fr; }
+
+@media (max-width: 900px) {
+  .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .grid-sidebar { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+  .grid-3, .grid-4, .grid-2 { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   GAUGE METER (circular)
+   ============================================================ */
+.gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.gauge-body {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #faf9f4, #e8e7e0 50%, #d5d4cc 100%);
+  border: 4px solid var(--gauge-rim);
+  box-shadow:
+    inset 0 2px 8px rgba(0,0,0,0.15),
+    0 4px 12px rgba(0,0,0,0.4),
+    0 0 0 2px rgba(0,0,0,0.1);
+  position: relative;
+  overflow: hidden;
+}
+.gauge-body::before {
+  /* Tick marks ring */
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background:
+    repeating-conic-gradient(
+      from -135deg,
+      rgba(0,0,0,0.5) 0deg 1deg,
+      transparent 1deg 10.6deg
+    );
+  mask: radial-gradient(circle, transparent 55%, black 56%, black 64%, transparent 65%);
+  -webkit-mask: radial-gradient(circle, transparent 55%, black 56%, black 64%, transparent 65%);
+}
+.gauge-value-text {
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: #333;
+}
+.gauge-min, .gauge-max {
+  position: absolute;
+  bottom: 16px;
+  font-family: var(--font-display);
+  font-size: 9px;
+  color: #888;
+}
+.gauge-min { left: 18px; }
+.gauge-max { right: 18px; }
+.gauge-needle {
+  position: absolute;
+  bottom: 50%;
+  left: 50%;
+  width: 3px;
+  height: 52px;
+  background: linear-gradient(to top, var(--gauge-needle), #ee5555);
+  transform-origin: bottom center;
+  transform: translateX(-50%) rotate(var(--needle-angle, -90deg));
+  border-radius: 2px 2px 0 0;
+  box-shadow: 0 0 4px rgba(200,0,0,0.3);
+  transition: transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 2;
+}
+.gauge-pin {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #666, #333);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+  z-index: 3;
+}
+/* Color arcs on gauge face */
+.gauge-arc {
+  position: absolute;
+  inset: 12px;
+  border-radius: 50%;
+  mask: radial-gradient(circle, transparent 68%, black 69%, black 78%, transparent 79%);
+  -webkit-mask: radial-gradient(circle, transparent 68%, black 69%, black 78%, transparent 79%);
+}
+.gauge-arc-green {
+  background: conic-gradient(
+    from 225deg,
+    #4CAF50 0deg,
+    #8BC34A 90deg,
+    transparent 90deg
+  );
+}
+.gauge-arc-amber {
+  background: conic-gradient(
+    from 225deg,
+    transparent 0deg,
+    transparent 90deg,
+    #FFC107 90deg,
+    #FF9800 140deg,
+    transparent 140deg
+  );
+}
+.gauge-arc-red {
+  background: conic-gradient(
+    from 225deg,
+    transparent 0deg,
+    transparent 140deg,
+    #f44336 140deg,
+    #d32f2f 180deg,
+    transparent 180deg
+  );
+}
+
+/* ============================================================
+   7-SEGMENT LED DISPLAY
+   ============================================================ */
+.led-display {
+  display: inline-flex;
+  gap: 4px;
+  padding: 10px 14px;
+  background: var(--screen-bg);
+  border: 3px solid var(--screen-bezel);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 2px 8px rgba(0,0,0,0.8),
+    0 1px 0 rgba(255,255,255,0.1);
+}
+.seg-digit {
+  width: 28px;
+  height: 48px;
+  position: relative;
+}
+/* 7 segments: a(top), b(top-right), c(bot-right), d(bottom), e(bot-left), f(top-left), g(middle) */
+.seg-digit span {
+  position: absolute;
+  background: var(--seg-color, var(--led-red));
+  border-radius: 1px;
+  opacity: 0.08;
+  transition: opacity 0.3s;
+}
+.seg-digit span.on {
+  opacity: 1;
+  filter: drop-shadow(0 0 4px var(--seg-color, var(--led-red)));
+}
+/* Horizontal segments */
+.seg-digit .seg-a,
+.seg-digit .seg-d,
+.seg-digit .seg-g {
+  height: 3px;
+  left: 3px;
+  right: 3px;
+}
+.seg-digit .seg-a { top: 0; }
+.seg-digit .seg-d { bottom: 0; }
+.seg-digit .seg-g { top: 50%; transform: translateY(-50%); }
+/* Vertical segments */
+.seg-digit .seg-b,
+.seg-digit .seg-c,
+.seg-digit .seg-e,
+.seg-digit .seg-f {
+  width: 3px;
+  top: 3px;
+  height: calc(50% - 4px);
+}
+.seg-digit .seg-b { right: 0; top: 3px; }
+.seg-digit .seg-c { right: 0; top: calc(50% + 1px); }
+.seg-digit .seg-e { left: 0; top: calc(50% + 1px); }
+.seg-digit .seg-f { left: 0; top: 3px; }
+
+.led-display.green { --seg-color: var(--led-green); }
+.led-display.red { --seg-color: var(--led-red); }
+.led-display.amber { --seg-color: var(--led-amber); }
+
+/* ============================================================
+   INDICATOR LEDs
+   ============================================================ */
+.led-indicator {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.3);
+  box-shadow:
+    inset 0 1px 3px rgba(0,0,0,0.4),
+    0 1px 0 rgba(255,255,255,0.2);
+  position: relative;
+}
+.led-indicator::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  width: 5px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.5);
+}
+.led-indicator.red { background: radial-gradient(circle at 40% 35%, #ff6060, #cc1010 70%, #880808); }
+.led-indicator.red.on {
+  background: radial-gradient(circle at 40% 35%, #ff8888, var(--led-red) 50%, #cc1010);
+  box-shadow:
+    inset 0 1px 3px rgba(0,0,0,0.2),
+    0 0 8px rgba(255,32,32,0.6),
+    0 0 20px rgba(255,32,32,0.3);
+}
+.led-indicator.green { background: radial-gradient(circle at 40% 35%, #60ff60, #10cc10 70%, #088808); }
+.led-indicator.green.on {
+  background: radial-gradient(circle at 40% 35%, #88ff88, var(--led-green) 50%, #10cc10);
+  box-shadow:
+    inset 0 1px 3px rgba(0,0,0,0.2),
+    0 0 8px rgba(32,255,32,0.6),
+    0 0 20px rgba(32,255,32,0.3);
+}
+.led-indicator.amber { background: radial-gradient(circle at 40% 35%, #ffcc60, #cc8800 70%, #886600); }
+.led-indicator.amber.on {
+  background: radial-gradient(circle at 40% 35%, #ffdd88, var(--led-amber) 50%, #cc8800);
+  box-shadow:
+    inset 0 1px 3px rgba(0,0,0,0.2),
+    0 0 8px rgba(255,170,0,0.6),
+    0 0 20px rgba(255,170,0,0.3);
+}
+
+/* ============================================================
+   TOGGLE SWITCH
+   ============================================================ */
+.toggle-switch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.toggle-switch .toggle-label {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+.toggle-track {
+  width: 28px;
+  height: 52px;
+  background: linear-gradient(180deg, #3a3a3a 0%, #555 50%, #3a3a3a 100%);
+  border-radius: 14px;
+  border: 2px solid #666;
+  box-shadow:
+    inset 0 2px 6px rgba(0,0,0,0.6),
+    0 1px 0 rgba(255,255,255,0.15);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.toggle-track.on {
+  background: linear-gradient(180deg, #2a4a2a 0%, #3a6a3a 50%, #2a4a2a 100%);
+  border-color: #4a8a4a;
+}
+.toggle-handle {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  height: 22px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #e8e8f0 0%, #c0c0c8 40%, #a8a8b0 100%);
+  box-shadow:
+    0 2px 4px rgba(0,0,0,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.6);
+  top: 26px;
+  transition: top 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Grip lines */
+  background-image:
+    linear-gradient(transparent 40%, rgba(0,0,0,0.08) 40%, rgba(0,0,0,0.08) 45%, transparent 45%,
+                    transparent 55%, rgba(0,0,0,0.08) 55%, rgba(0,0,0,0.08) 60%, transparent 60%);
+}
+.toggle-track.on .toggle-handle {
+  top: 2px;
+}
+
+/* ============================================================
+   PUSHBUTTON
+   ============================================================ */
+.pushbutton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 24px;
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  border: 2px solid var(--metal-shadow);
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  color: var(--text-label);
+  background: linear-gradient(180deg, #d8d8e0 0%, #b8b8c0 40%, #a8a8b0 100%);
+  box-shadow:
+    0 4px 0 #808088,
+    0 6px 12px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.5);
+  transition: all 0.1s;
+  user-select: none;
+}
+.pushbutton:hover {
+  background: linear-gradient(180deg, #e0e0e8 0%, #c0c0c8 40%, #b0b0b8 100%);
+}
+.pushbutton:active {
+  transform: translateY(3px);
+  box-shadow:
+    0 1px 0 #808088,
+    0 2px 4px rgba(0,0,0,0.2),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+}
+.pushbutton.red {
+  background: linear-gradient(180deg, #e05050 0%, #cc2828 40%, #aa1818 100%);
+  border-color: #881010;
+  color: #fff;
+  box-shadow:
+    0 4px 0 #661010,
+    0 6px 12px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.pushbutton.red:active {
+  box-shadow: 0 1px 0 #661010, 0 2px 4px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.2);
+}
+.pushbutton.green {
+  background: linear-gradient(180deg, #50c050 0%, #28aa28 40%, #188818 100%);
+  border-color: #106610;
+  color: #fff;
+  box-shadow:
+    0 4px 0 #0a440a,
+    0 6px 12px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.pushbutton.green:active {
+  box-shadow: 0 1px 0 #0a440a, 0 2px 4px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.2);
+}
+.pushbutton.amber {
+  background: linear-gradient(180deg, #f0a030 0%, #dd8810 40%, #bb6600 100%);
+  border-color: #885500;
+  color: #fff;
+  box-shadow:
+    0 4px 0 #664400,
+    0 6px 12px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.3);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* Circular pushbutton */
+.pushbutton-round {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  padding: 0;
+  font-size: 16px;
+  border-width: 3px;
+}
+
+/* ============================================================
+   ROTARY KNOB
+   ============================================================ */
+.knob-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.knob {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    #d0d0d8, #a0a0a8, #c8c8d0, #909098, #c0c0c8, #a8a8b0, #d0d0d8
+  );
+  border: 2px solid #808088;
+  box-shadow:
+    0 4px 10px rgba(0,0,0,0.4),
+    inset 0 1px 3px rgba(255,255,255,0.3),
+    inset 0 -1px 3px rgba(0,0,0,0.2);
+  position: relative;
+  cursor: pointer;
+  transform: rotate(var(--knob-angle, 0deg));
+  transition: transform 0.3s;
+}
+.knob::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 3px;
+  height: 16px;
+  background: #333;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  box-shadow: 0 0 2px rgba(0,0,0,0.3);
+}
+.knob-base {
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #555 0%, #333 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    inset 0 2px 6px rgba(0,0,0,0.5),
+    0 1px 0 rgba(255,255,255,0.08);
+  position: relative;
+}
+/* Knob scale markings */
+.knob-scale {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+}
+.knob-tick {
+  position: absolute;
+  width: 2px;
+  height: 8px;
+  background: var(--metal-dark);
+  top: 0;
+  left: 50%;
+  transform-origin: 50% 55px;
+}
+
+/* ============================================================
+   VU METER (horizontal bar)
+   ============================================================ */
+.vu-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vu-bar-track {
+  height: 18px;
+  background: var(--screen-bg);
+  border: 2px solid var(--screen-bezel);
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.7);
+  position: relative;
+}
+.vu-bar-fill {
+  height: 100%;
+  transition: width 1s ease;
+  position: relative;
+}
+.vu-bar-fill.green-amber-red {
+  background: linear-gradient(90deg,
+    #20cc20 0%,
+    #20cc20 60%,
+    #ffcc00 75%,
+    #ff4400 95%,
+    #ff0000 100%
+  );
+}
+/* Segmented look */
+.vu-bar-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0px,
+    transparent 6px,
+    rgba(0,0,0,0.5) 6px,
+    rgba(0,0,0,0.5) 8px
+  );
+}
+.vu-scale {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-display);
+  font-size: 9px;
+  color: var(--metal-shadow);
+  padding: 0 2px;
+}
+
+/* ============================================================
+   DASHBOARD MOCKUP — SIDEBAR
+   ============================================================ */
+.sidebar-rack {
+  background: linear-gradient(180deg, #2a2a30 0%, #222228 100%);
+  border: 2px solid #444;
+  border-radius: 6px;
+  box-shadow:
+    inset 0 2px 8px rgba(0,0,0,0.5),
+    0 4px 16px rgba(0,0,0,0.4);
+  padding: var(--gap-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+}
+.rack-module {
+  background: linear-gradient(135deg, #bbbbc4 0%, #a8a8b0 100%);
+  border: 1px solid #888;
+  border-radius: 4px;
+  padding: 10px 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.3),
+    0 2px 4px rgba(0,0,0,0.3);
+}
+.rack-module-title {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: #555;
+  margin-bottom: 8px;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.5);
+}
+.rack-module .led-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.rack-module .led-label {
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: #555;
+}
+
+/* ============================================================
+   EQUIPMENT STATUS CARD (kanban style)
+   ============================================================ */
+.equip-card {
+  background: linear-gradient(135deg, #c4c4cc 0%, #b4b4bc 100%);
+  border: 1px solid #999;
+  border-radius: 5px;
+  padding: 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.3),
+    0 2px 8px rgba(0,0,0,0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.equip-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.equip-card-title {
+  font-family: var(--font-label);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-label);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.5);
+}
+.equip-card-id {
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: var(--metal-shadow);
+}
+.equip-card-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ============================================================
+   COLOR PALETTE
+   ============================================================ */
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+.palette-swatch {
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(0,0,0,0.2);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.palette-color {
+  height: 48px;
+}
+.palette-info {
+  padding: 6px 8px;
+  background: var(--screen-bg);
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: #999;
+}
+.palette-info .name {
+  color: #ccc;
+  margin-bottom: 2px;
+}
+
+/* ============================================================
+   TYPOGRAPHY SHOWCASE
+   ============================================================ */
+.type-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap-lg);
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+.type-sample {
+  flex: 1;
+  color: var(--text-label);
+}
+.type-meta {
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: var(--metal-shadow);
+  min-width: 160px;
+  text-align: right;
+}
+
+/* ============================================================
+   UTILITY
+   ============================================================ */
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.flex-col { display: flex; flex-direction: column; }
+.flex-wrap { display: flex; flex-wrap: wrap; }
+.gap-sm { gap: var(--gap-sm); }
+.gap-md { gap: var(--gap-md); }
+.gap-lg { gap: var(--gap-lg); }
+.mt-lg { margin-top: var(--gap-lg); }
+.mt-xl { margin-top: var(--gap-xl); }
+.text-center { text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="page-wrapper">
+
+  <!-- ===== HEADER ===== -->
+  <div class="panel header-panel">
+    <div class="panel-screws">
+      <div class="screw phillips"></div>
+      <div class="screw"></div>
+      <div class="screw"></div>
+      <div class="screw phillips"></div>
+    </div>
+    <h1>DevGlide Control Panel</h1>
+    <div class="subtitle">Analog Dashboard Design System &mdash; v1.0</div>
+    <div class="header-badge">SYSTEM ONLINE</div>
+  </div>
+
+  <!-- ===== GAUGE METERS ===== -->
+  <div class="section-title">Gauge Meters</div>
+  <div class="grid-row grid-3">
+    <div class="panel">
+      <div class="panel-screws">
+        <div class="screw"></div><div class="screw"></div>
+        <div class="screw"></div><div class="screw"></div>
+      </div>
+      <div class="gauge">
+        <div class="label-embossed">CPU Load</div>
+        <div class="gauge-body" id="gauge-cpu">
+          <div class="gauge-arc gauge-arc-green"></div>
+          <div class="gauge-arc gauge-arc-amber"></div>
+          <div class="gauge-arc gauge-arc-red"></div>
+          <div class="gauge-needle" style="--needle-angle: -45deg;"></div>
+          <div class="gauge-pin"></div>
+          <div class="gauge-value-text">37%</div>
+          <div class="gauge-min">0</div>
+          <div class="gauge-max">100</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-screws">
+        <div class="screw"></div><div class="screw"></div>
+        <div class="screw"></div><div class="screw"></div>
+      </div>
+      <div class="gauge">
+        <div class="label-embossed">Memory Usage</div>
+        <div class="gauge-body" id="gauge-mem">
+          <div class="gauge-arc gauge-arc-green"></div>
+          <div class="gauge-arc gauge-arc-amber"></div>
+          <div class="gauge-arc gauge-arc-red"></div>
+          <div class="gauge-needle" style="--needle-angle: 15deg;"></div>
+          <div class="gauge-pin"></div>
+          <div class="gauge-value-text">64%</div>
+          <div class="gauge-min">0</div>
+          <div class="gauge-max">100</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-screws">
+        <div class="screw"></div><div class="screw"></div>
+        <div class="screw"></div><div class="screw"></div>
+      </div>
+      <div class="gauge">
+        <div class="label-embossed">Disk I/O</div>
+        <div class="gauge-body" id="gauge-disk">
+          <div class="gauge-arc gauge-arc-green"></div>
+          <div class="gauge-arc gauge-arc-amber"></div>
+          <div class="gauge-arc gauge-arc-red"></div>
+          <div class="gauge-needle" style="--needle-angle: -70deg;"></div>
+          <div class="gauge-pin"></div>
+          <div class="gauge-value-text">12%</div>
+          <div class="gauge-min">0</div>
+          <div class="gauge-max">100</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== LED SEGMENT DISPLAYS ===== -->
+  <div class="section-title">LED Segment Displays</div>
+  <div class="grid-row grid-3">
+    <div class="panel text-center">
+      <div class="panel-screws">
+        <div class="screw phillips"></div><div class="screw phillips"></div>
+        <div class="screw phillips"></div><div class="screw phillips"></div>
+      </div>
+      <div class="label-embossed" style="margin-bottom:12px;">Active Tasks</div>
+      <div class="led-display red" id="led-tasks">
+        <!-- digits filled by JS -->
+      </div>
+    </div>
+
+    <div class="panel text-center">
+      <div class="panel-screws">
+        <div class="screw phillips"></div><div class="screw phillips"></div>
+        <div class="screw phillips"></div><div class="screw phillips"></div>
+      </div>
+      <div class="label-embossed" style="margin-bottom:12px;">Uptime (hrs)</div>
+      <div class="led-display green" id="led-uptime">
+      </div>
+    </div>
+
+    <div class="panel text-center">
+      <div class="panel-screws">
+        <div class="screw phillips"></div><div class="screw phillips"></div>
+        <div class="screw phillips"></div><div class="screw phillips"></div>
+      </div>
+      <div class="label-embossed" style="margin-bottom:12px;">Errors</div>
+      <div class="led-display amber" id="led-errors">
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TOGGLE SWITCHES & INDICATOR LEDs ===== -->
+  <div class="section-title">Toggle Switches &amp; Indicator LEDs</div>
+  <div class="panel" style="margin-bottom: var(--gap-xl);">
+    <div class="panel-screws">
+      <div class="screw"></div><div class="screw"></div>
+      <div class="screw"></div><div class="screw"></div>
+    </div>
+    <div style="display: flex; gap: 48px; align-items: flex-start; justify-content: center; flex-wrap: wrap;">
+      <!-- Toggle group -->
+      <div style="display: flex; gap: 32px; align-items: flex-start;">
+        <div class="toggle-switch">
+          <span class="label-engraved toggle-label">ON</span>
+          <div class="toggle-track on" data-toggle>
+            <div class="toggle-handle"></div>
+          </div>
+          <span class="label-engraved toggle-label">OFF</span>
+          <span class="label-embossed" style="margin-top:6px;">Kanban</span>
+        </div>
+        <div class="toggle-switch">
+          <span class="label-engraved toggle-label">ON</span>
+          <div class="toggle-track on" data-toggle>
+            <div class="toggle-handle"></div>
+          </div>
+          <span class="label-engraved toggle-label">OFF</span>
+          <span class="label-embossed" style="margin-top:6px;">Shell</span>
+        </div>
+        <div class="toggle-switch">
+          <span class="label-engraved toggle-label">ON</span>
+          <div class="toggle-track" data-toggle>
+            <div class="toggle-handle"></div>
+          </div>
+          <span class="label-engraved toggle-label">OFF</span>
+          <span class="label-embossed" style="margin-top:6px;">Test</span>
+        </div>
+        <div class="toggle-switch">
+          <span class="label-engraved toggle-label">ON</span>
+          <div class="toggle-track on" data-toggle>
+            <div class="toggle-handle"></div>
+          </div>
+          <span class="label-engraved toggle-label">OFF</span>
+          <span class="label-embossed" style="margin-top:6px;">Voice</span>
+        </div>
+        <div class="toggle-switch">
+          <span class="label-engraved toggle-label">ON</span>
+          <div class="toggle-track" data-toggle>
+            <div class="toggle-handle"></div>
+          </div>
+          <span class="label-engraved toggle-label">OFF</span>
+          <span class="label-embossed" style="margin-top:6px;">Chat</span>
+        </div>
+      </div>
+
+      <!-- LED indicator group -->
+      <div style="display: flex; gap: 24px; align-items: flex-start; padding-top: 10px;">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+          <div class="led-indicator green on"></div>
+          <span class="label-embossed">Server</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+          <div class="led-indicator green on"></div>
+          <span class="label-embossed">MCP</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+          <div class="led-indicator amber on"></div>
+          <span class="label-embossed">Queue</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+          <div class="led-indicator red"></div>
+          <span class="label-embossed">Error</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+          <div class="led-indicator green on"></div>
+          <span class="label-embossed">DB</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== KNOBS & VU METERS ===== -->
+  <div class="section-title">Rotary Knobs &amp; VU Meters</div>
+  <div class="grid-row grid-2">
+    <div class="panel">
+      <div class="panel-screws">
+        <div class="screw"></div><div class="screw"></div>
+        <div class="screw"></div><div class="screw"></div>
+      </div>
+      <div style="display: flex; gap: 32px; justify-content: center; align-items: flex-start; flex-wrap: wrap;">
+        <div class="knob-container">
+          <div class="label-embossed">Concurrency</div>
+          <div class="knob-base">
+            <div class="knob" style="--knob-angle: -60deg;" data-knob></div>
+          </div>
+          <div class="label-engraved">Min &nbsp;&mdash;&mdash;&mdash; &nbsp; Max</div>
+        </div>
+        <div class="knob-container">
+          <div class="label-embossed">Throttle</div>
+          <div class="knob-base">
+            <div class="knob" style="--knob-angle: 30deg;" data-knob></div>
+          </div>
+          <div class="label-engraved">Min &nbsp;&mdash;&mdash;&mdash; &nbsp; Max</div>
+        </div>
+        <div class="knob-container">
+          <div class="label-embossed">Volume</div>
+          <div class="knob-base">
+            <div class="knob" style="--knob-angle: 90deg;" data-knob></div>
+          </div>
+          <div class="label-engraved">Min &nbsp;&mdash;&mdash;&mdash; &nbsp; Max</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-screws">
+        <div class="screw phillips"></div><div class="screw phillips"></div>
+        <div class="screw phillips"></div><div class="screw phillips"></div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 18px;">
+        <div class="vu-meter">
+          <div class="label-embossed">API Throughput</div>
+          <div class="vu-bar-track">
+            <div class="vu-bar-fill green-amber-red" style="width: 72%;"></div>
+          </div>
+          <div class="vu-scale">
+            <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+          </div>
+        </div>
+        <div class="vu-meter">
+          <div class="label-embossed">Task Queue</div>
+          <div class="vu-bar-track">
+            <div class="vu-bar-fill green-amber-red" style="width: 35%;"></div>
+          </div>
+          <div class="vu-scale">
+            <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+          </div>
+        </div>
+        <div class="vu-meter">
+          <div class="label-embossed">Memory Pressure</div>
+          <div class="vu-bar-track">
+            <div class="vu-bar-fill green-amber-red" style="width: 88%;"></div>
+          </div>
+          <div class="vu-scale">
+            <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PUSHBUTTONS ===== -->
+  <div class="section-title">Pushbuttons</div>
+  <div class="panel" style="margin-bottom: var(--gap-xl);">
+    <div class="panel-screws">
+      <div class="screw"></div><div class="screw"></div>
+      <div class="screw"></div><div class="screw"></div>
+    </div>
+    <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: center; justify-content: center;">
+      <button class="pushbutton">Deploy</button>
+      <button class="pushbutton green">Start Build</button>
+      <button class="pushbutton red">Emergency Stop</button>
+      <button class="pushbutton amber">Restart</button>
+      <button class="pushbutton">Run Tests</button>
+      <button class="pushbutton-round pushbutton red" title="Emergency stop">&#x25A0;</button>
+      <button class="pushbutton-round pushbutton green" title="Power on">&#x25B6;</button>
+    </div>
+  </div>
+
+  <!-- ===== DASHBOARD MOCKUP ===== -->
+  <div class="section-title">Dashboard Mockup</div>
+  <div class="grid-row grid-sidebar">
+    <!-- Sidebar rack -->
+    <div class="sidebar-rack">
+      <div style="font-family: var(--font-display); font-size: 11px; color: #888; letter-spacing: 0.15em; text-transform: uppercase; text-align: center; padding-bottom: 4px; border-bottom: 1px solid #444;">Instrument Rack</div>
+
+      <div class="rack-module">
+        <div class="rack-module-title">Server Status</div>
+        <div class="led-row">
+          <div class="led-indicator green on" style="width:10px;height:10px;"></div>
+          <span class="led-label">HTTP :7000</span>
+        </div>
+        <div class="led-row" style="margin-top:5px;">
+          <div class="led-indicator green on" style="width:10px;height:10px;"></div>
+          <span class="led-label">MCP stdio</span>
+        </div>
+      </div>
+
+      <div class="rack-module">
+        <div class="rack-module-title">MCP Servers</div>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <div class="led-row"><div class="led-indicator green on" style="width:8px;height:8px;"></div><span class="led-label">kanban</span></div>
+          <div class="led-row"><div class="led-indicator green on" style="width:8px;height:8px;"></div><span class="led-label">shell</span></div>
+          <div class="led-row"><div class="led-indicator green on" style="width:8px;height:8px;"></div><span class="led-label">voice</span></div>
+          <div class="led-row"><div class="led-indicator amber on" style="width:8px;height:8px;"></div><span class="led-label">test</span></div>
+          <div class="led-row"><div class="led-indicator green on" style="width:8px;height:8px;"></div><span class="led-label">workflow</span></div>
+          <div class="led-row"><div class="led-indicator red" style="width:8px;height:8px;"></div><span class="led-label">chat</span></div>
+        </div>
+      </div>
+
+      <div class="rack-module">
+        <div class="rack-module-title">Quick Gauge</div>
+        <div class="vu-meter">
+          <div class="vu-bar-track" style="height:12px;">
+            <div class="vu-bar-fill green-amber-red" style="width: 45%;"></div>
+          </div>
+          <div style="font-family: var(--font-display); font-size: 9px; color: #666; display: flex; justify-content: space-between;">
+            <span>CPU</span><span>45%</span>
+          </div>
+        </div>
+        <div class="vu-meter" style="margin-top:6px;">
+          <div class="vu-bar-track" style="height:12px;">
+            <div class="vu-bar-fill green-amber-red" style="width: 67%;"></div>
+          </div>
+          <div style="font-family: var(--font-display); font-size: 9px; color: #666; display: flex; justify-content: space-between;">
+            <span>MEM</span><span>67%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rack-module">
+        <div class="rack-module-title">Uptime</div>
+        <div style="font-family: var(--font-display); font-size: 16px; color: #333; text-align: center;">
+          48:17:33
+        </div>
+      </div>
+    </div>
+
+    <!-- Main content: equipment status panels (kanban-style) -->
+    <div class="panel">
+      <div class="panel-screws">
+        <div class="screw phillips"></div><div class="screw phillips"></div>
+        <div class="screw phillips"></div><div class="screw phillips"></div>
+      </div>
+      <div class="label-embossed" style="margin-bottom: 16px; font-size: 13px;">Equipment Status Board</div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px;">
+
+        <div class="equip-card">
+          <div class="equip-card-header">
+            <span class="equip-card-title">Auth Service</span>
+            <span class="equip-card-id">#SVC-001</span>
+          </div>
+          <div class="equip-card-row">
+            <div class="led-indicator green on" style="width:10px;height:10px;"></div>
+            <span style="font-family: var(--font-display); font-size: 11px; color: #555;">OPERATIONAL</span>
+          </div>
+          <div class="vu-meter">
+            <div class="vu-bar-track" style="height:10px;">
+              <div class="vu-bar-fill green-amber-red" style="width: 23%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="equip-card">
+          <div class="equip-card-header">
+            <span class="equip-card-title">Task Runner</span>
+            <span class="equip-card-id">#SVC-002</span>
+          </div>
+          <div class="equip-card-row">
+            <div class="led-indicator amber on" style="width:10px;height:10px;"></div>
+            <span style="font-family: var(--font-display); font-size: 11px; color: #555;">HIGH LOAD</span>
+          </div>
+          <div class="vu-meter">
+            <div class="vu-bar-track" style="height:10px;">
+              <div class="vu-bar-fill green-amber-red" style="width: 78%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="equip-card">
+          <div class="equip-card-header">
+            <span class="equip-card-title">Database</span>
+            <span class="equip-card-id">#SVC-003</span>
+          </div>
+          <div class="equip-card-row">
+            <div class="led-indicator green on" style="width:10px;height:10px;"></div>
+            <span style="font-family: var(--font-display); font-size: 11px; color: #555;">OPERATIONAL</span>
+          </div>
+          <div class="vu-meter">
+            <div class="vu-bar-track" style="height:10px;">
+              <div class="vu-bar-fill green-amber-red" style="width: 41%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="equip-card">
+          <div class="equip-card-header">
+            <span class="equip-card-title">Voice Pipeline</span>
+            <span class="equip-card-id">#SVC-004</span>
+          </div>
+          <div class="equip-card-row">
+            <div class="led-indicator red on" style="width:10px;height:10px;"></div>
+            <span style="font-family: var(--font-display); font-size: 11px; color: #884444;">FAULT</span>
+          </div>
+          <div class="vu-meter">
+            <div class="vu-bar-track" style="height:10px;">
+              <div class="vu-bar-fill green-amber-red" style="width: 95%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="equip-card">
+          <div class="equip-card-header">
+            <span class="equip-card-title">Build Server</span>
+            <span class="equip-card-id">#SVC-005</span>
+          </div>
+          <div class="equip-card-row">
+            <div class="led-indicator green on" style="width:10px;height:10px;"></div>
+            <span style="font-family: var(--font-display); font-size: 11px; color: #555;">OPERATIONAL</span>
+          </div>
+          <div class="vu-meter">
+            <div class="vu-bar-track" style="height:10px;">
+              <div class="vu-bar-fill green-amber-red" style="width: 55%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="equip-card">
+          <div class="equip-card-header">
+            <span class="equip-card-title">Log Collector</span>
+            <span class="equip-card-id">#SVC-006</span>
+          </div>
+          <div class="equip-card-row">
+            <div class="led-indicator green on" style="width:10px;height:10px;"></div>
+            <span style="font-family: var(--font-display); font-size: 11px; color: #555;">OPERATIONAL</span>
+          </div>
+          <div class="vu-meter">
+            <div class="vu-bar-track" style="height:10px;">
+              <div class="vu-bar-fill green-amber-red" style="width: 18%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== COLOR PALETTE ===== -->
+  <div class="section-title">Color Palette</div>
+  <div class="panel" style="margin-bottom: var(--gap-xl);">
+    <div class="panel-screws">
+      <div class="screw"></div><div class="screw"></div>
+      <div class="screw"></div><div class="screw"></div>
+    </div>
+    <div class="palette-grid">
+      <div class="palette-swatch">
+        <div class="palette-color" style="background: #3b2817;"></div>
+        <div class="palette-info"><div class="name">Walnut Dark</div>#3b2817</div>
+      </div>
+      <div class="palette-swatch">
+        <div class="palette-color" style="background: #5c3d2e;"></div>
+        <div class="palette-info"><div class="name">Walnut Mid</div>#5c3d2e</div>
+      </div>
+      <div class="palette-swatch">
+        <div class="palette-color" style="background: #c0c0c8;"></div>
+        <div class="palette-info"><div class="name">Brushed Metal</div>#c0c0c8</div>
+      </div>
+      <div class="palette-swatch">
+        <div class="palette-color" style="background: #d0d0d8;"></div>
+        <div class="palette-info"><div class="name">Metal Light</div>#d0d0d8</div>
+      </div>
+      <div class="palette-swatch">
+        <div class="palette-color" style="background: #808088;"></div>
+        <div class="palette-info"><div class="name">Metal Shadow</div>#808088</div>
+      </div>
+      <div class="palette-swatch">
+        <div class="palette-color" style="background: #0a0a0a;"></div>
+        <div class="palette-info"><div class="name">Screen Black</div>#0a0a0a</div>
+      </div>
+      <div class="palette-swatch">
+        <div class="palette-color" style="background: #ff2020;"></div>
+        <div class="palette-info"><div class="name">LED Red</div>#ff2020</div>
+      </div>
+      <div class="palette-swatch">
+        <div class="palette-color" style="background: #20ff20;"></div>
+        <div class="palette-info"><div class="name">LED Green</div>#20ff20</div>
+      </div>
+      <div class="palette-swatch">
+        <div class="palette-color" style="background: #ffaa00;"></div>
+        <div class="palette-info"><div class="name">LED Amber</div>#ffaa00</div>
+      </div>
+      <div class="palette-swatch">
+        <div class="palette-color" style="background: #f0efe8;"></div>
+        <div class="palette-info"><div class="name">Gauge Face</div>#f0efe8</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TYPOGRAPHY ===== -->
+  <div class="section-title">Typography</div>
+  <div class="panel" style="margin-bottom: var(--gap-xl);">
+    <div class="panel-screws">
+      <div class="screw phillips"></div><div class="screw phillips"></div>
+      <div class="screw phillips"></div><div class="screw phillips"></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px;">
+      <div class="type-row">
+        <div class="type-sample" style="font-family: var(--font-label); font-weight: 700; font-size: 28px; text-transform: uppercase; letter-spacing: 0.15em; text-shadow: 0 1px 0 rgba(255,255,255,0.5), 0 -1px 0 rgba(0,0,0,0.15);">Panel Header</div>
+        <div class="type-meta">Exo 2 Bold 28px<br>Embossed label</div>
+      </div>
+      <div class="type-row">
+        <div class="type-sample label-embossed" style="font-size: 14px;">Section Label</div>
+        <div class="type-meta">Exo 2 Bold 14px<br>Uppercase, 0.12em</div>
+      </div>
+      <div class="type-row">
+        <div class="type-sample" style="font-family: var(--font-display); font-size: 20px; color: var(--led-green); text-shadow: 0 0 8px rgba(32,255,32,0.4); background: #0a0a0a; padding: 6px 12px; border-radius: 3px; display: inline-block;">1,247.03</div>
+        <div class="type-meta">Share Tech Mono 20px<br>LED display readout</div>
+      </div>
+      <div class="type-row">
+        <div class="type-sample" style="font-family: var(--font-display); font-size: 14px; color: var(--led-red); text-shadow: 0 0 6px rgba(255,32,32,0.4); background: #0a0a0a; padding: 4px 10px; border-radius: 3px; display: inline-block;">ERR:TIMEOUT</div>
+        <div class="type-meta">Share Tech Mono 14px<br>Error readout</div>
+      </div>
+      <div class="type-row">
+        <div class="type-sample" style="font-family: var(--font-label); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.15em;">Equipment Status Card Title</div>
+        <div class="type-meta">Exo 2 SemiBold 12px<br>Card headers</div>
+      </div>
+      <div class="type-row">
+        <div class="type-sample" style="font-family: var(--font-label); font-weight: 400; font-size: 14px;">Body text for descriptions, notes, and documentation within panel areas.</div>
+        <div class="type-meta">Exo 2 Regular 14px<br>Body copy</div>
+      </div>
+      <div class="type-row">
+        <div class="type-sample label-engraved" style="font-size: 13px; color: transparent; text-shadow: 0 1px 1px rgba(255,255,255,0.5), 0 -1px 0 rgba(0,0,0,0.25);">Engraved Label</div>
+        <div class="type-meta">Exo 2 SemiBold 13px<br>Stamped into metal</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /page-wrapper -->
+
+<script>
+/* ============================================================
+   7-SEGMENT DISPLAY ENGINE
+   ============================================================ */
+const SEGMENTS = {
+  '0': 'abcdef',  '1': 'bc',     '2': 'abdeg',  '3': 'abcdg',
+  '4': 'bcfg',    '5': 'acdfg',  '6': 'acdefg', '7': 'abc',
+  '8': 'abcdefg', '9': 'abcdfg', ' ': '',        '-': 'g',
+  '.': '',         ':': ''
+};
+
+function createDigit() {
+  const d = document.createElement('div');
+  d.className = 'seg-digit';
+  'abcdefg'.split('').forEach(s => {
+    const span = document.createElement('span');
+    span.className = `seg-${s}`;
+    d.appendChild(span);
+  });
+  return d;
+}
+
+function setDisplay(el, text) {
+  el.innerHTML = '';
+  String(text).split('').forEach(ch => {
+    const digit = createDigit();
+    const segs = SEGMENTS[ch] || '';
+    digit.querySelectorAll('span').forEach(span => {
+      const segLetter = span.className.replace('seg-', '');
+      if (segs.includes(segLetter)) span.classList.add('on');
+    });
+    el.appendChild(digit);
+  });
+}
+
+// Initialize LED displays
+setDisplay(document.getElementById('led-tasks'), '0042');
+setDisplay(document.getElementById('led-uptime'), '1847');
+setDisplay(document.getElementById('led-errors'), '0003');
+
+/* ============================================================
+   TOGGLE SWITCH INTERACTION
+   ============================================================ */
+document.querySelectorAll('[data-toggle]').forEach(track => {
+  track.addEventListener('click', () => {
+    track.classList.toggle('on');
+  });
+});
+
+/* ============================================================
+   KNOB INTERACTION (drag to rotate)
+   ============================================================ */
+document.querySelectorAll('[data-knob]').forEach(knob => {
+  let dragging = false;
+  let startY, startAngle;
+
+  function getAngle() {
+    const s = getComputedStyle(knob).getPropertyValue('--knob-angle');
+    return parseFloat(s) || 0;
+  }
+
+  knob.addEventListener('mousedown', e => {
+    dragging = true;
+    startY = e.clientY;
+    startAngle = getAngle();
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const delta = (startY - e.clientY) * 1.5;
+    const angle = Math.max(-135, Math.min(135, startAngle + delta));
+    knob.style.setProperty('--knob-angle', angle + 'deg');
+  });
+
+  document.addEventListener('mouseup', () => { dragging = false; });
+});
+
+/* ============================================================
+   GAUGE NEEDLE ANIMATION (randomize on load)
+   ============================================================ */
+function animateGauges() {
+  const gauges = [
+    { el: 'gauge-cpu',  min: 15, max: 85 },
+    { el: 'gauge-mem',  min: 30, max: 90 },
+    { el: 'gauge-disk', min: 5,  max: 60 }
+  ];
+
+  gauges.forEach(g => {
+    const container = document.getElementById(g.el);
+    if (!container) return;
+    const needle = container.querySelector('.gauge-needle');
+    const text = container.querySelector('.gauge-value-text');
+
+    function update() {
+      const pct = g.min + Math.random() * (g.max - g.min);
+      // -90deg = 0%, +90deg = 100%
+      const angle = -90 + (pct / 100) * 180;
+      needle.style.setProperty('--needle-angle', angle + 'deg');
+      text.textContent = Math.round(pct) + '%';
+    }
+
+    update();
+    setInterval(update, 3000 + Math.random() * 2000);
+  });
+}
+
+animateGauges();
+
+/* ============================================================
+   VU METER ANIMATION
+   ============================================================ */
+function animateVU() {
+  document.querySelectorAll('.vu-bar-fill').forEach(fill => {
+    const base = parseFloat(fill.style.width) || 50;
+    setInterval(() => {
+      const jitter = (Math.random() - 0.5) * 16;
+      const val = Math.max(5, Math.min(98, base + jitter));
+      fill.style.width = val + '%';
+    }, 1500 + Math.random() * 1500);
+  });
+}
+
+animateVU();
+
+/* ============================================================
+   LED DISPLAY COUNTER ANIMATION
+   ============================================================ */
+let taskCount = 42;
+setInterval(() => {
+  taskCount += Math.random() > 0.5 ? 1 : -1;
+  taskCount = Math.max(0, taskCount);
+  setDisplay(document.getElementById('led-tasks'), String(taskCount).padStart(4, '0'));
+}, 4000);
+
+let errorCount = 3;
+setInterval(() => {
+  if (Math.random() > 0.85) {
+    errorCount++;
+    setDisplay(document.getElementById('led-errors'), String(errorCount).padStart(4, '0'));
+  }
+}, 5000);
+
+/* ============================================================
+   LED BLINK (amber queue indicator)
+   ============================================================ */
+const amberLeds = document.querySelectorAll('.led-indicator.amber');
+setInterval(() => {
+  amberLeds.forEach(led => {
+    led.classList.toggle('on');
+  });
+}, 800);
+</script>
+
+</body>
+</html>

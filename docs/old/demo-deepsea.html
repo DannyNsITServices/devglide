@@ -1,0 +1,1915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bioluminescent Deep Sea — Design System for DevGlide</title>
+
+<!-- Fonts -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/outfit@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/outfit@latest/latin-500-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/outfit@latest/latin-600-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/outfit@latest/latin-700-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/dm-sans@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/dm-sans@latest/latin-500-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/dm-sans@latest/latin-600-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@latest/latin-400-normal.css">
+
+<style>
+/* ============================================================
+   CSS CUSTOM PROPERTIES
+   ============================================================ */
+:root {
+  /* Abyss backgrounds */
+  --bg-abyss: #050a18;
+  --bg-deep: #0a1128;
+  --bg-mid: #0e1a38;
+  --bg-surface: #121f42;
+  --bg-raised: #162650;
+  --bg-hover: #1a2d5c;
+
+  /* Bioluminescent accents */
+  --cyan: #00ffd5;
+  --cyan-dim: #00c4a5;
+  --cyan-glow: rgba(0, 255, 213, 0.15);
+  --cyan-glow-strong: rgba(0, 255, 213, 0.35);
+
+  --violet: #b366ff;
+  --violet-dim: #9040e0;
+  --violet-glow: rgba(179, 102, 255, 0.15);
+  --violet-glow-strong: rgba(179, 102, 255, 0.35);
+
+  --amber: #ffd166;
+  --amber-dim: #e0b040;
+  --amber-glow: rgba(255, 209, 102, 0.12);
+  --amber-glow-strong: rgba(255, 209, 102, 0.30);
+
+  --rose: #ff6b9d;
+  --rose-dim: #d94a7a;
+  --rose-glow: rgba(255, 107, 157, 0.15);
+
+  /* Text */
+  --text-primary: #d0e0f8;
+  --text-secondary: #7a90b8;
+  --text-tertiary: #4a6088;
+  --text-bright: #f0f6ff;
+
+  /* Semantic */
+  --success: #00ffd5;
+  --error: #ff6b9d;
+  --warning: #ffd166;
+  --info: #b366ff;
+
+  /* Borders */
+  --border-subtle: rgba(0, 255, 213, 0.06);
+  --border-glow: rgba(0, 255, 213, 0.15);
+  --border-violet: rgba(179, 102, 255, 0.15);
+  --border-amber: rgba(255, 209, 102, 0.12);
+
+  /* Shadows / Glows */
+  --glow-cyan-sm: 0 0 12px rgba(0, 255, 213, 0.15);
+  --glow-cyan-md: 0 0 24px rgba(0, 255, 213, 0.20);
+  --glow-cyan-lg: 0 0 48px rgba(0, 255, 213, 0.25);
+  --glow-violet-sm: 0 0 12px rgba(179, 102, 255, 0.15);
+  --glow-violet-md: 0 0 24px rgba(179, 102, 255, 0.20);
+  --glow-amber-sm: 0 0 12px rgba(255, 209, 102, 0.12);
+  --glow-amber-md: 0 0 24px rgba(255, 209, 102, 0.18);
+  --shadow-deep: 0 8px 32px rgba(0, 0, 0, 0.50);
+
+  /* Radii */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-xl: 32px;
+  --radius-full: 9999px;
+
+  /* Timing */
+  --transition-fast: 150ms ease;
+  --transition-base: 300ms ease;
+  --transition-slow: 600ms ease;
+  --transition-glow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Fonts */
+  --font-display: 'Outfit', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-code: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+}
+
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text-primary);
+  background: var(--bg-abyss);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ============================================================
+   FLOATING PARTICLES — CSS-only bioluminescent plankton
+   ============================================================ */
+.particle-field {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0;
+  animation: particleFloat linear infinite;
+}
+
+/* Generate 30 particles via nth-child with varied sizes, positions, speeds */
+.particle:nth-child(1)  { width: 3px; height: 3px; left: 5%;  background: var(--cyan); animation-duration: 18s; animation-delay: 0s; box-shadow: 0 0 6px var(--cyan); }
+.particle:nth-child(2)  { width: 2px; height: 2px; left: 12%; background: var(--violet); animation-duration: 22s; animation-delay: 2s; box-shadow: 0 0 5px var(--violet); }
+.particle:nth-child(3)  { width: 4px; height: 4px; left: 20%; background: var(--cyan); animation-duration: 16s; animation-delay: 4s; box-shadow: 0 0 8px var(--cyan); }
+.particle:nth-child(4)  { width: 2px; height: 2px; left: 28%; background: var(--amber); animation-duration: 24s; animation-delay: 1s; box-shadow: 0 0 5px var(--amber); }
+.particle:nth-child(5)  { width: 3px; height: 3px; left: 35%; background: var(--violet); animation-duration: 20s; animation-delay: 6s; box-shadow: 0 0 6px var(--violet); }
+.particle:nth-child(6)  { width: 2px; height: 2px; left: 42%; background: var(--cyan); animation-duration: 19s; animation-delay: 3s; box-shadow: 0 0 5px var(--cyan); }
+.particle:nth-child(7)  { width: 3px; height: 3px; left: 50%; background: var(--amber); animation-duration: 23s; animation-delay: 8s; box-shadow: 0 0 6px var(--amber); }
+.particle:nth-child(8)  { width: 2px; height: 2px; left: 58%; background: var(--cyan); animation-duration: 17s; animation-delay: 5s; box-shadow: 0 0 5px var(--cyan); }
+.particle:nth-child(9)  { width: 4px; height: 4px; left: 65%; background: var(--violet); animation-duration: 21s; animation-delay: 0s; box-shadow: 0 0 8px var(--violet); }
+.particle:nth-child(10) { width: 2px; height: 2px; left: 72%; background: var(--cyan); animation-duration: 25s; animation-delay: 7s; box-shadow: 0 0 5px var(--cyan); }
+.particle:nth-child(11) { width: 3px; height: 3px; left: 78%; background: var(--amber); animation-duration: 18s; animation-delay: 2s; box-shadow: 0 0 6px var(--amber); }
+.particle:nth-child(12) { width: 2px; height: 2px; left: 85%; background: var(--violet); animation-duration: 22s; animation-delay: 9s; box-shadow: 0 0 5px var(--violet); }
+.particle:nth-child(13) { width: 3px; height: 3px; left: 92%; background: var(--cyan); animation-duration: 20s; animation-delay: 4s; box-shadow: 0 0 6px var(--cyan); }
+.particle:nth-child(14) { width: 2px; height: 2px; left: 8%;  background: var(--cyan); animation-duration: 26s; animation-delay: 6s; box-shadow: 0 0 5px var(--cyan); }
+.particle:nth-child(15) { width: 4px; height: 4px; left: 16%; background: var(--amber); animation-duration: 15s; animation-delay: 1s; box-shadow: 0 0 8px var(--amber); }
+.particle:nth-child(16) { width: 2px; height: 2px; left: 24%; background: var(--violet); animation-duration: 21s; animation-delay: 10s; box-shadow: 0 0 5px var(--violet); }
+.particle:nth-child(17) { width: 3px; height: 3px; left: 32%; background: var(--cyan); animation-duration: 19s; animation-delay: 3s; box-shadow: 0 0 6px var(--cyan); }
+.particle:nth-child(18) { width: 2px; height: 2px; left: 40%; background: var(--amber); animation-duration: 24s; animation-delay: 7s; box-shadow: 0 0 5px var(--amber); }
+.particle:nth-child(19) { width: 3px; height: 3px; left: 48%; background: var(--cyan); animation-duration: 17s; animation-delay: 0s; box-shadow: 0 0 6px var(--cyan); }
+.particle:nth-child(20) { width: 2px; height: 2px; left: 55%; background: var(--violet); animation-duration: 23s; animation-delay: 5s; box-shadow: 0 0 5px var(--violet); }
+.particle:nth-child(21) { width: 4px; height: 4px; left: 62%; background: var(--cyan); animation-duration: 16s; animation-delay: 8s; box-shadow: 0 0 8px var(--cyan); }
+.particle:nth-child(22) { width: 2px; height: 2px; left: 70%; background: var(--amber); animation-duration: 20s; animation-delay: 2s; box-shadow: 0 0 5px var(--amber); }
+.particle:nth-child(23) { width: 3px; height: 3px; left: 76%; background: var(--violet); animation-duration: 25s; animation-delay: 11s; box-shadow: 0 0 6px var(--violet); }
+.particle:nth-child(24) { width: 2px; height: 2px; left: 82%; background: var(--cyan); animation-duration: 18s; animation-delay: 4s; box-shadow: 0 0 5px var(--cyan); }
+.particle:nth-child(25) { width: 3px; height: 3px; left: 88%; background: var(--amber); animation-duration: 22s; animation-delay: 6s; box-shadow: 0 0 6px var(--amber); }
+.particle:nth-child(26) { width: 2px; height: 2px; left: 95%; background: var(--violet); animation-duration: 19s; animation-delay: 9s; box-shadow: 0 0 5px var(--violet); }
+.particle:nth-child(27) { width: 3px; height: 3px; left: 3%;  background: var(--cyan); animation-duration: 21s; animation-delay: 12s; box-shadow: 0 0 6px var(--cyan); }
+.particle:nth-child(28) { width: 2px; height: 2px; left: 46%; background: var(--violet); animation-duration: 27s; animation-delay: 3s; box-shadow: 0 0 5px var(--violet); }
+.particle:nth-child(29) { width: 4px; height: 4px; left: 52%; background: var(--amber); animation-duration: 14s; animation-delay: 7s; box-shadow: 0 0 8px var(--amber); }
+.particle:nth-child(30) { width: 2px; height: 2px; left: 68%; background: var(--cyan); animation-duration: 23s; animation-delay: 1s; box-shadow: 0 0 5px var(--cyan); }
+
+/* Slower "deep" particles layer */
+.particle-field--deep .particle { opacity: 0; filter: blur(1px); }
+.particle-field--deep .particle:nth-child(odd) { animation-duration: 30s; }
+.particle-field--deep .particle:nth-child(even) { animation-duration: 35s; }
+
+@keyframes particleFloat {
+  0%   { bottom: -5%; opacity: 0; transform: translateX(0); }
+  10%  { opacity: 0.7; }
+  50%  { transform: translateX(20px); }
+  90%  { opacity: 0.5; }
+  100% { bottom: 105%; opacity: 0; transform: translateX(-10px); }
+}
+
+/* ============================================================
+   PAGE WRAPPER
+   ============================================================ */
+.page-wrapper {
+  position: relative;
+  z-index: 1;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 24px 80px;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+.header {
+  text-align: center;
+  padding: 80px 0 60px;
+  position: relative;
+}
+
+.header-glow {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -60%);
+  width: 500px; height: 300px;
+  background: radial-gradient(ellipse, rgba(0,255,213,0.08) 0%, rgba(179,102,255,0.04) 40%, transparent 70%);
+  pointer-events: none;
+  animation: headerBreath 6s ease-in-out infinite;
+}
+
+@keyframes headerBreath {
+  0%, 100% { opacity: 0.6; transform: translate(-50%, -60%) scale(1); }
+  50%      { opacity: 1; transform: translate(-50%, -60%) scale(1.1); }
+}
+
+.header-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 5vw, 3.6rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-bright);
+  position: relative;
+  line-height: 1.2;
+  margin-bottom: 8px;
+  animation: titleGlow 4s ease-in-out infinite alternate;
+}
+
+@keyframes titleGlow {
+  0%   { text-shadow: 0 0 20px rgba(0,255,213,0.3), 0 0 60px rgba(0,255,213,0.1); }
+  100% { text-shadow: 0 0 30px rgba(179,102,255,0.3), 0 0 80px rgba(179,102,255,0.1); }
+}
+
+.header-subtitle {
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.header-tagline {
+  font-family: var(--font-code);
+  font-size: 13px;
+  color: var(--cyan-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+   TENTACLE DIVIDERS — flowing SVG paths
+   ============================================================ */
+.tentacle-divider {
+  display: block;
+  width: 100%;
+  height: 60px;
+  margin: 40px 0;
+  overflow: visible;
+}
+
+.tentacle-path {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  filter: url(#tentacleGlow);
+}
+
+.tentacle-path--cyan   { stroke: var(--cyan); opacity: 0.5; }
+.tentacle-path--violet { stroke: var(--violet); opacity: 0.4; }
+.tentacle-path--amber  { stroke: var(--amber); opacity: 0.35; }
+
+/* ============================================================
+   SECTION TITLES
+   ============================================================ */
+.section-title {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 8px;
+  text-shadow: 0 0 20px rgba(0,255,213,0.15);
+}
+
+.section-subtitle {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: 28px;
+  max-width: 640px;
+}
+
+/* ============================================================
+   SURFACES — jellyfish membrane panels
+   ============================================================ */
+.surface {
+  background: rgba(14, 26, 56, 0.65);
+  border: 1px solid var(--border-glow);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  margin-bottom: 24px;
+  box-shadow:
+    var(--glow-cyan-sm),
+    inset 0 1px 0 rgba(0,255,213,0.05);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: box-shadow var(--transition-glow), border-color var(--transition-glow);
+}
+
+.surface:hover {
+  box-shadow:
+    var(--glow-cyan-md),
+    inset 0 1px 0 rgba(0,255,213,0.08);
+  border-color: rgba(0,255,213,0.25);
+}
+
+.surface--violet {
+  border-color: var(--border-violet);
+  box-shadow: var(--glow-violet-sm), inset 0 1px 0 rgba(179,102,255,0.05);
+}
+
+.surface--violet:hover {
+  box-shadow: var(--glow-violet-md), inset 0 1px 0 rgba(179,102,255,0.08);
+  border-color: rgba(179,102,255,0.25);
+}
+
+.surface--amber {
+  border-color: var(--border-amber);
+  box-shadow: var(--glow-amber-sm), inset 0 1px 0 rgba(255,209,102,0.04);
+}
+
+.surface--amber:hover {
+  box-shadow: var(--glow-amber-md), inset 0 1px 0 rgba(255,209,102,0.06);
+  border-color: rgba(255,209,102,0.22);
+}
+
+/* ============================================================
+   COLOR PALETTE
+   ============================================================ */
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
+}
+
+.swatch {
+  text-align: center;
+}
+
+.swatch-circle {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  margin: 0 auto 10px;
+  transition: box-shadow var(--transition-glow), transform var(--transition-base);
+  cursor: pointer;
+}
+
+.swatch-circle:hover {
+  transform: scale(1.1);
+}
+
+.swatch-circle--cyan    { background: var(--cyan);   box-shadow: 0 0 20px var(--cyan-glow-strong); }
+.swatch-circle--cyan:hover { box-shadow: 0 0 36px var(--cyan-glow-strong), 0 0 60px var(--cyan-glow); }
+
+.swatch-circle--violet  { background: var(--violet); box-shadow: 0 0 20px var(--violet-glow-strong); }
+.swatch-circle--violet:hover { box-shadow: 0 0 36px var(--violet-glow-strong), 0 0 60px var(--violet-glow); }
+
+.swatch-circle--amber   { background: var(--amber);  box-shadow: 0 0 20px var(--amber-glow-strong); }
+.swatch-circle--amber:hover { box-shadow: 0 0 36px var(--amber-glow-strong), 0 0 60px var(--amber-glow); }
+
+.swatch-circle--rose    { background: var(--rose);   box-shadow: 0 0 20px var(--rose-glow); }
+.swatch-circle--rose:hover { box-shadow: 0 0 36px rgba(255,107,157,0.35), 0 0 60px var(--rose-glow); }
+
+.swatch-circle--deep    { background: var(--bg-deep); border: 1px solid var(--border-glow); }
+.swatch-circle--mid     { background: var(--bg-mid);  border: 1px solid var(--border-glow); }
+.swatch-circle--surface { background: var(--bg-surface); border: 1px solid var(--border-glow); }
+.swatch-circle--raised  { background: var(--bg-raised); border: 1px solid var(--border-glow); }
+
+.swatch-name {
+  font-family: var(--font-code);
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 2px;
+}
+
+.swatch-value {
+  font-family: var(--font-code);
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+.type-specimen {
+  margin-bottom: 24px;
+}
+
+.type-specimen:last-child { margin-bottom: 0; }
+
+.type-label {
+  font-family: var(--font-code);
+  font-size: 11px;
+  color: var(--cyan-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+
+.type-display {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-weight: 700;
+  color: var(--text-bright);
+  line-height: 1.15;
+  text-shadow: 0 0 24px rgba(0,255,213,0.12);
+}
+
+.type-heading {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--text-bright);
+  line-height: 1.3;
+}
+
+.type-body {
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--text-primary);
+  line-height: 1.65;
+}
+
+.type-code {
+  font-family: var(--font-code);
+  font-size: 13px;
+  color: var(--cyan);
+  background: rgba(0,255,213,0.06);
+  border: 1px solid rgba(0,255,213,0.10);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  display: block;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.type-small {
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 22px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    box-shadow var(--transition-glow),
+    border-color var(--transition-glow),
+    transform var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn:active { transform: scale(0.97); }
+
+/* Primary — cyan bioluminescence */
+.btn--primary {
+  background: linear-gradient(135deg, rgba(0,255,213,0.18), rgba(0,255,213,0.08));
+  border-color: rgba(0,255,213,0.30);
+  color: var(--cyan);
+  box-shadow: 0 0 16px rgba(0,255,213,0.10);
+  animation: btnPulse 3s ease-in-out infinite;
+}
+
+.btn--primary:hover {
+  background: linear-gradient(135deg, rgba(0,255,213,0.28), rgba(0,255,213,0.14));
+  box-shadow: 0 0 28px rgba(0,255,213,0.25), 0 0 8px rgba(0,255,213,0.15);
+  border-color: rgba(0,255,213,0.50);
+}
+
+@keyframes btnPulse {
+  0%, 100% { box-shadow: 0 0 16px rgba(0,255,213,0.10); }
+  50%      { box-shadow: 0 0 24px rgba(0,255,213,0.20); }
+}
+
+/* Secondary — violet glow */
+.btn--secondary {
+  background: linear-gradient(135deg, rgba(179,102,255,0.15), rgba(179,102,255,0.06));
+  border-color: rgba(179,102,255,0.25);
+  color: var(--violet);
+  box-shadow: 0 0 12px rgba(179,102,255,0.08);
+}
+
+.btn--secondary:hover {
+  background: linear-gradient(135deg, rgba(179,102,255,0.25), rgba(179,102,255,0.12));
+  box-shadow: 0 0 24px rgba(179,102,255,0.22);
+  border-color: rgba(179,102,255,0.45);
+}
+
+/* Ghost — subtle outline */
+.btn--ghost {
+  background: transparent;
+  border-color: var(--border-glow);
+  color: var(--text-secondary);
+}
+
+.btn--ghost:hover {
+  background: rgba(0,255,213,0.05);
+  border-color: rgba(0,255,213,0.25);
+  color: var(--cyan);
+  box-shadow: 0 0 16px rgba(0,255,213,0.08);
+}
+
+/* Danger — rose */
+.btn--danger {
+  background: linear-gradient(135deg, rgba(255,107,157,0.15), rgba(255,107,157,0.06));
+  border-color: rgba(255,107,157,0.25);
+  color: var(--rose);
+}
+
+.btn--danger:hover {
+  background: linear-gradient(135deg, rgba(255,107,157,0.25), rgba(255,107,157,0.12));
+  box-shadow: 0 0 24px rgba(255,107,157,0.20);
+  border-color: rgba(255,107,157,0.45);
+}
+
+/* Amber warm */
+.btn--warm {
+  background: linear-gradient(135deg, rgba(255,209,102,0.15), rgba(255,209,102,0.06));
+  border-color: rgba(255,209,102,0.25);
+  color: var(--amber);
+}
+
+.btn--warm:hover {
+  background: linear-gradient(135deg, rgba(255,209,102,0.25), rgba(255,209,102,0.12));
+  box-shadow: 0 0 24px rgba(255,209,102,0.20);
+  border-color: rgba(255,209,102,0.45);
+}
+
+/* Small variant */
+.btn--sm {
+  font-size: 12px;
+  padding: 6px 16px;
+}
+
+/* ============================================================
+   FORM INPUTS
+   ============================================================ */
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.form-input {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text-primary);
+  background: rgba(5, 10, 24, 0.60);
+  border: 1px solid var(--border-glow);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  outline: none;
+  transition:
+    border-color var(--transition-glow),
+    box-shadow var(--transition-glow),
+    background var(--transition-fast);
+}
+
+.form-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.form-input:focus {
+  border-color: rgba(0,255,213,0.40);
+  box-shadow: 0 0 20px rgba(0,255,213,0.12), inset 0 0 12px rgba(0,255,213,0.03);
+  background: rgba(5, 10, 24, 0.80);
+}
+
+.form-input:hover:not(:focus) {
+  border-color: rgba(0,255,213,0.22);
+}
+
+textarea.form-input {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* ============================================================
+   BADGES
+   ============================================================ */
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-code);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+}
+
+.badge--cyan {
+  background: rgba(0,255,213,0.10);
+  border-color: rgba(0,255,213,0.20);
+  color: var(--cyan);
+}
+
+.badge--violet {
+  background: rgba(179,102,255,0.10);
+  border-color: rgba(179,102,255,0.20);
+  color: var(--violet);
+}
+
+.badge--amber {
+  background: rgba(255,209,102,0.10);
+  border-color: rgba(255,209,102,0.20);
+  color: var(--amber);
+}
+
+.badge--rose {
+  background: rgba(255,107,157,0.10);
+  border-color: rgba(255,107,157,0.20);
+  color: var(--rose);
+}
+
+/* Breathing status indicators */
+.status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot--alive {
+  background: var(--cyan);
+  animation: breathe 3s ease-in-out infinite;
+  box-shadow: 0 0 8px var(--cyan-glow-strong);
+}
+
+.status-dot--warn {
+  background: var(--amber);
+  animation: breathe 2.5s ease-in-out infinite;
+  box-shadow: 0 0 8px var(--amber-glow-strong);
+}
+
+.status-dot--danger {
+  background: var(--rose);
+  animation: breathe 2s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(255,107,157,0.35);
+}
+
+.status-dot--idle {
+  background: var(--text-tertiary);
+  animation: breathe 4s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.6; transform: scale(0.9); }
+  50%      { opacity: 1;   transform: scale(1.15); }
+}
+
+/* ============================================================
+   TOASTS
+   ============================================================ */
+.toast-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  border: 1px solid transparent;
+  background: rgba(14, 26, 56, 0.80);
+  backdrop-filter: blur(10px);
+}
+
+.toast--success {
+  border-color: rgba(0,255,213,0.20);
+  box-shadow: var(--glow-cyan-sm);
+}
+.toast--success .toast-icon { color: var(--cyan); }
+
+.toast--error {
+  border-color: rgba(255,107,157,0.20);
+  box-shadow: 0 0 12px rgba(255,107,157,0.12);
+}
+.toast--error .toast-icon { color: var(--rose); }
+
+.toast--warning {
+  border-color: rgba(255,209,102,0.20);
+  box-shadow: var(--glow-amber-sm);
+}
+.toast--warning .toast-icon { color: var(--amber); }
+
+.toast--info {
+  border-color: rgba(179,102,255,0.20);
+  box-shadow: var(--glow-violet-sm);
+}
+.toast--info .toast-icon { color: var(--violet); }
+
+.toast-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  width: 22px; text-align: center;
+}
+
+.toast-text { color: var(--text-primary); flex: 1; }
+.toast-dim  { color: var(--text-tertiary); font-size: 12px; }
+
+/* ============================================================
+   SPECIMEN CARDS — deep sea creature specimens
+   ============================================================ */
+.specimen-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+.specimen-card {
+  background: rgba(10, 17, 40, 0.70);
+  border: 1px solid var(--border-glow);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  transition:
+    box-shadow var(--transition-glow),
+    border-color var(--transition-glow),
+    transform var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.specimen-card::before {
+  content: '';
+  position: absolute;
+  top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: radial-gradient(circle at 50% 50%, rgba(0,255,213,0.03) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity var(--transition-slow);
+  pointer-events: none;
+}
+
+.specimen-card:hover {
+  border-color: rgba(0,255,213,0.30);
+  box-shadow: 0 0 32px rgba(0,255,213,0.12), 0 8px 24px rgba(0,0,0,0.30);
+  transform: translateY(-2px);
+}
+
+.specimen-card:hover::before { opacity: 1; }
+
+.specimen-card--violet {
+  border-color: var(--border-violet);
+}
+.specimen-card--violet:hover {
+  border-color: rgba(179,102,255,0.30);
+  box-shadow: 0 0 32px rgba(179,102,255,0.12), 0 8px 24px rgba(0,0,0,0.30);
+}
+.specimen-card--violet::before {
+  background: radial-gradient(circle at 50% 50%, rgba(179,102,255,0.03) 0%, transparent 60%);
+}
+
+.specimen-card--amber {
+  border-color: var(--border-amber);
+}
+.specimen-card--amber:hover {
+  border-color: rgba(255,209,102,0.25);
+  box-shadow: 0 0 32px rgba(255,209,102,0.10), 0 8px 24px rgba(0,0,0,0.30);
+}
+.specimen-card--amber::before {
+  background: radial-gradient(circle at 50% 50%, rgba(255,209,102,0.03) 0%, transparent 60%);
+}
+
+.specimen-icon {
+  font-size: 28px;
+  margin-bottom: 14px;
+  display: block;
+}
+
+.specimen-name {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-bright);
+  margin-bottom: 6px;
+}
+
+.specimen-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.specimen-meta {
+  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+}
+
+/* ============================================================
+   CSS JELLYFISH LOADER
+   ============================================================ */
+.jellyfish-loader-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+  gap: 24px;
+}
+
+.jellyfish {
+  position: relative;
+  width: 80px; height: 130px;
+}
+
+/* Dome / bell */
+.jellyfish-bell {
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 70px; height: 50px;
+  background: radial-gradient(ellipse at 50% 60%, rgba(179,102,255,0.35), rgba(0,255,213,0.15) 60%, transparent 80%);
+  border-radius: 50% 50% 40% 40%;
+  border: 1.5px solid rgba(179,102,255,0.30);
+  box-shadow:
+    0 0 24px rgba(179,102,255,0.20),
+    0 0 48px rgba(0,255,213,0.08),
+    inset 0 -8px 16px rgba(0,255,213,0.08);
+  animation: jellyfishBell 2.8s ease-in-out infinite;
+}
+
+/* Inner glow spot */
+.jellyfish-bell::before {
+  content: '';
+  position: absolute;
+  top: 12px; left: 50%;
+  transform: translateX(-50%);
+  width: 30px; height: 18px;
+  background: radial-gradient(ellipse, rgba(179,102,255,0.50), transparent 70%);
+  border-radius: 50%;
+  animation: jellyGlow 2.8s ease-in-out infinite;
+}
+
+@keyframes jellyfishBell {
+  0%, 100% { border-radius: 50% 50% 40% 40%; height: 50px; width: 70px; }
+  50%      { border-radius: 50% 50% 35% 35%; height: 44px; width: 76px; }
+}
+
+@keyframes jellyGlow {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1; }
+}
+
+/* Tentacles */
+.jellyfish-tentacles {
+  position: absolute;
+  top: 46px; left: 50%;
+  transform: translateX(-50%);
+  width: 60px; height: 80px;
+  display: flex;
+  justify-content: space-around;
+}
+
+.tentacle {
+  width: 2px;
+  height: 65px;
+  border-radius: 0 0 2px 2px;
+  animation: tentacleWave 2.8s ease-in-out infinite;
+  transform-origin: top center;
+}
+
+.tentacle:nth-child(1) { background: linear-gradient(to bottom, rgba(179,102,255,0.40), rgba(0,255,213,0.05)); animation-delay: 0s; height: 70px; }
+.tentacle:nth-child(2) { background: linear-gradient(to bottom, rgba(0,255,213,0.35), rgba(179,102,255,0.05)); animation-delay: 0.15s; height: 60px; }
+.tentacle:nth-child(3) { background: linear-gradient(to bottom, rgba(179,102,255,0.45), rgba(255,209,102,0.05)); animation-delay: 0.3s; height: 75px; }
+.tentacle:nth-child(4) { background: linear-gradient(to bottom, rgba(0,255,213,0.30), rgba(179,102,255,0.05)); animation-delay: 0.1s; height: 55px; }
+.tentacle:nth-child(5) { background: linear-gradient(to bottom, rgba(179,102,255,0.35), rgba(0,255,213,0.05)); animation-delay: 0.25s; height: 65px; }
+.tentacle:nth-child(6) { background: linear-gradient(to bottom, rgba(0,255,213,0.40), transparent); animation-delay: 0.05s; height: 58px; }
+.tentacle:nth-child(7) { background: linear-gradient(to bottom, rgba(255,209,102,0.25), transparent); animation-delay: 0.2s; height: 50px; }
+
+@keyframes tentacleWave {
+  0%, 100% { transform: rotate(-8deg) scaleY(1); }
+  25%      { transform: rotate(6deg) scaleY(0.92); }
+  50%      { transform: rotate(-4deg) scaleY(1.05); }
+  75%      { transform: rotate(8deg) scaleY(0.95); }
+}
+
+.jellyfish-label {
+  font-family: var(--font-code);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.06em;
+}
+
+/* ============================================================
+   DASHBOARD MOCKUP
+   ============================================================ */
+.dashboard-mockup {
+  background: var(--bg-deep);
+  border: 1px solid var(--border-glow);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(0,255,213,0.06), 0 16px 48px rgba(0,0,0,0.40);
+}
+
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 480px;
+}
+
+/* Sidebar */
+.dash-sidebar {
+  background: rgba(5, 10, 24, 0.90);
+  border-right: 1px solid var(--border-glow);
+  padding: 24px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-logo {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-bright);
+  padding: 0 20px 24px;
+  text-shadow: 0 0 16px rgba(0,255,213,0.20);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dash-logo-icon {
+  width: 28px; height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(0,255,213,0.25), rgba(179,102,255,0.20));
+  border: 1px solid rgba(0,255,213,0.25);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  box-shadow: 0 0 12px rgba(0,255,213,0.15);
+}
+
+.dash-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 8px;
+}
+
+.dash-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-glow);
+  position: relative;
+}
+
+.dash-nav-item:hover {
+  background: rgba(0,255,213,0.05);
+  color: var(--text-primary);
+}
+
+.dash-nav-item--active {
+  background: rgba(0,255,213,0.08);
+  color: var(--cyan);
+  box-shadow: inset 0 0 12px rgba(0,255,213,0.05);
+}
+
+.dash-nav-item--active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 6px; bottom: 6px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--cyan);
+  box-shadow: 0 0 8px rgba(0,255,213,0.40);
+}
+
+.dash-nav-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.dash-nav-label {
+  font-family: var(--font-body);
+  font-weight: 500;
+}
+
+.dash-nav-badge {
+  margin-left: auto;
+  font-family: var(--font-code);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: rgba(0,255,213,0.12);
+  color: var(--cyan);
+  border: 1px solid rgba(0,255,213,0.18);
+}
+
+.dash-nav-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 12px 14px;
+}
+
+/* Main content area */
+.dash-main {
+  padding: 24px;
+  background: rgba(10, 17, 40, 0.40);
+}
+
+.dash-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.dash-page-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+.dash-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Kanban board */
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  overflow-x: auto;
+}
+
+.kanban-col {
+  background: rgba(5, 10, 24, 0.50);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  min-width: 150px;
+}
+
+.kanban-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.kanban-col-title {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.kanban-col-count {
+  font-family: var(--font-code);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  background: rgba(0,255,213,0.06);
+  border: 1px solid var(--border-subtle);
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+}
+
+.kanban-card {
+  background: rgba(14, 26, 56, 0.60);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition:
+    box-shadow var(--transition-glow),
+    border-color var(--transition-glow),
+    transform var(--transition-fast);
+}
+
+.kanban-card:last-child { margin-bottom: 0; }
+
+.kanban-card:hover {
+  border-color: rgba(0,255,213,0.25);
+  box-shadow: 0 0 16px rgba(0,255,213,0.10), 0 4px 12px rgba(0,0,0,0.20);
+  transform: translateY(-1px);
+}
+
+.kanban-card-title {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.kanban-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.kanban-card-tag {
+  font-family: var(--font-code);
+  font-size: 9px;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+}
+
+.tag-ui     { background: rgba(0,255,213,0.08); color: var(--cyan-dim); border-color: rgba(0,255,213,0.15); }
+.tag-api    { background: rgba(179,102,255,0.08); color: var(--violet-dim); border-color: rgba(179,102,255,0.15); }
+.tag-bug    { background: rgba(255,107,157,0.08); color: var(--rose-dim); border-color: rgba(255,107,157,0.15); }
+.tag-perf   { background: rgba(255,209,102,0.08); color: var(--amber-dim); border-color: rgba(255,209,102,0.15); }
+.tag-infra  { background: rgba(120,160,200,0.08); color: #7aa0c8; border-color: rgba(120,160,200,0.15); }
+
+.kanban-card-priority {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  margin-left: auto;
+}
+
+.priority-high   { background: var(--rose); box-shadow: 0 0 6px rgba(255,107,157,0.40); }
+.priority-medium { background: var(--amber); box-shadow: 0 0 6px rgba(255,209,102,0.35); }
+.priority-low    { background: var(--cyan); box-shadow: 0 0 6px rgba(0,255,213,0.30); opacity: 0.6; }
+
+/* ============================================================
+   CODE BLOCK
+   ============================================================ */
+.code-block {
+  background: rgba(5, 10, 24, 0.80);
+  border: 1px solid var(--border-glow);
+  border-radius: var(--radius-md);
+  padding: 20px 24px;
+  overflow-x: auto;
+  position: relative;
+}
+
+.code-block code {
+  font-family: var(--font-code);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
+.code-block .code-comment { color: var(--text-tertiary); }
+.code-block .code-keyword { color: var(--violet); }
+.code-block .code-string  { color: var(--cyan); }
+.code-block .code-func    { color: var(--amber); }
+.code-block .code-number  { color: var(--rose); }
+
+.code-block-label {
+  position: absolute;
+  top: 8px; right: 12px;
+  font-family: var(--font-code);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  .page-wrapper { padding: 0 16px 60px; }
+  .header { padding: 48px 0 40px; }
+  .surface { padding: 20px; }
+  .form-row { grid-template-columns: 1fr; }
+  .palette-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+  .dashboard-layout { grid-template-columns: 1fr; }
+  .dash-sidebar { display: none; }
+  .kanban-board { grid-template-columns: repeat(2, 1fr); }
+  .specimen-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .kanban-board { grid-template-columns: 1fr; }
+  .btn-row { flex-direction: column; align-items: stretch; }
+  .btn { justify-content: center; }
+}
+</style>
+</head>
+
+<body>
+
+<!-- SVG Filter Definitions -->
+<svg style="position:absolute;width:0;height:0;" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="tentacleGlow">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+</svg>
+
+<!-- Floating particles — deep layer (slower, blurred) -->
+<div class="particle-field particle-field--deep" aria-hidden="true">
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+</div>
+
+<!-- Floating particles — main layer -->
+<div class="particle-field" aria-hidden="true">
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+</div>
+
+<!-- ========== PAGE CONTENT ========== -->
+<div class="page-wrapper">
+
+  <!-- ========== HEADER ========== -->
+  <header class="header">
+    <div class="header-glow" aria-hidden="true"></div>
+    <h1 class="header-title">Bioluminescent Deep Sea</h1>
+    <p class="header-subtitle">A design system that breathes in the dark</p>
+    <p class="header-tagline">DevGlide &mdash; AI Workflow Toolkit</p>
+  </header>
+
+  <!-- Tentacle divider -->
+  <svg class="tentacle-divider" viewBox="0 0 960 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <path class="tentacle-path tentacle-path--cyan" d="M0,30 C120,10 240,50 360,30 C480,10 600,50 720,25 C840,0 900,40 960,30" />
+    <path class="tentacle-path tentacle-path--violet" d="M0,35 C150,55 280,15 420,38 C560,60 680,20 800,35 C880,45 930,25 960,35" />
+    <path class="tentacle-path tentacle-path--amber" d="M0,28 C100,45 220,20 380,32 C540,44 650,18 780,28 C860,35 920,22 960,28" />
+  </svg>
+
+  <!-- ========== COLOR PALETTE ========== -->
+  <section>
+    <h2 class="section-title">Bioluminescent Palette</h2>
+    <p class="section-subtitle">
+      Colors drawn from the abyssal zone: living light against infinite darkness.
+      Each accent glows with the intensity of deep-sea organisms.
+    </p>
+
+    <div class="surface">
+      <h3 style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.06em;">Accent Colors</h3>
+      <div class="palette-grid">
+        <div class="swatch">
+          <div class="swatch-circle swatch-circle--cyan"></div>
+          <div class="swatch-name">Cyan Glow</div>
+          <div class="swatch-value">#00ffd5</div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-circle swatch-circle--violet"></div>
+          <div class="swatch-name">Violet Pulse</div>
+          <div class="swatch-value">#b366ff</div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-circle swatch-circle--amber"></div>
+          <div class="swatch-name">Amber Bio</div>
+          <div class="swatch-value">#ffd166</div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-circle swatch-circle--rose"></div>
+          <div class="swatch-name">Rose Anemone</div>
+          <div class="swatch-value">#ff6b9d</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="surface" style="margin-top: 16px;">
+      <h3 style="font-family: var(--font-display); font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.06em;">Depth Layers</h3>
+      <div class="palette-grid">
+        <div class="swatch">
+          <div class="swatch-circle swatch-circle--deep"></div>
+          <div class="swatch-name">Abyss</div>
+          <div class="swatch-value">#050a18</div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-circle swatch-circle--mid"></div>
+          <div class="swatch-name">Bathyal</div>
+          <div class="swatch-value">#0e1a38</div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-circle swatch-circle--surface"></div>
+          <div class="swatch-name">Mesopelagic</div>
+          <div class="swatch-value">#121f42</div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-circle swatch-circle--raised"></div>
+          <div class="swatch-name">Twilight</div>
+          <div class="swatch-value">#162650</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tentacle divider -->
+  <svg class="tentacle-divider" viewBox="0 0 960 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <path class="tentacle-path tentacle-path--violet" d="M0,30 C160,50 320,10 480,30 C640,50 800,10 960,30" />
+    <path class="tentacle-path tentacle-path--cyan" d="M0,25 C200,45 400,15 600,35 C800,55 880,20 960,25" />
+  </svg>
+
+  <!-- ========== TYPOGRAPHY ========== -->
+  <section>
+    <h2 class="section-title">Typography</h2>
+    <p class="section-subtitle">
+      Outfit for display text, soft and rounded like organic deep-sea forms.
+      DM Sans for readable body text. JetBrains Mono for code elements.
+    </p>
+
+    <div class="surface--violet surface">
+      <div class="type-specimen">
+        <div class="type-label">Display / Outfit 700</div>
+        <div class="type-display">Creatures of the Deep</div>
+      </div>
+      <div class="type-specimen">
+        <div class="type-label">Heading / Outfit 600</div>
+        <div class="type-heading">Bioluminescence illuminates the abyss where no sunlight penetrates</div>
+      </div>
+      <div class="type-specimen">
+        <div class="type-label">Body / DM Sans 400</div>
+        <div class="type-body">At depths below 1,000 meters, organisms produce their own light through chemical reactions. This bioluminescence serves many purposes: attracting prey, communicating with potential mates, and confusing predators in the eternal darkness.</div>
+      </div>
+      <div class="type-specimen">
+        <div class="type-label">Code / JetBrains Mono 400</div>
+        <div class="type-code">const glow = { color: '#00ffd5', intensity: 0.8, pulse: true };
+organism.emit(glow);</div>
+      </div>
+      <div class="type-specimen">
+        <div class="type-label">Small / DM Sans 400</div>
+        <div class="type-small">Mesopelagic zone, 200-1000m depth. Ambient light: 0.001 lux.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tentacle divider -->
+  <svg class="tentacle-divider" viewBox="0 0 960 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <path class="tentacle-path tentacle-path--amber" d="M0,35 C180,15 360,50 540,25 C720,0 840,45 960,35" />
+    <path class="tentacle-path tentacle-path--cyan" d="M0,30 C120,50 280,10 440,35 C600,60 760,15 960,30" />
+  </svg>
+
+  <!-- ========== BUTTONS ========== -->
+  <section>
+    <h2 class="section-title">Buttons</h2>
+    <p class="section-subtitle">
+      Interactive elements pulse with bioluminescent energy. Hover to activate the glow response.
+    </p>
+
+    <div class="surface">
+      <div style="margin-bottom: 20px;">
+        <div class="type-label" style="margin-bottom: 12px;">Standard Sizes</div>
+        <div class="btn-row">
+          <button class="btn btn--primary">Deploy Probe</button>
+          <button class="btn btn--secondary">Scan Depths</button>
+          <button class="btn btn--warm">Log Discovery</button>
+          <button class="btn btn--ghost">Cancel</button>
+          <button class="btn btn--danger">Abort Dive</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="type-label" style="margin-bottom: 12px;">Small Variants</div>
+        <div class="btn-row">
+          <button class="btn btn--primary btn--sm">Create Task</button>
+          <button class="btn btn--secondary btn--sm">Run Test</button>
+          <button class="btn btn--warm btn--sm">Save</button>
+          <button class="btn btn--ghost btn--sm">Details</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== FORM INPUTS ========== -->
+  <section>
+    <h2 class="section-title">Form Inputs</h2>
+    <p class="section-subtitle">
+      Input fields glow softly on focus, like organisms responding to stimuli in the deep.
+    </p>
+
+    <div class="surface--amber surface">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Species Name</label>
+          <input class="form-input" type="text" placeholder="Abyssal anglerfish...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Depth (meters)</label>
+          <input class="form-input" type="number" placeholder="3200">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Observation Notes</label>
+        <textarea class="form-input" placeholder="Describe the bioluminescent patterns observed..."></textarea>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn--primary">Submit Observation</button>
+        <button class="btn btn--ghost">Clear</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== BADGES & STATUS ========== -->
+  <section>
+    <h2 class="section-title">Badges &amp; Status</h2>
+    <p class="section-subtitle">
+      Living indicators that breathe like organisms. Status dots pulse with the rhythm of the deep.
+    </p>
+
+    <div class="surface">
+      <div style="margin-bottom: 24px;">
+        <div class="type-label" style="margin-bottom: 12px;">Badges</div>
+        <div class="badge-row">
+          <span class="badge badge--cyan">MCP Server</span>
+          <span class="badge badge--violet">Workflow</span>
+          <span class="badge badge--amber">In Progress</span>
+          <span class="badge badge--rose">Bug</span>
+          <span class="badge badge--cyan">v2.4.0</span>
+          <span class="badge badge--violet">AI-Powered</span>
+        </div>
+      </div>
+      <div>
+        <div class="type-label" style="margin-bottom: 12px;">Status Indicators</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 24px;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="status-dot status-dot--alive"></span>
+            <span style="font-size: 13px; color: var(--text-secondary);">Connected</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="status-dot status-dot--warn"></span>
+            <span style="font-size: 13px; color: var(--text-secondary);">Processing</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="status-dot status-dot--danger"></span>
+            <span style="font-size: 13px; color: var(--text-secondary);">Error</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="status-dot status-dot--idle"></span>
+            <span style="font-size: 13px; color: var(--text-secondary);">Dormant</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== TOASTS ========== -->
+  <section>
+    <h2 class="section-title">Toasts</h2>
+    <p class="section-subtitle">
+      Notification messages that surface from the depths, each tinted with bioluminescent meaning.
+    </p>
+
+    <div class="toast-stack">
+      <div class="toast toast--success">
+        <span class="toast-icon">&#x2714;</span>
+        <span class="toast-text">Shell pane created. Command executed successfully.</span>
+        <span class="toast-dim">2s ago</span>
+      </div>
+      <div class="toast toast--error">
+        <span class="toast-icon">&#x2718;</span>
+        <span class="toast-text">Connection lost to MCP server. Attempting reconnect...</span>
+        <span class="toast-dim">5s ago</span>
+      </div>
+      <div class="toast toast--warning">
+        <span class="toast-icon">&#x26A0;</span>
+        <span class="toast-text">Test scenario timed out after 30s. Check browser state.</span>
+        <span class="toast-dim">12s ago</span>
+      </div>
+      <div class="toast toast--info">
+        <span class="toast-icon">&#x2139;</span>
+        <span class="toast-text">Workflow "deploy-staging" matched and is now executing.</span>
+        <span class="toast-dim">18s ago</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tentacle divider -->
+  <svg class="tentacle-divider" viewBox="0 0 960 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <path class="tentacle-path tentacle-path--cyan" d="M0,25 C100,45 250,10 400,30 C550,50 700,15 850,35 C920,42 950,28 960,25" />
+    <path class="tentacle-path tentacle-path--violet" d="M0,40 C150,20 300,50 450,28 C600,6 750,48 900,30 C940,25 955,35 960,40" />
+    <path class="tentacle-path tentacle-path--amber" d="M0,32 C200,50 350,18 500,38 C650,58 780,12 960,32" />
+  </svg>
+
+  <!-- ========== SPECIMEN CARDS ========== -->
+  <section>
+    <h2 class="section-title">Specimen Cards</h2>
+    <p class="section-subtitle">
+      Content cards styled as deep-sea creature specimens, with glowing outlines that intensify on interaction.
+    </p>
+
+    <div class="specimen-grid">
+      <div class="specimen-card">
+        <span class="specimen-icon">&#x1F9ED;</span>
+        <div class="specimen-name">Kanban Board</div>
+        <div class="specimen-desc">Manage features and tasks across columns. Track work from backlog through to completion.</div>
+        <div class="specimen-meta">
+          <span class="badge badge--cyan">Active</span>
+          <span class="badge badge--amber">12 items</span>
+        </div>
+      </div>
+      <div class="specimen-card specimen-card--violet">
+        <span class="specimen-icon">&#x1F4AC;</span>
+        <div class="specimen-name">Multi-LLM Chat</div>
+        <div class="specimen-desc">Shared room where multiple AI agents communicate via @mentions and PTY injection.</div>
+        <div class="specimen-meta">
+          <span class="badge badge--violet">3 agents</span>
+          <span class="badge badge--cyan">Live</span>
+        </div>
+      </div>
+      <div class="specimen-card specimen-card--amber">
+        <span class="specimen-icon">&#x1F3A4;</span>
+        <div class="specimen-name">Voice Transcription</div>
+        <div class="specimen-desc">Speech-to-text with vocabulary biasing and AI cleanup. Multiple STT providers supported.</div>
+        <div class="specimen-meta">
+          <span class="badge badge--amber">Groq</span>
+          <span class="badge badge--violet">Cleanup</span>
+        </div>
+      </div>
+      <div class="specimen-card">
+        <span class="specimen-icon">&#x1F9EA;</span>
+        <div class="specimen-name">Test Runner</div>
+        <div class="specimen-desc">AI-driven browser test automation. Describe tests in natural language, run scenarios automatically.</div>
+        <div class="specimen-meta">
+          <span class="badge badge--cyan">8 saved</span>
+          <span class="badge badge--rose">2 failed</span>
+        </div>
+      </div>
+      <div class="specimen-card specimen-card--violet">
+        <span class="specimen-icon">&#x2699;&#xFE0F;</span>
+        <div class="specimen-name">Workflow Engine</div>
+        <div class="specimen-desc">Reusable workflow DAGs with triggers, shell commands, kanban ops, and decision nodes.</div>
+        <div class="specimen-meta">
+          <span class="badge badge--violet">5 active</span>
+        </div>
+      </div>
+      <div class="specimen-card specimen-card--amber">
+        <span class="specimen-icon">&#x1F4CB;</span>
+        <div class="specimen-name">Shell Manager</div>
+        <div class="specimen-desc">Terminal pane management. Create, run commands, read scrollback across managed sessions.</div>
+        <div class="specimen-meta">
+          <span class="badge badge--amber">4 panes</span>
+          <span class="badge badge--cyan">Running</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tentacle divider -->
+  <svg class="tentacle-divider" viewBox="0 0 960 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <path class="tentacle-path tentacle-path--violet" d="M0,30 C80,10 200,50 340,25 C480,0 620,55 760,30 C880,10 940,40 960,30" />
+    <path class="tentacle-path tentacle-path--cyan" d="M0,35 C140,55 300,15 460,38 C620,60 780,18 960,35" />
+  </svg>
+
+  <!-- ========== CODE BLOCK ========== -->
+  <section>
+    <h2 class="section-title">Code</h2>
+    <p class="section-subtitle">
+      Syntax highlighting with bioluminescent hues. Each token type maps to a distinct spectral emission.
+    </p>
+
+    <div class="code-block">
+      <span class="code-block-label">TypeScript</span>
+      <code><span class="code-comment">// Define a bioluminescent creature for the deep sea UI</span>
+<span class="code-keyword">interface</span> <span class="code-func">Creature</span> {
+  name: <span class="code-keyword">string</span>;
+  depth: <span class="code-number">number</span>;
+  glow: {
+    color: <span class="code-string">'#00ffd5'</span> | <span class="code-string">'#b366ff'</span> | <span class="code-string">'#ffd166'</span>;
+    intensity: <span class="code-number">number</span>;
+    pulseRate: <span class="code-number">number</span>;
+  };
+}
+
+<span class="code-keyword">const</span> <span class="code-func">anglerfish</span>: <span class="code-func">Creature</span> = {
+  name: <span class="code-string">'Melanocetus johnsonii'</span>,
+  depth: <span class="code-number">3200</span>,
+  glow: {
+    color: <span class="code-string">'#00ffd5'</span>,
+    intensity: <span class="code-number">0.85</span>,
+    pulseRate: <span class="code-number">2.4</span>,
+  },
+};
+
+<span class="code-keyword">function</span> <span class="code-func">emitLight</span>(creature: <span class="code-func">Creature</span>): <span class="code-keyword">void</span> {
+  <span class="code-keyword">const</span> { color, intensity, pulseRate } = creature.glow;
+  <span class="code-func">console</span>.<span class="code-func">log</span>(<span class="code-string">`Emitting </span>${color}<span class="code-string"> at </span>${intensity}<span class="code-string"> intensity`</span>);
+}</code>
+    </div>
+  </section>
+
+  <!-- Tentacle divider -->
+  <svg class="tentacle-divider" viewBox="0 0 960 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <path class="tentacle-path tentacle-path--cyan" d="M0,30 C240,50 480,10 720,30 C840,40 920,20 960,30" />
+    <path class="tentacle-path tentacle-path--amber" d="M0,25 C200,5 400,50 600,25 C800,0 920,40 960,25" />
+  </svg>
+
+  <!-- ========== JELLYFISH LOADER ========== -->
+  <section>
+    <h2 class="section-title">Jellyfish Loader</h2>
+    <p class="section-subtitle">
+      CSS-only loading animation inspired by a deep-sea jellyfish. The bell pulses and contracts
+      while translucent tentacles trail with organic rhythm.
+    </p>
+
+    <div class="surface" style="padding: 20px;">
+      <div class="jellyfish-loader-container">
+        <div class="jellyfish">
+          <div class="jellyfish-bell"></div>
+          <div class="jellyfish-tentacles">
+            <div class="tentacle"></div>
+            <div class="tentacle"></div>
+            <div class="tentacle"></div>
+            <div class="tentacle"></div>
+            <div class="tentacle"></div>
+            <div class="tentacle"></div>
+            <div class="tentacle"></div>
+          </div>
+        </div>
+        <span class="jellyfish-label">Loading from the deep...</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tentacle divider -->
+  <svg class="tentacle-divider" viewBox="0 0 960 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <path class="tentacle-path tentacle-path--violet" d="M0,28 C160,48 320,8 480,32 C640,56 800,12 960,28" />
+    <path class="tentacle-path tentacle-path--cyan" d="M0,38 C120,18 280,52 440,30 C600,8 760,48 960,38" />
+    <path class="tentacle-path tentacle-path--amber" d="M0,33 C180,53 400,13 580,36 C760,58 880,18 960,33" />
+  </svg>
+
+  <!-- ========== DASHBOARD MOCKUP ========== -->
+  <section>
+    <h2 class="section-title">Dashboard Mockup</h2>
+    <p class="section-subtitle">
+      Full layout with deep-sea sidebar navigation and glowing kanban board.
+      The interface lives and breathes in the abyss.
+    </p>
+
+    <div class="dashboard-mockup">
+      <div class="dashboard-layout">
+        <!-- Sidebar -->
+        <aside class="dash-sidebar">
+          <div class="dash-logo">
+            <span class="dash-logo-icon">&#x2B21;</span>
+            DevGlide
+          </div>
+          <nav class="dash-nav">
+            <div class="dash-nav-item dash-nav-item--active">
+              <span class="dash-nav-icon">&#x25A6;</span>
+              <span class="dash-nav-label">Kanban</span>
+              <span class="dash-nav-badge">12</span>
+            </div>
+            <div class="dash-nav-item">
+              <span class="dash-nav-icon">&#x276F;</span>
+              <span class="dash-nav-label">Shell</span>
+              <span class="dash-nav-badge">4</span>
+            </div>
+            <div class="dash-nav-item">
+              <span class="dash-nav-icon">&#x25CB;</span>
+              <span class="dash-nav-label">Chat</span>
+              <span class="dash-nav-badge">3</span>
+            </div>
+            <div class="dash-nav-item">
+              <span class="dash-nav-icon">&#x25B7;</span>
+              <span class="dash-nav-label">Tests</span>
+            </div>
+            <div class="dash-nav-item">
+              <span class="dash-nav-icon">&#x2942;</span>
+              <span class="dash-nav-label">Workflows</span>
+            </div>
+            <div class="dash-nav-divider"></div>
+            <div class="dash-nav-item">
+              <span class="dash-nav-icon">&#x266A;</span>
+              <span class="dash-nav-label">Voice</span>
+            </div>
+            <div class="dash-nav-item">
+              <span class="dash-nav-icon">&#x1D5A0;</span>
+              <span class="dash-nav-label">Vocabulary</span>
+            </div>
+            <div class="dash-nav-item">
+              <span class="dash-nav-icon">&#x2263;</span>
+              <span class="dash-nav-label">Prompts</span>
+            </div>
+            <div class="dash-nav-divider"></div>
+            <div class="dash-nav-item">
+              <span class="dash-nav-icon">&#x2699;</span>
+              <span class="dash-nav-label">Settings</span>
+            </div>
+          </nav>
+        </aside>
+
+        <!-- Main content -->
+        <main class="dash-main">
+          <div class="dash-header-bar">
+            <h3 class="dash-page-title">Deep Sea Expedition</h3>
+            <div class="dash-header-actions">
+              <button class="btn btn--primary btn--sm">+ New Task</button>
+              <button class="btn btn--ghost btn--sm">Filter</button>
+            </div>
+          </div>
+
+          <div class="kanban-board">
+            <!-- Todo -->
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">Todo</span>
+                <span class="kanban-col-count">3</span>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Design bioluminescent token system</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-ui">ui</span>
+                  <span class="kanban-card-priority priority-high"></span>
+                </div>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Add tentacle SVG divider component</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-ui">ui</span>
+                  <span class="kanban-card-priority priority-medium"></span>
+                </div>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Configure deep-sea voice prompts</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-api">api</span>
+                  <span class="kanban-card-priority priority-low"></span>
+                </div>
+              </div>
+            </div>
+            <!-- In Progress -->
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">In Progress</span>
+                <span class="kanban-col-count">2</span>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">CSS jellyfish loader animation</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-ui">ui</span>
+                  <span class="kanban-card-priority priority-high"></span>
+                </div>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Fix particle z-index on Safari</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-bug">bug</span>
+                  <span class="kanban-card-priority priority-medium"></span>
+                </div>
+              </div>
+            </div>
+            <!-- In Review -->
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">In Review</span>
+                <span class="kanban-col-count">2</span>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Glow intensity accessibility audit</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-perf">a11y</span>
+                  <span class="kanban-card-priority priority-medium"></span>
+                </div>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Depth-based parallax scrolling</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-ui">ui</span>
+                  <span class="kanban-card-priority priority-low"></span>
+                </div>
+              </div>
+            </div>
+            <!-- Done -->
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">Done</span>
+                <span class="kanban-col-count">2</span>
+              </div>
+              <div class="kanban-card" style="opacity: 0.5;">
+                <div class="kanban-card-title">Dark abyss color palette</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-ui">ui</span>
+                  <span class="kanban-card-priority priority-high"></span>
+                </div>
+              </div>
+              <div class="kanban-card" style="opacity: 0.5;">
+                <div class="kanban-card-title">MCP server shell integration</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-infra">infra</span>
+                  <span class="kanban-card-priority priority-medium"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /page-wrapper -->
+
+<!-- ========== JAVASCRIPT ========== -->
+<script>
+(function () {
+  'use strict';
+
+  // Smooth entrance animation via IntersectionObserver
+  var observer = new IntersectionObserver(
+    function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = '1';
+          entry.target.style.transform = 'translateY(0)';
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.08, rootMargin: '0px 0px -30px 0px' }
+  );
+
+  document.querySelectorAll('section').forEach(function (section) {
+    section.style.opacity = '0';
+    section.style.transform = 'translateY(20px)';
+    section.style.transition = 'opacity 0.7s ease, transform 0.7s ease';
+    observer.observe(section);
+  });
+
+  // Keep header visible immediately
+  var header = document.querySelector('.header');
+  if (header) {
+    header.style.opacity = '1';
+    header.style.transform = 'none';
+  }
+
+  // Slight parallax on the particle fields based on scroll
+  var deepField = document.querySelector('.particle-field--deep');
+  var mainField = document.querySelector('.particle-field:not(.particle-field--deep)');
+
+  window.addEventListener('scroll', function () {
+    var y = window.scrollY;
+    if (deepField) deepField.style.transform = 'translateY(' + (y * 0.02) + 'px)';
+    if (mainField) mainField.style.transform = 'translateY(' + (y * -0.01) + 'px)';
+  }, { passive: true });
+})();
+</script>
+
+</body>
+</html>

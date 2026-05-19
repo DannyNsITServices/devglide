@@ -1,0 +1,2274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevGlide - Retro Pixel Art Design System</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   RETRO PIXEL ART / 8-BIT DESIGN SYSTEM
+   NES Color Palette + Press Start 2P Font
+   ============================================================ */
+
+:root {
+  --nes-black:      #0f0f23;
+  --nes-dark-blue:  #1a1a4e;
+  --nes-blue:       #3b3bff;
+  --nes-cyan:       #00d8ff;
+  --nes-green:      #00b800;
+  --nes-light-green:#88fc88;
+  --nes-red:        #e40058;
+  --nes-orange:     #ff8833;
+  --nes-yellow:     #ffdd33;
+  --nes-white:      #fcfcfc;
+  --nes-gray:       #888888;
+  --nes-dark-gray:  #444444;
+  --nes-pink:       #ff88cc;
+  --nes-purple:     #8833ff;
+}
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+html {
+  font-size: 8px;
+  scroll-behavior: auto;
+}
+
+body {
+  font-family: 'Press Start 2P', monospace;
+  background-color: var(--nes-black);
+  color: var(--nes-white);
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 2;
+}
+
+/* ============================================================
+   TILE-BASED BACKGROUND GRID
+   ============================================================ */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image:
+    linear-gradient(rgba(59,59,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59,59,255,0.03) 1px, transparent 1px);
+  background-size: 16px 16px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ============================================================
+   SCANLINE OVERLAY
+   ============================================================ */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.08) 2px,
+    rgba(0,0,0,0.08) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ============================================================
+   PIXEL BORDER UTILITY
+   Creates stepped/aliased pixel borders using box-shadow
+   ============================================================ */
+.pixel-border {
+  position: relative;
+  background: var(--nes-black);
+  box-shadow:
+    /* outer border — 4px thick pixel steps */
+    -4px 0 0 0 var(--nes-white),
+     4px 0 0 0 var(--nes-white),
+     0 -4px 0 0 var(--nes-white),
+     0  4px 0 0 var(--nes-white),
+    /* corner pixels */
+    -4px -4px 0 0 var(--nes-white),
+     4px -4px 0 0 var(--nes-white),
+    -4px  4px 0 0 var(--nes-white),
+     4px  4px 0 0 var(--nes-white);
+  padding: 12px;
+  margin: 8px;
+}
+
+.pixel-border-thin {
+  box-shadow:
+    -2px 0 0 0 var(--nes-white),
+     2px 0 0 0 var(--nes-white),
+     0 -2px 0 0 var(--nes-white),
+     0  2px 0 0 var(--nes-white);
+  padding: 8px;
+}
+
+.pixel-border-cyan {
+  box-shadow:
+    -4px 0 0 0 var(--nes-cyan),
+     4px 0 0 0 var(--nes-cyan),
+     0 -4px 0 0 var(--nes-cyan),
+     0  4px 0 0 var(--nes-cyan),
+    -4px -4px 0 0 var(--nes-cyan),
+     4px -4px 0 0 var(--nes-cyan),
+    -4px  4px 0 0 var(--nes-cyan),
+     4px  4px 0 0 var(--nes-cyan);
+}
+
+.pixel-border-yellow {
+  box-shadow:
+    -4px 0 0 0 var(--nes-yellow),
+     4px 0 0 0 var(--nes-yellow),
+     0 -4px 0 0 var(--nes-yellow),
+     0  4px 0 0 var(--nes-yellow),
+    -4px -4px 0 0 var(--nes-yellow),
+     4px -4px 0 0 var(--nes-yellow),
+    -4px  4px 0 0 var(--nes-yellow),
+     4px  4px 0 0 var(--nes-yellow);
+}
+
+.pixel-border-green {
+  box-shadow:
+    -4px 0 0 0 var(--nes-green),
+     4px 0 0 0 var(--nes-green),
+     0 -4px 0 0 var(--nes-green),
+     0  4px 0 0 var(--nes-green),
+    -4px -4px 0 0 var(--nes-green),
+     4px -4px 0 0 var(--nes-green),
+    -4px  4px 0 0 var(--nes-green),
+     4px  4px 0 0 var(--nes-green);
+}
+
+.pixel-border-red {
+  box-shadow:
+    -4px 0 0 0 var(--nes-red),
+     4px 0 0 0 var(--nes-red),
+     0 -4px 0 0 var(--nes-red),
+     0  4px 0 0 var(--nes-red),
+    -4px -4px 0 0 var(--nes-red),
+     4px -4px 0 0 var(--nes-red),
+    -4px  4px 0 0 var(--nes-red),
+     4px  4px 0 0 var(--nes-red);
+}
+
+.pixel-border-purple {
+  box-shadow:
+    -4px 0 0 0 var(--nes-purple),
+     4px 0 0 0 var(--nes-purple),
+     0 -4px 0 0 var(--nes-purple),
+     0  4px 0 0 var(--nes-purple),
+    -4px -4px 0 0 var(--nes-purple),
+     4px -4px 0 0 var(--nes-purple),
+    -4px  4px 0 0 var(--nes-purple),
+     4px  4px 0 0 var(--nes-purple);
+}
+
+/* Double border (NES dialogue style) */
+.pixel-border-double {
+  position: relative;
+  background: var(--nes-black);
+  border: 4px solid var(--nes-white);
+  outline: 4px solid var(--nes-white);
+  outline-offset: 4px;
+  padding: 16px;
+  margin: 16px;
+}
+
+/* ============================================================
+   BOOT SCREEN
+   ============================================================ */
+#boot-screen {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--nes-black);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: none;
+}
+
+#boot-screen.fade-out {
+  animation: pixelFadeOut 0.6s steps(8) forwards;
+}
+
+@keyframes pixelFadeOut {
+  0% { opacity: 1; }
+  100% { opacity: 0; pointer-events: none; }
+}
+
+.boot-logo {
+  font-size: 4rem;
+  color: var(--nes-cyan);
+  text-shadow: 4px 4px 0 var(--nes-dark-blue);
+  animation: bootPulse 1s steps(2) infinite;
+  margin-bottom: 32px;
+}
+
+@keyframes bootPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.boot-text {
+  font-size: 1.5rem;
+  color: var(--nes-gray);
+  animation: bootBlink 0.8s steps(1) infinite;
+}
+
+@keyframes bootBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.boot-progress {
+  margin-top: 24px;
+  width: 320px;
+  height: 16px;
+  background: var(--nes-dark-gray);
+  position: relative;
+  box-shadow:
+    -2px 0 0 0 var(--nes-white),
+     2px 0 0 0 var(--nes-white),
+     0 -2px 0 0 var(--nes-white),
+     0  2px 0 0 var(--nes-white);
+}
+
+.boot-progress-fill {
+  height: 100%;
+  background: var(--nes-green);
+  width: 0%;
+  transition: width 0.1s steps(20);
+}
+
+/* ============================================================
+   TOP SCORE BAR
+   ============================================================ */
+.top-bar {
+  background: var(--nes-dark-blue);
+  border-bottom: 4px solid var(--nes-cyan);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  font-size: 1.25rem;
+}
+
+.top-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.top-bar-title {
+  color: var(--nes-yellow);
+  font-size: 1.5rem;
+  text-shadow: 2px 2px 0 var(--nes-orange);
+}
+
+.top-bar-star {
+  color: var(--nes-yellow);
+  animation: starSpin 2s steps(4) infinite;
+}
+
+@keyframes starSpin {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(90deg); }
+  50% { transform: rotate(180deg); }
+  75% { transform: rotate(270deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.top-bar-level {
+  color: var(--nes-light-green);
+}
+
+.top-bar-hp {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.top-bar-hp-label {
+  color: var(--nes-red);
+}
+
+.hp-bar-mini {
+  display: inline-flex;
+  gap: 0;
+}
+
+.hp-bar-mini span {
+  display: inline-block;
+  width: 8px;
+  height: 12px;
+}
+
+.hp-bar-mini .filled {
+  background: var(--nes-green);
+}
+
+.hp-bar-mini .empty {
+  background: var(--nes-dark-gray);
+}
+
+.top-bar-score {
+  color: var(--nes-white);
+  letter-spacing: 2px;
+}
+
+.score-num {
+  color: var(--nes-yellow);
+}
+
+/* ============================================================
+   DASHBOARD LAYOUT
+   ============================================================ */
+.dashboard {
+  display: flex;
+  min-height: calc(100vh - 48px);
+  position: relative;
+  z-index: 1;
+}
+
+/* ============================================================
+   SIDEBAR — RPG MENU
+   ============================================================ */
+.sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: var(--nes-black);
+  border-right: 4px solid var(--nes-cyan);
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-header {
+  font-size: 1.25rem;
+  color: var(--nes-cyan);
+  padding: 8px 16px;
+  border-bottom: 2px solid var(--nes-dark-blue);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 1.25rem;
+  color: var(--nes-white);
+  transition: none;
+  position: relative;
+  gap: 8px;
+}
+
+.menu-item:hover,
+.menu-item.active {
+  background: var(--nes-dark-blue);
+  color: var(--nes-yellow);
+}
+
+.menu-arrow {
+  color: var(--nes-yellow);
+  opacity: 0;
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.menu-item:hover .menu-arrow,
+.menu-item.active .menu-arrow {
+  opacity: 1;
+  animation: arrowBounce 0.5s steps(2) infinite;
+}
+
+@keyframes arrowBounce {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+
+.menu-icon {
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.menu-label {
+  flex: 1;
+}
+
+.menu-badge {
+  background: var(--nes-red);
+  color: var(--nes-white);
+  font-size: 1rem;
+  padding: 2px 6px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.sidebar-section {
+  font-size: 1rem;
+  color: var(--nes-dark-gray);
+  padding: 12px 16px 4px;
+  text-transform: uppercase;
+}
+
+/* Sidebar bottom area */
+.sidebar-bottom {
+  margin-top: auto;
+  padding: 12px;
+  border-top: 2px solid var(--nes-dark-blue);
+}
+
+.player-info {
+  font-size: 1rem;
+  color: var(--nes-gray);
+  text-align: center;
+  line-height: 2.5;
+}
+
+.player-info .name {
+  color: var(--nes-cyan);
+}
+
+/* ============================================================
+   MAIN CONTENT AREA
+   ============================================================ */
+.main-content {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* ============================================================
+   SECTION HEADERS
+   ============================================================ */
+.section-title {
+  font-size: 2rem;
+  color: var(--nes-yellow);
+  text-shadow: 3px 3px 0 var(--nes-orange);
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 4px solid var(--nes-dark-blue);
+}
+
+.section-subtitle {
+  font-size: 1.25rem;
+  color: var(--nes-cyan);
+  margin-bottom: 16px;
+}
+
+/* ============================================================
+   CSS PIXEL ART ICONS
+   Each pixel is a 4x4 box-shadow
+   ============================================================ */
+.pixel-art {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  overflow: visible;
+  position: relative;
+}
+
+/* Heart (HP) — 8x7 grid */
+.pixel-heart {
+  color: var(--nes-red);
+  box-shadow:
+    4px  0 0 var(--nes-red),  8px  0 0 var(--nes-red),
+    16px 0 0 var(--nes-red), 20px 0 0 var(--nes-red),
+    0    4px 0 var(--nes-red),  4px  4px 0 var(--nes-pink),  8px  4px 0 var(--nes-red), 12px 4px 0 var(--nes-red),
+    16px 4px 0 var(--nes-red), 20px 4px 0 var(--nes-red), 24px 4px 0 var(--nes-red),
+    0    8px 0 var(--nes-red),  4px  8px 0 var(--nes-red),  8px  8px 0 var(--nes-red), 12px 8px 0 var(--nes-red),
+    16px 8px 0 var(--nes-red), 20px 8px 0 var(--nes-red), 24px 8px 0 var(--nes-red),
+    4px  12px 0 var(--nes-red),  8px 12px 0 var(--nes-red), 12px 12px 0 var(--nes-red),
+    16px 12px 0 var(--nes-red), 20px 12px 0 var(--nes-red),
+    8px  16px 0 var(--nes-red), 12px 16px 0 var(--nes-red), 16px 16px 0 var(--nes-red),
+    12px 20px 0 var(--nes-red);
+}
+
+/* Sword — 8x8 grid */
+.pixel-sword {
+  color: var(--nes-white);
+  box-shadow:
+    24px 0    0 var(--nes-gray),
+    20px 4px  0 var(--nes-gray),
+    16px 8px  0 var(--nes-white),
+    12px 12px 0 var(--nes-white),
+    8px  16px 0 var(--nes-white),
+    4px  20px 0 var(--nes-orange), 8px 20px 0 var(--nes-white),
+    0    24px 0 var(--nes-orange), 4px 24px 0 var(--nes-orange),
+    0    28px 0 var(--nes-orange);
+}
+
+/* Shield — 8x8 grid */
+.pixel-shield {
+  color: var(--nes-blue);
+  box-shadow:
+    4px 0   0 var(--nes-blue),   8px 0   0 var(--nes-blue),  12px 0   0 var(--nes-blue), 16px 0   0 var(--nes-blue), 20px 0 0 var(--nes-blue),
+    0   4px 0 var(--nes-blue),   4px 4px 0 var(--nes-cyan),   8px 4px 0 var(--nes-blue), 12px 4px 0 var(--nes-cyan), 16px 4px 0 var(--nes-blue), 20px 4px 0 var(--nes-cyan), 24px 4px 0 var(--nes-blue),
+    0   8px 0 var(--nes-blue),   4px 8px 0 var(--nes-blue),   8px 8px 0 var(--nes-cyan), 12px 8px 0 var(--nes-blue), 16px 8px 0 var(--nes-cyan), 20px 8px 0 var(--nes-blue), 24px 8px 0 var(--nes-blue),
+    0  12px 0 var(--nes-blue),   4px 12px 0 var(--nes-cyan),  8px 12px 0 var(--nes-blue), 12px 12px 0 var(--nes-yellow), 16px 12px 0 var(--nes-blue), 20px 12px 0 var(--nes-cyan), 24px 12px 0 var(--nes-blue),
+    4px 16px 0 var(--nes-blue),  8px 16px 0 var(--nes-blue), 12px 16px 0 var(--nes-blue), 16px 16px 0 var(--nes-blue), 20px 16px 0 var(--nes-blue),
+    8px 20px 0 var(--nes-blue), 12px 20px 0 var(--nes-blue), 16px 20px 0 var(--nes-blue),
+    12px 24px 0 var(--nes-blue);
+}
+
+/* Star (filled) — 5 point */
+.pixel-star {
+  color: var(--nes-yellow);
+  box-shadow:
+    12px 0   0 var(--nes-yellow),
+    8px  4px 0 var(--nes-yellow), 12px 4px 0 var(--nes-yellow), 16px 4px 0 var(--nes-yellow),
+    0    8px 0 var(--nes-yellow),  4px 8px 0 var(--nes-yellow),  8px 8px 0 var(--nes-yellow), 12px 8px 0 var(--nes-yellow), 16px 8px 0 var(--nes-yellow), 20px 8px 0 var(--nes-yellow), 24px 8px 0 var(--nes-yellow),
+    4px 12px 0 var(--nes-yellow),  8px 12px 0 var(--nes-yellow), 12px 12px 0 var(--nes-yellow), 16px 12px 0 var(--nes-yellow), 20px 12px 0 var(--nes-yellow),
+    4px 16px 0 var(--nes-yellow),  8px 16px 0 var(--nes-yellow), 16px 16px 0 var(--nes-yellow), 20px 16px 0 var(--nes-yellow),
+    0   20px 0 var(--nes-yellow), 4px 20px 0 var(--nes-yellow), 20px 20px 0 var(--nes-yellow), 24px 20px 0 var(--nes-yellow);
+}
+
+/* Coin — 6x6 grid */
+.pixel-coin {
+  color: var(--nes-yellow);
+  box-shadow:
+    8px  0   0 var(--nes-yellow), 12px 0   0 var(--nes-yellow),
+    4px  4px 0 var(--nes-yellow),  8px 4px 0 var(--nes-orange), 12px 4px 0 var(--nes-yellow), 16px 4px 0 var(--nes-yellow),
+    4px  8px 0 var(--nes-yellow),  8px 8px 0 var(--nes-orange), 12px 8px 0 var(--nes-yellow), 16px 8px 0 var(--nes-yellow),
+    4px 12px 0 var(--nes-yellow),  8px 12px 0 var(--nes-orange), 12px 12px 0 var(--nes-yellow), 16px 12px 0 var(--nes-yellow),
+    8px 16px 0 var(--nes-yellow), 12px 16px 0 var(--nes-yellow);
+}
+
+/* Trophy — for achievements */
+.pixel-trophy {
+  color: var(--nes-yellow);
+  box-shadow:
+    0    0   0 var(--nes-yellow),  4px 0   0 var(--nes-yellow),  8px 0   0 var(--nes-yellow), 12px 0   0 var(--nes-yellow), 16px 0   0 var(--nes-yellow), 20px 0   0 var(--nes-yellow), 24px 0   0 var(--nes-yellow),
+    0    4px 0 var(--nes-orange),  4px 4px 0 var(--nes-yellow),  8px 4px 0 var(--nes-yellow), 12px 4px 0 var(--nes-yellow), 16px 4px 0 var(--nes-yellow), 20px 4px 0 var(--nes-yellow), 24px 4px 0 var(--nes-orange),
+    4px  8px 0 var(--nes-yellow),  8px 8px 0 var(--nes-yellow), 12px 8px 0 var(--nes-yellow), 16px 8px 0 var(--nes-yellow), 20px 8px 0 var(--nes-yellow),
+    8px 12px 0 var(--nes-yellow), 12px 12px 0 var(--nes-yellow), 16px 12px 0 var(--nes-yellow),
+    12px 16px 0 var(--nes-yellow),
+    8px 20px 0 var(--nes-orange), 12px 20px 0 var(--nes-orange), 16px 20px 0 var(--nes-orange),
+    4px 24px 0 var(--nes-orange),  8px 24px 0 var(--nes-orange), 12px 24px 0 var(--nes-orange), 16px 24px 0 var(--nes-orange), 20px 24px 0 var(--nes-orange);
+}
+
+.pixel-icon-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 36px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   8-BIT SPRITE ANIMATION
+   A little walking character
+   ============================================================ */
+.sprite-container {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: inline-block;
+}
+
+.sprite-character {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  animation: spriteWalk 0.6s steps(1) infinite;
+}
+
+/* Frame 1 — standing */
+.sprite-frame1 {
+  box-shadow:
+    /* head */
+    8px  0   0 var(--nes-cyan), 12px 0   0 var(--nes-cyan), 16px 0   0 var(--nes-cyan),
+    8px  4px 0 var(--nes-cyan), 12px 4px 0 var(--nes-white), 16px 4px 0 var(--nes-cyan),
+    8px  8px 0 var(--nes-cyan), 12px 8px 0 var(--nes-cyan), 16px 8px 0 var(--nes-cyan),
+    /* body */
+    4px 12px 0 var(--nes-blue),  8px 12px 0 var(--nes-blue), 12px 12px 0 var(--nes-blue), 16px 12px 0 var(--nes-blue), 20px 12px 0 var(--nes-blue),
+    8px 16px 0 var(--nes-blue), 12px 16px 0 var(--nes-yellow), 16px 16px 0 var(--nes-blue),
+    8px 20px 0 var(--nes-blue), 12px 20px 0 var(--nes-blue), 16px 20px 0 var(--nes-blue),
+    /* legs */
+    8px 24px 0 var(--nes-dark-blue), 16px 24px 0 var(--nes-dark-blue),
+    8px 28px 0 var(--nes-green), 16px 28px 0 var(--nes-green);
+}
+
+/* Frame 2 — step */
+.sprite-frame2 {
+  box-shadow:
+    /* head */
+    8px  0   0 var(--nes-cyan), 12px 0   0 var(--nes-cyan), 16px 0   0 var(--nes-cyan),
+    8px  4px 0 var(--nes-white), 12px 4px 0 var(--nes-cyan), 16px 4px 0 var(--nes-cyan),
+    8px  8px 0 var(--nes-cyan), 12px 8px 0 var(--nes-cyan), 16px 8px 0 var(--nes-cyan),
+    /* body */
+    4px 12px 0 var(--nes-blue),  8px 12px 0 var(--nes-blue), 12px 12px 0 var(--nes-blue), 16px 12px 0 var(--nes-blue), 20px 12px 0 var(--nes-blue),
+    8px 16px 0 var(--nes-blue), 12px 16px 0 var(--nes-yellow), 16px 16px 0 var(--nes-blue),
+    8px 20px 0 var(--nes-blue), 12px 20px 0 var(--nes-blue), 16px 20px 0 var(--nes-blue),
+    /* legs — mid step */
+    4px  24px 0 var(--nes-dark-blue), 20px 24px 0 var(--nes-dark-blue),
+    4px  28px 0 var(--nes-green), 20px 28px 0 var(--nes-green);
+}
+
+@keyframes spriteWalk {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* Walking sprite wrapper */
+.walking-sprite {
+  position: relative;
+  display: inline-block;
+  animation: walkAcross 8s linear infinite;
+}
+
+@keyframes walkAcross {
+  0% { transform: translateX(-60px); }
+  100% { transform: translateX(calc(100vw - 100px)); }
+}
+
+/* ============================================================
+   HP / MP BARS
+   ============================================================ */
+.stat-bar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.stat-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.25rem;
+}
+
+.stat-bar-label {
+  width: 40px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.stat-bar {
+  position: relative;
+  width: 200px;
+  height: 16px;
+  background: var(--nes-dark-gray);
+  box-shadow:
+    -2px 0 0 0 var(--nes-white),
+     2px 0 0 0 var(--nes-white),
+     0 -2px 0 0 var(--nes-white),
+     0  2px 0 0 var(--nes-white);
+}
+
+.stat-bar-fill {
+  height: 100%;
+  transition: width 0.3s steps(10);
+}
+
+.stat-bar-fill.hp {
+  background: var(--nes-green);
+}
+
+.stat-bar-fill.hp.low {
+  background: var(--nes-red);
+  animation: hpCritical 0.5s steps(1) infinite;
+}
+
+@keyframes hpCritical {
+  0%, 100% { background: var(--nes-red); }
+  50% { background: var(--nes-orange); }
+}
+
+.stat-bar-fill.mp {
+  background: var(--nes-blue);
+}
+
+.stat-bar-fill.xp {
+  background: var(--nes-purple);
+}
+
+.stat-bar-value {
+  font-size: 1rem;
+  color: var(--nes-gray);
+  width: 80px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   SCORE COUNTER
+   ============================================================ */
+.score-display {
+  font-size: 2rem;
+  color: var(--nes-yellow);
+  text-align: center;
+  letter-spacing: 4px;
+  padding: 12px;
+  background: var(--nes-dark-blue);
+  display: inline-block;
+}
+
+.score-label {
+  color: var(--nes-white);
+}
+
+/* ============================================================
+   PIXEL STAR RATINGS
+   ============================================================ */
+.star-rating {
+  display: inline-flex;
+  gap: 4px;
+  font-size: 1.5rem;
+}
+
+.star-rating .filled {
+  color: var(--nes-yellow);
+  text-shadow: 1px 1px 0 var(--nes-orange);
+}
+
+.star-rating .empty {
+  color: var(--nes-dark-gray);
+}
+
+/* ============================================================
+   DIALOGUE BOX
+   ============================================================ */
+.dialogue-box {
+  position: relative;
+  background: var(--nes-black);
+  border: 4px solid var(--nes-white);
+  padding: 20px 20px 20px 20px;
+  margin: 16px 0;
+  max-width: 600px;
+}
+
+.dialogue-box::before {
+  content: '';
+  position: absolute;
+  top: -4px; left: -4px; right: -4px; bottom: -4px;
+  border: 4px solid var(--nes-dark-blue);
+  pointer-events: none;
+}
+
+.dialogue-name {
+  position: absolute;
+  top: -14px;
+  left: 16px;
+  background: var(--nes-black);
+  padding: 0 8px;
+  color: var(--nes-cyan);
+  font-size: 1.25rem;
+}
+
+.dialogue-text {
+  font-size: 1.25rem;
+  line-height: 2.5;
+  color: var(--nes-white);
+  min-height: 60px;
+}
+
+.dialogue-cursor {
+  display: inline-block;
+  color: var(--nes-yellow);
+  animation: cursorBlink 0.6s steps(1) infinite;
+  margin-left: 4px;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.dialogue-indicator {
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  color: var(--nes-yellow);
+  font-size: 1rem;
+  animation: indicatorBounce 0.6s steps(2) infinite;
+}
+
+@keyframes indicatorBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* ============================================================
+   RPG MENU COMPONENT
+   ============================================================ */
+.rpg-menu {
+  display: inline-flex;
+  flex-direction: column;
+  background: var(--nes-black);
+  border: 4px solid var(--nes-white);
+  padding: 12px 8px;
+  min-width: 220px;
+}
+
+.rpg-menu-title {
+  color: var(--nes-yellow);
+  font-size: 1.25rem;
+  text-align: center;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--nes-dark-gray);
+  margin-bottom: 8px;
+}
+
+.rpg-menu-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: var(--nes-white);
+  gap: 8px;
+}
+
+.rpg-menu-item:hover {
+  color: var(--nes-yellow);
+  background: var(--nes-dark-blue);
+}
+
+.rpg-menu-item .arrow {
+  color: var(--nes-yellow);
+  opacity: 0;
+  width: 12px;
+}
+
+.rpg-menu-item:hover .arrow {
+  opacity: 1;
+}
+
+.rpg-menu-item .cost {
+  margin-left: auto;
+  color: var(--nes-gray);
+  font-size: 1rem;
+}
+
+/* ============================================================
+   ACHIEVEMENT BADGES
+   ============================================================ */
+.achievements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.achievement {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 12px;
+  background: var(--nes-dark-blue);
+  border: 2px solid var(--nes-dark-gray);
+  width: 140px;
+  text-align: center;
+  transition: none;
+  cursor: default;
+}
+
+.achievement:hover {
+  border-color: var(--nes-yellow);
+}
+
+.achievement.unlocked {
+  border-color: var(--nes-yellow);
+}
+
+.achievement.locked {
+  opacity: 0.5;
+  filter: grayscale(1);
+}
+
+.achievement-icon {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.achievement-label {
+  font-size: 1rem;
+  color: var(--nes-yellow);
+  line-height: 1.8;
+}
+
+.achievement.locked .achievement-label {
+  color: var(--nes-dark-gray);
+}
+
+.achievement-desc {
+  font-size: 0.9rem;
+  color: var(--nes-gray);
+  line-height: 1.8;
+}
+
+/* Achievement unlock animation */
+.achievement.newly-unlocked {
+  animation: achieveFlash 0.8s steps(2) 3;
+}
+
+@keyframes achieveFlash {
+  0%, 100% { border-color: var(--nes-yellow); }
+  50% { border-color: var(--nes-white); background: var(--nes-dark-gray); }
+}
+
+/* ============================================================
+   SOUND EFFECT TEXT
+   ============================================================ */
+.sfx-text {
+  display: inline-block;
+  font-size: 1.25rem;
+  animation: sfxPop 0.3s steps(3) forwards;
+  margin: 4px 8px;
+}
+
+.sfx-ping {
+  color: var(--nes-cyan);
+}
+
+.sfx-complete {
+  color: var(--nes-light-green);
+}
+
+.sfx-error {
+  color: var(--nes-red);
+}
+
+.sfx-coin {
+  color: var(--nes-yellow);
+}
+
+@keyframes sfxPop {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ============================================================
+   KANBAN / QUEST BOARD
+   ============================================================ */
+.kanban-board {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+}
+
+.kanban-column {
+  min-width: 220px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kanban-column-header {
+  font-size: 1.25rem;
+  text-align: center;
+  padding: 8px;
+  border: 2px solid var(--nes-cyan);
+  color: var(--nes-cyan);
+  background: var(--nes-dark-blue);
+}
+
+.kanban-card {
+  background: var(--nes-dark-blue);
+  border: 2px solid var(--nes-dark-gray);
+  padding: 10px;
+  font-size: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: none;
+}
+
+.kanban-card:hover {
+  border-color: var(--nes-yellow);
+  background: var(--nes-black);
+}
+
+.kanban-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kanban-card-type {
+  font-size: 0.9rem;
+  padding: 1px 4px;
+}
+
+.kanban-card-type.task {
+  color: var(--nes-cyan);
+  border: 1px solid var(--nes-cyan);
+}
+
+.kanban-card-type.bug {
+  color: var(--nes-red);
+  border: 1px solid var(--nes-red);
+}
+
+.kanban-card-type.feature {
+  color: var(--nes-purple);
+  border: 1px solid var(--nes-purple);
+}
+
+.kanban-card-title {
+  color: var(--nes-white);
+  line-height: 1.8;
+}
+
+.kanban-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: var(--nes-gray);
+}
+
+.kanban-card-priority {
+  display: flex;
+  gap: 2px;
+}
+
+/* Rarity colors for cards */
+.kanban-card.rarity-common {
+  border-left: 4px solid var(--nes-gray);
+}
+
+.kanban-card.rarity-uncommon {
+  border-left: 4px solid var(--nes-green);
+}
+
+.kanban-card.rarity-rare {
+  border-left: 4px solid var(--nes-blue);
+}
+
+.kanban-card.rarity-epic {
+  border-left: 4px solid var(--nes-purple);
+}
+
+.kanban-card.rarity-legendary {
+  border-left: 4px solid var(--nes-yellow);
+  animation: legendaryGlow 2s steps(4) infinite;
+}
+
+@keyframes legendaryGlow {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 8px 2px rgba(255,221,51,0.3); }
+}
+
+/* ============================================================
+   STATUS INDICATORS
+   ============================================================ */
+.status-bar {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 12px;
+  background: var(--nes-dark-blue);
+  border: 2px solid var(--nes-dark-gray);
+  font-size: 1rem;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  display: inline-block;
+}
+
+.status-dot.online {
+  background: var(--nes-green);
+  animation: statusBlink 2s steps(1) infinite;
+}
+
+.status-dot.warning {
+  background: var(--nes-yellow);
+  animation: statusBlink 1s steps(1) infinite;
+}
+
+.status-dot.error {
+  background: var(--nes-red);
+  animation: statusBlink 0.5s steps(1) infinite;
+}
+
+.status-dot.offline {
+  background: var(--nes-dark-gray);
+}
+
+@keyframes statusBlink {
+  0%, 75% { opacity: 1; }
+  76%, 100% { opacity: 0.3; }
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.pixel-btn {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 1.25rem;
+  padding: 10px 20px;
+  background: var(--nes-dark-blue);
+  color: var(--nes-white);
+  border: none;
+  cursor: pointer;
+  position: relative;
+  box-shadow:
+    -4px 0 0 0 var(--nes-white),
+     4px 0 0 0 var(--nes-white),
+     0 -4px 0 0 var(--nes-white),
+     0  4px 0 0 var(--nes-white);
+  transition: none;
+}
+
+.pixel-btn:hover {
+  background: var(--nes-blue);
+  color: var(--nes-yellow);
+}
+
+.pixel-btn:active {
+  transform: translate(2px, 2px);
+}
+
+.pixel-btn.primary {
+  background: var(--nes-blue);
+  color: var(--nes-white);
+}
+
+.pixel-btn.primary:hover {
+  background: var(--nes-cyan);
+  color: var(--nes-black);
+}
+
+.pixel-btn.danger {
+  background: var(--nes-red);
+}
+
+.pixel-btn.danger:hover {
+  background: var(--nes-pink);
+  color: var(--nes-black);
+}
+
+.pixel-btn.success {
+  background: var(--nes-green);
+  color: var(--nes-black);
+}
+
+.pixel-btn.success:hover {
+  background: var(--nes-light-green);
+}
+
+/* ============================================================
+   TABLE / INVENTORY
+   ============================================================ */
+.pixel-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 1rem;
+  border: 2px solid var(--nes-white);
+}
+
+.pixel-table th {
+  background: var(--nes-dark-blue);
+  color: var(--nes-cyan);
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 2px solid var(--nes-white);
+}
+
+.pixel-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--nes-dark-gray);
+  color: var(--nes-white);
+}
+
+.pixel-table tr:hover td {
+  background: var(--nes-dark-blue);
+}
+
+/* ============================================================
+   NOTIFICATIONS / TOASTS
+   ============================================================ */
+.pixel-toast {
+  position: fixed;
+  top: 60px;
+  right: 20px;
+  padding: 12px 16px;
+  font-size: 1.25rem;
+  z-index: 200;
+  display: none;
+  border: 4px solid;
+  background: var(--nes-black);
+  animation: toastSlideIn 0.3s steps(6) forwards;
+}
+
+@keyframes toastSlideIn {
+  0% { transform: translateX(100px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+.pixel-toast.success {
+  border-color: var(--nes-green);
+  color: var(--nes-light-green);
+}
+
+.pixel-toast.error {
+  border-color: var(--nes-red);
+  color: var(--nes-red);
+}
+
+.pixel-toast.info {
+  border-color: var(--nes-cyan);
+  color: var(--nes-cyan);
+}
+
+/* ============================================================
+   SCREEN TRANSITION
+   ============================================================ */
+.screen-wipe {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--nes-black);
+  z-index: 9998;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.screen-wipe.active {
+  animation: wipeEffect 0.5s steps(8) forwards;
+}
+
+@keyframes wipeEffect {
+  0% { opacity: 0; clip-path: inset(0 100% 0 0); }
+  50% { opacity: 1; clip-path: inset(0 0 0 0); }
+  100% { opacity: 0; clip-path: inset(0 0 0 100%); }
+}
+
+/* ============================================================
+   COMPONENT SHOWCASE GRID
+   ============================================================ */
+.showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.showcase-card {
+  background: var(--nes-black);
+  border: 2px solid var(--nes-dark-gray);
+  padding: 16px;
+}
+
+.showcase-card-title {
+  font-size: 1.25rem;
+  color: var(--nes-cyan);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--nes-dark-blue);
+}
+
+/* ============================================================
+   ICON GALLERY
+   ============================================================ */
+.icon-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-end;
+}
+
+.icon-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.icon-label {
+  font-size: 1rem;
+  color: var(--nes-gray);
+}
+
+/* ============================================================
+   COLOR PALETTE DISPLAY
+   ============================================================ */
+.palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.palette-swatch {
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 4px;
+  border: 2px solid var(--nes-dark-gray);
+}
+
+.palette-swatch span {
+  font-size: 0.8rem;
+  color: var(--nes-white);
+  text-shadow: 1px 1px 0 rgba(0,0,0,0.8);
+}
+
+/* Walking sprite at bottom */
+.sprite-walkway {
+  position: relative;
+  height: 48px;
+  overflow: hidden;
+  border-top: 4px solid var(--nes-dark-blue);
+  margin-top: 16px;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 800px) {
+  .dashboard {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    min-width: 100%;
+    border-right: none;
+    border-bottom: 4px solid var(--nes-cyan);
+  }
+  .kanban-board {
+    flex-direction: column;
+  }
+  .kanban-column {
+    min-width: 100%;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     BOOT SCREEN
+     ============================================================ -->
+<div id="boot-screen">
+  <div class="boot-logo">DEVGLIDE</div>
+  <div class="boot-text">PRESS START</div>
+  <div class="boot-progress">
+    <div class="boot-progress-fill" id="boot-fill"></div>
+  </div>
+  <div style="margin-top:24px; font-size:1rem; color:var(--nes-dark-gray);">
+    LOADING RETRO PIXEL DESIGN SYSTEM...
+  </div>
+</div>
+
+<!-- SCREEN WIPE -->
+<div class="screen-wipe" id="screen-wipe"></div>
+
+<!-- TOAST NOTIFICATION -->
+<div class="pixel-toast success" id="toast">
+  <span>&#9835; SYSTEM READY!</span>
+</div>
+
+<!-- ============================================================
+     TOP SCORE BAR
+     ============================================================ -->
+<div class="top-bar" id="main-ui" style="display:none;">
+  <div class="top-bar-left">
+    <span class="top-bar-title">DEVGLIDE</span>
+    <span class="top-bar-star">&#9733;</span>
+    <span class="top-bar-level">LV.42</span>
+    <span class="top-bar-star">&#9733;</span>
+    <span class="top-bar-hp">
+      <span class="top-bar-hp-label">HP:</span>
+      <span class="hp-bar-mini">
+        <span class="filled"></span>
+        <span class="filled"></span>
+        <span class="filled"></span>
+        <span class="filled"></span>
+        <span class="filled"></span>
+        <span class="filled"></span>
+        <span class="empty"></span>
+        <span class="empty"></span>
+      </span>
+    </span>
+    <span class="top-bar-star">&#9733;</span>
+    <span class="top-bar-score">SCORE:<span class="score-num" id="score-counter">00042890</span></span>
+  </div>
+  <div style="display:flex; gap:16px; align-items:center;">
+    <span class="sfx-text sfx-ping">&#8251; ONLINE</span>
+    <span style="color:var(--nes-gray); font-size:1rem;">&#9834; BGM:ON</span>
+  </div>
+</div>
+
+<!-- ============================================================
+     DASHBOARD LAYOUT
+     ============================================================ -->
+<div class="dashboard" id="dashboard" style="display:none;">
+
+  <!-- SIDEBAR — RPG MENU -->
+  <aside class="sidebar">
+    <div class="sidebar-header">&#9776; MAIN MENU</div>
+    <div class="sidebar-section">TOOLS</div>
+    <div class="menu-item active" data-section="quest-board">
+      <span class="menu-arrow">&#9654;</span>
+      <span class="menu-icon">&#9876;</span>
+      <span class="menu-label">KANBAN</span>
+      <span class="menu-badge">5</span>
+    </div>
+    <div class="menu-item" data-section="shell-section">
+      <span class="menu-arrow">&#9654;</span>
+      <span class="menu-icon">&#9000;</span>
+      <span class="menu-label">SHELL</span>
+    </div>
+    <div class="menu-item" data-section="components">
+      <span class="menu-arrow">&#9654;</span>
+      <span class="menu-icon">&#9881;</span>
+      <span class="menu-label">TESTS</span>
+      <span class="menu-badge" style="background:var(--nes-green);">OK</span>
+    </div>
+    <div class="menu-item" data-section="voice-section">
+      <span class="menu-arrow">&#9654;</span>
+      <span class="menu-icon">&#9835;</span>
+      <span class="menu-label">VOICE</span>
+    </div>
+    <div class="menu-item" data-section="chat-section">
+      <span class="menu-arrow">&#9654;</span>
+      <span class="menu-icon">&#9993;</span>
+      <span class="menu-label">CHAT</span>
+      <span class="menu-badge">3</span>
+    </div>
+    <div class="sidebar-section">SYSTEM</div>
+    <div class="menu-item" data-section="workflow-section">
+      <span class="menu-arrow">&#9654;</span>
+      <span class="menu-icon">&#10697;</span>
+      <span class="menu-label">WORKFLOW</span>
+    </div>
+    <div class="menu-item" data-section="vocab-section">
+      <span class="menu-arrow">&#9654;</span>
+      <span class="menu-icon">&#128214;</span>
+      <span class="menu-label">VOCAB</span>
+    </div>
+    <div class="menu-item" data-section="achievements">
+      <span class="menu-arrow">&#9654;</span>
+      <span class="menu-icon">&#127942;</span>
+      <span class="menu-label">TROPHIES</span>
+    </div>
+
+    <!-- Player info at bottom -->
+    <div class="sidebar-bottom">
+      <div class="player-info">
+        <div><span class="name">PLAYER-1</span></div>
+        <div>CLASS: DEV</div>
+        <div>GUILD: DEVGLIDE</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT AREA -->
+  <main class="main-content">
+
+    <!-- STATUS BAR -->
+    <div class="status-bar">
+      <div class="status-item">
+        <span class="status-dot online"></span>
+        <span>SERVER</span>
+      </div>
+      <div class="status-item">
+        <span class="status-dot online"></span>
+        <span>MCP</span>
+      </div>
+      <div class="status-item">
+        <span class="status-dot warning"></span>
+        <span>BUILDS</span>
+      </div>
+      <div class="status-item">
+        <span class="status-dot online"></span>
+        <span>TESTS</span>
+      </div>
+      <div class="status-item">
+        <span class="status-dot error"></span>
+        <span>DEPLOY</span>
+      </div>
+      <div class="status-item">
+        <span class="status-dot online"></span>
+        <span>VOICE</span>
+      </div>
+      <div style="margin-left:auto; display:flex; gap:12px;">
+        <span class="sfx-text sfx-complete">&#9835; COMPLETE!</span>
+        <span class="sfx-text sfx-coin">&#9733; +100 XP</span>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         NES COLOR PALETTE
+         ============================================================ -->
+    <section>
+      <h2 class="section-title">&#127912; COLOR PALETTE</h2>
+      <p class="section-subtitle">NES-RESTRICTED PALETTE &mdash; 14 SACRED COLORS</p>
+      <div class="palette">
+        <div class="palette-swatch" style="background:#0f0f23;"><span>BLACK</span></div>
+        <div class="palette-swatch" style="background:#1a1a4e;"><span>DK.BLUE</span></div>
+        <div class="palette-swatch" style="background:#3b3bff;"><span>BLUE</span></div>
+        <div class="palette-swatch" style="background:#00d8ff;"><span>CYAN</span></div>
+        <div class="palette-swatch" style="background:#00b800;"><span>GREEN</span></div>
+        <div class="palette-swatch" style="background:#88fc88;"><span>LT.GRN</span></div>
+        <div class="palette-swatch" style="background:#e40058;"><span>RED</span></div>
+        <div class="palette-swatch" style="background:#ff8833;"><span>ORANGE</span></div>
+        <div class="palette-swatch" style="background:#ffdd33;"><span>YELLOW</span></div>
+        <div class="palette-swatch" style="background:#fcfcfc;"><span style="color:#0f0f23;">WHITE</span></div>
+        <div class="palette-swatch" style="background:#888888;"><span>GRAY</span></div>
+        <div class="palette-swatch" style="background:#444444;"><span>DK.GRAY</span></div>
+        <div class="palette-swatch" style="background:#ff88cc;"><span>PINK</span></div>
+        <div class="palette-swatch" style="background:#8833ff;"><span>PURPLE</span></div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         PIXEL ART ICONS
+         ============================================================ -->
+    <section>
+      <h2 class="section-title">&#127775; PIXEL ART ICONS</h2>
+      <p class="section-subtitle">CSS BOX-SHADOW PIXEL-BY-PIXEL TECHNIQUE</p>
+      <div class="icon-gallery">
+        <div class="icon-item">
+          <div class="pixel-icon-container"><div class="pixel-art pixel-heart"></div></div>
+          <span class="icon-label">HEART</span>
+        </div>
+        <div class="icon-item">
+          <div class="pixel-icon-container"><div class="pixel-art pixel-sword"></div></div>
+          <span class="icon-label">SWORD</span>
+        </div>
+        <div class="icon-item">
+          <div class="pixel-icon-container"><div class="pixel-art pixel-shield"></div></div>
+          <span class="icon-label">SHIELD</span>
+        </div>
+        <div class="icon-item">
+          <div class="pixel-icon-container"><div class="pixel-art pixel-star"></div></div>
+          <span class="icon-label">STAR</span>
+        </div>
+        <div class="icon-item">
+          <div class="pixel-icon-container"><div class="pixel-art pixel-coin"></div></div>
+          <span class="icon-label">COIN</span>
+        </div>
+        <div class="icon-item">
+          <div class="pixel-icon-container"><div class="pixel-art pixel-trophy"></div></div>
+          <span class="icon-label">TROPHY</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         8-BIT SPRITE ANIMATION
+         ============================================================ -->
+    <section>
+      <h2 class="section-title">&#127918; 8-BIT SPRITE</h2>
+      <p class="section-subtitle">ANIMATED CHARACTER WITH STEP-BASED TIMING</p>
+      <div style="display:flex; align-items:center; gap:32px; flex-wrap:wrap;">
+        <div style="padding:16px; background:var(--nes-dark-blue); border:2px solid var(--nes-dark-gray);">
+          <div style="font-size:1rem; color:var(--nes-gray); margin-bottom:8px;">IDLE ANIMATION</div>
+          <div class="sprite-container">
+            <div class="pixel-art sprite-frame1" style="animation: spriteWalk 0.6s steps(1) infinite;"></div>
+            <div class="pixel-art sprite-frame2" style="animation: spriteWalk 0.6s steps(1) infinite; animation-delay: 0.3s;"></div>
+          </div>
+        </div>
+        <div style="font-size:1.25rem; color:var(--nes-white); line-height:3;">
+          <div>NAME: <span style="color:var(--nes-cyan);">PLAYER-1</span></div>
+          <div>CLASS: <span style="color:var(--nes-yellow);">DEVELOPER</span></div>
+          <div>WEAPON: <span style="color:var(--nes-orange);">KEYBOARD+9</span></div>
+          <div>ARMOR: <span style="color:var(--nes-blue);">PIXEL SHIELD</span></div>
+        </div>
+      </div>
+      <div class="sprite-walkway" style="margin-top:16px;">
+        <div class="walking-sprite">
+          <div class="sprite-container">
+            <div class="pixel-art sprite-frame1" style="animation: spriteWalk 0.4s steps(1) infinite;"></div>
+            <div class="pixel-art sprite-frame2" style="animation: spriteWalk 0.4s steps(1) infinite; animation-delay: 0.2s;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         HP / MP / XP BARS
+         ============================================================ -->
+    <section>
+      <h2 class="section-title">&#10084; STAT BARS</h2>
+      <p class="section-subtitle">HP / MP / XP WITH PIXEL-PERFECT BORDERS</p>
+      <div class="stat-bar-group">
+        <div class="stat-bar-row">
+          <span class="stat-bar-label" style="color:var(--nes-green);">HP</span>
+          <div class="stat-bar">
+            <div class="stat-bar-fill hp" style="width:75%;"></div>
+          </div>
+          <span class="stat-bar-value">187/250</span>
+        </div>
+        <div class="stat-bar-row">
+          <span class="stat-bar-label" style="color:var(--nes-blue);">MP</span>
+          <div class="stat-bar">
+            <div class="stat-bar-fill mp" style="width:45%;"></div>
+          </div>
+          <span class="stat-bar-value">67/150</span>
+        </div>
+        <div class="stat-bar-row">
+          <span class="stat-bar-label" style="color:var(--nes-purple);">XP</span>
+          <div class="stat-bar">
+            <div class="stat-bar-fill xp" style="width:62%;"></div>
+          </div>
+          <span class="stat-bar-value">3100/5000</span>
+        </div>
+        <div class="stat-bar-row">
+          <span class="stat-bar-label" style="color:var(--nes-red);">HP</span>
+          <div class="stat-bar">
+            <div class="stat-bar-fill hp low" style="width:15%;"></div>
+          </div>
+          <span class="stat-bar-value" style="color:var(--nes-red);">12/80 !</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         DIALOGUE BOX
+         ============================================================ -->
+    <section>
+      <h2 class="section-title">&#128172; DIALOGUE BOX</h2>
+      <p class="section-subtitle">RPG-STYLE WITH TYPEWRITER ANIMATION</p>
+      <div class="dialogue-box">
+        <span class="dialogue-name">DEVGLIDE</span>
+        <div class="dialogue-text" id="dialogue-text"></div>
+        <span class="dialogue-cursor" id="dialogue-cursor">&#9608;</span>
+        <span class="dialogue-indicator">&#9660;</span>
+      </div>
+      <div style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap;">
+        <button class="pixel-btn" onclick="startDialogue(0)">GREET</button>
+        <button class="pixel-btn" onclick="startDialogue(1)">QUEST</button>
+        <button class="pixel-btn" onclick="startDialogue(2)">SECRET</button>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         RPG MENU + STAR RATINGS
+         ============================================================ -->
+    <section>
+      <h2 class="section-title">&#9776; RPG MENU &amp; RATINGS</h2>
+      <div style="display:flex; gap:32px; flex-wrap:wrap; align-items:flex-start;">
+        <div class="rpg-menu">
+          <div class="rpg-menu-title">&#9876; ABILITIES</div>
+          <div class="rpg-menu-item">
+            <span class="arrow">&#9654;</span>
+            <span>DEPLOY</span>
+            <span class="cost">30 MP</span>
+          </div>
+          <div class="rpg-menu-item">
+            <span class="arrow">&#9654;</span>
+            <span>HOTFIX</span>
+            <span class="cost">15 MP</span>
+          </div>
+          <div class="rpg-menu-item">
+            <span class="arrow">&#9654;</span>
+            <span>REFACTOR</span>
+            <span class="cost">50 MP</span>
+          </div>
+          <div class="rpg-menu-item">
+            <span class="arrow">&#9654;</span>
+            <span>DEBUG</span>
+            <span class="cost">20 MP</span>
+          </div>
+          <div class="rpg-menu-item" style="color:var(--nes-dark-gray);">
+            <span class="arrow">&#9654;</span>
+            <span>REWRITE</span>
+            <span class="cost" style="color:var(--nes-red);">99 MP</span>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <div class="rpg-menu">
+            <div class="rpg-menu-title">&#9733; PRIORITY</div>
+            <div style="padding:8px; font-size:1.25rem; display:flex; flex-direction:column; gap:8px;">
+              <div style="display:flex; align-items:center; gap:12px;">
+                <div class="star-rating">
+                  <span class="filled">&#9733;</span>
+                  <span class="empty">&#9734;</span>
+                  <span class="empty">&#9734;</span>
+                  <span class="empty">&#9734;</span>
+                  <span class="empty">&#9734;</span>
+                </div>
+                <span style="color:var(--nes-gray); font-size:1rem;">LOW</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:12px;">
+                <div class="star-rating">
+                  <span class="filled">&#9733;</span>
+                  <span class="filled">&#9733;</span>
+                  <span class="filled">&#9733;</span>
+                  <span class="empty">&#9734;</span>
+                  <span class="empty">&#9734;</span>
+                </div>
+                <span style="color:var(--nes-yellow); font-size:1rem;">MEDIUM</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:12px;">
+                <div class="star-rating">
+                  <span class="filled">&#9733;</span>
+                  <span class="filled">&#9733;</span>
+                  <span class="filled">&#9733;</span>
+                  <span class="filled">&#9733;</span>
+                  <span class="empty">&#9734;</span>
+                </div>
+                <span style="color:var(--nes-orange); font-size:1rem;">HIGH</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:12px;">
+                <div class="star-rating">
+                  <span class="filled">&#9733;</span>
+                  <span class="filled">&#9733;</span>
+                  <span class="filled">&#9733;</span>
+                  <span class="filled">&#9733;</span>
+                  <span class="filled">&#9733;</span>
+                </div>
+                <span style="color:var(--nes-red); font-size:1rem;">URGENT</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SCORE COUNTER
+         ============================================================ -->
+    <section>
+      <h2 class="section-title">&#127775; SCORE COUNTER</h2>
+      <p class="section-subtitle">FIXED-WIDTH 8-BIT SCORE DISPLAY</p>
+      <div style="display:flex; gap:24px; align-items:center; flex-wrap:wrap;">
+        <div class="score-display pixel-border-thin">
+          <span class="score-label">SCORE: </span><span id="animated-score">00000000</span>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="pixel-btn success" onclick="addScore(100)">+100</button>
+          <button class="pixel-btn primary" onclick="addScore(1000)">+1000</button>
+          <button class="pixel-btn danger" onclick="resetScore()">RESET</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         KANBAN / QUEST BOARD
+         ============================================================ -->
+    <section id="quest-board">
+      <h2 class="section-title">&#9876; QUEST BOARD</h2>
+      <p class="section-subtitle">KANBAN AS GAME INVENTORY / QUEST SCREEN</p>
+      <div class="kanban-board">
+        <!-- BACKLOG -->
+        <div class="kanban-column">
+          <div class="kanban-column-header">&#128220; BACKLOG</div>
+          <div class="kanban-card rarity-common">
+            <div class="kanban-card-top">
+              <span class="kanban-card-type task">TASK</span>
+              <div class="star-rating" style="font-size:1rem;">
+                <span class="filled">&#9733;</span>
+                <span class="empty">&#9734;</span>
+                <span class="empty">&#9734;</span>
+              </div>
+            </div>
+            <div class="kanban-card-title">Update README docs</div>
+            <div class="kanban-card-meta">
+              <span>#042</span>
+              <span style="color:var(--nes-gray);">+10 XP</span>
+            </div>
+          </div>
+          <div class="kanban-card rarity-uncommon">
+            <div class="kanban-card-top">
+              <span class="kanban-card-type task">TASK</span>
+              <div class="star-rating" style="font-size:1rem;">
+                <span class="filled">&#9733;</span>
+                <span class="filled">&#9733;</span>
+                <span class="empty">&#9734;</span>
+              </div>
+            </div>
+            <div class="kanban-card-title">Add voice config UI</div>
+            <div class="kanban-card-meta">
+              <span>#043</span>
+              <span style="color:var(--nes-green);">+25 XP</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- IN PROGRESS -->
+        <div class="kanban-column">
+          <div class="kanban-column-header" style="border-color:var(--nes-yellow); color:var(--nes-yellow);">&#9876; IN PROGRESS</div>
+          <div class="kanban-card rarity-rare">
+            <div class="kanban-card-top">
+              <span class="kanban-card-type feature">FEAT</span>
+              <div class="star-rating" style="font-size:1rem;">
+                <span class="filled">&#9733;</span>
+                <span class="filled">&#9733;</span>
+                <span class="filled">&#9733;</span>
+              </div>
+            </div>
+            <div class="kanban-card-title">Pixel design system</div>
+            <div class="kanban-card-meta">
+              <span>#044</span>
+              <span style="color:var(--nes-cyan);">+50 XP</span>
+            </div>
+          </div>
+          <div class="kanban-card rarity-epic">
+            <div class="kanban-card-top">
+              <span class="kanban-card-type bug">BUG</span>
+              <div class="star-rating" style="font-size:1rem;">
+                <span class="filled">&#9733;</span>
+                <span class="filled">&#9733;</span>
+                <span class="filled">&#9733;</span>
+                <span class="filled">&#9733;</span>
+              </div>
+            </div>
+            <div class="kanban-card-title">MCP session leak</div>
+            <div class="kanban-card-meta">
+              <span>#045</span>
+              <span style="color:var(--nes-purple);">+75 XP</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- IN REVIEW -->
+        <div class="kanban-column">
+          <div class="kanban-column-header" style="border-color:var(--nes-purple); color:var(--nes-purple);">&#128270; IN REVIEW</div>
+          <div class="kanban-card rarity-legendary">
+            <div class="kanban-card-top">
+              <span class="kanban-card-type feature">FEAT</span>
+              <div class="star-rating" style="font-size:1rem;">
+                <span class="filled">&#9733;</span>
+                <span class="filled">&#9733;</span>
+                <span class="filled">&#9733;</span>
+                <span class="filled">&#9733;</span>
+                <span class="filled">&#9733;</span>
+              </div>
+            </div>
+            <div class="kanban-card-title">Multi-agent chat</div>
+            <div class="kanban-card-meta">
+              <span>#046</span>
+              <span style="color:var(--nes-yellow);">+100 XP</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- DONE -->
+        <div class="kanban-column">
+          <div class="kanban-column-header" style="border-color:var(--nes-green); color:var(--nes-green);">&#10004; DONE</div>
+          <div class="kanban-card rarity-common" style="opacity:0.6;">
+            <div class="kanban-card-top">
+              <span class="kanban-card-type task">TASK</span>
+              <div class="star-rating" style="font-size:1rem;">
+                <span class="filled">&#9733;</span>
+                <span class="empty">&#9734;</span>
+                <span class="empty">&#9734;</span>
+              </div>
+            </div>
+            <div class="kanban-card-title" style="text-decoration:line-through; color:var(--nes-gray);">Setup CI pipeline</div>
+            <div class="kanban-card-meta">
+              <span>#040</span>
+              <span style="color:var(--nes-green);">&#10004; +10 XP</span>
+            </div>
+          </div>
+          <div class="kanban-card rarity-uncommon" style="opacity:0.6;">
+            <div class="kanban-card-top">
+              <span class="kanban-card-type bug">BUG</span>
+              <div class="star-rating" style="font-size:1rem;">
+                <span class="filled">&#9733;</span>
+                <span class="filled">&#9733;</span>
+                <span class="empty">&#9734;</span>
+              </div>
+            </div>
+            <div class="kanban-card-title" style="text-decoration:line-through; color:var(--nes-gray);">Fix pane routing</div>
+            <div class="kanban-card-meta">
+              <span>#041</span>
+              <span style="color:var(--nes-green);">&#10004; +25 XP</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         ACHIEVEMENT BADGES
+         ============================================================ -->
+    <section id="achievements">
+      <h2 class="section-title">&#127942; ACHIEVEMENT BADGES</h2>
+      <p class="section-subtitle">PIXEL TROPHIES &amp; MEDALS</p>
+      <div class="achievements">
+        <div class="achievement unlocked newly-unlocked">
+          <div class="achievement-icon">&#127942;</div>
+          <div class="achievement-label">FIRST DEPLOY</div>
+          <div class="achievement-desc">Ship your first build</div>
+        </div>
+        <div class="achievement unlocked">
+          <div class="achievement-icon">&#9733;</div>
+          <div class="achievement-label">100 COMMITS</div>
+          <div class="achievement-desc">Reach 100 git commits</div>
+        </div>
+        <div class="achievement unlocked">
+          <div class="achievement-icon">&#9876;</div>
+          <div class="achievement-label">BUG SLAYER</div>
+          <div class="achievement-desc">Close 50 bug reports</div>
+        </div>
+        <div class="achievement unlocked">
+          <div class="achievement-icon">&#128302;</div>
+          <div class="achievement-label">WIZARD</div>
+          <div class="achievement-desc">Use 10 MCP tools</div>
+        </div>
+        <div class="achievement unlocked">
+          <div class="achievement-icon">&#9829;</div>
+          <div class="achievement-label">TEAM PLAYER</div>
+          <div class="achievement-desc">Chat with 5 agents</div>
+        </div>
+        <div class="achievement locked">
+          <div class="achievement-icon">&#128081;</div>
+          <div class="achievement-label">???</div>
+          <div class="achievement-desc">LOCKED</div>
+        </div>
+        <div class="achievement locked">
+          <div class="achievement-icon">&#127775;</div>
+          <div class="achievement-label">???</div>
+          <div class="achievement-desc">LOCKED</div>
+        </div>
+        <div class="achievement locked">
+          <div class="achievement-icon">&#128142;</div>
+          <div class="achievement-label">???</div>
+          <div class="achievement-desc">LOCKED</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         COMPONENT SHOWCASE
+         ============================================================ -->
+    <section id="components">
+      <h2 class="section-title">&#9881; COMPONENTS</h2>
+      <p class="section-subtitle">UI TOOLKIT SAMPLE COMPONENTS</p>
+      <div class="showcase-grid">
+        <!-- Buttons -->
+        <div class="showcase-card">
+          <div class="showcase-card-title">BUTTONS</div>
+          <div style="display:flex; flex-wrap:wrap; gap:12px;">
+            <button class="pixel-btn">DEFAULT</button>
+            <button class="pixel-btn primary">PRIMARY</button>
+            <button class="pixel-btn success">SUCCESS</button>
+            <button class="pixel-btn danger">DANGER</button>
+          </div>
+        </div>
+
+        <!-- Pixel Borders -->
+        <div class="showcase-card">
+          <div class="showcase-card-title">PIXEL BORDERS</div>
+          <div style="display:flex; flex-wrap:wrap; gap:16px;">
+            <div class="pixel-border" style="font-size:1rem; width:fit-content;">DEFAULT</div>
+            <div class="pixel-border pixel-border-cyan" style="font-size:1rem; width:fit-content;">CYAN</div>
+            <div class="pixel-border pixel-border-yellow" style="font-size:1rem; width:fit-content;">YELLOW</div>
+          </div>
+        </div>
+
+        <!-- Sound Effects -->
+        <div class="showcase-card">
+          <div class="showcase-card-title">SFX TEXT</div>
+          <div style="display:flex; flex-direction:column; gap:8px; font-size:1.25rem;">
+            <div class="sfx-text sfx-ping">&#8251; PING!</div>
+            <div class="sfx-text sfx-complete">&#9835; COMPLETE!</div>
+            <div class="sfx-text sfx-error">&#10006; ERROR!</div>
+            <div class="sfx-text sfx-coin">&#9733; COIN GET!</div>
+          </div>
+        </div>
+
+        <!-- Table / Inventory -->
+        <div class="showcase-card">
+          <div class="showcase-card-title">INVENTORY TABLE</div>
+          <table class="pixel-table">
+            <thead>
+              <tr>
+                <th>ITEM</th>
+                <th>QTY</th>
+                <th>TYPE</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="color:var(--nes-yellow);">&#9733; GOLD KEY</td>
+                <td>1</td>
+                <td style="color:var(--nes-yellow);">RARE</td>
+              </tr>
+              <tr>
+                <td style="color:var(--nes-green);">&#9829; POTION</td>
+                <td>5</td>
+                <td style="color:var(--nes-green);">COMMON</td>
+              </tr>
+              <tr>
+                <td style="color:var(--nes-purple);">&#9876; DEBUG WAND</td>
+                <td>1</td>
+                <td style="color:var(--nes-purple);">EPIC</td>
+              </tr>
+              <tr>
+                <td style="color:var(--nes-cyan);">&#9000; SHELL SCROLL</td>
+                <td>3</td>
+                <td style="color:var(--nes-cyan);">UNCOMMON</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         PIXEL BORDER SHOWCASE
+         ============================================================ -->
+    <section>
+      <h2 class="section-title">&#9608; PIXEL BORDERS</h2>
+      <p class="section-subtitle">STEPPED/ALIASED PIXEL BORDERS &mdash; NOT SMOOTH</p>
+      <div style="display:flex; flex-wrap:wrap; gap:24px;">
+        <div class="pixel-border" style="width:fit-content;">
+          <div style="font-size:1.25rem; color:var(--nes-white);">WHITE BORDER</div>
+          <div style="font-size:1rem; color:var(--nes-gray);">4PX STEPPED</div>
+        </div>
+        <div class="pixel-border pixel-border-cyan" style="width:fit-content;">
+          <div style="font-size:1.25rem; color:var(--nes-cyan);">CYAN BORDER</div>
+          <div style="font-size:1rem; color:var(--nes-gray);">4PX STEPPED</div>
+        </div>
+        <div class="pixel-border pixel-border-green" style="width:fit-content;">
+          <div style="font-size:1.25rem; color:var(--nes-green);">GREEN BORDER</div>
+          <div style="font-size:1rem; color:var(--nes-gray);">4PX STEPPED</div>
+        </div>
+        <div class="pixel-border pixel-border-red" style="width:fit-content;">
+          <div style="font-size:1.25rem; color:var(--nes-red);">RED BORDER</div>
+          <div style="font-size:1rem; color:var(--nes-gray);">4PX STEPPED</div>
+        </div>
+        <div class="pixel-border pixel-border-purple" style="width:fit-content;">
+          <div style="font-size:1.25rem; color:var(--nes-purple);">PURPLE BORDER</div>
+          <div style="font-size:1rem; color:var(--nes-gray);">4PX STEPPED</div>
+        </div>
+      </div>
+      <div style="margin-top:24px;">
+        <div class="pixel-border-double" style="max-width:400px;">
+          <div style="font-size:1.25rem; color:var(--nes-yellow);">DOUBLE BORDER</div>
+          <div style="font-size:1rem; color:var(--nes-gray); margin-top:8px;">NES DIALOGUE STYLE</div>
+          <div style="font-size:1rem; color:var(--nes-gray);">BORDER + OUTLINE</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         FOOTER
+         ============================================================ -->
+    <footer style="text-align:center; padding:24px; border-top:4px solid var(--nes-dark-blue); font-size:1rem; color:var(--nes-dark-gray); line-height:3;">
+      <div style="color:var(--nes-yellow);">&#9733; DEVGLIDE RETRO PIXEL DESIGN SYSTEM &#9733;</div>
+      <div>PRESS START 2P &bull; NES PALETTE &bull; 8-BIT AESTHETIC</div>
+      <div style="color:var(--nes-dark-gray); margin-top:8px;">
+        &#169; 2026 DEVGLIDE &bull; ALL YOUR BASE ARE BELONG TO US
+      </div>
+      <!-- Walking sprite across the footer -->
+      <div class="sprite-walkway" style="border-top:none; margin-top:16px;">
+        <div class="walking-sprite" style="animation-duration:12s;">
+          <div class="sprite-container">
+            <div class="pixel-art sprite-frame1" style="animation: spriteWalk 0.4s steps(1) infinite;"></div>
+            <div class="pixel-art sprite-frame2" style="animation: spriteWalk 0.4s steps(1) infinite; animation-delay: 0.2s;"></div>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+  </main>
+</div>
+
+<!-- ============================================================
+     JAVASCRIPT
+     ============================================================ -->
+<script>
+(function() {
+  'use strict';
+
+  // ============================================================
+  // BOOT SEQUENCE
+  // ============================================================
+  const bootScreen = document.getElementById('boot-screen');
+  const bootFill = document.getElementById('boot-fill');
+  const mainUI = document.getElementById('main-ui');
+  const dashboard = document.getElementById('dashboard');
+  const toast = document.getElementById('toast');
+  const screenWipe = document.getElementById('screen-wipe');
+
+  let bootProgress = 0;
+  const bootInterval = setInterval(() => {
+    bootProgress += Math.random() * 15 + 5;
+    if (bootProgress >= 100) {
+      bootProgress = 100;
+      bootFill.style.width = '100%';
+      clearInterval(bootInterval);
+
+      setTimeout(() => {
+        // Screen wipe transition
+        screenWipe.classList.add('active');
+
+        setTimeout(() => {
+          bootScreen.classList.add('fade-out');
+          setTimeout(() => {
+            bootScreen.style.display = 'none';
+            mainUI.style.display = '';
+            dashboard.style.display = '';
+            screenWipe.classList.remove('active');
+
+            // Show toast
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+
+            // Start dialogue
+            startDialogue(0);
+
+            // Animate score counter on top bar
+            animateTopScore();
+          }, 600);
+        }, 500);
+      }, 400);
+    } else {
+      bootFill.style.width = bootProgress + '%';
+    }
+  }, 120);
+
+  // ============================================================
+  // DIALOGUE TYPEWRITER
+  // ============================================================
+  const dialogues = [
+    "Welcome, brave developer! I am DevGlide, your AI workflow companion. Together we shall conquer the realm of code!",
+    "A new quest awaits! The kanban board shows tasks of varying rarity. Legendary items grant the most XP. Choose wisely!",
+    "Psst... I heard there is a hidden achievement for those who master all MCP tools. The prophecy speaks of great power..."
+  ];
+
+  let currentDialogue = 0;
+  let charIndex = 0;
+  let typeInterval = null;
+
+  window.startDialogue = function(index) {
+    if (index !== undefined) currentDialogue = index;
+    const textEl = document.getElementById('dialogue-text');
+    const cursorEl = document.getElementById('dialogue-cursor');
+    if (!textEl) return;
+
+    charIndex = 0;
+    textEl.textContent = '';
+    cursorEl.style.display = 'inline-block';
+
+    if (typeInterval) clearInterval(typeInterval);
+
+    const text = dialogues[currentDialogue % dialogues.length];
+    typeInterval = setInterval(() => {
+      if (charIndex < text.length) {
+        textEl.textContent += text[charIndex];
+        charIndex++;
+      } else {
+        clearInterval(typeInterval);
+        typeInterval = null;
+      }
+    }, 50);
+  };
+
+  // ============================================================
+  // SCORE COUNTER
+  // ============================================================
+  let currentScore = 0;
+
+  function padScore(n) {
+    return String(n).padStart(8, '0');
+  }
+
+  function updateScoreDisplay() {
+    const el = document.getElementById('animated-score');
+    if (el) el.textContent = padScore(currentScore);
+  }
+
+  window.addScore = function(amount) {
+    const target = currentScore + amount;
+    const step = Math.max(1, Math.floor(amount / 20));
+    const interval = setInterval(() => {
+      currentScore += step;
+      if (currentScore >= target) {
+        currentScore = target;
+        clearInterval(interval);
+      }
+      updateScoreDisplay();
+    }, 30);
+  };
+
+  window.resetScore = function() {
+    currentScore = 0;
+    updateScoreDisplay();
+  };
+
+  // Animate top bar score
+  function animateTopScore() {
+    const el = document.getElementById('score-counter');
+    if (!el) return;
+    let n = 0;
+    const target = 42890;
+    const step = Math.floor(target / 30);
+    const interval = setInterval(() => {
+      n += step;
+      if (n >= target) {
+        n = target;
+        clearInterval(interval);
+      }
+      el.textContent = String(n).padStart(8, '0');
+    }, 40);
+  }
+
+  // ============================================================
+  // SIDEBAR MENU INTERACTIVITY
+  // ============================================================
+  document.querySelectorAll('.menu-item[data-section]').forEach(item => {
+    item.addEventListener('click', () => {
+      // Remove active from all
+      document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+      item.classList.add('active');
+
+      // Scroll to section
+      const sectionId = item.getAttribute('data-section');
+      const section = document.getElementById(sectionId);
+      if (section) {
+        section.scrollIntoView({ behavior: 'auto', block: 'start' });
+      }
+
+      // Screen wipe effect
+      screenWipe.classList.remove('active');
+      void screenWipe.offsetWidth;
+      screenWipe.classList.add('active');
+      setTimeout(() => screenWipe.classList.remove('active'), 500);
+    });
+  });
+
+})();
+</script>
+
+</body>
+</html>

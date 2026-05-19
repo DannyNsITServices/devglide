@@ -11,7 +11,13 @@ const chatStoreMock = vi.hoisted(() => {
       topic: null,
       ...msg,
     })),
+    appendPipeEvent: vi.fn((event: Record<string, unknown>) => ({
+      id: `pipe-event-${++seq}`,
+      ts: new Date('2026-01-01T00:00:00.000Z').toISOString(),
+      ...event,
+    })),
     clearMessages: vi.fn(),
+    readMessages: vi.fn(() => []),
     reset: () => {
       seq = 0;
     },
@@ -20,12 +26,25 @@ const chatStoreMock = vi.hoisted(() => {
 
 vi.mock('./chat-store.js', () => ({
   appendMessage: chatStoreMock.appendMessage,
+  appendPipeEvent: chatStoreMock.appendPipeEvent,
   clearMessages: chatStoreMock.clearMessages,
+  readMessages: chatStoreMock.readMessages,
   saveParticipants: vi.fn(),
   loadParticipants: vi.fn(() => []),
 }));
 
 const registry = await import('./chat-registry.js');
+
+/** Format a chat message as it would appear in PTY delivery to an LLM participant. */
+function pty(
+  from: string,
+  body: string,
+  options?: { assignedBy?: 'pipe' | null },
+): string {
+  const tags = ['DevGlide Chat'];
+  if (options?.assignedBy) tags.push(`Assigned by: ${options.assignedBy}`);
+  return `[${tags.join(' | ')}] @${from}: ${body}`;
+}
 
 async function flushDeliveryQueue(): Promise<void> {
   await vi.advanceTimersByTimeAsync(0);
@@ -36,7 +55,10 @@ describe('chat-registry PTY delivery', () => {
     vi.useFakeTimers();
     chatStoreMock.reset();
     chatStoreMock.appendMessage.mockClear();
+    chatStoreMock.appendPipeEvent.mockClear();
     chatStoreMock.clearMessages.mockClear();
+    chatStoreMock.readMessages.mockReset();
+    chatStoreMock.readMessages.mockReturnValue([]);
     globalPtys.clear();
     setActiveProject({ id: 'project-chat', name: 'Chat', path: '/tmp/chat' });
 
@@ -70,27 +92,27 @@ describe('chat-registry PTY delivery', () => {
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
-      '[DevGlide Chat] @user: first',
+      pty('user', 'first'),
     ]);
 
-    // First submit key after 500ms
-    await vi.advanceTimersByTimeAsync(500);
+    // First submit key after 1000ms (PTY_SUBMIT_DELAY_MS)
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
-      '[DevGlide Chat] @user: first',
+      pty('user', 'first'),
       '\r',
-      '[DevGlide Chat] @user: second',
+      pty('user', 'second'),
     ]);
 
-    // Second message: submit key after 500ms
-    await vi.advanceTimersByTimeAsync(500);
+    // Second message: submit key after 1000ms
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
-      '[DevGlide Chat] @user: first',
+      pty('user', 'first'),
       '\r',
-      '[DevGlide Chat] @user: second',
+      pty('user', 'second'),
       '\r',
     ]);
 
@@ -114,11 +136,11 @@ describe('chat-registry PTY delivery', () => {
     await flushDeliveryQueue();
     registry.detach(participant.name);
 
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
-      '[DevGlide Chat] @user: hello',
+      pty('user', 'hello'),
     ]);
 
     await sendPromise;
@@ -141,15 +163,59 @@ describe('chat-registry PTY delivery', () => {
     registry.detach(participant.name);
     const reclaimed = registry.join('codex', 'llm', 'pane-4', 'codex', '\r');
 
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
     expect(reclaimed.name).toBe(participant.name);
     expect(writes).toEqual([
-      '[DevGlide Chat] @user: reclaim-race',
+      pty('user', 'reclaim-race'),
     ]);
 
     await sendPromise;
+
+    registry.leave(participant.name);
+  });
+
+  it('announces REST-backed MCP adoption as a session upgrade', () => {
+    globalPtys.set('pane-upgrade', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    const participant = registry.join('codex', 'llm', 'pane-upgrade', 'codex', '\r', 'project-chat', 'rest');
+    chatStoreMock.appendMessage.mockClear();
+
+    const reclaimed = registry.join('codex', 'llm', 'pane-upgrade', 'codex', '\r', 'project-chat', 'mcp');
+
+    expect(reclaimed.name).toBe(participant.name);
+    expect(reclaimed.joinedVia).toBe('mcp');
+    expect(chatStoreMock.appendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      from: participant.name,
+      body: `${participant.name} session upgraded (pane-upgrade)`,
+      type: 'join',
+    }), 'project-chat');
+
+    registry.leave(participant.name);
+  });
+
+  it('keeps reconnected wording for detached reclaim', () => {
+    globalPtys.set('pane-reconnect', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    const participant = registry.join('codex', 'llm', 'pane-reconnect', 'codex', '\r', 'project-chat', 'mcp');
+    registry.detach(participant.name);
+    chatStoreMock.appendMessage.mockClear();
+
+    const reclaimed = registry.join('codex', 'llm', 'pane-reconnect', 'codex', '\r', 'project-chat', 'mcp');
+
+    expect(reclaimed.name).toBe(participant.name);
+    expect(chatStoreMock.appendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      from: participant.name,
+      body: `${participant.name} reconnected (pane-reconnect)`,
+      type: 'join',
+    }), 'project-chat');
 
     registry.leave(participant.name);
   });
@@ -168,11 +234,11 @@ describe('chat-registry PTY delivery', () => {
     await flushDeliveryQueue();
     globalPtys.delete('pane-3');
 
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
     expect(writes).toEqual([
-      '[DevGlide Chat] @user: close-soon',
+      pty('user', 'close-soon'),
     ]);
     expect(registry.getParticipant(participant.name)?.paneId).toBeNull();
 
@@ -202,19 +268,19 @@ describe('chat-registry PTY delivery', () => {
     const sendPromise = registry.send('user', 'ordered');
     await flushDeliveryQueue();
 
-    expect(writesA).toEqual(['[DevGlide Chat] @user: ordered']);
+    expect(writesA).toEqual([pty('user', 'ordered')]);
     expect(writesB).toEqual([]);
 
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
-    expect(writesA).toEqual(['[DevGlide Chat] @user: ordered', '\r']);
-    expect(writesB).toEqual(['[DevGlide Chat] @user: ordered']);
+    expect(writesA).toEqual([pty('user', 'ordered'), '\r']);
+    expect(writesB).toEqual([pty('user', 'ordered')]);
 
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
-    expect(writesB).toEqual(['[DevGlide Chat] @user: ordered', '\r']);
+    expect(writesB).toEqual([pty('user', 'ordered'), '\r']);
 
     await sendPromise;
 
@@ -250,22 +316,112 @@ describe('chat-registry PTY delivery', () => {
     const sendPromise = registry.send(sender.name, `@${target.name} please handle this`);
     await flushDeliveryQueue();
 
+    // Targeted delivery: only @mentioned target receives PTY, observer does not
     expect(writesSender).toEqual([]);
-    expect(writesA).toEqual([`[DevGlide Chat] @${sender.name}: @${target.name} please handle this`]);
-    expect(writesB).toEqual([]);
+    expect(writesA).toEqual([pty(sender.name, `@${target.name} please handle this`)]);
+    expect(writesB).toEqual([]); // observer not mentioned — no delivery
 
-    // First delivery completes (submit delay), second starts
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
 
-    expect(writesB).toEqual([`[DevGlide Chat] @${sender.name}: @${target.name} please handle this`]);
+    // Observer still empty — targeted delivery means non-mentioned participants don't receive
+    expect(writesB).toEqual([]);
 
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await sendPromise;
 
     registry.leave(sender.name);
     registry.leave(target.name);
     registry.leave(observer.name);
+  });
+
+  it('adds pipe authority tags for compact pipe handoff notifications', async () => {
+    const writes: string[] = [];
+
+    globalPtys.set('pane-pipe-a', {
+      ptyProcess: { write: vi.fn((chunk: string) => { writes.push(chunk); }) } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    globalPtys.set('pane-pipe-b', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+
+    const first = registry.join('alice', 'llm', 'pane-pipe-a', 'claude', '\r');
+    const second = registry.join('bob', 'llm', 'pane-pipe-b', 'codex', '\r');
+
+    const sendPromise = registry.send('user', `/linear-pipe @${first.name} @${second.name} : audit the last changes`);
+    await flushDeliveryQueue();
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    await sendPromise;
+
+    expect(writes.some(chunk => chunk.includes('[DevGlide Chat | Assigned by: pipe] @system: #pipe-'))).toBe(true);
+    expect(writes.some(chunk => chunk.includes('Inspect assignment: pipe_get_assignment'))).toBe(true);
+
+    registry.leave(first.name);
+    registry.leave(second.name);
+  });
+
+  it('does not append interaction reminder to any participant', async () => {
+    const llmWrites: string[] = [];
+    const userWrites: string[] = [];
+
+    globalPtys.set('pane-llm', {
+      ptyProcess: { write: vi.fn((chunk: string) => { llmWrites.push(chunk); }) } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    globalPtys.set('pane-user', {
+      ptyProcess: { write: vi.fn((chunk: string) => { userWrites.push(chunk); }) } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+
+    const llm = registry.join('claude', 'llm', 'pane-llm', 'claude', '\r');
+    const user = registry.join('tester', 'user', 'pane-user', null, '\r');
+
+    // A third participant sends a message — both should receive it via PTY
+    globalPtys.set('pane-sender', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    const sender = registry.join('codex', 'llm', 'pane-sender', 'codex', '\r');
+
+    // Use @all so the LLM message is broadcast (LLMs without @mention get no delivery)
+    const sendPromise = registry.send(sender.name, '@all hello everyone');
+
+    // Drain all deliveries
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    await vi.advanceTimersByTimeAsync(1000);
+    await flushDeliveryQueue();
+    await sendPromise;
+
+    // Neither LLM nor user participant gets the reminder
+    const llmMsg = llmWrites.find((w) => w.startsWith('[DevGlide Chat]'));
+    expect(llmMsg).toBeDefined();
+    expect(llmMsg).not.toContain('<system-reminder>');
+
+    const userMsg = userWrites.find((w) => w.startsWith('[DevGlide Chat]'));
+    expect(userMsg).toBeDefined();
+    expect(userMsg).not.toContain('<system-reminder>');
+
+    // Stored message has no reminder
+    const stored = chatStoreMock.appendMessage.mock.calls.find(
+      (c: unknown[]) => (c[0] as { body: string }).body === '@all hello everyone',
+    );
+    expect(stored).toBeDefined();
+    expect((stored![0] as { body: string }).body).not.toContain('<system-reminder>');
+
+    registry.leave(llm.name);
+    registry.leave(user.name);
+    registry.leave(sender.name);
   });
 
   it('marks assigned participants as working and returns them to idle after inactivity', async () => {
@@ -303,7 +459,7 @@ describe('chat-registry PTY delivery', () => {
     expect(registry.getParticipant(reviewer.name)?.status).toBe('working');
 
     // Drain the delivery chain (submit delay)
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
     await sendPromise;
 
@@ -404,6 +560,8 @@ describe('chat-registry PTY status detection (idle/working)', () => {
     chatStoreMock.reset();
     chatStoreMock.appendMessage.mockClear();
     chatStoreMock.clearMessages.mockClear();
+    chatStoreMock.readMessages.mockReset();
+    chatStoreMock.readMessages.mockReturnValue([]);
     globalPtys.clear();
     dataListeners = [];
     setActiveProject({ id: 'project-chat', name: 'Chat', path: '/tmp/chat' });
@@ -477,7 +635,7 @@ describe('chat-registry PTY status detection (idle/working)', () => {
     expect(registry.getParticipant(participant.name)?.status).toBe('working');
 
     // Drain the delivery chain (submit delay)
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(1000);
     await flushDeliveryQueue();
     await sendPromise;
 
@@ -588,7 +746,7 @@ describe('chat-registry PTY status detection (idle/working)', () => {
     expect(registry.getParticipant(participant.name)?.status).toBe('working');
 
     // Chat-injected text arrives — should NOT clear the prompt hold
-    emitPtyData('pane-prompt-chat-injected', '[DevGlide Chat] @codex-2: checking now');
+    emitPtyData('pane-prompt-chat-injected', '[DevGlide Chat | Assigned by: user] @codex-2: checking now');
     await vi.advanceTimersByTimeAsync(2000);
     await vi.advanceTimersByTimeAsync(8000);
 
@@ -633,5 +791,91 @@ describe('chat-registry PTY status detection (idle/working)', () => {
     expect(dataListeners.length).toBe(0);
 
     registry.leave(participant.name);
+  });
+});
+
+describe('chat-registry cross-project isolation', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    chatStoreMock.reset();
+    chatStoreMock.appendMessage.mockClear();
+    chatStoreMock.readMessages.mockReset();
+    chatStoreMock.readMessages.mockReturnValue([]);
+    globalPtys.clear();
+    globalPtys.set('pane-xproj-a', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    globalPtys.set('pane-xproj-b', {
+      ptyProcess: { write: vi.fn() } as never,
+      chunks: [],
+      totalLen: 0,
+    });
+    setActiveProject({ id: 'project-a', name: 'A', path: '/tmp/a' });
+    for (const p of registry.listParticipants('project-a')) registry.leave(p.name, 'project-a');
+    for (const p of registry.listParticipants('project-b')) registry.leave(p.name, 'project-b');
+  });
+
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+    for (const p of registry.listParticipants('project-a')) registry.leave(p.name, 'project-a');
+    for (const p of registry.listParticipants('project-b')) registry.leave(p.name, 'project-b');
+    globalPtys.clear();
+    setActiveProject(null);
+  });
+
+  it('listParticipants excludes participants from other projects', () => {
+    // Use distinct base names so cross-project identity is unambiguous
+    const a = registry.join('alice', 'llm', 'pane-xproj-a', 'claude', '\r', 'project-a');
+    const b = registry.join('bob', 'llm', 'pane-xproj-b', 'claude', '\r', 'project-b');
+
+    const aList = registry.listParticipants('project-a');
+    const bList = registry.listParticipants('project-b');
+
+    expect(aList.map((p) => p.name)).toEqual([a.name]);
+    expect(bList.map((p) => p.name)).toEqual([b.name]);
+    expect(aList.every((p) => p.projectId === 'project-a')).toBe(true);
+    expect(bList.every((p) => p.projectId === 'project-b')).toBe(true);
+  });
+
+  it('getParticipant(name) without projectId never returns a cross-project match', () => {
+    // Only project-b has a participant named "solo"; active project is project-a
+    const b = registry.join('solo', 'llm', 'pane-xproj-b', 'claude', '\r', 'project-b');
+    // Sanity: the participant exists in project-b
+    expect(registry.getParticipant(b.name, 'project-b')?.projectId).toBe('project-b');
+    // Legacy call (no projectId) must NOT leak the project-b match through the active (project-a) scope
+    expect(registry.getParticipant(b.name)).toBeUndefined();
+  });
+
+  it('getParticipantByPaneId(paneId) without projectId never returns a cross-project match', () => {
+    const b = registry.join('bob', 'llm', 'pane-xproj-b', 'claude', '\r', 'project-b');
+    // Sanity: explicit project lookup works
+    expect(registry.getParticipantByPaneId('pane-xproj-b', 'project-b')?.name).toBe(b.name);
+    // Active project is project-a — lookup without projectId must NOT leak project-b
+    expect(registry.getParticipantByPaneId('pane-xproj-b')).toBeUndefined();
+  });
+
+  it('send does not PTY-deliver to a cross-project @mention target', async () => {
+    // Distinct base names so @bob exists only in project-b and cannot resolve in project-a
+    registry.join('alice', 'llm', 'pane-xproj-a', 'claude', '\r', 'project-a');
+    const b = registry.join('bob', 'llm', 'pane-xproj-b', 'claude', '\r', 'project-b');
+    const writeA = (globalPtys.get('pane-xproj-a')!.ptyProcess as unknown as { write: ReturnType<typeof vi.fn> }).write;
+    const writeB = (globalPtys.get('pane-xproj-b')!.ptyProcess as unknown as { write: ReturnType<typeof vi.fn> }).write;
+    writeA.mockClear();
+    writeB.mockClear();
+
+    // User in project-a @-mentions a name that exists only in project-b.
+    const sendPromise = registry.send('user', `@${b.name} please implement`, undefined, 'project-a');
+    await flushDeliveryQueue();
+    const msg = await sendPromise;
+
+    // project-b participant must not have been written to
+    expect(writeB).not.toHaveBeenCalled();
+    // project-a participant must not be the target either — the token was unresolved
+    expect(writeA).not.toHaveBeenCalled();
+    // The persisted message must list the cross-project token as unresolved
+    expect(msg.unresolvedTargets ?? []).toContain(b.name);
   });
 });

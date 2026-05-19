@@ -1,0 +1,1585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flux — Calm Monochrome Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ── Reset ─────────────────────────────────────────────── */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  /* ── Design Tokens ─────────────────────────────────────── */
+  :root {
+    /* Accent hue — the ONE configurable value */
+    --accent-hue: 228;
+
+    /* Gray scale — warm monochrome */
+    --bg-base:    #161618;
+    --bg-surface: #1c1c1f;
+    --bg-raised:  #232327;
+    --bg-overlay: #2a2a2f;
+    --bg-hover:   #303036;
+
+    --text-primary:   #e4e4e7;
+    --text-secondary: #8f8f96;
+    --text-muted:     #5a5a62;
+
+    --border-subtle:  rgba(255, 255, 255, 0.06);
+    --border-default: rgba(255, 255, 255, 0.09);
+    --border-strong:  rgba(255, 255, 255, 0.12);
+
+    /* Accent — derived from hue */
+    --accent-default: hsl(var(--accent-hue), 72%, 68%);
+    --accent-hover:   hsl(var(--accent-hue), 72%, 74%);
+    --accent-muted:   hsla(var(--accent-hue), 72%, 68%, 0.10);
+    --accent-dim:     hsl(var(--accent-hue), 40%, 60%);
+    --accent-text:    hsl(var(--accent-hue), 72%, 78%);
+
+    /* Status dots only */
+    --status-success: #4ade80;
+    --status-error:   #f87171;
+    --status-warning: #fbbf24;
+    --status-info:    #60a5fa;
+
+    /* Typography */
+    --font-sans:  'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono:  'JetBrains Mono', 'Fira Code', monospace;
+
+    /* Spacing (8px grid) */
+    --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;
+    --sp-4: 16px; --sp-5: 20px; --sp-6: 24px;
+    --sp-8: 32px; --sp-10: 40px; --sp-12: 48px;
+    --sp-16: 64px; --sp-20: 80px; --sp-24: 96px;
+
+    /* Transitions */
+    --duration-fast:   120ms;
+    --duration-normal: 200ms;
+    --duration-slow:   300ms;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* ── Base ───────────────────────────────────────────────── */
+  html {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-optical-sizing: auto;
+    font-weight: 400;
+    color: var(--text-primary);
+    background: var(--bg-base);
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  /* ── Baseline Grid Overlay ─────────────────────────────── */
+  body.show-grid::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent,
+      transparent 7px,
+      rgba(255, 255, 255, 0.03) 7px,
+      rgba(255, 255, 255, 0.03) 8px
+    );
+  }
+
+  /* ── Layout ────────────────────────────────────────────── */
+  .page {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: var(--sp-16) var(--sp-6);
+  }
+
+  section {
+    margin-bottom: var(--sp-24);
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: var(--sp-8);
+  }
+
+  .section-border {
+    border-top: 1px solid var(--border-subtle);
+    padding-top: var(--sp-10);
+  }
+
+  /* ── Header ────────────────────────────────────────────── */
+  .header {
+    padding: var(--sp-20) 0 var(--sp-16);
+    text-align: left;
+  }
+
+  .header-title {
+    font-size: 48px;
+    font-weight: 300;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+    line-height: 1.1;
+  }
+
+  .header-title span {
+    color: var(--accent-default);
+    transition: color var(--duration-normal) var(--ease-out);
+  }
+
+  .header-subtitle {
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    margin-top: var(--sp-3);
+    line-height: 1.5;
+  }
+
+  .header-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+    margin-top: var(--sp-6);
+  }
+
+  .header-tag {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    padding: var(--sp-1) var(--sp-3);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+  }
+
+  /* ── Accent Picker ─────────────────────────────────────── */
+  .picker {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-6);
+    padding: var(--sp-5) var(--sp-6);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    margin-bottom: var(--sp-16);
+  }
+
+  .picker-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .picker-slider-wrap {
+    flex: 1;
+    position: relative;
+  }
+
+  .picker-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+    background: linear-gradient(to right,
+      hsl(0,72%,68%),   hsl(30,72%,68%),  hsl(60,72%,68%),
+      hsl(90,72%,68%),  hsl(120,72%,68%), hsl(150,72%,68%),
+      hsl(180,72%,68%), hsl(210,72%,68%), hsl(240,72%,68%),
+      hsl(270,72%,68%), hsl(300,72%,68%), hsl(330,72%,68%),
+      hsl(360,72%,68%)
+    );
+  }
+
+  .picker-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent-default);
+    border: 2px solid var(--text-primary);
+    cursor: pointer;
+    transition: transform var(--duration-fast) var(--ease-out),
+                background var(--duration-normal) var(--ease-out);
+  }
+
+  .picker-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+  }
+
+  .picker-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent-default);
+    border: 2px solid var(--text-primary);
+    cursor: pointer;
+  }
+
+  .picker-value {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--accent-default);
+    min-width: 36px;
+    text-align: right;
+    transition: color var(--duration-normal) var(--ease-out);
+  }
+
+  .picker-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: var(--accent-default);
+    border: 1px solid var(--border-strong);
+    transition: background var(--duration-normal) var(--ease-out);
+    flex-shrink: 0;
+  }
+
+  /* ── Grid Toggle ───────────────────────────────────────── */
+  .grid-toggle {
+    position: fixed;
+    bottom: var(--sp-6);
+    right: var(--sp-6);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--bg-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color var(--duration-fast), border-color var(--duration-fast);
+  }
+
+  .grid-toggle:hover {
+    color: var(--text-secondary);
+    border-color: var(--border-default);
+  }
+
+  .grid-toggle.active {
+    color: var(--accent-default);
+    border-color: var(--accent-default);
+  }
+
+  .grid-toggle svg { width: 14px; height: 14px; }
+
+  /* ── Principles ────────────────────────────────────────── */
+  .principles {
+    display: grid;
+    gap: var(--sp-12);
+  }
+
+  .principle {
+    max-width: 560px;
+  }
+
+  .principle-number {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: var(--sp-2);
+  }
+
+  .principle-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: var(--sp-1);
+  }
+
+  .principle-body {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* ── Palette ───────────────────────────────────────────── */
+  .palette-row {
+    display: flex;
+    gap: 2px;
+    margin-bottom: var(--sp-4);
+  }
+
+  .palette-chip {
+    flex: 1;
+    aspect-ratio: 2.5 / 1;
+    border-radius: 6px;
+    position: relative;
+    min-height: 56px;
+    transition: background var(--duration-normal) var(--ease-out);
+  }
+
+  .palette-chip-label {
+    position: absolute;
+    bottom: var(--sp-2);
+    left: var(--sp-3);
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    opacity: 0.8;
+  }
+
+  .palette-chip-value {
+    position: absolute;
+    top: var(--sp-2);
+    left: var(--sp-3);
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    opacity: 0.6;
+  }
+
+  .palette-accent-row {
+    display: flex;
+    gap: 2px;
+    margin-top: var(--sp-6);
+  }
+
+  .palette-accent-chip {
+    height: 40px;
+    flex: 1;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    transition: background var(--duration-normal) var(--ease-out);
+  }
+
+  /* ── Typography ────────────────────────────────────────── */
+  .type-specimen {
+    margin-bottom: var(--sp-10);
+  }
+
+  .type-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-6);
+    padding: var(--sp-4) 0;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .type-row:last-child { border-bottom: none; }
+
+  .type-meta {
+    min-width: 120px;
+    flex-shrink: 0;
+  }
+
+  .type-meta-name {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+
+  .type-meta-spec {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    opacity: 0.6;
+  }
+
+  .type-sample {
+    font-optical-sizing: auto;
+  }
+
+  .type-sample-mono {
+    font-family: var(--font-mono);
+  }
+
+  /* ── Components ────────────────────────────────────────── */
+  .components-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-10);
+  }
+
+  @media (max-width: 700px) {
+    .components-grid { grid-template-columns: 1fr; }
+  }
+
+  .comp-group-title {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: var(--sp-4);
+  }
+
+  /* Buttons */
+  .btn-row {
+    display: flex;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .btn {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    border-radius: 6px;
+    padding: var(--sp-2) var(--sp-4);
+    cursor: pointer;
+    transition: all var(--duration-fast) var(--ease-out);
+    line-height: 1.4;
+  }
+
+  .btn-primary {
+    background: var(--accent-default);
+    color: #0f0f11;
+  }
+  .btn-primary:hover {
+    background: var(--accent-hover);
+  }
+
+  .btn-secondary {
+    background: var(--bg-raised);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-default);
+  }
+  .btn-secondary:hover {
+    background: var(--bg-overlay);
+    color: var(--text-primary);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+  }
+  .btn-ghost:hover {
+    background: var(--bg-raised);
+    color: var(--text-primary);
+  }
+
+  .btn-danger {
+    background: var(--bg-raised);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-default);
+  }
+  .btn-danger:hover {
+    background: var(--bg-overlay);
+    color: var(--text-primary);
+  }
+
+  .btn-icon {
+    background: transparent;
+    color: var(--text-muted);
+    padding: var(--sp-2);
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
+    transition: all var(--duration-fast);
+  }
+  .btn-icon:hover {
+    background: var(--bg-raised);
+    color: var(--text-secondary);
+  }
+
+  /* Inputs */
+  .input-group { margin-bottom: var(--sp-4); }
+
+  .input-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: var(--sp-1);
+  }
+
+  .input {
+    width: 100%;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--text-primary);
+    background: var(--bg-base);
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    padding: var(--sp-2) var(--sp-3);
+    outline: none;
+    transition: border-color var(--duration-fast) var(--ease-out);
+  }
+
+  .input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .input:hover {
+    border-color: var(--border-strong);
+  }
+
+  .input:focus {
+    border-color: var(--accent-default);
+  }
+
+  /* Badges */
+  .badge-row {
+    display: flex;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    padding: 3px 10px 3px 8px;
+    background: var(--bg-raised);
+    border-radius: 100px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .badge-dot-success { background: var(--status-success); }
+  .badge-dot-error   { background: var(--status-error); }
+  .badge-dot-warning { background: var(--status-warning); }
+  .badge-dot-info    { background: var(--status-info); }
+
+  /* Toasts */
+  .toast-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+  }
+
+  .toast {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--bg-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    border-left: 3px solid;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .toast-accent  { border-left-color: var(--accent-default); }
+  .toast-success { border-left-color: var(--status-success); }
+  .toast-error   { border-left-color: var(--status-error); }
+  .toast-warning { border-left-color: var(--status-warning); }
+
+  .toast-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ── Elevation Demo ────────────────────────────────────── */
+  .elevation-stack {
+    display: flex;
+    gap: 3px;
+    align-items: stretch;
+  }
+
+  .elevation-layer {
+    flex: 1;
+    padding: var(--sp-6) var(--sp-4);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 120px;
+    border: 1px solid var(--border-subtle);
+    transition: background var(--duration-normal);
+  }
+
+  .elevation-layer-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+
+  .elevation-layer-value {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    opacity: 0.6;
+    margin-top: 2px;
+  }
+
+  /* ── Dashboard Mockup ──────────────────────────────────── */
+  .dashboard {
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--bg-base);
+  }
+
+  .dashboard-chrome {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .chrome-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--bg-overlay);
+  }
+
+  .chrome-title {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: var(--sp-3);
+    font-weight: 500;
+  }
+
+  .dashboard-body {
+    display: flex;
+    min-height: 360px;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 180px;
+    flex-shrink: 0;
+    padding: var(--sp-4) 0;
+    border-right: 1px solid var(--border-subtle);
+  }
+
+  .sidebar-section-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: var(--sp-3) var(--sp-4) var(--sp-1);
+    opacity: 0.6;
+  }
+
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-1) var(--sp-4);
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color var(--duration-fast), background var(--duration-fast);
+    border-radius: 0;
+  }
+
+  .sidebar-item:hover {
+    color: var(--text-primary);
+    background: var(--bg-surface);
+  }
+
+  .sidebar-item.active {
+    color: var(--accent-default);
+    background: var(--accent-muted);
+  }
+
+  .sidebar-icon {
+    width: 16px;
+    height: 16px;
+    opacity: 0.5;
+  }
+
+  .sidebar-item.active .sidebar-icon { opacity: 0.9; }
+
+  /* Kanban */
+  .kanban {
+    flex: 1;
+    padding: var(--sp-4);
+    display: flex;
+    gap: var(--sp-3);
+    overflow-x: auto;
+  }
+
+  .kanban-col {
+    min-width: 160px;
+    flex: 1;
+  }
+
+  .kanban-col-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-1) var(--sp-2);
+    margin-bottom: var(--sp-3);
+  }
+
+  .kanban-col-title {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .kanban-col-count {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    opacity: 0.5;
+  }
+
+  .kanban-card {
+    padding: var(--sp-3);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    margin-bottom: var(--sp-2);
+    cursor: default;
+    transition: border-color var(--duration-fast), background var(--duration-fast);
+  }
+
+  .kanban-card:hover {
+    border-color: var(--border-default);
+    background: var(--bg-raised);
+  }
+
+  .kanban-card-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    line-height: 1.4;
+  }
+
+  .kanban-card-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+  }
+
+  .kanban-card-tag {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-muted);
+    padding: 1px 6px;
+    background: var(--bg-overlay);
+    border-radius: 3px;
+  }
+
+  .kanban-card-priority {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+  }
+
+  .kanban-card.accent-border {
+    border-left: 2px solid var(--accent-default);
+  }
+
+  /* ── Scrollbar ─────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-default);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+  /* ── Selection ─────────────────────────────────────────── */
+  ::selection {
+    background: var(--accent-muted);
+    color: var(--accent-text);
+  }
+
+  /* ── Animations ────────────────────────────────────────── */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .animate-in {
+    animation: fadeInUp var(--duration-slow) var(--ease-out) both;
+  }
+
+  .delay-1 { animation-delay: 60ms; }
+  .delay-2 { animation-delay: 120ms; }
+  .delay-3 { animation-delay: 180ms; }
+  .delay-4 { animation-delay: 240ms; }
+  .delay-5 { animation-delay: 300ms; }
+  .delay-6 { animation-delay: 360ms; }
+  .delay-7 { animation-delay: 420ms; }
+  .delay-8 { animation-delay: 480ms; }
+
+  /* ── Code Block ────────────────────────────────────────── */
+  .code-block {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: var(--sp-4);
+    overflow-x: auto;
+  }
+
+  .code-keyword { color: var(--accent-dim); }
+  .code-string  { color: var(--text-secondary); }
+  .code-comment { color: var(--text-muted); }
+  .code-func    { color: var(--text-primary); }
+
+  /* ── Select / Dropdown ─────────────────────────────────── */
+  .select {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--text-primary);
+    background: var(--bg-base);
+    border: 1px solid var(--border-default);
+    border-radius: 6px;
+    padding: var(--sp-2) var(--sp-6) var(--sp-2) var(--sp-3);
+    outline: none;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%235a5a62' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    transition: border-color var(--duration-fast);
+  }
+
+  .select:hover { border-color: var(--border-strong); }
+  .select:focus { border-color: var(--accent-default); }
+
+  /* ── Toggle ────────────────────────────────────────────── */
+  .toggle-wrap {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+  }
+
+  .toggle {
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    background: var(--bg-overlay);
+    border: 1px solid var(--border-default);
+    cursor: pointer;
+    position: relative;
+    transition: background var(--duration-fast), border-color var(--duration-fast);
+  }
+
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: transform var(--duration-fast) var(--ease-out),
+                background var(--duration-fast);
+  }
+
+  .toggle.on {
+    background: var(--accent-muted);
+    border-color: var(--accent-default);
+  }
+
+  .toggle.on::after {
+    transform: translateX(16px);
+    background: var(--accent-default);
+  }
+
+  .toggle-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  /* ── Table ─────────────────────────────────────────────── */
+  .table-wrap {
+    overflow-x: auto;
+  }
+
+  .flux-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .flux-table th {
+    text-align: left;
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .flux-table td {
+    padding: var(--sp-2) var(--sp-3);
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .flux-table tbody tr {
+    transition: background var(--duration-fast);
+  }
+
+  .flux-table tbody tr:hover {
+    background: var(--bg-surface);
+  }
+
+  /* ── Divider ───────────────────────────────────────────── */
+  .divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: var(--sp-8) 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ═══════════ HEADER ═══════════ -->
+  <header class="header animate-in">
+    <h1 class="header-title"><span>Flux</span></h1>
+    <p class="header-subtitle">Calm monochrome + one accent. A design system for DevGlide.</p>
+    <div class="header-meta">
+      <span class="header-tag">v0.1</span>
+      <span class="header-tag">Design System</span>
+      <span class="header-tag">Monochrome</span>
+    </div>
+  </header>
+
+  <!-- ═══════════ ACCENT PICKER ═══════════ -->
+  <div class="picker animate-in delay-1" id="picker">
+    <span class="picker-label">Accent hue</span>
+    <div class="picker-slider-wrap">
+      <input type="range" class="picker-slider" id="hueSlider" min="0" max="360" value="228">
+    </div>
+    <span class="picker-value" id="hueValue">228</span>
+    <div class="picker-swatch" id="hueSwatch"></div>
+  </div>
+
+  <!-- ═══════════ PRINCIPLES ═══════════ -->
+  <section class="animate-in delay-2">
+    <div class="section-label">Design Principles</div>
+    <div class="section-border">
+      <div class="principles">
+        <div class="principle">
+          <div class="principle-number">01</div>
+          <div class="principle-title">Monochrome default</div>
+          <div class="principle-body">Almost everything is gray. Color is reserved for a single accent and tiny status dots. No colored badges. No colored toasts. Gray everywhere with surgical precision.</div>
+        </div>
+        <div class="principle">
+          <div class="principle-number">02</div>
+          <div class="principle-title">Tonal elevation</div>
+          <div class="principle-body">Depth through lightness, not shadow. Higher surfaces are lighter. Five tonal layers from near-black to dark gray create spatial hierarchy without competing for attention.</div>
+        </div>
+        <div class="principle">
+          <div class="principle-number">03</div>
+          <div class="principle-title">Earned attention</div>
+          <div class="principle-body">Don't compete for attention you haven't earned. Every pixel of color must justify its existence. Interactive elements get the accent. Everything else recedes.</div>
+        </div>
+        <div class="principle">
+          <div class="principle-number">04</div>
+          <div class="principle-title">Information density</div>
+          <div class="principle-body">Pack information tightly but breathe through whitespace between groups. The 8px baseline grid keeps vertical rhythm mechanical and predictable.</div>
+        </div>
+        <div class="principle">
+          <div class="principle-number">05</div>
+          <div class="principle-title">Motion as guide</div>
+          <div class="principle-body">All transitions under 300ms. Directional movement signals spatial relationships. Enter from below, exit upward. Ease out, never bounce. Movement serves cognition.</div>
+        </div>
+        <div class="principle">
+          <div class="principle-number">06</div>
+          <div class="principle-title">One accent, infinite variation</div>
+          <div class="principle-body">A single hue generates the entire accent palette. Default, muted, dim, hover, text variants -- all derived from one value. Change the hue, change the personality.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ COLOR PALETTE ═══════════ -->
+  <section class="animate-in delay-3">
+    <div class="section-label">Color Palette</div>
+    <div class="section-border">
+
+      <div style="margin-bottom: var(--sp-4);">
+        <div style="font-size: 11px; font-weight: 500; color: var(--text-muted); margin-bottom: var(--sp-2); letter-spacing: 0.04em;">GRAY SCALE</div>
+        <div class="palette-row">
+          <div class="palette-chip" style="background: var(--bg-base);">
+            <span class="palette-chip-value">#161618</span>
+            <span class="palette-chip-label">base</span>
+          </div>
+          <div class="palette-chip" style="background: var(--bg-surface);">
+            <span class="palette-chip-value">#1c1c1f</span>
+            <span class="palette-chip-label">surface</span>
+          </div>
+          <div class="palette-chip" style="background: var(--bg-raised);">
+            <span class="palette-chip-value">#232327</span>
+            <span class="palette-chip-label">raised</span>
+          </div>
+          <div class="palette-chip" style="background: var(--bg-overlay);">
+            <span class="palette-chip-value">#2a2a2f</span>
+            <span class="palette-chip-label">overlay</span>
+          </div>
+          <div class="palette-chip" style="background: var(--bg-hover);">
+            <span class="palette-chip-value">#303036</span>
+            <span class="palette-chip-label">hover</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-bottom: var(--sp-4);">
+        <div style="font-size: 11px; font-weight: 500; color: var(--text-muted); margin-bottom: var(--sp-2); letter-spacing: 0.04em;">TEXT</div>
+        <div class="palette-row">
+          <div class="palette-chip" style="background: var(--bg-surface); display: flex; align-items: center; justify-content: center;">
+            <span style="font-size: 14px; font-weight: 500; color: var(--text-primary);">Primary</span>
+          </div>
+          <div class="palette-chip" style="background: var(--bg-surface); display: flex; align-items: center; justify-content: center;">
+            <span style="font-size: 14px; font-weight: 500; color: var(--text-secondary);">Secondary</span>
+          </div>
+          <div class="palette-chip" style="background: var(--bg-surface); display: flex; align-items: center; justify-content: center;">
+            <span style="font-size: 14px; font-weight: 500; color: var(--text-muted);">Muted</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size: 11px; font-weight: 500; color: var(--text-muted); margin-bottom: var(--sp-2); letter-spacing: 0.04em;">ACCENT (DERIVED FROM HUE)</div>
+        <div class="palette-accent-row">
+          <div class="palette-accent-chip" style="background: var(--accent-default); color: #0f0f11; font-weight: 500;">default</div>
+          <div class="palette-accent-chip" style="background: var(--accent-hover); color: #0f0f11; font-weight: 500;">hover</div>
+          <div class="palette-accent-chip" style="background: var(--accent-dim); color: #0f0f11; font-weight: 500;">dim</div>
+          <div class="palette-accent-chip" style="background: var(--accent-muted); color: var(--text-secondary);">muted</div>
+        </div>
+      </div>
+
+      <div style="margin-top: var(--sp-6);">
+        <div style="font-size: 11px; font-weight: 500; color: var(--text-muted); margin-bottom: var(--sp-2); letter-spacing: 0.04em;">STATUS DOTS (COLOR RESERVED FOR DOTS ONLY)</div>
+        <div style="display: flex; gap: var(--sp-8); padding: var(--sp-4) 0;">
+          <div style="display: flex; align-items: center; gap: var(--sp-2);">
+            <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--status-success);"></div>
+            <span style="font-size: 12px; color: var(--text-secondary);">Success</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: var(--sp-2);">
+            <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--status-error);"></div>
+            <span style="font-size: 12px; color: var(--text-secondary);">Error</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: var(--sp-2);">
+            <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--status-warning);"></div>
+            <span style="font-size: 12px; color: var(--text-secondary);">Warning</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: var(--sp-2);">
+            <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--status-info);"></div>
+            <span style="font-size: 12px; color: var(--text-secondary);">Info</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════ TYPOGRAPHY ═══════════ -->
+  <section class="animate-in delay-4">
+    <div class="section-label">Typography</div>
+    <div class="section-border">
+      <div class="type-specimen">
+        <div class="type-row">
+          <div class="type-meta">
+            <div class="type-meta-name">Display</div>
+            <div class="type-meta-spec">48 / 300</div>
+          </div>
+          <div class="type-sample" style="font-size: 48px; font-weight: 300; letter-spacing: -0.03em; line-height: 1.1;">Almost nothing</div>
+        </div>
+        <div class="type-row">
+          <div class="type-meta">
+            <div class="type-meta-name">Heading 1</div>
+            <div class="type-meta-spec">28 / 600</div>
+          </div>
+          <div class="type-sample" style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2;">Restraint is strength</div>
+        </div>
+        <div class="type-row">
+          <div class="type-meta">
+            <div class="type-meta-name">Heading 2</div>
+            <div class="type-meta-spec">20 / 500</div>
+          </div>
+          <div class="type-sample" style="font-size: 20px; font-weight: 500; letter-spacing: -0.01em; line-height: 1.3;">Surgical accent application</div>
+        </div>
+        <div class="type-row">
+          <div class="type-meta">
+            <div class="type-meta-name">Body</div>
+            <div class="type-meta-spec">14 / 400</div>
+          </div>
+          <div class="type-sample" style="font-size: 14px; font-weight: 400; line-height: 1.6; color: var(--text-secondary);">The quick brown fox jumps over the lazy dog. Information density without visual noise. Every element earns its place.</div>
+        </div>
+        <div class="type-row">
+          <div class="type-meta">
+            <div class="type-meta-name">Caption</div>
+            <div class="type-meta-spec">11 / 500</div>
+          </div>
+          <div class="type-sample" style="font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted);">Section label &middot; uppercase &middot; tracked</div>
+        </div>
+        <div class="type-row">
+          <div class="type-meta">
+            <div class="type-meta-name">Code</div>
+            <div class="type-meta-spec">13 / 400 Mono</div>
+          </div>
+          <div class="type-sample type-sample-mono" style="font-size: 13px; color: var(--text-secondary);">const flux = { hue: 228, accent: derive(hue) };</div>
+        </div>
+      </div>
+
+      <!-- Code block sample -->
+      <div class="code-block">
+<span class="code-comment">// Flux design tokens</span>
+<span class="code-keyword">const</span> <span class="code-func">tokens</span> = {
+  <span class="code-func">accentHue</span>: <span class="code-string">228</span>,
+  <span class="code-func">accentDefault</span>: <span class="code-keyword">hsl</span>(<span class="code-string">228</span>, <span class="code-string">72%</span>, <span class="code-string">68%</span>),
+  <span class="code-func">bgBase</span>: <span class="code-string">'#161618'</span>,
+  <span class="code-func">bgSurface</span>: <span class="code-string">'#1c1c1f'</span>,
+  <span class="code-func">textPrimary</span>: <span class="code-string">'#e4e4e7'</span>,
+};
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ COMPONENTS ═══════════ -->
+  <section class="animate-in delay-5">
+    <div class="section-label">Components</div>
+    <div class="section-border">
+      <div class="components-grid">
+
+        <!-- Buttons -->
+        <div>
+          <div class="comp-group-title">Buttons</div>
+          <div class="btn-row" style="margin-bottom: var(--sp-3);">
+            <button class="btn btn-primary">Primary</button>
+            <button class="btn btn-secondary">Secondary</button>
+            <button class="btn btn-ghost">Ghost</button>
+            <button class="btn btn-danger">Delete</button>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" style="font-size: 12px; padding: 4px 10px;">Small</button>
+            <button class="btn btn-secondary" disabled style="opacity: 0.4; cursor: not-allowed;">Disabled</button>
+            <button class="btn-icon" title="Settings">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.17 3.17l1.41 1.41M11.42 11.42l1.41 1.41M3.17 12.83l1.41-1.41M11.42 4.58l1.41-1.41"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Inputs -->
+        <div>
+          <div class="comp-group-title">Inputs</div>
+          <div class="input-group">
+            <label class="input-label">Search</label>
+            <input type="text" class="input" placeholder="Filter tasks...">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Dropdown</label>
+            <select class="select" style="width: 100%;">
+              <option>All features</option>
+              <option>Authentication</option>
+              <option>Dashboard</option>
+              <option>API layer</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Badges -->
+        <div>
+          <div class="comp-group-title">Badges</div>
+          <div class="badge-row">
+            <span class="badge"><span class="badge-dot badge-dot-success"></span>Deployed</span>
+            <span class="badge"><span class="badge-dot badge-dot-error"></span>Failed</span>
+            <span class="badge"><span class="badge-dot badge-dot-warning"></span>Pending</span>
+            <span class="badge"><span class="badge-dot badge-dot-info"></span>In Review</span>
+          </div>
+        </div>
+
+        <!-- Toggles -->
+        <div>
+          <div class="comp-group-title">Toggles</div>
+          <div style="display: flex; flex-direction: column; gap: var(--sp-3);">
+            <div class="toggle-wrap">
+              <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+              <span class="toggle-label">Dark mode</span>
+            </div>
+            <div class="toggle-wrap">
+              <div class="toggle" onclick="this.classList.toggle('on')"></div>
+              <span class="toggle-label">Notifications</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Toasts (full width) -->
+        <div style="grid-column: 1 / -1;">
+          <div class="comp-group-title">Toasts</div>
+          <div class="toast-stack">
+            <div class="toast toast-accent">
+              <span class="toast-dot" style="background: var(--accent-default);"></span>
+              Task moved to In Progress
+            </div>
+            <div class="toast toast-success">
+              <span class="toast-dot" style="background: var(--status-success);"></span>
+              Build completed successfully
+            </div>
+            <div class="toast toast-error">
+              <span class="toast-dot" style="background: var(--status-error);"></span>
+              Connection to server lost
+            </div>
+            <div class="toast toast-warning">
+              <span class="toast-dot" style="background: var(--status-warning);"></span>
+              API rate limit approaching threshold
+            </div>
+          </div>
+        </div>
+
+        <!-- Table (full width) -->
+        <div style="grid-column: 1 / -1;">
+          <div class="comp-group-title">Table</div>
+          <div class="table-wrap">
+            <table class="flux-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Status</th>
+                  <th>Type</th>
+                  <th style="text-align: right;">Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="color: var(--text-primary); font-weight: 500;">Auth flow redesign</td>
+                  <td><span class="badge" style="font-size: 10px; padding: 2px 8px;"><span class="badge-dot badge-dot-success" style="width: 4px; height: 4px;"></span>Active</span></td>
+                  <td><span style="font-family: var(--font-mono); font-size: 11px;">TASK</span></td>
+                  <td style="text-align: right; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">2m ago</td>
+                </tr>
+                <tr>
+                  <td style="color: var(--text-primary); font-weight: 500;">Fix sidebar overflow</td>
+                  <td><span class="badge" style="font-size: 10px; padding: 2px 8px;"><span class="badge-dot badge-dot-warning" style="width: 4px; height: 4px;"></span>Review</span></td>
+                  <td><span style="font-family: var(--font-mono); font-size: 11px;">BUG</span></td>
+                  <td style="text-align: right; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">14m ago</td>
+                </tr>
+                <tr>
+                  <td style="color: var(--text-primary); font-weight: 500;">Voice config migration</td>
+                  <td><span class="badge" style="font-size: 10px; padding: 2px 8px;"><span class="badge-dot badge-dot-info" style="width: 4px; height: 4px;"></span>Queued</span></td>
+                  <td><span style="font-family: var(--font-mono); font-size: 11px;">TASK</span></td>
+                  <td style="text-align: right; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted);">1h ago</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ ELEVATION ═══════════ -->
+  <section class="animate-in delay-6">
+    <div class="section-label">Tonal Elevation</div>
+    <div class="section-border">
+      <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: var(--sp-6); max-width: 480px;">Depth without shadows. Each surface layer is slightly lighter, creating spatial hierarchy through tone alone. Five levels from base to overlay.</p>
+      <div class="elevation-stack">
+        <div class="elevation-layer" style="background: var(--bg-base);">
+          <div class="elevation-layer-label">Level 0</div>
+          <div class="elevation-layer-value">base #161618</div>
+        </div>
+        <div class="elevation-layer" style="background: var(--bg-surface);">
+          <div class="elevation-layer-label">Level 1</div>
+          <div class="elevation-layer-value">surface #1c1c1f</div>
+        </div>
+        <div class="elevation-layer" style="background: var(--bg-raised);">
+          <div class="elevation-layer-label">Level 2</div>
+          <div class="elevation-layer-value">raised #232327</div>
+        </div>
+        <div class="elevation-layer" style="background: var(--bg-overlay);">
+          <div class="elevation-layer-label">Level 3</div>
+          <div class="elevation-layer-value">overlay #2a2a2f</div>
+        </div>
+        <div class="elevation-layer" style="background: var(--bg-hover);">
+          <div class="elevation-layer-label">Level 4</div>
+          <div class="elevation-layer-value">hover #303036</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ DASHBOARD MOCKUP ═══════════ -->
+  <section class="animate-in delay-7">
+    <div class="section-label">Dashboard Mockup</div>
+    <div class="section-border">
+      <div class="dashboard">
+        <div class="dashboard-chrome">
+          <div class="chrome-dot"></div>
+          <div class="chrome-dot"></div>
+          <div class="chrome-dot"></div>
+          <span class="chrome-title">DevGlide</span>
+          <span style="flex: 1;"></span>
+          <span style="font-size: 11px; font-family: var(--font-mono); color: var(--text-muted); opacity: 0.5;">localhost:7000</span>
+        </div>
+        <div class="dashboard-body">
+          <!-- Sidebar -->
+          <nav class="sidebar">
+            <div class="sidebar-section-label">Navigation</div>
+            <div class="sidebar-item">
+              <svg class="sidebar-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+              Overview
+            </div>
+            <div class="sidebar-item active">
+              <svg class="sidebar-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="3" width="13" height="10" rx="1.5"/><line x1="5.5" y1="3" x2="5.5" y2="13"/><line x1="10.5" y1="3" x2="10.5" y2="13"/></svg>
+              Kanban
+            </div>
+            <div class="sidebar-item">
+              <svg class="sidebar-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1.5"/><line x1="2" y1="6" x2="14" y2="6"/><line x1="6" y1="6" x2="6" y2="14"/></svg>
+              Shell
+            </div>
+            <div class="sidebar-item">
+              <svg class="sidebar-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2L14 6v4L8 14L2 10V6z"/></svg>
+              Workflows
+            </div>
+            <div class="sidebar-item">
+              <svg class="sidebar-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="3"/><path d="M2.5 14c0-3 2.5-5.5 5.5-5.5s5.5 2.5 5.5 5.5"/></svg>
+              Chat
+            </div>
+            <div class="sidebar-section-label" style="margin-top: var(--sp-4);">Tools</div>
+            <div class="sidebar-item">
+              <svg class="sidebar-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+              Voice
+            </div>
+            <div class="sidebar-item">
+              <svg class="sidebar-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12M2 6.5h8M2 10h10M2 13.5h6"/></svg>
+              Logs
+            </div>
+          </nav>
+
+          <!-- Kanban content -->
+          <div class="kanban">
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">Todo</span>
+                <span class="kanban-col-count">3</span>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Set up CI pipeline</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag">infra</span>
+                  <span class="kanban-card-priority" style="background: var(--status-warning);"></span>
+                </div>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Write API docs</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag">docs</span>
+                  <span class="kanban-card-priority" style="background: var(--text-muted);"></span>
+                </div>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Audit dependencies</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag">security</span>
+                  <span class="kanban-card-priority" style="background: var(--text-muted);"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">In Progress</span>
+                <span class="kanban-col-count">2</span>
+              </div>
+              <div class="kanban-card accent-border">
+                <div class="kanban-card-title">Flux design system</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag">ui</span>
+                  <span class="kanban-card-priority" style="background: var(--status-error);"></span>
+                </div>
+              </div>
+              <div class="kanban-card accent-border">
+                <div class="kanban-card-title">Voice transcription</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag">feature</span>
+                  <span class="kanban-card-priority" style="background: var(--status-warning);"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">In Review</span>
+                <span class="kanban-col-count">1</span>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Shell pane routing</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag">core</span>
+                  <span class="kanban-card-priority" style="background: var(--status-success);"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">Done</span>
+                <span class="kanban-col-count">2</span>
+              </div>
+              <div class="kanban-card" style="opacity: 0.5;">
+                <div class="kanban-card-title">Project scaffolding</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag">setup</span>
+                </div>
+              </div>
+              <div class="kanban-card" style="opacity: 0.5;">
+                <div class="kanban-card-title">Auth middleware</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag">api</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════ SPACING & GRID ═══════════ -->
+  <section class="animate-in delay-8">
+    <div class="section-label">Spacing Scale (8px Grid)</div>
+    <div class="section-border">
+      <div style="display: flex; flex-direction: column; gap: var(--sp-2);">
+        <div style="display: flex; align-items: center; gap: var(--sp-4);" class="spacing-row">
+          <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); min-width: 48px;">4px</span>
+          <div style="height: 8px; width: 4px; background: var(--accent-muted); border-radius: 2px; border: 1px solid var(--accent-default); transition: background var(--duration-normal), border-color var(--duration-normal);"></div>
+          <span style="font-size: 11px; color: var(--text-muted);">sp-1</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: var(--sp-4);" class="spacing-row">
+          <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); min-width: 48px;">8px</span>
+          <div style="height: 8px; width: 8px; background: var(--accent-muted); border-radius: 2px; border: 1px solid var(--accent-default); transition: background var(--duration-normal), border-color var(--duration-normal);"></div>
+          <span style="font-size: 11px; color: var(--text-muted);">sp-2 (base unit)</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: var(--sp-4);" class="spacing-row">
+          <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); min-width: 48px;">16px</span>
+          <div style="height: 8px; width: 16px; background: var(--accent-muted); border-radius: 2px; border: 1px solid var(--accent-default); transition: background var(--duration-normal), border-color var(--duration-normal);"></div>
+          <span style="font-size: 11px; color: var(--text-muted);">sp-4</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: var(--sp-4);" class="spacing-row">
+          <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); min-width: 48px;">24px</span>
+          <div style="height: 8px; width: 24px; background: var(--accent-muted); border-radius: 2px; border: 1px solid var(--accent-default); transition: background var(--duration-normal), border-color var(--duration-normal);"></div>
+          <span style="font-size: 11px; color: var(--text-muted);">sp-6</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: var(--sp-4);" class="spacing-row">
+          <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); min-width: 48px;">32px</span>
+          <div style="height: 8px; width: 32px; background: var(--accent-muted); border-radius: 2px; border: 1px solid var(--accent-default); transition: background var(--duration-normal), border-color var(--duration-normal);"></div>
+          <span style="font-size: 11px; color: var(--text-muted);">sp-8</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: var(--sp-4);" class="spacing-row">
+          <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); min-width: 48px;">48px</span>
+          <div style="height: 8px; width: 48px; background: var(--accent-muted); border-radius: 2px; border: 1px solid var(--accent-default); transition: background var(--duration-normal), border-color var(--duration-normal);"></div>
+          <span style="font-size: 11px; color: var(--text-muted);">sp-12</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: var(--sp-4);" class="spacing-row">
+          <span style="font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); min-width: 48px;">64px</span>
+          <div style="height: 8px; width: 64px; background: var(--accent-muted); border-radius: 2px; border: 1px solid var(--accent-default); transition: background var(--duration-normal), border-color var(--duration-normal);"></div>
+          <span style="font-size: 11px; color: var(--text-muted);">sp-16</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer style="text-align: center; padding: var(--sp-16) 0 var(--sp-8); border-top: 1px solid var(--border-subtle);">
+    <div style="font-size: 13px; color: var(--text-muted);">Flux Design System</div>
+    <div style="font-size: 11px; color: var(--text-muted); opacity: 0.5; margin-top: var(--sp-1);">DevGlide &middot; Calm Monochrome + One Accent</div>
+  </footer>
+
+</div>
+
+<!-- ═══════════ BASELINE GRID TOGGLE ═══════════ -->
+<button class="grid-toggle" id="gridToggle">
+  <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2">
+    <line x1="0" y1="2" x2="14" y2="2"/>
+    <line x1="0" y1="6" x2="14" y2="6"/>
+    <line x1="0" y1="10" x2="14" y2="10"/>
+    <line x1="0" y1="14" x2="14" y2="14"/>
+  </svg>
+  8px Grid
+</button>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── Accent Hue Picker ───────────────────────────────────
+  const slider   = document.getElementById('hueSlider');
+  const valueEl  = document.getElementById('hueValue');
+  const swatchEl = document.getElementById('hueSwatch');
+
+  function updateAccent(hue) {
+    document.documentElement.style.setProperty('--accent-hue', hue);
+    valueEl.textContent = hue;
+  }
+
+  slider.addEventListener('input', function() {
+    updateAccent(this.value);
+  });
+
+  // ── Baseline Grid Toggle ────────────────────────────────
+  const gridBtn = document.getElementById('gridToggle');
+
+  gridBtn.addEventListener('click', function() {
+    document.body.classList.toggle('show-grid');
+    this.classList.toggle('active');
+  });
+
+  // ── Intersection Observer for staggered reveal ──────────
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = '';
+          entry.target.style.transform = '';
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('section').forEach(function(section) {
+      observer.observe(section);
+    });
+  }
+})();
+</script>
+</body>
+</html>

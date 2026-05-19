@@ -1,0 +1,29 @@
+{
+  "id": "ts-scenario-never-runs",
+  "type": "troubleshooting",
+  "toolName": "devglide-test",
+  "symptom": "scenario accepted but never runs",
+  "likelyCauses": [
+    "devtools.js is loaded but polling is blocked by a JavaScript error in the app.",
+    "The app page is open but on a route that does not load devtools.js (e.g. a separate login page or error page).",
+    "A previous scenario is still running or stuck, blocking the queue.",
+    "The target URL in the scenario does not match the page currently open in the browser.",
+    "Browser DevTools is paused on a breakpoint, blocking script execution."
+  ],
+  "howToDiagnose": [
+    "Check the browser console for JavaScript errors that may have halted devtools.js.",
+    "Verify the page URL matches the expected target for the scenario.",
+    "Check if a previous scenario result is pending via test_get_result.",
+    "Look for 'devglide runner' messages in the browser console confirming the polling loop is active."
+  ],
+  "howToFix": [
+    "If a JS error is blocking devtools.js: fix the error or refresh the page.",
+    "If on the wrong page: navigate to the correct app URL.",
+    "If a previous scenario is stuck: refresh the page to clear the queue.",
+    "If DevTools is paused: resume execution."
+  ],
+  "whenToRetry": "After clearing the blocking condition. Re-submit the scenario — do not assume the old submission will eventually run.",
+  "tags": ["test", "scenario", "stuck", "polling"],
+  "createdAt": "2026-03-24T00:00:00.000Z",
+  "updatedAt": "2026-03-24T00:00:00.000Z"
+}

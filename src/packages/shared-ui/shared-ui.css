@@ -120,8 +120,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(7, 10, 18, 0.7);
-  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--df-color-bg-base) 84%, transparent);
+  backdrop-filter: blur(4px);
   z-index: 40;
   animation: sui-fade-in var(--df-duration-fast) ease;
 }
@@ -213,18 +213,18 @@
 }
 
 .sui-toast--success {
-  border-color: var(--df-color-state-success, #22c55e);
-  color: var(--df-color-state-success, #22c55e);
+  border-color: var(--df-color-state-success);
+  color: var(--df-color-state-success);
 }
 
 .sui-toast--warning {
-  border-color: var(--df-color-state-warning, #f59e0b);
-  color: var(--df-color-state-warning, #f59e0b);
+  border-color: var(--df-color-state-warning);
+  color: var(--df-color-state-warning);
 }
 
 .sui-toast--error {
-  border-color: var(--df-color-state-error, #ef4444);
-  color: var(--df-color-state-error, #ef4444);
+  border-color: var(--df-color-state-error);
+  color: var(--df-color-state-error);
 }
 
 /* ── Empty state ───────────────────────────────────────────────────────────── */

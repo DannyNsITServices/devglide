@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevGlide // Matrix Terminal</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/fira-code@latest/latin.css">
+<style>
+/* ═══════════════════════════════════════════════════════
+   RESET & BASE
+   ═══════════════════════════════════════════════════════ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --green-bright: #00ff41;
+  --green-mid: #00cc33;
+  --green-dim: #008f11;
+  --green-dark: #003b00;
+  --green-darkest: #001a00;
+  --bg: #000000;
+  --red: #ff0040;
+  --blue: #00d4ff;
+  --amber: #ffb000;
+  --font: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+}
+
+html { font-size: 13px; }
+
+body {
+  background: var(--bg);
+  color: var(--green-bright);
+  font-family: var(--font);
+  line-height: 1.6;
+  overflow-x: hidden;
+  cursor: default;
+}
+
+::selection {
+  background: var(--green-bright);
+  color: var(--bg);
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--green-dark); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--green-dim); }
+
+a { color: var(--green-bright); text-decoration: none; }
+a:hover { text-shadow: 0 0 8px var(--green-bright); }
+
+/* ═══════════════════════════════════════════════════════
+   MATRIX RAIN CANVAS
+   ═══════════════════════════════════════════════════════ */
+#matrix-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.35;
+}
+
+/* ═══════════════════════════════════════════════════════
+   BOOT SEQUENCE OVERLAY
+   ═══════════════════════════════════════════════════════ */
+#boot-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--bg);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 24px 32px;
+  overflow: hidden;
+  transition: opacity 0.8s ease;
+}
+
+#boot-overlay.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#boot-text {
+  white-space: pre-wrap;
+  font-size: 12px;
+  color: var(--green-dim);
+  line-height: 1.4;
+  max-width: 100%;
+}
+
+#boot-text .highlight { color: var(--green-bright); }
+#boot-text .warn { color: var(--amber); }
+#boot-text .ok { color: var(--green-bright); font-weight: bold; }
+#boot-text .fail { color: var(--red); font-weight: bold; }
+
+/* ═══════════════════════════════════════════════════════
+   LAYOUT
+   ═══════════════════════════════════════════════════════ */
+#app {
+  display: none;
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+#app.visible { display: flex; }
+
+.sidebar {
+  width: 280px;
+  min-height: 100vh;
+  border-right: 1px solid var(--green-dark);
+  padding: 16px 12px;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(2px);
+}
+
+.main {
+  flex: 1;
+  padding: 20px 28px;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* ═══════════════════════════════════════════════════════
+   GLITCH TEXT
+   ═══════════════════════════════════════════════════════ */
+.glitch {
+  position: relative;
+  display: inline-block;
+  animation: glitch-skew 4s infinite linear alternate-reverse;
+}
+
+.glitch::before,
+.glitch::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  overflow: hidden;
+}
+
+.glitch::before {
+  color: var(--red);
+  animation: glitch-shift-1 3s infinite linear alternate-reverse;
+  clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%);
+  z-index: -1;
+}
+
+.glitch::after {
+  color: var(--blue);
+  animation: glitch-shift-2 2.5s infinite linear alternate-reverse;
+  clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%);
+  z-index: -1;
+}
+
+@keyframes glitch-shift-1 {
+  0%, 90% { transform: translate(0); }
+  91% { transform: translate(-3px, 1px); }
+  92% { transform: translate(2px, -1px); }
+  93% { transform: translate(-1px, 0); }
+  94%, 100% { transform: translate(0); }
+}
+
+@keyframes glitch-shift-2 {
+  0%, 88% { transform: translate(0); }
+  89% { transform: translate(2px, -1px); }
+  90% { transform: translate(-3px, 1px); }
+  91% { transform: translate(1px, 0); }
+  92%, 100% { transform: translate(0); }
+}
+
+@keyframes glitch-skew {
+  0%, 95% { transform: skew(0deg); }
+  96% { transform: skew(-0.5deg); }
+  97% { transform: skew(0.3deg); }
+  98% { transform: skew(-0.2deg); }
+  99%, 100% { transform: skew(0deg); }
+}
+
+/* Hover-triggered intense glitch */
+.glitch-hover:hover {
+  animation: glitch-intense 0.3s steps(2) infinite;
+}
+
+@keyframes glitch-intense {
+  0% { text-shadow: -2px 0 var(--red), 2px 0 var(--blue); transform: translate(0); }
+  25% { text-shadow: 2px 0 var(--red), -2px 0 var(--blue); transform: translate(-1px, 1px); }
+  50% { text-shadow: -1px 0 var(--red), 1px 0 var(--blue); transform: translate(1px, -1px); }
+  75% { text-shadow: 1px 0 var(--red), -1px 0 var(--blue); transform: translate(0, 1px); }
+  100% { text-shadow: -2px 0 var(--red), 2px 0 var(--blue); transform: translate(-1px, 0); }
+}
+
+/* ═══════════════════════════════════════════════════════
+   TYPING CURSOR
+   ═══════════════════════════════════════════════════════ */
+.typing-cursor::after {
+  content: '\2588';
+  animation: blink-cursor 0.8s step-end infinite;
+  color: var(--green-bright);
+  margin-left: 2px;
+}
+
+@keyframes blink-cursor {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   SECTION STYLES
+   ═══════════════════════════════════════════════════════ */
+.section {
+  margin-bottom: 28px;
+}
+
+.prompt-header {
+  font-size: 14px;
+  color: var(--green-mid);
+  margin-bottom: 10px;
+  user-select: none;
+}
+
+.prompt-header .prompt-symbol {
+  color: var(--green-bright);
+  font-weight: bold;
+}
+
+.ascii-divider {
+  color: var(--green-dark);
+  margin: 20px 0;
+  font-size: 11px;
+  user-select: none;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SIDEBAR / FILE TREE
+   ═══════════════════════════════════════════════════════ */
+.sidebar-title {
+  font-size: 11px;
+  color: var(--green-dim);
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--green-dark);
+  padding-bottom: 6px;
+}
+
+.file-tree {
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.file-tree .dir { color: var(--green-bright); font-weight: bold; }
+.file-tree .file { color: var(--green-dim); }
+.file-tree .active { color: var(--green-bright); text-shadow: 0 0 6px var(--green-bright); }
+.file-tree .tree-char { color: var(--green-dark); user-select: none; }
+
+.file-tree-item {
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+
+.file-tree-item:hover {
+  background: rgba(0, 255, 65, 0.08);
+}
+
+.file-tree-item.selected {
+  background: rgba(0, 255, 65, 0.12);
+  border-left: 2px solid var(--green-bright);
+  padding-left: 6px;
+}
+
+.sidebar-stats {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--green-dark);
+  font-size: 11px;
+  color: var(--green-dim);
+}
+
+.sidebar-stats .val { color: var(--green-mid); }
+
+/* ═══════════════════════════════════════════════════════
+   TERMINAL TABLE (KANBAN)
+   ═══════════════════════════════════════════════════════ */
+.terminal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.terminal-table th {
+  color: var(--green-bright);
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--green-dim);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 11px;
+}
+
+.terminal-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--green-darkest);
+  color: var(--green-dim);
+}
+
+.terminal-table tr.active-row td {
+  color: var(--green-bright);
+  text-shadow: 0 0 4px rgba(0, 255, 65, 0.3);
+  background: rgba(0, 255, 65, 0.04);
+}
+
+.terminal-table tr:hover td {
+  background: rgba(0, 255, 65, 0.06);
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid;
+  border-radius: 2px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.in-progress { border-color: var(--green-bright); color: var(--green-bright); }
+.status-badge.todo { border-color: var(--green-dim); color: var(--green-dim); }
+.status-badge.done { border-color: var(--green-dark); color: var(--green-dark); }
+.status-badge.review { border-color: var(--amber); color: var(--amber); }
+.status-badge.testing { border-color: var(--blue); color: var(--blue); }
+
+.priority-high { color: var(--red) !important; }
+.priority-medium { color: var(--amber) !important; }
+.priority-low { color: var(--green-dim) !important; }
+
+/* ═══════════════════════════════════════════════════════
+   PROGRESS BARS
+   ═══════════════════════════════════════════════════════ */
+.progress-bar {
+  font-size: 12px;
+  margin: 4px 0;
+  white-space: nowrap;
+}
+
+.progress-bar .label {
+  display: inline-block;
+  width: 100px;
+  color: var(--green-dim);
+}
+
+.progress-bar .bar { color: var(--green-mid); }
+.progress-bar .bar-empty { color: var(--green-dark); }
+.progress-bar .pct { color: var(--green-bright); margin-left: 6px; }
+
+/* ═══════════════════════════════════════════════════════
+   HEX DUMP
+   ═══════════════════════════════════════════════════════ */
+.hex-dump {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--green-dark);
+  padding: 10px 12px;
+  border: 1px solid var(--green-darkest);
+  border-radius: 3px;
+  background: rgba(0, 20, 0, 0.4);
+  overflow-x: auto;
+  max-height: 200px;
+}
+
+.hex-dump .addr { color: var(--green-dim); }
+.hex-dump .hex-byte { color: var(--green-dark); }
+.hex-dump .hex-byte.highlight { color: var(--green-mid); }
+.hex-dump .ascii-col { color: var(--green-dim); border-left: 1px solid var(--green-darkest); padding-left: 8px; margin-left: 8px; }
+
+/* ═══════════════════════════════════════════════════════
+   NETWORK GRAPH
+   ═══════════════════════════════════════════════════════ */
+.network-graph {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  margin: 16px 0;
+  overflow: hidden;
+}
+
+.net-node {
+  position: absolute;
+  width: 12px; height: 12px;
+  background: var(--green-bright);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--green-bright), 0 0 20px rgba(0, 255, 65, 0.2);
+  animation: node-pulse 2s ease-in-out infinite;
+  z-index: 2;
+}
+
+.net-node::after {
+  content: attr(data-label);
+  position: absolute;
+  top: 18px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 9px;
+  color: var(--green-dim);
+  white-space: nowrap;
+}
+
+@keyframes node-pulse {
+  0%, 100% { box-shadow: 0 0 8px var(--green-bright), 0 0 20px rgba(0, 255, 65, 0.2); }
+  50% { box-shadow: 0 0 14px var(--green-bright), 0 0 35px rgba(0, 255, 65, 0.4); }
+}
+
+.net-edge {
+  position: absolute;
+  height: 1px;
+  background: var(--green-dark);
+  transform-origin: 0 0;
+  z-index: 1;
+}
+
+.net-edge .data-packet {
+  position: absolute;
+  width: 6px; height: 6px;
+  background: var(--green-bright);
+  border-radius: 50%;
+  top: -2.5px;
+  animation: packet-flow 2s linear infinite;
+  box-shadow: 0 0 6px var(--green-bright);
+}
+
+@keyframes packet-flow {
+  0% { left: 0%; opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   ACCESS GRANTED / DENIED
+   ═══════════════════════════════════════════════════════ */
+.access-badge {
+  display: inline-block;
+  padding: 6px 16px;
+  border: 2px solid;
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  animation: access-flash 1.5s ease-out forwards;
+}
+
+.access-badge.granted {
+  border-color: var(--green-bright);
+  color: var(--green-bright);
+  text-shadow: 0 0 10px var(--green-bright);
+}
+
+.access-badge.denied {
+  border-color: var(--red);
+  color: var(--red);
+  text-shadow: 0 0 10px var(--red);
+}
+
+@keyframes access-flash {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  20% { opacity: 0.3; }
+  30% { opacity: 1; }
+  40% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   DECRYPTION EFFECT
+   ═══════════════════════════════════════════════════════ */
+.decrypt-text {
+  display: inline;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SYSTEM LOAD / PROCESS LIST
+   ═══════════════════════════════════════════════════════ */
+.process-list {
+  font-size: 11px;
+}
+
+.process-list .header-row {
+  color: var(--green-bright);
+  font-weight: bold;
+  border-bottom: 1px solid var(--green-dark);
+  padding-bottom: 3px;
+  margin-bottom: 3px;
+}
+
+.process-list .process-row {
+  color: var(--green-dim);
+  padding: 2px 0;
+}
+
+.process-list .process-row:hover {
+  color: var(--green-mid);
+}
+
+.process-row .pid { color: var(--green-mid); }
+
+/* ═══════════════════════════════════════════════════════
+   MISC
+   ═══════════════════════════════════════════════════════ */
+.timestamp {
+  font-size: 10px;
+  color: var(--green-dark);
+  float: right;
+  user-select: none;
+}
+
+.ip-stamp {
+  font-size: 10px;
+  color: var(--green-darkest);
+  user-select: none;
+}
+
+.section-box {
+  border: 1px solid var(--green-dark);
+  border-radius: 3px;
+  padding: 14px 16px;
+  margin: 10px 0;
+  background: rgba(0, 10, 0, 0.3);
+}
+
+.scanline {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 65, 0.015) 2px,
+    rgba(0, 255, 65, 0.015) 4px
+  );
+}
+
+.vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 9997;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 60%,
+    rgba(0, 0, 0, 0.6) 100%
+  );
+}
+
+.header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--green-dark);
+}
+
+.header-bar h1 {
+  font-size: 20px;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+.status-line {
+  font-size: 10px;
+  color: var(--green-dim);
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.stat-card {
+  border: 1px solid var(--green-dark);
+  padding: 12px;
+  border-radius: 3px;
+  background: rgba(0, 10, 0, 0.3);
+}
+
+.stat-card .stat-label {
+  font-size: 10px;
+  color: var(--green-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.stat-card .stat-value {
+  font-size: 22px;
+  color: var(--green-bright);
+  font-weight: bold;
+  text-shadow: 0 0 10px rgba(0, 255, 65, 0.3);
+}
+
+.stat-card .stat-sub {
+  font-size: 10px;
+  color: var(--green-dark);
+  margin-top: 2px;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .two-col { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+}
+
+</style>
+</head>
+<body>
+
+<!-- Scanlines & Vignette -->
+<div class="scanline"></div>
+<div class="vignette"></div>
+
+<!-- Matrix Rain Canvas -->
+<canvas id="matrix-canvas"></canvas>
+
+<!-- Boot Sequence Overlay -->
+<div id="boot-overlay">
+  <div id="boot-text"></div>
+</div>
+
+<!-- Main App (hidden until boot completes) -->
+<div id="app">
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <aside class="sidebar">
+    <div class="sidebar-title">
+      <span style="color:var(--green-mid)">root@devglide</span><span style="color:var(--green-dark)">:</span><span style="color:var(--blue)">~</span><span style="color:var(--green-dim)"># ls -la</span>
+    </div>
+
+    <div class="file-tree">
+      <div><span class="tree-char">    </span><span class="dir">drwxr-xr-x</span> <span class="file">./</span></div>
+      <div class="file-tree-item selected">
+        <span class="tree-char">  </span><span class="active">&#9500;&#9472;&#9472; kanban/</span>
+      </div>
+      <div class="file-tree-item">
+        <span class="tree-char">  </span><span class="file">&#9500;&#9472;&#9472; shell/</span>
+      </div>
+      <div class="file-tree-item">
+        <span class="tree-char">  </span><span class="file">&#9500;&#9472;&#9472; test/</span>
+      </div>
+      <div class="file-tree-item">
+        <span class="tree-char">  </span><span class="file">&#9500;&#9472;&#9472; workflow/</span>
+      </div>
+      <div class="file-tree-item">
+        <span class="tree-char">  </span><span class="file">&#9500;&#9472;&#9472; voice/</span>
+      </div>
+      <div class="file-tree-item">
+        <span class="tree-char">  </span><span class="file">&#9500;&#9472;&#9472; chat/</span>
+      </div>
+      <div class="file-tree-item">
+        <span class="tree-char">  </span><span class="file">&#9500;&#9472;&#9472; vocabulary/</span>
+      </div>
+      <div class="file-tree-item">
+        <span class="tree-char">  </span><span class="file">&#9500;&#9472;&#9472; prompts/</span>
+      </div>
+      <div class="file-tree-item">
+        <span class="tree-char">  </span><span class="file">&#9500;&#9472;&#9472; documentation/</span>
+      </div>
+      <div class="file-tree-item">
+        <span class="tree-char">  </span><span class="file">&#9492;&#9472;&#9472; log/</span>
+      </div>
+    </div>
+
+    <div class="sidebar-stats">
+      <div><span class="val">10</span> MCP servers loaded</div>
+      <div>Port: <span class="val">:7000</span></div>
+      <div>PID:  <span class="val">48291</span></div>
+      <div>Uptime: <span class="val" id="uptime-counter">00:00:00</span></div>
+      <div style="margin-top:8px; color:var(--green-darkest)">192.168.1.42</div>
+    </div>
+
+    <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--green-dark);">
+      <div style="font-size:10px; color:var(--green-dark); margin-bottom:6px;">MEMORY</div>
+      <div class="progress-bar">
+        <span class="label">Heap Used</span>
+        <span class="bar">[&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;</span><span class="bar-empty">&#9617;&#9617;&#9617;&#9617;]</span>
+        <span class="pct">67%</span>
+      </div>
+      <div class="progress-bar">
+        <span class="label">RSS</span>
+        <span class="bar">[&#9608;&#9608;&#9608;&#9608;&#9608;</span><span class="bar-empty">&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;]</span>
+        <span class="pct">42%</span>
+      </div>
+      <div class="progress-bar">
+        <span class="label">Event Loop</span>
+        <span class="bar">[&#9608;&#9608;</span><span class="bar-empty">&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;]</span>
+        <span class="pct">17%</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN CONTENT ═══ -->
+  <main class="main">
+
+    <!-- Header -->
+    <div class="header-bar">
+      <h1>
+        <span class="glitch glitch-hover" data-text="DEVGLIDE">DEVGLIDE</span>
+        <span style="color:var(--green-dark); font-weight:normal; font-size:12px; margin-left:8px;">v2.4.0</span>
+      </h1>
+      <div style="text-align:right;">
+        <div class="status-line">SESSION: <span style="color:var(--green-mid)">mcp-7f3a9b2e</span></div>
+        <div class="status-line" id="clock-line">2026-04-03T14:23:07Z</div>
+        <div class="status-line">TTY: <span style="color:var(--green-mid)">/dev/pts/3</span></div>
+      </div>
+    </div>
+
+    <!-- Access badge -->
+    <div style="margin-bottom: 20px;">
+      <span class="access-badge granted" id="access-badge">ACCESS GRANTED</span>
+      <span class="ip-stamp" style="margin-left:12px;">AUTH: RSA-4096 // FINGERPRINT: SHA256:xK9m2...</span>
+    </div>
+
+    <!-- Typing heading -->
+    <div class="section">
+      <div class="prompt-header">
+        <span class="prompt-symbol">root@devglide:~#</span> <span class="typing-target" data-text="cat /proc/dashboard/overview">_</span>
+      </div>
+    </div>
+
+    <!-- ═══ ASCII DIVIDER ═══ -->
+    <div class="ascii-divider">&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;[ SYSTEM OVERVIEW ]&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;</div>
+
+    <!-- Stat Cards -->
+    <div class="card-grid">
+      <div class="stat-card">
+        <div class="stat-label">Active Tasks</div>
+        <div class="stat-value decrypt-text" data-final="42">????????</div>
+        <div class="stat-sub">+7 from yesterday</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">MCP Calls / hr</div>
+        <div class="stat-value decrypt-text" data-final="1,847">????????</div>
+        <div class="stat-sub">avg latency 23ms</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Test Pass Rate</div>
+        <div class="stat-value decrypt-text" data-final="98.2%">????????</div>
+        <div class="stat-sub">3 flaky, 1 failing</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Voice Sessions</div>
+        <div class="stat-value decrypt-text" data-final="156">????????</div>
+        <div class="stat-sub">12.4 avg WPM</div>
+      </div>
+    </div>
+
+    <!-- ═══ ASCII DIVIDER ═══ -->
+    <div class="ascii-divider">&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;[ KANBAN BOARD ]&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;</div>
+
+    <div class="section">
+      <div class="prompt-header">
+        <span class="prompt-symbol">&gt;</span> <span class="typing-target" data-text="kanban_list_items --feature=MCP-Core --format=table">_</span>
+        <span class="timestamp">192.168.1.42 -- <span id="ts-kanban">2026-04-03T14:23:11Z</span></span>
+      </div>
+
+      <div class="section-box" style="overflow-x:auto;">
+        <table class="terminal-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Task</th>
+              <th>Status</th>
+              <th>Priority</th>
+              <th>Assigned</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="active-row">
+              <td>#1042</td>
+              <td>Implement streaming MCP responses</td>
+              <td><span class="status-badge in-progress">In Progress</span></td>
+              <td class="priority-high">HIGH</td>
+              <td>claude-1</td>
+            </tr>
+            <tr>
+              <td>#1039</td>
+              <td>Add voice biasing for domain terms</td>
+              <td><span class="status-badge review">In Review</span></td>
+              <td class="priority-medium">MEDIUM</td>
+              <td>codex-2</td>
+            </tr>
+            <tr>
+              <td>#1037</td>
+              <td>Shell pane auto-cleanup on idle</td>
+              <td><span class="status-badge testing">Testing</span></td>
+              <td class="priority-medium">MEDIUM</td>
+              <td>claude-1</td>
+            </tr>
+            <tr>
+              <td>#1035</td>
+              <td>Fix chat pane collision edge case</td>
+              <td><span class="status-badge todo">Todo</span></td>
+              <td class="priority-high">HIGH</td>
+              <td>--</td>
+            </tr>
+            <tr>
+              <td>#1031</td>
+              <td>Workflow DAG visualization</td>
+              <td><span class="status-badge todo">Todo</span></td>
+              <td class="priority-low">LOW</td>
+              <td>--</td>
+            </tr>
+            <tr>
+              <td>#1028</td>
+              <td>Documentation seed content v2</td>
+              <td><span class="status-badge done">Done</span></td>
+              <td class="priority-low">LOW</td>
+              <td>claude-1</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══ ASCII DIVIDER ═══ -->
+    <div class="ascii-divider">&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;[ NETWORK TOPOLOGY + HEX DUMP ]&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;</div>
+
+    <div class="two-col">
+      <!-- Network Graph -->
+      <div class="section">
+        <div class="prompt-header">
+          <span class="prompt-symbol">&gt;</span> netstat --mcp-topology
+          <span class="timestamp">192.168.1.42</span>
+        </div>
+        <div class="section-box">
+          <div class="network-graph" id="network-graph"></div>
+        </div>
+      </div>
+
+      <!-- Hex Dump -->
+      <div class="section">
+        <div class="prompt-header">
+          <span class="prompt-symbol">&gt;</span> xxd /dev/mcp/stream | head -12
+          <span class="timestamp">encrypted</span>
+        </div>
+        <div class="section-box">
+          <div class="hex-dump" id="hex-dump"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ASCII DIVIDER ═══ -->
+    <div class="ascii-divider">&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;[ SYSTEM LOAD + PROCESSES ]&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;</div>
+
+    <div class="two-col">
+      <!-- System Load -->
+      <div class="section">
+        <div class="prompt-header">
+          <span class="prompt-symbol">&gt;</span> <span class="typing-target" data-text="cat /proc/loadavg">_</span>
+        </div>
+        <div class="section-box">
+          <div class="progress-bar">
+            <span class="label">CPU Core 0</span>
+            <span class="bar">[&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;</span><span class="bar-empty">&#9617;&#9617;&#9617;]</span>
+            <span class="pct">73%</span>
+          </div>
+          <div class="progress-bar">
+            <span class="label">CPU Core 1</span>
+            <span class="bar">[&#9608;&#9608;&#9608;&#9608;&#9608;</span><span class="bar-empty">&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;]</span>
+            <span class="pct">42%</span>
+          </div>
+          <div class="progress-bar">
+            <span class="label">CPU Core 2</span>
+            <span class="bar">[&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;</span><span class="bar-empty">&#9617;]</span>
+            <span class="pct">91%</span>
+          </div>
+          <div class="progress-bar">
+            <span class="label">CPU Core 3</span>
+            <span class="bar">[&#9608;&#9608;&#9608;</span><span class="bar-empty">&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;]</span>
+            <span class="pct">25%</span>
+          </div>
+          <div style="margin-top:10px;">
+            <div class="progress-bar">
+              <span class="label">Disk I/O</span>
+              <span class="bar">[&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;</span><span class="bar-empty">&#9617;&#9617;&#9617;&#9617;&#9617;&#9617;]</span>
+              <span class="pct">50%</span>
+            </div>
+            <div class="progress-bar">
+              <span class="label">Network</span>
+              <span class="bar">[&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;</span><span class="bar-empty">&#9617;&#9617;&#9617;&#9617;&#9617;]</span>
+              <span class="pct">58%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Process List -->
+      <div class="section">
+        <div class="prompt-header">
+          <span class="prompt-symbol">&gt;</span> ps aux --mcp
+        </div>
+        <div class="section-box">
+          <div class="process-list">
+            <div class="header-row">
+              &nbsp;PID &nbsp; &nbsp;STATE &nbsp; &nbsp;CPU &nbsp; &nbsp;MEM &nbsp; &nbsp;COMMAND
+            </div>
+            <div class="process-row">
+              <span class="pid">48291</span> &nbsp;RUN &nbsp; &nbsp; 2.1% &nbsp; 84M &nbsp; &nbsp;devglide-server
+            </div>
+            <div class="process-row">
+              <span class="pid">48302</span> &nbsp;RUN &nbsp; &nbsp; 0.8% &nbsp; 32M &nbsp; &nbsp;mcp-kanban
+            </div>
+            <div class="process-row">
+              <span class="pid">48305</span> &nbsp;RUN &nbsp; &nbsp; 1.4% &nbsp; 28M &nbsp; &nbsp;mcp-shell
+            </div>
+            <div class="process-row">
+              <span class="pid">48308</span> &nbsp;SLEEP &nbsp; 0.1% &nbsp; 18M &nbsp; &nbsp;mcp-test
+            </div>
+            <div class="process-row">
+              <span class="pid">48311</span> &nbsp;RUN &nbsp; &nbsp; 0.5% &nbsp; 22M &nbsp; &nbsp;mcp-voice
+            </div>
+            <div class="process-row">
+              <span class="pid">48314</span> &nbsp;RUN &nbsp; &nbsp; 3.2% &nbsp; 45M &nbsp; &nbsp;mcp-chat
+            </div>
+            <div class="process-row">
+              <span class="pid">48317</span> &nbsp;SLEEP &nbsp; 0.0% &nbsp; 12M &nbsp; &nbsp;mcp-workflow
+            </div>
+            <div class="process-row">
+              <span class="pid">48320</span> &nbsp;SLEEP &nbsp; 0.0% &nbsp; &nbsp;8M &nbsp; &nbsp;mcp-vocabulary
+            </div>
+            <div class="process-row">
+              <span class="pid">48323</span> &nbsp;SLEEP &nbsp; 0.0% &nbsp; 10M &nbsp; &nbsp;mcp-prompts
+            </div>
+            <div class="process-row">
+              <span class="pid">48326</span> &nbsp;SLEEP &nbsp; 0.0% &nbsp; &nbsp;6M &nbsp; &nbsp;mcp-log
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ ASCII ART FOOTER ═══ -->
+    <div class="ascii-divider" style="margin-top:30px; text-align:center; color:var(--green-dark);">
+<pre style="display:inline-block; text-align:left; font-size:10px; line-height:1.3;">
+    ____              _________ __    __
+   / __ \___  _   __/ ____/ (_) ___/ /__
+  / / / / _ \| | / / / __/ / / __  / _ \
+ / /_/ /  __/| |/ / /_/ / / / /_/ /  __/
+/_____/\___/ |___/\____/_/_/\__,_/\___/
+
+    MCP Toolkit // All Systems Nominal
+</pre>
+    </div>
+
+    <div style="text-align:center; margin:10px 0 30px; font-size:10px; color:var(--green-darkest);">
+      &copy; 2026 DevGlide // Connection encrypted // TLS 1.3 // ECDHE-RSA-AES256-GCM-SHA384
+    </div>
+
+  </main>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   MATRIX RAIN
+   ═══════════════════════════════════════════════════════ */
+(function initMatrixRain() {
+  const canvas = document.getElementById('matrix-canvas');
+  const ctx = canvas.getContext('2d');
+  let cols, drops;
+  const fontSize = 14;
+
+  // Katakana + Latin chars
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%^&*(){}[]|;:<>,.?/~`' +
+    '\u30A0\u30A1\u30A2\u30A3\u30A4\u30A5\u30A6\u30A7\u30A8\u30A9\u30AA\u30AB\u30AC\u30AD\u30AE\u30AF' +
+    '\u30B0\u30B1\u30B2\u30B3\u30B4\u30B5\u30B6\u30B7\u30B8\u30B9\u30BA\u30BB\u30BC\u30BD\u30BE\u30BF' +
+    '\u30C0\u30C1\u30C2\u30C3\u30C4\u30C5\u30C6\u30C7\u30C8\u30C9\u30CA\u30CB\u30CC\u30CD\u30CE\u30CF' +
+    '\u30D0\u30D1\u30D2\u30D3\u30D4\u30D5\u30D6\u30D7\u30D8\u30D9\u30DA\u30DB\u30DC\u30DD\u30DE\u30DF' +
+    '\u30E0\u30E1\u30E2\u30E3\u30E4\u30E5\u30E6\u30E7\u30E8\u30E9\u30EA\u30EB\u30EC\u30ED\u30EE\u30EF';
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    cols = Math.floor(canvas.width / fontSize);
+    drops = Array.from({ length: cols }, () => Math.random() * -100 | 0);
+  }
+
+  function draw() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = fontSize + 'px "Fira Code", monospace';
+
+    for (let i = 0; i < cols; i++) {
+      const char = chars[Math.random() * chars.length | 0];
+      const y = drops[i] * fontSize;
+
+      // Head of the column — bright green
+      ctx.fillStyle = '#00ff41';
+      ctx.fillText(char, i * fontSize, y);
+
+      // Dimmer trail
+      if (drops[i] > 1) {
+        const trailChar = chars[Math.random() * chars.length | 0];
+        ctx.fillStyle = 'rgba(0, 143, 17, 0.6)';
+        ctx.fillText(trailChar, i * fontSize, y - fontSize);
+      }
+      if (drops[i] > 3) {
+        const trailChar2 = chars[Math.random() * chars.length | 0];
+        ctx.fillStyle = 'rgba(0, 59, 0, 0.4)';
+        ctx.fillText(trailChar2, i * fontSize, y - fontSize * 3);
+      }
+
+      if (y > canvas.height && Math.random() > 0.975) {
+        drops[i] = 0;
+      }
+      drops[i]++;
+    }
+    requestAnimationFrame(draw);
+  }
+
+  resize();
+  window.addEventListener('resize', resize);
+  draw();
+})();
+
+/* ═══════════════════════════════════════════════════════
+   BOOT SEQUENCE
+   ═══════════════════════════════════════════════════════ */
+(function bootSequence() {
+  const overlay = document.getElementById('boot-overlay');
+  const bootText = document.getElementById('boot-text');
+  const app = document.getElementById('app');
+
+  const lines = [
+    { text: 'BIOS POST... ', cls: '' },
+    { text: 'OK\n', cls: 'ok' },
+    { text: 'Detecting hardware...\n', cls: '' },
+    { text: '  CPU:  AMD EPYC 9654 96-Core @ 2.40GHz\n', cls: '' },
+    { text: '  RAM:  256 GB DDR5-4800 ECC\n', cls: '' },
+    { text: '  GPU:  NVIDIA A100 80GB\n', cls: '' },
+    { text: '  NET:  Intel E810-CQDA2 100GbE\n', cls: '' },
+    { text: '  DISK: NVMe Samsung PM1733 3.84TB x4 (RAID-10)\n\n', cls: '' },
+    { text: 'Loading kernel... ', cls: '' },
+    { text: 'vmlinuz-6.8.0-devglide\n', cls: 'highlight' },
+    { text: 'Initializing memory... ', cls: '' },
+    { text: 'OK\n', cls: 'ok' },
+    { text: 'Mounting filesystems... ', cls: '' },
+    { text: 'OK\n', cls: 'ok' },
+    { text: 'Starting network stack... ', cls: '' },
+    { text: 'OK\n', cls: 'ok' },
+    { text: 'Binding to 0.0.0.0:7000... ', cls: '' },
+    { text: 'OK\n\n', cls: 'ok' },
+    { text: '═══════════════════════════════════════════════\n', cls: '' },
+    { text: '  DEVGLIDE MCP TOOLKIT v2.4.0\n', cls: 'highlight' },
+    { text: '  Secure Multi-Agent Orchestration Layer\n', cls: '' },
+    { text: '═══════════════════════════════════════════════\n\n', cls: '' },
+    { text: 'Loading MCP servers...\n', cls: '' },
+    { text: '  [1/10] devglide-kanban       ', cls: '' },
+    { text: 'LOADED\n', cls: 'ok' },
+    { text: '  [2/10] devglide-shell        ', cls: '' },
+    { text: 'LOADED\n', cls: 'ok' },
+    { text: '  [3/10] devglide-test         ', cls: '' },
+    { text: 'LOADED\n', cls: 'ok' },
+    { text: '  [4/10] devglide-workflow     ', cls: '' },
+    { text: 'LOADED\n', cls: 'ok' },
+    { text: '  [5/10] devglide-voice        ', cls: '' },
+    { text: 'LOADED\n', cls: 'ok' },
+    { text: '  [6/10] devglide-chat         ', cls: '' },
+    { text: 'LOADED\n', cls: 'ok' },
+    { text: '  [7/10] devglide-vocabulary   ', cls: '' },
+    { text: 'LOADED\n', cls: 'ok' },
+    { text: '  [8/10] devglide-prompts      ', cls: '' },
+    { text: 'LOADED\n', cls: 'ok' },
+    { text: '  [9/10] devglide-documentation ', cls: '' },
+    { text: 'LOADED\n', cls: 'ok' },
+    { text: '  [10/10] devglide-log         ', cls: '' },
+    { text: 'LOADED\n\n', cls: 'ok' },
+    { text: 'Verifying TLS certificates... ', cls: '' },
+    { text: 'VALID\n', cls: 'ok' },
+    { text: 'Checking FFmpeg... ', cls: '' },
+    { text: 'ffmpeg 7.0.1\n', cls: 'ok' },
+    { text: 'Initializing whisper.cpp... ', cls: '' },
+    { text: 'ggml-large-v3-turbo-q5_0\n', cls: 'highlight' },
+    { text: 'Loading SQLite databases... ', cls: '' },
+    { text: 'OK (3 projects)\n', cls: 'ok' },
+    { text: 'Restoring chat sessions... ', cls: '' },
+    { text: '2 participants recovered\n', cls: 'highlight' },
+    { text: 'Compiling workflows... ', cls: '' },
+    { text: '7 active, 2 disabled\n\n', cls: 'highlight' },
+    { text: 'Running security audit...\n', cls: '' },
+    { text: '  Firewall rules:    ', cls: '' },
+    { text: 'ACTIVE\n', cls: 'ok' },
+    { text: '  Auth middleware:    ', cls: '' },
+    { text: 'ACTIVE\n', cls: 'ok' },
+    { text: '  Rate limiting:     ', cls: '' },
+    { text: 'ACTIVE (100 req/min)\n', cls: 'ok' },
+    { text: '  Sandbox isolation: ', cls: '' },
+    { text: 'ENFORCED\n\n', cls: 'ok' },
+    { text: 'All systems nominal. Starting dashboard...\n\n', cls: 'highlight' },
+    { text: 'root@devglide:~# ', cls: 'highlight' },
+    { text: 'ACCESS GRANTED', cls: 'ok' },
+  ];
+
+  let lineIdx = 0;
+  let charIdx = 0;
+
+  function typeNextChar() {
+    if (lineIdx >= lines.length) {
+      setTimeout(() => {
+        overlay.classList.add('fade-out');
+        app.classList.add('visible');
+        setTimeout(() => {
+          overlay.remove();
+          startPostBootAnimations();
+        }, 800);
+      }, 400);
+      return;
+    }
+
+    const line = lines[lineIdx];
+    const ch = line.text[charIdx];
+
+    if (line.cls) {
+      // For styled text, we need to wrap in a span
+      if (charIdx === 0) {
+        bootText.insertAdjacentHTML('beforeend', `<span class="${line.cls}">`);
+      }
+      const node = bootText.lastElementChild;
+      node.textContent += ch;
+      if (charIdx === line.text.length - 1) {
+        bootText.insertAdjacentHTML('beforeend', '</span>');
+      }
+    } else {
+      const textNode = document.createTextNode(ch);
+      bootText.appendChild(textNode);
+    }
+
+    charIdx++;
+    if (charIdx >= line.text.length) {
+      if (line.cls) {
+        // Close span if we haven't already
+      }
+      lineIdx++;
+      charIdx = 0;
+    }
+
+    // Auto-scroll
+    overlay.scrollTop = overlay.scrollHeight;
+
+    // Speed: fast for most chars, pauses at newlines and status words
+    const isNewline = ch === '\n';
+    const isStatusLine = line.cls === 'ok' || line.cls === 'fail';
+    const delay = isNewline ? 20 : (isStatusLine && charIdx === 1 ? 80 : 8);
+
+    setTimeout(typeNextChar, delay);
+  }
+
+  typeNextChar();
+})();
+
+/* ═══════════════════════════════════════════════════════
+   POST-BOOT ANIMATIONS (typing, decryption, etc.)
+   ═══════════════════════════════════════════════════════ */
+function startPostBootAnimations() {
+  // Typing animations
+  document.querySelectorAll('.typing-target').forEach((el, i) => {
+    const text = el.dataset.text;
+    el.textContent = '';
+    el.classList.add('typing-cursor');
+    let idx = 0;
+    setTimeout(() => {
+      const interval = setInterval(() => {
+        if (idx < text.length) {
+          el.textContent += text[idx];
+          idx++;
+        } else {
+          clearInterval(interval);
+          // Keep blinking cursor for a bit, then remove
+          setTimeout(() => el.classList.remove('typing-cursor'), 3000);
+        }
+      }, 45);
+    }, i * 800 + 300);
+  });
+
+  // Decryption effect
+  document.querySelectorAll('.decrypt-text').forEach((el, i) => {
+    const finalText = el.dataset.final;
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    let iterations = 0;
+    const maxIterations = 20;
+
+    setTimeout(() => {
+      const interval = setInterval(() => {
+        el.textContent = finalText.split('').map((char, ci) => {
+          if (ci < iterations * (finalText.length / maxIterations)) return char;
+          return chars[Math.floor(Math.random() * chars.length)];
+        }).join('');
+        iterations++;
+        if (iterations > maxIterations) {
+          clearInterval(interval);
+          el.textContent = finalText;
+        }
+      }, 50);
+    }, i * 200 + 500);
+  });
+
+  // Generate hex dump
+  generateHexDump();
+
+  // Build network graph
+  buildNetworkGraph();
+
+  // Start uptime counter
+  startUptimeCounter();
+
+  // Live clock
+  startClock();
+}
+
+/* ═══════════════════════════════════════════════════════
+   HEX DUMP GENERATOR
+   ═══════════════════════════════════════════════════════ */
+function generateHexDump() {
+  const container = document.getElementById('hex-dump');
+  const rows = 12;
+  let html = '';
+
+  for (let r = 0; r < rows; r++) {
+    const addr = (r * 16).toString(16).padStart(8, '0');
+    let hexPart = '';
+    let asciiPart = '';
+
+    for (let c = 0; c < 16; c++) {
+      const byte = Math.floor(Math.random() * 256);
+      const isHighlight = Math.random() > 0.85;
+      hexPart += `<span class="hex-byte${isHighlight ? ' highlight' : ''}">${byte.toString(16).padStart(2, '0')}</span>`;
+      if (c < 15) hexPart += ' ';
+      if (c === 7) hexPart += ' ';
+
+      // ASCII representation
+      if (byte >= 32 && byte <= 126) {
+        asciiPart += String.fromCharCode(byte);
+      } else {
+        asciiPart += '.';
+      }
+    }
+
+    html += `<div><span class="addr">${addr}</span>  ${hexPart}  <span class="ascii-col">${asciiPart}</span></div>`;
+  }
+
+  container.innerHTML = html;
+
+  // Periodically update random bytes
+  setInterval(() => {
+    const bytes = container.querySelectorAll('.hex-byte');
+    for (let i = 0; i < 5; i++) {
+      const idx = Math.floor(Math.random() * bytes.length);
+      const newVal = Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
+      bytes[idx].textContent = newVal;
+      bytes[idx].classList.add('highlight');
+      setTimeout(() => bytes[idx].classList.remove('highlight'), 500);
+    }
+  }, 2000);
+}
+
+/* ═══════════════════════════════════════════════════════
+   NETWORK GRAPH
+   ═══════════════════════════════════════════════════════ */
+function buildNetworkGraph() {
+  const container = document.getElementById('network-graph');
+  const w = container.offsetWidth;
+  const h = container.offsetHeight;
+
+  const nodes = [
+    { id: 'server', x: w * 0.5, y: h * 0.1, label: 'devglide:7000' },
+    { id: 'kanban', x: w * 0.15, y: h * 0.45, label: 'mcp-kanban' },
+    { id: 'shell', x: w * 0.35, y: h * 0.45, label: 'mcp-shell' },
+    { id: 'chat', x: w * 0.55, y: h * 0.45, label: 'mcp-chat' },
+    { id: 'voice', x: w * 0.75, y: h * 0.45, label: 'mcp-voice' },
+    { id: 'test', x: w * 0.9, y: h * 0.45, label: 'mcp-test' },
+    { id: 'claude', x: w * 0.25, y: h * 0.85, label: 'claude-1' },
+    { id: 'codex', x: w * 0.65, y: h * 0.85, label: 'codex-2' },
+  ];
+
+  const edges = [
+    ['server', 'kanban'],
+    ['server', 'shell'],
+    ['server', 'chat'],
+    ['server', 'voice'],
+    ['server', 'test'],
+    ['claude', 'kanban'],
+    ['claude', 'shell'],
+    ['claude', 'chat'],
+    ['codex', 'chat'],
+    ['codex', 'voice'],
+    ['codex', 'test'],
+  ];
+
+  const nodeMap = {};
+  nodes.forEach(n => { nodeMap[n.id] = n; });
+
+  // Draw edges
+  edges.forEach((edge, idx) => {
+    const from = nodeMap[edge[0]];
+    const to = nodeMap[edge[1]];
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+    const edgeEl = document.createElement('div');
+    edgeEl.className = 'net-edge';
+    edgeEl.style.left = (from.x + 6) + 'px';
+    edgeEl.style.top = (from.y + 6) + 'px';
+    edgeEl.style.width = len + 'px';
+    edgeEl.style.transform = `rotate(${angle}deg)`;
+
+    // Data packet with staggered animation
+    const packet = document.createElement('div');
+    packet.className = 'data-packet';
+    packet.style.animationDelay = (idx * 0.3 % 2) + 's';
+    packet.style.animationDuration = (1.5 + Math.random()) + 's';
+    edgeEl.appendChild(packet);
+
+    container.appendChild(edgeEl);
+  });
+
+  // Draw nodes
+  nodes.forEach(n => {
+    const nodeEl = document.createElement('div');
+    nodeEl.className = 'net-node';
+    nodeEl.style.left = n.x + 'px';
+    nodeEl.style.top = n.y + 'px';
+    nodeEl.dataset.label = n.label;
+    nodeEl.style.animationDelay = (Math.random() * 2) + 's';
+    container.appendChild(nodeEl);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════
+   UPTIME COUNTER
+   ═══════════════════════════════════════════════════════ */
+function startUptimeCounter() {
+  const el = document.getElementById('uptime-counter');
+  let seconds = 0;
+  setInterval(() => {
+    seconds++;
+    const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
+    const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+    const s = String(seconds % 60).padStart(2, '0');
+    el.textContent = `${h}:${m}:${s}`;
+  }, 1000);
+}
+
+/* ═══════════════════════════════════════════════════════
+   LIVE CLOCK
+   ═══════════════════════════════════════════════════════ */
+function startClock() {
+  const el = document.getElementById('clock-line');
+  setInterval(() => {
+    el.textContent = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+  }, 1000);
+}
+
+/* ═══════════════════════════════════════════════════════
+   RANDOM GLITCH TRIGGERS
+   ═══════════════════════════════════════════════════════ */
+(function randomGlitches() {
+  setInterval(() => {
+    const glitchEls = document.querySelectorAll('.glitch');
+    glitchEls.forEach(el => {
+      if (Math.random() > 0.7) {
+        el.style.animation = 'none';
+        el.offsetHeight; // force reflow
+        el.style.animation = '';
+      }
+    });
+  }, 3000);
+})();
+
+/* ═══════════════════════════════════════════════════════
+   SIDEBAR INTERACTIVITY
+   ═══════════════════════════════════════════════════════ */
+document.querySelectorAll('.file-tree-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.file-tree-item').forEach(i => i.classList.remove('selected'));
+    item.classList.add('selected');
+  });
+});
+
+</script>
+</body>
+</html>

@@ -38,7 +38,15 @@ import { router as workflowRouter, initWorkflow, shutdownWorkflow, createWorkflo
 import { router as voiceRouter, createVoiceMcpServer } from './routers/voice.js';
 import { router as vocabularyRouter, createVocabularyMcpServer } from './routers/vocabulary.js';
 import { router as promptsRouter, createPromptsMcpServer } from './routers/prompts.js';
-import { router as chatRouter, initChat, createChatMcpServer, chatServerSessions } from './routers/chat.js';
+import {
+  router as chatRouter,
+  initChat,
+  createChatMcpServer,
+  chatServerSessions,
+  registerChatMcpHttpSession,
+  unregisterChatMcpHttpSession,
+} from './routers/chat.js';
+import { router as documentationRouter, createDocumentationMcpServer } from './routers/documentation.js';
 import * as chatRegistry from './apps/chat/services/chat-registry.js';
 
 
@@ -238,6 +246,7 @@ app.use('/api/voice', voiceRouter);
 app.use('/api/vocabulary', vocabularyRouter);
 app.use('/api/prompts', promptsRouter);
 app.use('/api/chat', chatRouter);
+app.use('/api/documentation', documentationRouter);
 
 app.use('/', rateLimit(60, 60_000), shellRouter);  // /preview, /proxy
 
@@ -255,8 +264,12 @@ mountMcpHttp(app, createVoiceMcpServer, '/mcp/voice');
 mountMcpHttp(app, createWorkflowMcpServer, '/mcp/workflow');
 mountMcpHttp(app, createVocabularyMcpServer, '/mcp/vocabulary');
 mountMcpHttp(app, createPromptsMcpServer, '/mcp/prompts');
+mountMcpHttp(app, createDocumentationMcpServer, '/mcp/documentation');
 mountMcpHttp(app, createChatMcpServer, '/mcp/chat', {
-  onSessionClose: (server) => {
+  onSessionOpen: (sessionId, server) => {
+    registerChatMcpHttpSession(sessionId, server);
+  },
+  onSessionClose: (server, sessionId) => {
     const entries = chatServerSessions.get(server);
     if (entries) {
       // Detach instead of leave — alias stays reserved for reclaim on rejoin.
@@ -264,6 +277,7 @@ mountMcpHttp(app, createChatMcpServer, '/mcp/chat', {
       for (const entry of entries) chatRegistry.detach(entry.name, entry.projectId);
       chatServerSessions.delete(server);
     }
+    unregisterChatMcpHttpSession(server, sessionId);
   },
 });
 

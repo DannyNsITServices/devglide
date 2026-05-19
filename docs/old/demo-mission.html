@@ -1,0 +1,2021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevGlide Mission Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=B612+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+/* ======================================================
+   NASA MISSION CONTROL — DESIGN SYSTEM DEMO
+   DevGlide AI Workflow Toolkit
+   ====================================================== */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Mission Control palette */
+  --bg-deep:       #0a0e1a;
+  --bg-panel:      #0d1224;
+  --bg-panel-alt:  #111832;
+  --border:        #1a2340;
+  --border-bright: #243060;
+
+  /* Data colors */
+  --green:   #00ff66;
+  --cyan:    #00ccff;
+  --amber:   #ffaa00;
+  --red:     #ff3333;
+  --white:   #e0e0e0;
+  --dim:     #5a6a8a;
+  --label:   #8090b0;
+
+  /* Glow variants */
+  --green-glow:  rgba(0, 255, 102, 0.25);
+  --cyan-glow:   rgba(0, 204, 255, 0.15);
+  --amber-glow:  rgba(255, 170, 0, 0.2);
+  --red-glow:    rgba(255, 51, 51, 0.25);
+
+  /* Fonts */
+  --font-mono: 'B612 Mono', 'Share Tech Mono', 'Consolas', monospace;
+  --font-display: 'Share Tech Mono', 'B612 Mono', monospace;
+
+  /* Sizing */
+  --sidebar-w: 220px;
+  --header-h: 48px;
+}
+
+html { font-size: 13px; }
+
+body {
+  font-family: var(--font-mono);
+  background: var(--bg-deep);
+  color: var(--white);
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.4;
+}
+
+/* Scanline overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}
+
+/* ── LAYOUT ── */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-rows: var(--header-h) 1fr;
+  min-height: 100vh;
+}
+
+/* ── HEADER ── */
+.header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: linear-gradient(180deg, #0f1530, #0a0e1a);
+  border-bottom: 1px solid var(--border);
+  z-index: 10;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.mission-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mission-badge .logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--cyan), var(--green), var(--cyan));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--bg-deep);
+  animation: logo-spin 20s linear infinite;
+}
+
+@keyframes logo-spin {
+  to { background: conic-gradient(from 360deg, var(--cyan), var(--green), var(--cyan)); }
+}
+
+.mission-badge .title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+.mission-badge .subtitle {
+  font-size: 9px;
+  color: var(--dim);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.mission-clock {
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--green);
+  letter-spacing: 2px;
+  text-shadow: 0 0 12px var(--green-glow), 0 0 30px rgba(0,255,102,0.1);
+}
+
+.mission-clock .prefix {
+  color: var(--dim);
+  font-size: 14px;
+}
+
+.utc-time {
+  font-size: 11px;
+  color: var(--label);
+  letter-spacing: 1px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 3px;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.status-pill.nominal {
+  background: rgba(0, 255, 102, 0.1);
+  border: 1px solid rgba(0, 255, 102, 0.3);
+  color: var(--green);
+}
+
+.status-pill .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  padding: 12px 0;
+  overflow-y: auto;
+}
+
+.sidebar-section {
+  padding: 0 12px;
+  margin-bottom: 16px;
+}
+
+.sidebar-label {
+  font-size: 9px;
+  color: var(--dim);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+
+.console-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-left: 3px solid transparent;
+  margin-bottom: 2px;
+}
+
+.console-item:hover {
+  background: rgba(0, 204, 255, 0.05);
+}
+
+.console-item.active {
+  background: rgba(0, 204, 255, 0.08);
+  border-left-color: var(--cyan);
+}
+
+.console-item .indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.console-item .indicator.green { background: var(--green); box-shadow: 0 0 6px var(--green-glow); }
+.console-item .indicator.amber { background: var(--amber); box-shadow: 0 0 6px var(--amber-glow); }
+.console-item .indicator.red   { background: var(--red);   box-shadow: 0 0 6px var(--red-glow);   }
+
+.console-item .callsign {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+.console-item .label {
+  font-size: 9px;
+  color: var(--dim);
+}
+
+/* Sidebar mission stats */
+.sidebar-stats {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 4px;
+  font-size: 10px;
+}
+
+.stat-row .key { color: var(--dim); }
+.stat-row .val { color: var(--cyan); font-weight: 700; }
+
+/* ── MAIN CONTENT ── */
+.main {
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── FLIGHT STATUS STRIP ── */
+.flight-strip {
+  display: flex;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.flight-phase {
+  flex: 1;
+  padding: 8px 12px;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--dim);
+  border-right: 1px solid var(--border);
+  position: relative;
+  transition: all 0.3s;
+}
+
+.flight-phase:last-child { border-right: none; }
+
+.flight-phase.completed {
+  color: var(--green);
+  background: rgba(0, 255, 102, 0.05);
+}
+
+.flight-phase.completed::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--green);
+}
+
+.flight-phase.active {
+  color: var(--cyan);
+  background: rgba(0, 204, 255, 0.08);
+  font-weight: 700;
+}
+
+.flight-phase.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--cyan);
+  animation: phase-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes phase-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.flight-phase .phase-label { display: block; margin-bottom: 2px; }
+.flight-phase .phase-time  { font-size: 9px; color: var(--dim); }
+
+/* ── PANEL GRID ── */
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.panel-grid.three { grid-template-columns: repeat(3, 1fr); }
+.panel-grid.two   { grid-template-columns: 1fr 1fr; }
+
+/* ── PANEL ── */
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--bg-panel-alt);
+  border-bottom: 1px solid var(--border);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--label);
+}
+
+.panel-header .classification {
+  font-size: 8px;
+  color: var(--dim);
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+
+.panel-body {
+  padding: 12px;
+}
+
+/* ── TELEMETRY ── */
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.telem-item {
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+  border-left: 2px solid var(--cyan);
+}
+
+.telem-item .telem-label {
+  font-size: 8px;
+  color: var(--dim);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.telem-item .telem-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--green);
+  text-shadow: 0 0 8px var(--green-glow);
+  font-family: var(--font-display);
+}
+
+.telem-item .telem-unit {
+  font-size: 9px;
+  color: var(--dim);
+  margin-left: 4px;
+}
+
+.telem-item.caution .telem-value { color: var(--amber); text-shadow: 0 0 8px var(--amber-glow); }
+.telem-item.caution { border-left-color: var(--amber); }
+.telem-item.warning .telem-value { color: var(--red); text-shadow: 0 0 8px var(--red-glow); }
+.telem-item.warning { border-left-color: var(--red); }
+
+/* ── COUNTDOWN DISPLAY ── */
+.countdown-display {
+  text-align: center;
+  padding: 16px;
+}
+
+.countdown-value {
+  font-family: var(--font-display);
+  font-size: 42px;
+  font-weight: 700;
+  color: var(--green);
+  letter-spacing: 3px;
+  text-shadow: 0 0 20px var(--green-glow), 0 0 40px rgba(0,255,102,0.15);
+}
+
+.countdown-label {
+  font-size: 10px;
+  color: var(--dim);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.countdown-sub {
+  font-size: 11px;
+  color: var(--label);
+  margin-top: 8px;
+  letter-spacing: 1px;
+}
+
+/* ── GO / NO-GO ── */
+.go-nogo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.go-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid;
+}
+
+.go-btn .btn-label {
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  opacity: 0.8;
+}
+
+.go-btn .btn-status {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.go-btn.go {
+  background: rgba(0, 255, 102, 0.08);
+  border-color: rgba(0, 255, 102, 0.4);
+  color: var(--green);
+  box-shadow: inset 0 0 20px rgba(0, 255, 102, 0.05), 0 0 15px rgba(0, 255, 102, 0.1);
+}
+
+.go-btn.go:hover {
+  background: rgba(0, 255, 102, 0.15);
+  box-shadow: inset 0 0 30px rgba(0, 255, 102, 0.1), 0 0 25px rgba(0, 255, 102, 0.2);
+}
+
+.go-btn.nogo {
+  background: rgba(255, 51, 51, 0.08);
+  border-color: rgba(255, 51, 51, 0.4);
+  color: var(--red);
+  box-shadow: inset 0 0 20px rgba(255, 51, 51, 0.05), 0 0 15px rgba(255, 51, 51, 0.1);
+}
+
+.go-btn.nogo:hover {
+  background: rgba(255, 51, 51, 0.15);
+  box-shadow: inset 0 0 30px rgba(255, 51, 51, 0.1), 0 0 25px rgba(255, 51, 51, 0.2);
+}
+
+.go-btn.standby {
+  background: rgba(255, 170, 0, 0.06);
+  border-color: rgba(255, 170, 0, 0.3);
+  color: var(--amber);
+  box-shadow: inset 0 0 20px rgba(255, 170, 0, 0.03), 0 0 10px rgba(255, 170, 0, 0.08);
+}
+
+/* ── ORBIT TRACKER ── */
+.orbit-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  position: relative;
+}
+
+.orbit-ring {
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  border: 1px solid var(--border-bright);
+  position: relative;
+  box-shadow: 0 0 20px rgba(0, 204, 255, 0.05);
+}
+
+.orbit-ring::before {
+  content: '';
+  position: absolute;
+  inset: 30px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #1a2a50 0%, var(--bg-panel) 100%);
+  border: 1px solid var(--border);
+}
+
+.orbit-ring::after {
+  content: '';
+  position: absolute;
+  inset: 34px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #2a3a6a, #0d1224);
+}
+
+.orbit-earth-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 8px;
+  color: var(--dim);
+  letter-spacing: 1px;
+  z-index: 2;
+}
+
+.orbit-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: var(--cyan);
+  border-radius: 50%;
+  box-shadow: 0 0 12px var(--cyan), 0 0 24px rgba(0, 204, 255, 0.3);
+  top: -5px;
+  left: 50%;
+  margin-left: -5px;
+  animation: orbit-rotate 12s linear infinite;
+  transform-origin: 5px 85px;
+}
+
+@keyframes orbit-rotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.orbit-trail {
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 1px dashed rgba(0, 204, 255, 0.15);
+}
+
+.orbit-info {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.orbit-info .orbit-period {
+  font-size: 9px;
+  color: var(--dim);
+}
+
+.orbit-info .orbit-val {
+  color: var(--cyan);
+  font-weight: 700;
+}
+
+/* second orbit ring (elliptical) */
+.orbit-ring-outer {
+  position: absolute;
+  width: 200px;
+  height: 140px;
+  border-radius: 50%;
+  border: 1px dashed rgba(0, 204, 255, 0.08);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-15deg);
+}
+
+/* ── CAUTION & WARNING PANEL ── */
+.cw-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.cw-light {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px;
+  border-radius: 3px;
+  border: 1px solid;
+  text-align: center;
+  transition: all 0.3s;
+}
+
+.cw-light .cw-label {
+  font-size: 7px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.cw-light .cw-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.cw-light.nominal {
+  border-color: rgba(0, 255, 102, 0.2);
+  background: rgba(0, 255, 102, 0.03);
+  color: var(--green);
+}
+.cw-light.nominal .cw-dot {
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green-glow);
+}
+
+.cw-light.caution {
+  border-color: rgba(255, 170, 0, 0.3);
+  background: rgba(255, 170, 0, 0.05);
+  color: var(--amber);
+  animation: cw-blink-amber 1.5s ease-in-out infinite;
+}
+.cw-light.caution .cw-dot {
+  background: var(--amber);
+  box-shadow: 0 0 8px var(--amber-glow);
+}
+
+.cw-light.warning {
+  border-color: rgba(255, 51, 51, 0.4);
+  background: rgba(255, 51, 51, 0.06);
+  color: var(--red);
+  animation: cw-blink-red 0.8s ease-in-out infinite;
+}
+.cw-light.warning .cw-dot {
+  background: var(--red);
+  box-shadow: 0 0 10px var(--red-glow);
+}
+
+.cw-light.off {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--dim);
+}
+.cw-light.off .cw-dot {
+  background: var(--dim);
+  opacity: 0.3;
+}
+
+@keyframes cw-blink-amber {
+  0%, 100% { background: rgba(255, 170, 0, 0.05); }
+  50% { background: rgba(255, 170, 0, 0.12); }
+}
+
+@keyframes cw-blink-red {
+  0%, 100% { background: rgba(255, 51, 51, 0.06); }
+  50% { background: rgba(255, 51, 51, 0.18); }
+}
+
+/* ── CAPCOM / COMMUNICATION ── */
+.comm-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.comm-waveform {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 32px;
+}
+
+.comm-bar {
+  width: 3px;
+  background: var(--cyan);
+  border-radius: 1px;
+  animation: wave-bar 0.8s ease-in-out infinite;
+  opacity: 0.8;
+}
+
+.comm-bar:nth-child(1)  { animation-delay: 0.0s; height: 8px; }
+.comm-bar:nth-child(2)  { animation-delay: 0.1s; height: 16px; }
+.comm-bar:nth-child(3)  { animation-delay: 0.2s; height: 24px; }
+.comm-bar:nth-child(4)  { animation-delay: 0.15s; height: 12px; }
+.comm-bar:nth-child(5)  { animation-delay: 0.3s; height: 28px; }
+.comm-bar:nth-child(6)  { animation-delay: 0.05s; height: 20px; }
+.comm-bar:nth-child(7)  { animation-delay: 0.25s; height: 10px; }
+.comm-bar:nth-child(8)  { animation-delay: 0.35s; height: 22px; }
+.comm-bar:nth-child(9)  { animation-delay: 0.12s; height: 18px; }
+.comm-bar:nth-child(10) { animation-delay: 0.28s; height: 14px; }
+.comm-bar:nth-child(11) { animation-delay: 0.08s; height: 26px; }
+.comm-bar:nth-child(12) { animation-delay: 0.22s; height: 6px; }
+.comm-bar:nth-child(13) { animation-delay: 0.18s; height: 20px; }
+.comm-bar:nth-child(14) { animation-delay: 0.32s; height: 16px; }
+.comm-bar:nth-child(15) { animation-delay: 0.05s; height: 12px; }
+.comm-bar:nth-child(16) { animation-delay: 0.4s; height: 24px; }
+
+@keyframes wave-bar {
+  0%, 100% { transform: scaleY(0.3); opacity: 0.4; }
+  50%      { transform: scaleY(1);   opacity: 1;   }
+}
+
+.comm-info {
+  font-size: 10px;
+}
+
+.comm-info .comm-channel {
+  color: var(--cyan);
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.comm-info .comm-freq {
+  color: var(--dim);
+  font-size: 9px;
+}
+
+.comm-info .comm-status {
+  color: var(--green);
+  font-size: 9px;
+}
+
+/* ── MISSION TIMELINE / KANBAN ── */
+.mission-timeline {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.timeline-col {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  min-height: 160px;
+}
+
+.timeline-col-header {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.timeline-col-header .col-count {
+  background: var(--bg-panel-alt);
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 8px;
+  color: var(--dim);
+}
+
+.timeline-col.backlog .timeline-col-header  { color: var(--dim); border-bottom-color: var(--dim); }
+.timeline-col.todo .timeline-col-header     { color: var(--cyan); border-bottom-color: rgba(0,204,255,0.3); }
+.timeline-col.progress .timeline-col-header { color: var(--amber); border-bottom-color: rgba(255,170,0,0.3); }
+.timeline-col.review .timeline-col-header   { color: #b388ff; border-bottom-color: rgba(179,136,255,0.3); }
+.timeline-col.done .timeline-col-header     { color: var(--green); border-bottom-color: rgba(0,255,102,0.3); }
+
+.timeline-cards {
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.task-card {
+  padding: 8px 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  border-left: 3px solid var(--cyan);
+  transition: all 0.15s;
+  cursor: pointer;
+}
+
+.task-card:hover {
+  background: var(--bg-panel-alt);
+  border-color: var(--border-bright);
+}
+
+.task-card .card-title {
+  font-size: 10px;
+  color: var(--white);
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+
+.task-card .card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 8px;
+  color: var(--dim);
+}
+
+.task-card .card-id {
+  color: var(--label);
+}
+
+.task-card .card-status-light {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.task-card .card-status-light.green { background: var(--green); box-shadow: 0 0 4px var(--green-glow); }
+.task-card .card-status-light.amber { background: var(--amber); box-shadow: 0 0 4px var(--amber-glow); }
+.task-card .card-status-light.red   { background: var(--red);   box-shadow: 0 0 4px var(--red-glow);   }
+
+.task-card.go    { border-left-color: var(--green); }
+.task-card.nogo  { border-left-color: var(--red); }
+.task-card.hold  { border-left-color: var(--amber); }
+
+/* ── EVENT LOG ── */
+.event-log {
+  max-height: 120px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-bright) transparent;
+}
+
+.log-entry {
+  display: flex;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 10px;
+  border-bottom: 1px solid rgba(26, 35, 64, 0.5);
+}
+
+.log-entry .log-time {
+  color: var(--dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.log-entry .log-source {
+  color: var(--cyan);
+  font-weight: 700;
+  flex-shrink: 0;
+  min-width: 50px;
+}
+
+.log-entry .log-msg {
+  color: var(--label);
+}
+
+.log-entry.warn .log-source { color: var(--amber); }
+.log-entry.error .log-source { color: var(--red); }
+
+/* ── SPARKLINE ── */
+.sparkline {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 24px;
+  margin-top: 8px;
+}
+
+.sparkline .spark-bar {
+  width: 3px;
+  background: var(--cyan);
+  border-radius: 1px;
+  opacity: 0.6;
+  transition: height 0.5s ease;
+}
+
+/* ── FULL-WIDTH PANEL ── */
+.panel.full { grid-column: 1 / -1; }
+.panel.span-2 { grid-column: span 2; }
+.panel.span-3 { grid-column: span 3; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 1200px) {
+  .panel-grid { grid-template-columns: repeat(2, 1fr); }
+  .panel-grid.three { grid-template-columns: repeat(2, 1fr); }
+  .mission-timeline { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .panel-grid { grid-template-columns: 1fr; }
+  .panel.span-2, .panel.span-3 { grid-column: span 1; }
+  .mission-timeline { grid-template-columns: 1fr 1fr; }
+  .flight-strip { flex-wrap: wrap; }
+}
+
+/* ── LARGE TELEM VALUE ── */
+.big-telem {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--cyan);
+  text-shadow: 0 0 12px var(--cyan-glow);
+  text-align: center;
+  padding: 8px 0;
+}
+
+.big-telem .big-unit {
+  font-size: 12px;
+  color: var(--dim);
+  margin-left: 4px;
+}
+
+/* ── PROGRESS BAR ── */
+.progress-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.progress-bar .fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 1s ease;
+}
+
+.progress-bar .fill.green { background: var(--green); box-shadow: 0 0 6px var(--green-glow); }
+.progress-bar .fill.cyan  { background: var(--cyan);  box-shadow: 0 0 6px var(--cyan-glow);  }
+.progress-bar .fill.amber { background: var(--amber); box-shadow: 0 0 6px var(--amber-glow); }
+
+/* ── DIVIDER ── */
+.divider-label {
+  font-size: 9px;
+  color: var(--dim);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.divider-label::before,
+.divider-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── DATA TABLE ── */
+.data-table {
+  width: 100%;
+  font-size: 10px;
+}
+
+.data-table tr { border-bottom: 1px solid rgba(26, 35, 64, 0.5); }
+.data-table td { padding: 4px 6px; }
+.data-table .dt-key { color: var(--dim); width: 40%; }
+.data-table .dt-val { color: var(--green); font-weight: 700; font-family: var(--font-display); }
+.data-table .dt-val.cyan { color: var(--cyan); }
+.data-table .dt-val.amber { color: var(--amber); }
+
+/* ── Additional animations ── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.panel { animation: fade-in 0.4s ease-out; }
+.panel:nth-child(2) { animation-delay: 0.05s; }
+.panel:nth-child(3) { animation-delay: 0.1s; }
+.panel:nth-child(4) { animation-delay: 0.15s; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ══════════════ HEADER ══════════════ -->
+  <header class="header">
+    <div class="header-left">
+      <div class="mission-badge">
+        <div class="logo">DG</div>
+        <div>
+          <div class="title">DevGlide</div>
+          <div class="subtitle">Mission Control v7.0</div>
+        </div>
+      </div>
+    </div>
+    <div class="header-center">
+      <div class="mission-clock">
+        <span class="prefix">MET </span>
+        <span id="met">T+00:00:00.0</span>
+      </div>
+      <div class="utc-time" id="utc-time">2026/093 00:00:00 UTC</div>
+    </div>
+    <div class="header-right">
+      <div class="status-pill nominal">
+        <span class="dot"></span>
+        ALL SYSTEMS NOMINAL
+      </div>
+    </div>
+  </header>
+
+  <!-- ══════════════ SIDEBAR ══════════════ -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Console Positions</div>
+
+      <div class="console-item active">
+        <div class="indicator green"></div>
+        <div>
+          <div class="callsign">FLIGHT</div>
+          <div class="label">Kanban &mdash; Mission Director</div>
+        </div>
+      </div>
+
+      <div class="console-item">
+        <div class="indicator green"></div>
+        <div>
+          <div class="callsign">GNC</div>
+          <div class="label">Shell &mdash; Guidance &amp; Nav</div>
+        </div>
+      </div>
+
+      <div class="console-item">
+        <div class="indicator green"></div>
+        <div>
+          <div class="callsign">CAPCOM</div>
+          <div class="label">Chat &mdash; Communications</div>
+        </div>
+      </div>
+
+      <div class="console-item">
+        <div class="indicator amber"></div>
+        <div>
+          <div class="callsign">EECOM</div>
+          <div class="label">Voice &mdash; Life Support</div>
+        </div>
+      </div>
+
+      <div class="console-item">
+        <div class="indicator green"></div>
+        <div>
+          <div class="callsign">FIDO</div>
+          <div class="label">Test &mdash; Flight Dynamics</div>
+        </div>
+      </div>
+
+      <div class="console-item">
+        <div class="indicator green"></div>
+        <div>
+          <div class="callsign">GUIDO</div>
+          <div class="label">Workflow &mdash; Procedures</div>
+        </div>
+      </div>
+
+      <div class="console-item">
+        <div class="indicator green"></div>
+        <div>
+          <div class="callsign">INCO</div>
+          <div class="label">Log &mdash; Instrumentation</div>
+        </div>
+      </div>
+
+      <div class="console-item">
+        <div class="indicator green"></div>
+        <div>
+          <div class="callsign">RETRO</div>
+          <div class="label">Vocabulary &mdash; Retrofire</div>
+        </div>
+      </div>
+
+      <div class="console-item">
+        <div class="indicator green"></div>
+        <div>
+          <div class="callsign">PAO</div>
+          <div class="label">Prompts &mdash; Public Affairs</div>
+        </div>
+      </div>
+
+      <div class="console-item">
+        <div class="indicator green"></div>
+        <div>
+          <div class="callsign">SURGEON</div>
+          <div class="label">Docs &mdash; Medical</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-stats">
+      <div class="sidebar-label">Mission Stats</div>
+      <div class="stat-row">
+        <span class="key">ORBIT</span>
+        <span class="val" id="orbit-count">2,847</span>
+      </div>
+      <div class="stat-row">
+        <span class="key">MET DAYS</span>
+        <span class="val">094</span>
+      </div>
+      <div class="stat-row">
+        <span class="key">CREW</span>
+        <span class="val">7</span>
+      </div>
+      <div class="stat-row">
+        <span class="key">COMMS</span>
+        <span class="val">TDRS-W</span>
+      </div>
+      <div class="stat-row">
+        <span class="key">UPLINK</span>
+        <span class="val" style="color: var(--green);">LOCKED</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══════════════ MAIN CONTENT ══════════════ -->
+  <main class="main">
+
+    <!-- FLIGHT STATUS STRIP -->
+    <div class="flight-strip">
+      <div class="flight-phase completed">
+        <span class="phase-label">Pre-Launch</span>
+        <span class="phase-time">T-00:45:00</span>
+      </div>
+      <div class="flight-phase completed">
+        <span class="phase-label">Launch</span>
+        <span class="phase-time">T+00:00:00</span>
+      </div>
+      <div class="flight-phase completed">
+        <span class="phase-label">Ascent</span>
+        <span class="phase-time">T+00:08:32</span>
+      </div>
+      <div class="flight-phase active">
+        <span class="phase-label">On Orbit</span>
+        <span class="phase-time" id="phase-orbit-time">T+00:14:32</span>
+      </div>
+      <div class="flight-phase">
+        <span class="phase-label">De-orbit</span>
+        <span class="phase-time">TBD</span>
+      </div>
+      <div class="flight-phase">
+        <span class="phase-label">Re-entry</span>
+        <span class="phase-time">TBD</span>
+      </div>
+      <div class="flight-phase">
+        <span class="phase-label">Landing</span>
+        <span class="phase-time">TBD</span>
+      </div>
+    </div>
+
+    <!-- ROW 1: Countdown + Telemetry + Orbit Tracker + GO/NO-GO -->
+    <div class="panel-grid">
+
+      <!-- COUNTDOWN / MET -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>Mission Elapsed Time</span>
+          <span class="classification">LIVE</span>
+        </div>
+        <div class="panel-body">
+          <div class="countdown-display">
+            <div class="countdown-value" id="countdown-big">T+00:14:32.7</div>
+            <div class="countdown-label">Mission Elapsed Time</div>
+            <div class="countdown-sub" id="countdown-sub">Day 094 of 365 &mdash; ISS Expedition 73</div>
+          </div>
+          <div class="progress-bar">
+            <div class="fill cyan" style="width: 25.7%" id="mission-progress"></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:9px; color:var(--dim); margin-top:4px;">
+            <span>Launch</span>
+            <span id="progress-pct">25.7%</span>
+            <span>Landing</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- TELEMETRY -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>Flight Dynamics &mdash; Telemetry</span>
+          <span class="classification">REAL-TIME</span>
+        </div>
+        <div class="panel-body">
+          <div class="telemetry-grid">
+            <div class="telem-item">
+              <div class="telem-label">Altitude</div>
+              <div class="telem-value"><span id="t-alt">408.2</span><span class="telem-unit">km</span></div>
+            </div>
+            <div class="telem-item">
+              <div class="telem-label">Velocity</div>
+              <div class="telem-value"><span id="t-vel">7,660</span><span class="telem-unit">m/s</span></div>
+            </div>
+            <div class="telem-item caution">
+              <div class="telem-label">Ext. Temp</div>
+              <div class="telem-value"><span id="t-temp">-157</span><span class="telem-unit">&deg;C</span></div>
+            </div>
+            <div class="telem-item">
+              <div class="telem-label">Inclination</div>
+              <div class="telem-value"><span id="t-inc">51.64</span><span class="telem-unit">&deg;</span></div>
+            </div>
+            <div class="telem-item">
+              <div class="telem-label">Apoapsis</div>
+              <div class="telem-value"><span id="t-apo">412.8</span><span class="telem-unit">km</span></div>
+            </div>
+            <div class="telem-item">
+              <div class="telem-label">Periapsis</div>
+              <div class="telem-value"><span id="t-peri">404.1</span><span class="telem-unit">km</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ORBIT TRACKER -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>Orbit Tracker</span>
+          <span class="classification">GNC</span>
+        </div>
+        <div class="panel-body">
+          <div class="orbit-container">
+            <div class="orbit-ring">
+              <div class="orbit-trail"></div>
+              <div class="orbit-dot"></div>
+              <div class="orbit-earth-label">EARTH</div>
+            </div>
+            <div class="orbit-ring-outer"></div>
+            <div class="orbit-info">
+              <div class="orbit-period">Period: <span class="orbit-val">92.68 min</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GO / NO-GO -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>GO / NO-GO Status</span>
+          <span class="classification">POLL</span>
+        </div>
+        <div class="panel-body">
+          <div class="go-nogo-grid">
+            <div class="go-btn go">
+              <span class="btn-label">Flight</span>
+              <span class="btn-status">GO</span>
+            </div>
+            <div class="go-btn go">
+              <span class="btn-label">GNC</span>
+              <span class="btn-status">GO</span>
+            </div>
+            <div class="go-btn go">
+              <span class="btn-label">CAPCOM</span>
+              <span class="btn-status">GO</span>
+            </div>
+            <div class="go-btn standby">
+              <span class="btn-label">EECOM</span>
+              <span class="btn-status">STBY</span>
+            </div>
+            <div class="go-btn go">
+              <span class="btn-label">FIDO</span>
+              <span class="btn-status">GO</span>
+            </div>
+            <div class="go-btn go">
+              <span class="btn-label">GUIDO</span>
+              <span class="btn-status">GO</span>
+            </div>
+            <div class="go-btn go">
+              <span class="btn-label">INCO</span>
+              <span class="btn-status">GO</span>
+            </div>
+            <div class="go-btn go">
+              <span class="btn-label">RETRO</span>
+              <span class="btn-status">GO</span>
+            </div>
+            <div class="go-btn nogo">
+              <span class="btn-label">BOOSTER</span>
+              <span class="btn-status">NO GO</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROW 2: Caution & Warning + CAPCOM + Systems -->
+    <div class="panel-grid three">
+
+      <!-- CAUTION & WARNING -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>Caution &amp; Warning Panel</span>
+          <span class="classification">C&amp;W</span>
+        </div>
+        <div class="panel-body">
+          <div class="cw-grid">
+            <div class="cw-light nominal">
+              <span class="cw-label">O2 Press</span>
+              <div class="cw-dot"></div>
+            </div>
+            <div class="cw-light nominal">
+              <span class="cw-label">Cabin Temp</span>
+              <div class="cw-dot"></div>
+            </div>
+            <div class="cw-light caution">
+              <span class="cw-label">CO2 Level</span>
+              <div class="cw-dot"></div>
+            </div>
+            <div class="cw-light nominal">
+              <span class="cw-label">Humidity</span>
+              <div class="cw-dot"></div>
+            </div>
+            <div class="cw-light nominal">
+              <span class="cw-label">Bus A Pwr</span>
+              <div class="cw-dot"></div>
+            </div>
+            <div class="cw-light nominal">
+              <span class="cw-label">Bus B Pwr</span>
+              <div class="cw-dot"></div>
+            </div>
+            <div class="cw-light warning">
+              <span class="cw-label">Rad Temp</span>
+              <div class="cw-dot"></div>
+            </div>
+            <div class="cw-light nominal">
+              <span class="cw-label">ACS Fuel</span>
+              <div class="cw-dot"></div>
+            </div>
+            <div class="cw-light nominal">
+              <span class="cw-label">Nav Lock</span>
+              <div class="cw-dot"></div>
+            </div>
+            <div class="cw-light nominal">
+              <span class="cw-label">Star Trk</span>
+              <div class="cw-dot"></div>
+            </div>
+            <div class="cw-light off">
+              <span class="cw-label">RCS Jet</span>
+              <div class="cw-dot"></div>
+            </div>
+            <div class="cw-light nominal">
+              <span class="cw-label">TDRS Lnk</span>
+              <div class="cw-dot"></div>
+            </div>
+            <div class="cw-light nominal">
+              <span class="cw-label">Data Rec</span>
+              <div class="cw-dot"></div>
+            </div>
+            <div class="cw-light nominal">
+              <span class="cw-label">Gyro 1</span>
+              <div class="cw-dot"></div>
+            </div>
+            <div class="cw-light nominal">
+              <span class="cw-label">Gyro 2</span>
+              <div class="cw-dot"></div>
+            </div>
+            <div class="cw-light nominal">
+              <span class="cw-label">Cryo H2</span>
+              <div class="cw-dot"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CAPCOM / COMMUNICATION -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>CAPCOM &mdash; Communication</span>
+          <span class="classification">S-BAND</span>
+        </div>
+        <div class="panel-body">
+          <div class="comm-section" style="margin-bottom: 16px;">
+            <div class="comm-waveform">
+              <div class="comm-bar"></div><div class="comm-bar"></div><div class="comm-bar"></div>
+              <div class="comm-bar"></div><div class="comm-bar"></div><div class="comm-bar"></div>
+              <div class="comm-bar"></div><div class="comm-bar"></div><div class="comm-bar"></div>
+              <div class="comm-bar"></div><div class="comm-bar"></div><div class="comm-bar"></div>
+              <div class="comm-bar"></div><div class="comm-bar"></div><div class="comm-bar"></div>
+              <div class="comm-bar"></div>
+            </div>
+            <div class="comm-info">
+              <div class="comm-channel">S-BAND CH 204</div>
+              <div class="comm-freq">259.7 MHz &mdash; TDRS WEST</div>
+              <div class="comm-status">&#9679; SIGNAL ACQUIRED</div>
+            </div>
+          </div>
+
+          <div class="divider-label">Recent Transmissions</div>
+
+          <div class="event-log" id="event-log" style="margin-top: 8px;">
+            <div class="log-entry">
+              <span class="log-time">14:22:41</span>
+              <span class="log-source">CAPCOM</span>
+              <span class="log-msg">Station, Houston. You are GO for orbit ops.</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">14:21:18</span>
+              <span class="log-source">FLIGHT</span>
+              <span class="log-msg">All stations, Flight. Configure for orbit phase.</span>
+            </div>
+            <div class="log-entry warn">
+              <span class="log-time">14:20:55</span>
+              <span class="log-source">EECOM</span>
+              <span class="log-msg">Flight, EECOM. Radiator temp reading high on loop B.</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">14:19:30</span>
+              <span class="log-source">GNC</span>
+              <span class="log-msg">Orbit insertion confirmed. Apogee 412.8 km.</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">14:18:07</span>
+              <span class="log-source">FIDO</span>
+              <span class="log-msg">Tracking data nominal. TDRS handover complete.</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">14:16:42</span>
+              <span class="log-source">INCO</span>
+              <span class="log-msg">High-gain antenna locked. Data rate 6 Mbps.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SYSTEMS OVERVIEW -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>EECOM &mdash; Systems Overview</span>
+          <span class="classification">ECLSS</span>
+        </div>
+        <div class="panel-body">
+          <table class="data-table">
+            <tr>
+              <td class="dt-key">Cabin Pressure</td>
+              <td class="dt-val">14.7 psi</td>
+            </tr>
+            <tr>
+              <td class="dt-key">O2 Partial</td>
+              <td class="dt-val">3.08 psi</td>
+            </tr>
+            <tr>
+              <td class="dt-key">CO2 Partial</td>
+              <td class="dt-val amber">2.8 mmHg</td>
+            </tr>
+            <tr>
+              <td class="dt-key">Cabin Temp</td>
+              <td class="dt-val">22.4 &deg;C</td>
+            </tr>
+            <tr>
+              <td class="dt-key">Humidity</td>
+              <td class="dt-val">44%</td>
+            </tr>
+            <tr>
+              <td class="dt-key">Bus A Voltage</td>
+              <td class="dt-val cyan" id="bus-a">31.2 V</td>
+            </tr>
+            <tr>
+              <td class="dt-key">Bus B Voltage</td>
+              <td class="dt-val cyan" id="bus-b">31.1 V</td>
+            </tr>
+            <tr>
+              <td class="dt-key">Solar Array</td>
+              <td class="dt-val">18.4 kW</td>
+            </tr>
+            <tr>
+              <td class="dt-key">Battery SOC</td>
+              <td class="dt-val">87%</td>
+            </tr>
+          </table>
+
+          <div style="margin-top: 10px;">
+            <div style="font-size: 9px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px;">Power Generation (24h)</div>
+            <div class="sparkline" id="sparkline-power"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SECTION: MISSION TIMELINE (KANBAN) -->
+    <div class="divider-label">FLIGHT Director &mdash; Mission Timeline</div>
+
+    <div class="mission-timeline">
+      <!-- BACKLOG -->
+      <div class="timeline-col backlog">
+        <div class="timeline-col-header">
+          <span>Backlog</span>
+          <span class="col-count">2</span>
+        </div>
+        <div class="timeline-cards">
+          <div class="task-card hold">
+            <div class="card-title">Configure docking port alignment</div>
+            <div class="card-meta">
+              <span class="card-id">DG-042</span>
+              <span style="color:var(--amber);font-size:8px;">ETA 3d</span>
+              <span class="card-status-light amber"></span>
+            </div>
+          </div>
+          <div class="task-card go">
+            <div class="card-title">Update navigation firmware v2.4</div>
+            <div class="card-meta">
+              <span class="card-id">DG-043</span>
+              <span style="color:var(--dim);font-size:8px;">Unassigned</span>
+              <span class="card-status-light green"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TODO -->
+      <div class="timeline-col todo">
+        <div class="timeline-col-header">
+          <span>Pre-Flight</span>
+          <span class="col-count">3</span>
+        </div>
+        <div class="timeline-cards">
+          <div class="task-card go">
+            <div class="card-title">Voice transcription pipeline refactor</div>
+            <div class="card-meta">
+              <span class="card-id">DG-038</span>
+              <span style="color:var(--cyan);font-size:8px;">@EECOM</span>
+              <span class="card-status-light green"></span>
+            </div>
+          </div>
+          <div class="task-card go">
+            <div class="card-title">Add workflow DAG visualization</div>
+            <div class="card-meta">
+              <span class="card-id">DG-039</span>
+              <span style="color:var(--cyan);font-size:8px;">@GUIDO</span>
+              <span class="card-status-light green"></span>
+            </div>
+          </div>
+          <div class="task-card hold">
+            <div class="card-title">Integrate test runner with CI hooks</div>
+            <div class="card-meta">
+              <span class="card-id">DG-040</span>
+              <span style="color:var(--amber);font-size:8px;">BLOCKED</span>
+              <span class="card-status-light amber"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- IN PROGRESS -->
+      <div class="timeline-col progress">
+        <div class="timeline-col-header">
+          <span>In Flight</span>
+          <span class="col-count">2</span>
+        </div>
+        <div class="timeline-cards">
+          <div class="task-card hold">
+            <div class="card-title">Multi-LLM chat message routing</div>
+            <div class="card-meta">
+              <span class="card-id">DG-035</span>
+              <span style="color:var(--amber);font-size:8px;">ETA 1d</span>
+              <span class="card-status-light amber"></span>
+            </div>
+          </div>
+          <div class="task-card go">
+            <div class="card-title">Shell PTY injection for chat delivery</div>
+            <div class="card-meta">
+              <span class="card-id">DG-036</span>
+              <span style="color:var(--green);font-size:8px;">On track</span>
+              <span class="card-status-light green"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- IN REVIEW -->
+      <div class="timeline-col review">
+        <div class="timeline-col-header">
+          <span>Mission Review</span>
+          <span class="col-count">2</span>
+        </div>
+        <div class="timeline-cards">
+          <div class="task-card go">
+            <div class="card-title">Dashboard sidebar navigation restyle</div>
+            <div class="card-meta">
+              <span class="card-id">DG-031</span>
+              <span style="color:var(--green);font-size:8px;">Review OK</span>
+              <span class="card-status-light green"></span>
+            </div>
+          </div>
+          <div class="task-card nogo">
+            <div class="card-title">Kanban drag-drop column reorder</div>
+            <div class="card-meta">
+              <span class="card-id">DG-033</span>
+              <span style="color:var(--red);font-size:8px;">Changes req.</span>
+              <span class="card-status-light red"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DONE -->
+      <div class="timeline-col done">
+        <div class="timeline-col-header">
+          <span>Landed</span>
+          <span class="col-count">3</span>
+        </div>
+        <div class="timeline-cards">
+          <div class="task-card go">
+            <div class="card-title">MCP server bundling pipeline</div>
+            <div class="card-meta">
+              <span class="card-id">DG-027</span>
+              <span style="color:var(--green);font-size:8px;">Complete</span>
+              <span class="card-status-light green"></span>
+            </div>
+          </div>
+          <div class="task-card go">
+            <div class="card-title">Voice TTS msedge-tts integration</div>
+            <div class="card-meta">
+              <span class="card-id">DG-028</span>
+              <span style="color:var(--green);font-size:8px;">Complete</span>
+              <span class="card-status-light green"></span>
+            </div>
+          </div>
+          <div class="task-card go">
+            <div class="card-title">Project scoping for hybrid apps</div>
+            <div class="card-meta">
+              <span class="card-id">DG-029</span>
+              <span style="color:var(--green);font-size:8px;">Complete</span>
+              <span class="card-status-light green"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROW 3: Additional dense data -->
+    <div class="panel-grid two">
+
+      <!-- NAVIGATION / GNC DATA -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>GNC &mdash; Navigation State Vector</span>
+          <span class="classification">REAL-TIME</span>
+        </div>
+        <div class="panel-body">
+          <div class="telemetry-grid">
+            <div class="telem-item">
+              <div class="telem-label">Latitude</div>
+              <div class="telem-value"><span id="t-lat">28.524</span><span class="telem-unit">&deg;N</span></div>
+            </div>
+            <div class="telem-item">
+              <div class="telem-label">Longitude</div>
+              <div class="telem-value"><span id="t-lon">-80.651</span><span class="telem-unit">&deg;W</span></div>
+            </div>
+            <div class="telem-item">
+              <div class="telem-label">Range Rate</div>
+              <div class="telem-value"><span id="t-range">+0.02</span><span class="telem-unit">m/s</span></div>
+            </div>
+            <div class="telem-item">
+              <div class="telem-label">Beta Angle</div>
+              <div class="telem-value"><span id="t-beta">52.4</span><span class="telem-unit">&deg;</span></div>
+            </div>
+          </div>
+
+          <div style="margin-top: 12px;">
+            <div class="divider-label">Ground Track</div>
+            <div style="height: 48px; background: rgba(0,0,0,0.2); border-radius: 3px; margin-top: 6px; position: relative; overflow: hidden;">
+              <!-- Simplified world map representation -->
+              <svg viewBox="0 0 360 120" width="100%" height="100%" style="position:absolute;inset:0;">
+                <!-- Continents (very simplified) -->
+                <path d="M70,30 Q80,25 95,28 L100,35 Q95,40 85,42 L75,38 Z" fill="rgba(0,204,255,0.08)" stroke="rgba(0,204,255,0.15)" stroke-width="0.5"/>
+                <path d="M75,48 Q85,45 100,50 L105,65 Q95,70 80,68 L75,55 Z" fill="rgba(0,204,255,0.08)" stroke="rgba(0,204,255,0.15)" stroke-width="0.5"/>
+                <path d="M165,25 Q190,20 220,30 L230,50 Q220,65 195,55 L170,40 Z" fill="rgba(0,204,255,0.08)" stroke="rgba(0,204,255,0.15)" stroke-width="0.5"/>
+                <path d="M175,60 Q185,58 195,65 L190,75 Q180,78 175,70 Z" fill="rgba(0,204,255,0.08)" stroke="rgba(0,204,255,0.15)" stroke-width="0.5"/>
+                <path d="M230,20 Q270,15 310,25 L320,45 Q310,55 280,50 L240,40 Z" fill="rgba(0,204,255,0.08)" stroke="rgba(0,204,255,0.15)" stroke-width="0.5"/>
+                <path d="M280,70 Q300,65 320,75 L315,95 Q295,100 280,90 Z" fill="rgba(0,204,255,0.08)" stroke="rgba(0,204,255,0.15)" stroke-width="0.5"/>
+                <!-- Ground track sine wave -->
+                <path d="M0,60 Q45,20 90,60 Q135,100 180,60 Q225,20 270,60 Q315,100 360,60" fill="none" stroke="rgba(255,170,0,0.3)" stroke-width="1" stroke-dasharray="4,3"/>
+                <!-- Current position dot -->
+                <circle id="ground-track-dot" cx="160" cy="55" r="3" fill="#00ccff">
+                  <animate attributeName="cx" values="0;360" dur="30s" repeatCount="indefinite"/>
+                  <animate attributeName="cy" values="60;20;60;100;60" dur="30s" repeatCount="indefinite"/>
+                </circle>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- EVENT LOG / INCO -->
+      <div class="panel">
+        <div class="panel-header">
+          <span>INCO &mdash; Flight Events Log</span>
+          <span class="classification">LOG</span>
+        </div>
+        <div class="panel-body">
+          <div class="event-log" id="main-event-log" style="max-height: 200px;">
+            <div class="log-entry">
+              <span class="log-time" id="log-t1">14:23:07</span>
+              <span class="log-source">SYSTEM</span>
+              <span class="log-msg">Telemetry stream nominal. All channels active.</span>
+            </div>
+            <div class="log-entry warn">
+              <span class="log-time">14:22:54</span>
+              <span class="log-source">EECOM</span>
+              <span class="log-msg">Radiator loop B temp exceeds soft limit: 42.3&deg;C</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">14:22:41</span>
+              <span class="log-source">CAPCOM</span>
+              <span class="log-msg">Uplink cmd accepted: SAR array deploy sequence</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">14:22:18</span>
+              <span class="log-source">GNC</span>
+              <span class="log-msg">Attitude hold mode active. Delta-V budget: 127.4 m/s</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">14:21:55</span>
+              <span class="log-source">FIDO</span>
+              <span class="log-msg">Tracking pass TDRS-W: AOS in 12 min</span>
+            </div>
+            <div class="log-entry error">
+              <span class="log-time">14:21:30</span>
+              <span class="log-source">WARN</span>
+              <span class="log-msg">Rad temp sensor B-4 intermittent. Switching to backup.</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">14:20:58</span>
+              <span class="log-source">INCO</span>
+              <span class="log-msg">Data recorder: 847 GB / 2 TB (42.3% capacity)</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">14:20:22</span>
+              <span class="log-source">GUIDO</span>
+              <span class="log-msg">Workflow #17 "Orbit Maintenance" triggered automatically.</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">14:19:45</span>
+              <span class="log-source">PAO</span>
+              <span class="log-msg">Public feed: Live video from Node 2 cupola window.</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">14:19:10</span>
+              <span class="log-source">RETRO</span>
+              <span class="log-msg">De-orbit planning window opens at T+04:22:00.</span>
+            </div>
+            <div class="log-entry">
+              <span class="log-time">14:18:30</span>
+              <span class="log-source">SURGEON</span>
+              <span class="log-msg">Crew health telemetry nominal. All biometrics green.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div style="text-align:center; padding: 8px 0; font-size:9px; color:var(--dim); letter-spacing:2px; text-transform:uppercase; border-top:1px solid var(--border); margin-top:4px;">
+      DevGlide Mission Control &mdash; AI Workflow Toolkit &mdash; Design System Demo &mdash; <span id="footer-utc"></span>
+    </div>
+
+  </main>
+</div>
+
+<!-- ══════════════ JAVASCRIPT ══════════════ -->
+<script>
+(function() {
+  'use strict';
+
+  // ── Mission Elapsed Time ──
+  const launchTime = Date.now() - (14 * 60 + 32) * 1000; // Start at T+00:14:32
+
+  function formatMET(ms, showTenths) {
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const tenths = Math.floor((ms % 1000) / 100);
+    const base = 'T+' +
+      String(h).padStart(2, '0') + ':' +
+      String(m).padStart(2, '0') + ':' +
+      String(s).padStart(2, '0');
+    return showTenths ? base + '.' + tenths : base;
+  }
+
+  // ── UTC Time in NASA format ──
+  function formatUTC() {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const start = new Date(Date.UTC(year, 0, 1));
+    const dayOfYear = Math.floor((now - start) / 86400000) + 1;
+    const h = String(now.getUTCHours()).padStart(2, '0');
+    const m = String(now.getUTCMinutes()).padStart(2, '0');
+    const s = String(now.getUTCSeconds()).padStart(2, '0');
+    return year + '/' + String(dayOfYear).padStart(3, '0') + ' ' + h + ':' + m + ':' + s + ' UTC';
+  }
+
+  // ── Telemetry jitter ──
+  function jitter(base, range, decimals) {
+    const val = base + (Math.random() - 0.5) * range;
+    return val.toFixed(decimals || 1);
+  }
+
+  function jitterInt(base, range) {
+    return Math.round(base + (Math.random() - 0.5) * range);
+  }
+
+  // ── DOM elements ──
+  const elMET = document.getElementById('met');
+  const elCountdown = document.getElementById('countdown-big');
+  const elUTC = document.getElementById('utc-time');
+  const elFooterUTC = document.getElementById('footer-utc');
+  const elOrbitTime = document.getElementById('phase-orbit-time');
+
+  const elAlt = document.getElementById('t-alt');
+  const elVel = document.getElementById('t-vel');
+  const elTemp = document.getElementById('t-temp');
+  const elInc = document.getElementById('t-inc');
+  const elApo = document.getElementById('t-apo');
+  const elPeri = document.getElementById('t-peri');
+  const elLat = document.getElementById('t-lat');
+  const elLon = document.getElementById('t-lon');
+  const elRange = document.getElementById('t-range');
+  const elBeta = document.getElementById('t-beta');
+  const elBusA = document.getElementById('bus-a');
+  const elBusB = document.getElementById('bus-b');
+
+  const elProgress = document.getElementById('mission-progress');
+  const elProgressPct = document.getElementById('progress-pct');
+
+  // ── Sparkline ──
+  const sparkContainer = document.getElementById('sparkline-power');
+  const sparkData = [];
+  for (let i = 0; i < 48; i++) {
+    sparkData.push(14 + Math.random() * 8);
+  }
+  function renderSparkline() {
+    sparkContainer.innerHTML = '';
+    const max = Math.max(...sparkData);
+    sparkData.forEach(v => {
+      const bar = document.createElement('div');
+      bar.className = 'spark-bar';
+      bar.style.height = ((v / max) * 24) + 'px';
+      sparkContainer.appendChild(bar);
+    });
+  }
+  renderSparkline();
+
+  // ── Main update loop (10Hz for smooth clock) ──
+  function updateFast() {
+    const elapsed = Date.now() - launchTime;
+    if (elMET) elMET.textContent = formatMET(elapsed, true);
+    if (elCountdown) elCountdown.textContent = formatMET(elapsed, true);
+    if (elOrbitTime) elOrbitTime.textContent = formatMET(elapsed, false);
+  }
+
+  // ── Slow update (1Hz) ──
+  function updateSlow() {
+    const utc = formatUTC();
+    if (elUTC) elUTC.textContent = utc;
+    if (elFooterUTC) elFooterUTC.textContent = utc;
+
+    // Telemetry
+    if (elAlt) elAlt.textContent = jitter(408.2, 1.2, 1);
+    if (elVel) {
+      const v = jitterInt(7660, 8);
+      elVel.textContent = v.toLocaleString();
+    }
+    if (elTemp) elTemp.textContent = jitter(-157, 4, 0);
+    if (elInc) elInc.textContent = jitter(51.64, 0.01, 2);
+    if (elApo) elApo.textContent = jitter(412.8, 0.3, 1);
+    if (elPeri) elPeri.textContent = jitter(404.1, 0.3, 1);
+    if (elLat) elLat.textContent = jitter(28.524, 30, 3);
+    if (elLon) elLon.textContent = jitter(-80.651, 100, 3);
+    if (elRange) elRange.textContent = (Math.random() > 0.5 ? '+' : '-') + jitter(0.02, 0.04, 3);
+    if (elBeta) elBeta.textContent = jitter(52.4, 0.5, 1);
+    if (elBusA) elBusA.textContent = jitter(31.2, 0.3, 1) + ' V';
+    if (elBusB) elBusB.textContent = jitter(31.1, 0.3, 1) + ' V';
+
+    // Mission progress
+    const elapsed = Date.now() - launchTime;
+    const totalMissionMs = 365 * 24 * 3600 * 1000;
+    const pct = Math.min(100, (elapsed / totalMissionMs) * 100);
+    if (elProgress) elProgress.style.width = pct.toFixed(1) + '%';
+    if (elProgressPct) elProgressPct.textContent = pct.toFixed(1) + '%';
+  }
+
+  // ── Sparkline shift (every 5s) ──
+  function updateSparkline() {
+    sparkData.shift();
+    sparkData.push(14 + Math.random() * 8);
+    renderSparkline();
+  }
+
+  // ── Log injection (every 8s) ──
+  const logMessages = [
+    { src: 'SYSTEM', msg: 'Heartbeat: all 10 MCP servers responding.', cls: '' },
+    { src: 'GNC', msg: 'Momentum dump scheduled in 22 min.', cls: '' },
+    { src: 'FIDO', msg: 'Test scenario #42 passed: browser automation nominal.', cls: '' },
+    { src: 'EECOM', msg: 'CO2 scrubber cycle complete. Levels stabilizing.', cls: 'warn' },
+    { src: 'CAPCOM', msg: 'Uplink: chat_send delivered to 3 participants.', cls: '' },
+    { src: 'INCO', msg: 'Log rotation complete. 847 entries archived.', cls: '' },
+    { src: 'GUIDO', msg: 'Workflow "deploy-staging" matched and executed.', cls: '' },
+    { src: 'RETRO', msg: 'Vocabulary term "MCP" resolved: Model Context Protocol.', cls: '' },
+    { src: 'PAO', msg: 'Prompt template "code-review" rendered successfully.', cls: '' },
+    { src: 'SURGEON', msg: 'Documentation seed check complete. 12 guides loaded.', cls: '' },
+    { src: 'FLIGHT', msg: 'Kanban: DG-036 moved to In Review.', cls: '' },
+    { src: 'WARN', msg: 'Shell pane #3 idle timeout approaching (28 min).', cls: 'warn' },
+  ];
+  let logIdx = 0;
+
+  function injectLog() {
+    const mainLog = document.getElementById('main-event-log');
+    if (!mainLog) return;
+    const now = new Date();
+    const time = String(now.getHours()).padStart(2, '0') + ':' +
+                 String(now.getMinutes()).padStart(2, '0') + ':' +
+                 String(now.getSeconds()).padStart(2, '0');
+    const entry = logMessages[logIdx % logMessages.length];
+    logIdx++;
+
+    const div = document.createElement('div');
+    div.className = 'log-entry' + (entry.cls ? ' ' + entry.cls : '');
+    div.innerHTML =
+      '<span class="log-time">' + time + '</span>' +
+      '<span class="log-source">' + entry.src + '</span>' +
+      '<span class="log-msg">' + entry.msg + '</span>';
+
+    mainLog.insertBefore(div, mainLog.firstChild);
+
+    // Keep log from growing too large
+    while (mainLog.children.length > 30) {
+      mainLog.removeChild(mainLog.lastChild);
+    }
+  }
+
+  // ── Orbit count increment ──
+  let orbitCount = 2847;
+  function updateOrbitCount() {
+    orbitCount++;
+    const el = document.getElementById('orbit-count');
+    if (el) el.textContent = orbitCount.toLocaleString();
+  }
+
+  // ── Start all timers ──
+  setInterval(updateFast, 100);
+  setInterval(updateSlow, 1000);
+  setInterval(updateSparkline, 5000);
+  setInterval(injectLog, 8000);
+  setInterval(updateOrbitCount, 92.68 * 60 * 1000 / 100); // Scaled orbit period
+
+  // Initial call
+  updateFast();
+  updateSlow();
+})();
+</script>
+
+</body>
+</html>
