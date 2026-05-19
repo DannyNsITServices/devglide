@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeEscapes, truncateDescription, DEFAULT_COLUMNS, mapColumnRow, mapIssueRow } from './mcp-helpers.js';
+import { normalizeEscapes, truncateDescription, DEFAULT_COLUMNS, mapColumnRow, mapIssueRow, sanitizeFtsQuery } from './mcp-helpers.js';
 import type { ColumnRow, IssueRow } from './db.js';
 
 describe('normalizeEscapes', () => {
@@ -84,5 +84,41 @@ describe('mapIssueRow', () => {
     expect(mapped.featureId).toBe('proj1');
     expect(mapped.title).toBe('Bug');
     expect('projectId' in mapped).toBe(false);
+  });
+});
+
+describe('sanitizeFtsQuery', () => {
+  it('passes simple words through quoted', () => {
+    expect(sanitizeFtsQuery('bug fix')).toBe('"bug" "fix"');
+  });
+
+  it('strips parentheses', () => {
+    expect(sanitizeFtsQuery('foo(')).toBe('"foo"');
+  });
+
+  it('strips quotes', () => {
+    expect(sanitizeFtsQuery('"hello"')).toBe('"hello"');
+  });
+
+  it('strips curly braces and asterisks', () => {
+    expect(sanitizeFtsQuery('test{} *wild')).toBe('"test" "wild"');
+  });
+
+  it('drops bare FTS operators', () => {
+    expect(sanitizeFtsQuery('a OR')).toBe('"a"');
+    expect(sanitizeFtsQuery('AND NOT OR')).toBeNull();
+  });
+
+  it('returns null for empty input', () => {
+    expect(sanitizeFtsQuery('')).toBeNull();
+    expect(sanitizeFtsQuery('   ')).toBeNull();
+  });
+
+  it('returns null for only special characters', () => {
+    expect(sanitizeFtsQuery('"()*{}')).toBeNull();
+  });
+
+  it('handles mixed valid and invalid tokens', () => {
+    expect(sanitizeFtsQuery('chat OR rules')).toBe('"chat" "rules"');
   });
 });

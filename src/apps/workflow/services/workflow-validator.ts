@@ -1,9 +1,13 @@
-import type { WorkflowNode, WorkflowEdge } from '../types.js';
+import type { WorkflowNode, WorkflowEdge, DecisionConfig } from '../types.js';
 import { getRegisteredTypes } from '../engine/node-registry.js';
 
 export interface ValidationResult {
   valid: boolean;
   errors: string[];
+}
+
+function isDecisionConfig(config: WorkflowNode["config"]): config is DecisionConfig {
+  return config.nodeType === 'decision';
 }
 
 /**
@@ -46,8 +50,7 @@ export function validateWorkflowGraph(nodes: WorkflowNode[], edges: WorkflowEdge
   // Decision node port requirements
   for (const node of nodes) {
     if (node.type === 'decision') {
-      const config = node.config as any;
-      if (!config.ports || !Array.isArray(config.ports) || config.ports.length === 0) {
+      if (!isDecisionConfig(node.config) || node.config.ports.length === 0) {
         errors.push(`Decision node "${node.label}" (${node.id}) must have at least one port`);
       }
     }

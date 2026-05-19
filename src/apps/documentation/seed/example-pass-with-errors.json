@@ -1,0 +1,36 @@
+{
+  "id": "ex-pass-with-errors",
+  "type": "example",
+  "toolName": "devglide-test",
+  "scenario": "Scenario passes but logs show runtime exception",
+  "startingAssumptions": [
+    "A test scenario just completed with status 'passed'.",
+    "You are about to check logs as part of the verification workflow."
+  ],
+  "toolSequence": [
+    "test_get_result — confirms 'passed'.",
+    "log_read with level filter 'error' — read error-level log entries.",
+    "Identify the error: read the message, stack trace, and timestamp.",
+    "Correlate the error timestamp with the scenario steps to find the trigger.",
+    "Determine if the error is in app code (fixable) or third-party (document as noise).",
+    "If fixable: fix the app code, re-run the scenario, and re-check logs.",
+    "If third-party noise: document it in a project override via docs_add."
+  ],
+  "whatGoodLooksLike": [
+    "After the fix, the scenario still passes AND logs are clean of unexpected errors.",
+    "If the error was third-party noise: a project override documents it for future runs."
+  ],
+  "whatBadLooksLike": [
+    "The fix breaks the scenario — it now fails.",
+    "New errors appear after the fix.",
+    "The error is intermittent and hard to reproduce."
+  ],
+  "whatToDoNext": [
+    "If the fix broke the scenario: the fix may be incorrect. Revert and investigate further.",
+    "If new errors appeared: the fix had side effects. Review the change carefully.",
+    "If intermittent: run the scenario multiple times and check logs each time to gather more data."
+  ],
+  "tags": ["example", "test", "log", "runtime-error", "false-positive"],
+  "createdAt": "2026-03-24T00:00:00.000Z",
+  "updatedAt": "2026-03-24T00:00:00.000Z"
+}

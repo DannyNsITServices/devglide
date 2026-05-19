@@ -1,6 +1,9 @@
 // ── Keymap App — Page Module ─────────────────────────────────────────
 // ES module that exports mount(container, ctx), unmount(container),
 // and onProjectChange(project).
+// Migrated to shared-ui: header component, app-page CSS class.
+
+import { createHeader } from '/shared-ui/components/header.js';
 
 const MODIFIER_KEYS = new Set(['Control', 'Alt', 'Shift', 'Meta', 'CapsLock', 'NumLock', 'ScrollLock']);
 
@@ -13,15 +16,15 @@ let _unsubRegistry = null;
 // ── HTML ─────────────────────────────────────────────────────────────
 
 const BODY_HTML = `
-  <header>
-    <div class="brand">Keymap</div>
-    <div class="toolbar-actions">
+  ${createHeader({
+    brand: 'Keymap',
+    actions: `
       <button class="btn" id="km-btn-reset-all">Reset All</button>
       <button class="btn" id="km-btn-export">Export</button>
       <button class="btn" id="km-btn-import">Import</button>
       <input type="file" id="km-file-input" accept=".json" style="display:none" />
-    </div>
-  </header>
+    `,
+  })}
 
   <main>
     <div class="shortcut-groups" id="km-shortcut-groups"></div>
@@ -240,7 +243,7 @@ export function mount(container, ctx) {
   _registry = typeof KeymapRegistry !== 'undefined' ? KeymapRegistry : null;
 
   // 1. Scope the container
-  container.classList.add('page-keymap');
+  container.classList.add('page-keymap', 'app-page');
 
   // 2. Build HTML
   container.innerHTML = BODY_HTML;
@@ -280,7 +283,7 @@ export function unmount(container) {
   }
 
   // 4. Remove scope class & clear HTML
-  container.classList.remove('page-keymap');
+  container.classList.remove('page-keymap', 'app-page');
   container.innerHTML = '';
 
   // 5. Clear module references

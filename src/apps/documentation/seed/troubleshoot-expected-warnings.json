@@ -1,0 +1,27 @@
+{
+  "id": "ts-expected-warnings",
+  "type": "troubleshooting",
+  "toolName": "devglide-log",
+  "symptom": "logs contain expected app-specific warnings",
+  "likelyCauses": [
+    "The app has known non-critical warnings that appear during normal operation.",
+    "Common examples: map tile 404s when no local tileserver is running, font loading failures from CDN, stylesheet 404s from optional dependencies, React development-mode warnings.",
+    "These are not bugs — they are expected noise for the current development environment."
+  ],
+  "howToDiagnose": [
+    "Check the log level — warnings (level: warn) are typically non-critical.",
+    "Check if the warning message matches known patterns for the app (e.g. 'Failed to load tile', '404 for /fonts/', 'React does not recognize the X prop').",
+    "Check project documentation or overrides for a list of known expected warnings.",
+    "If unsure, ask the user whether the warning is expected for their app."
+  ],
+  "howToFix": [
+    "Do not treat expected warnings as failures in verification.",
+    "Document known expected warnings in a project override so other agents can distinguish them from real failures.",
+    "If the warning is unexpected: investigate whether a dependency is missing or misconfigured.",
+    "Filter log output by level 'error' to focus on real failures."
+  ],
+  "whenToRetry": "Not applicable — this is about correct interpretation, not a fixable failure.",
+  "tags": ["log", "warnings", "noise", "expected"],
+  "createdAt": "2026-03-24T00:00:00.000Z",
+  "updatedAt": "2026-03-24T00:00:00.000Z"
+}

@@ -1,8 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getDb, generateId, nowIso, type ColumnRow, type IssueRow } from "../db.js";
+import path from "path";
+import fs from "fs";
+import { getDb, generateId, nowIso, type ColumnRow, type IssueRow, type CountRow } from "../db.js";
 import { jsonResult, errorResult } from "../../../../packages/mcp-utils/src/index.js";
 import { DEFAULT_COLUMNS, mapColumnRow, mapIssueRow } from "../mcp-helpers.js";
+import { getUploadsDir } from "../routes/attachments.js";
 
 export function registerFeatureTools(server: McpServer, projectId?: string | null): void {
 
@@ -20,8 +23,8 @@ export function registerFeatureTools(server: McpServer, projectId?: string | nul
       const take = limit ?? 25;
       const skip = offset ?? 0;
 
-      const totalRow = db.prepare(`SELECT COUNT(*) AS cnt FROM "Project"`).get() as any;
-      const total = totalRow.cnt;
+      const totalRow = db.prepare(`SELECT COUNT(*) AS cnt FROM "Project"`).get() as CountRow;
+      const total = totalRow.cnt ?? totalRow.count ?? 0;
 
       const features = db
         .prepare(
@@ -119,6 +122,21 @@ export function registerFeatureTools(server: McpServer, projectId?: string | nul
       const db = getDb(projectId);
       const existing = db.prepare(`SELECT "id" FROM "Project" WHERE "id" = ?`).get(id);
       if (!existing) return errorResult("Feature not found");
+
+      // Clean up attachment files from disk before deleting
+      const attachments = db
+        .prepare(
+          `SELECT a."id", a."filename" FROM "Attachment" a
+           JOIN "Issue" i ON a."issueId" = i."id"
+           WHERE i."projectId" = ?`
+        )
+        .all(id) as { id: string; filename: string }[];
+      const uploadsDir = getUploadsDir(projectId ?? 'default');
+      for (const att of attachments) {
+        const ext = path.extname(att.filename);
+        try { fs.unlinkSync(path.join(uploadsDir, `${att.id}${ext}`)); } catch { /* ignore */ }
+      }
+
       db.prepare(`DELETE FROM "Project" WHERE "id" = ?`).run(id);
       return jsonResult({ message: `Feature ${id} deleted.` });
     }
@@ -142,7 +160,7 @@ export function registerFeatureTools(server: McpServer, projectId?: string | nul
       if (!existing) return errorResult("Feature not found");
 
       const setClauses: string[] = [];
-      const params: any[] = [];
+      const params: unknown[] = [];
 
       if (name !== undefined) { setClauses.push(`"name" = ?`); params.push(name); }
       if (description !== undefined) { setClauses.push(`"description" = ?`); params.push(description); }

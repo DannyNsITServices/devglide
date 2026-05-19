@@ -1,0 +1,30 @@
+{
+  "id": "ts-selector-fails",
+  "type": "troubleshooting",
+  "toolName": "devglide-test",
+  "symptom": "selector works manually but automation fails",
+  "likelyCauses": [
+    "The element is not yet rendered when the automation tries to find it (timing issue).",
+    "The element is inside a shadow DOM and the selector does not pierce it.",
+    "The element is hidden behind a modal, overlay, or loading spinner.",
+    "The selector relies on dynamically generated class names (e.g. CSS modules, styled-components) that change between builds.",
+    "The element is in an iframe that the automation does not target."
+  ],
+  "howToDiagnose": [
+    "Add a wait-for-element step before the interaction step.",
+    "Check if the element is visible in the DOM at the time of the step (not hidden by CSS or not yet mounted).",
+    "Inspect whether the element is inside a shadow DOM boundary.",
+    "Check if the class names in the selector are stable across builds."
+  ],
+  "howToFix": [
+    "Add a wait step before interacting with the element.",
+    "Use stable selectors: data-testid, role attributes, aria-label, or visible text content.",
+    "If the element is behind a modal: add a step to dismiss the modal first.",
+    "If class names are dynamic: add a data-testid attribute to the element in the app source code.",
+    "If inside shadow DOM: use the appropriate shadow DOM piercing selector or restructure the test to avoid it."
+  ],
+  "whenToRetry": "After updating the selector or adding appropriate wait steps.",
+  "tags": ["test", "selector", "timing", "dom"],
+  "createdAt": "2026-03-24T00:00:00.000Z",
+  "updatedAt": "2026-03-24T00:00:00.000Z"
+}

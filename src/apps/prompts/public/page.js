@@ -1,63 +1,41 @@
 // ── Prompts App — Page Module ────────────────────────────────────────
 // ES module: mount(container, ctx), unmount(container), onProjectChange(project)
+// Migrated to shared-ui: api helper, search bar, delete confirmation, shared CSS classes.
 
 import { escapeHtml } from '/shared-assets/ui-utils.js';
+import { createApi } from '/shared-ui/app-page.js';
+import { createSearchBar, bindSearchBar } from '/shared-ui/components/search-bar.js';
+import { confirmModal } from '/shared-ui/components/modal.js';
+import { createHeader } from '/shared-ui/components/header.js';
 
 let _container = null;
 let _entries = [];
 let _categories = [];
 let _activeFilter = { category: null };
-let _deleteTarget = null;
-let _searchTimer = null;
+let _searchBinding = null;
 
-// ── API helpers ──────────────────────────────────────────────────────
-
-async function api(path, opts) {
-  const res = await fetch('/api/prompts' + path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...opts,
-  });
-  return res;
-}
+const api = createApi('prompts');
 
 // ── HTML ─────────────────────────────────────────────────────────────
 
 const BODY_HTML = `
-  <header>
-    <div class="brand">Prompts</div>
-    <div class="header-meta">
-      <span id="pr-count"></span>
-    </div>
-    <div class="toolbar-actions">
-      <select id="pr-filter-category" class="pr-filter-select" title="Filter by category">
+  ${createHeader({
+    brand: 'Prompts',
+    meta: '<span id="pr-count"></span>',
+    actions: `
+      <select id="pr-filter-category" class="filter-select" title="Filter by category">
         <option value="">All categories</option>
       </select>
       <button class="btn btn-primary" id="pr-btn-add">+ New Prompt</button>
-    </div>
-  </header>
+    `,
+  })}
 
   <main>
-    <div class="pr-container" id="pr-container">
-      <div class="pr-search-bar">
-        <input type="text" id="pr-search" class="pr-search-input" placeholder="Search prompts..." autocomplete="off" />
-      </div>
+    <div class="content-container" id="pr-container">
+      ${createSearchBar({ placeholder: 'Search prompts...', id: 'pr-search' })}
       <div class="pr-entries" id="pr-entries"></div>
     </div>
   </main>
-
-  <!-- Delete confirmation -->
-  <div class="modal-overlay hidden" id="pr-delete-overlay" role="dialog" aria-modal="true">
-    <div class="modal">
-      <div class="modal-header">
-        <h2>Delete Prompt</h2>
-        <p class="modal-desc" id="pr-delete-msg"></p>
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" id="pr-delete-cancel">Cancel</button>
-        <button class="btn btn-danger" id="pr-delete-confirm">Delete</button>
-      </div>
-    </div>
-  </div>
 `;
 
 // ── Stars ────────────────────────────────────────────────────────────
@@ -150,10 +128,10 @@ function renderEntries() {
 
   for (const [category, entries] of groups) {
     const section = document.createElement('section');
-    section.className = 'pr-group';
+    section.className = 'group';
 
     const title = document.createElement('h2');
-    title.className = 'pr-group-title';
+    title.className = 'group-title';
     title.textContent = category;
     const countBadge = document.createElement('span');
     countBadge.className = 'badge';
@@ -220,7 +198,7 @@ function buildEntryCard(entry) {
   card.appendChild(footer);
 
   const actions = document.createElement('div');
-  actions.className = 'pr-entry-actions';
+  actions.className = 'entry-actions entry-actions--hover';
 
   const copyBtn = document.createElement('button');
   copyBtn.className = 'btn btn-sm btn-secondary';
@@ -251,9 +229,17 @@ function buildEntryCard(entry) {
   const deleteBtn = document.createElement('button');
   deleteBtn.className = 'btn btn-sm btn-danger';
   deleteBtn.textContent = 'Delete';
-  deleteBtn.addEventListener('click', (e) => {
+  deleteBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
-    openDeleteDialog(entry);
+    const confirmed = await confirmModal(_container, {
+      title: 'Delete Prompt',
+      message: `Are you sure you want to delete <strong>${escapeHtml(entry.title)}</strong>? This cannot be undone.`,
+    });
+    if (confirmed) {
+      const res = await api('/entries/' + entry.id, { method: 'DELETE' });
+      if (!res.ok) console.error('[prompts] Failed to delete:', res.status);
+      loadEntries();
+    }
   });
 
   actions.appendChild(copyBtn);
@@ -262,37 +248,6 @@ function buildEntryCard(entry) {
   card.appendChild(actions);
 
   return card;
-}
-
-// ── Delete dialog ────────────────────────────────────────────────────
-
-function openDeleteDialog(entry) {
-  _deleteTarget = entry;
-  const overlay = _container?.querySelector('#pr-delete-overlay');
-  if (!overlay) return;
-  const msg = overlay.querySelector('#pr-delete-msg');
-  if (msg) msg.innerHTML = `Are you sure you want to delete <strong>${escapeHtml(entry.title)}</strong>? This cannot be undone.`;
-  overlay.classList.remove('hidden');
-}
-
-function closeDeleteDialog() {
-  _deleteTarget = null;
-  _container?.querySelector('#pr-delete-overlay')?.classList.add('hidden');
-}
-
-function bindDeleteDialog() {
-  const overlay = _container?.querySelector('#pr-delete-overlay');
-  if (!overlay) return;
-
-  overlay.querySelector('#pr-delete-cancel').addEventListener('click', closeDeleteDialog);
-
-  overlay.querySelector('#pr-delete-confirm').addEventListener('click', async () => {
-    if (!_deleteTarget) return;
-    const res = await api('/entries/' + _deleteTarget.id, { method: 'DELETE' });
-    if (!res.ok) console.error('[prompts] Failed to delete:', res.status);
-    closeDeleteDialog();
-    loadEntries();
-  });
 }
 
 // ── Modal ────────────────────────────────────────────────────────────
@@ -309,17 +264,19 @@ async function openModal(mode, entryId) {
   const isEdit = mode === 'edit' && entry;
 
   const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
+  overlay.className = 'sui-modal-overlay';
   overlay.id = 'pr-modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
 
   const modal = document.createElement('div');
-  modal.className = 'modal modal-lg';
+  modal.className = 'sui-modal sui-modal-lg';
 
   modal.innerHTML = `
-    <div class="modal-header">
+    <div class="sui-modal-header">
       <h2>${isEdit ? 'Edit Prompt' : 'New Prompt'}</h2>
     </div>
-    <div class="modal-body">
+    <div class="sui-modal-body">
       <div class="form-row">
         <div class="form-group" style="flex:2">
           <label for="pr-m-title">Title</label>
@@ -359,7 +316,7 @@ async function openModal(mode, entryId) {
         </div>
         <div class="form-group" style="flex:0 0 100px">
           <label for="pr-m-temperature">Temperature</label>
-          <input type="number" id="pr-m-temperature" value="${isEdit && entry.temperature != null ? entry.temperature : ''}" placeholder="0–2" min="0" max="2" step="0.1" />
+          <input type="number" id="pr-m-temperature" value="${isEdit && entry.temperature != null ? entry.temperature : ''}" placeholder="0\u20132" min="0" max="2" step="0.1" />
         </div>
       </div>
 
@@ -376,9 +333,9 @@ async function openModal(mode, entryId) {
         </div>
       </div>
 
-      <div class="pr-modal-error" id="pr-m-error"></div>
+      <div class="sui-modal-error" id="pr-m-error"></div>
 
-      <div class="modal-actions">
+      <div class="sui-modal-actions">
         <button class="btn btn-secondary" id="pr-m-cancel">Cancel</button>
         <button class="btn btn-primary" id="pr-m-submit">${isEdit ? 'Save' : 'Add'}</button>
       </div>
@@ -500,12 +457,11 @@ function bindEvents() {
     loadEntries();
   });
 
-  _container.querySelector('#pr-search').addEventListener('input', () => {
-    clearTimeout(_searchTimer);
-    _searchTimer = setTimeout(renderEntries, 150);
+  _searchBinding = bindSearchBar(_container, {
+    id: 'pr-search',
+    onSearch: () => renderEntries(),
+    debounceMs: 150,
   });
-
-  bindDeleteDialog();
 }
 
 // ── Exports ──────────────────────────────────────────────────────────
@@ -516,7 +472,7 @@ export function mount(container, ctx) {
   _categories = [];
   _activeFilter = { category: null };
 
-  container.classList.add('page-prompts');
+  container.classList.add('page-prompts', 'app-page');
   container.innerHTML = BODY_HTML;
 
   bindEvents();
@@ -524,15 +480,14 @@ export function mount(container, ctx) {
 }
 
 export function unmount(container) {
-  clearTimeout(_searchTimer);
+  _searchBinding?.destroy();
+  _searchBinding = null;
   closeModal();
-  container.classList.remove('page-prompts');
+  container.classList.remove('page-prompts', 'app-page');
   container.innerHTML = '';
   _container = null;
   _entries = [];
   _categories = [];
-  _deleteTarget = null;
-  _searchTimer = null;
 }
 
 export function onProjectChange(project) {

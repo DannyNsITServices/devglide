@@ -1,63 +1,41 @@
 // ── Vocabulary App — Page Module ─────────────────────────────────────
-// ES module that exports mount(container, ctx), unmount(container),
-// and onProjectChange(project).
+// ES module: mount(container, ctx), unmount(container), onProjectChange(project)
+// Migrated to shared-ui: api helper, search bar, delete confirmation, shared CSS classes.
 
 import { escapeHtml } from '/shared-assets/ui-utils.js';
+import { createApi } from '/shared-ui/app-page.js';
+import { createSearchBar, bindSearchBar } from '/shared-ui/components/search-bar.js';
+import { confirmModal } from '/shared-ui/components/modal.js';
+import { createHeader } from '/shared-ui/components/header.js';
 
 let _container = null;
 let _entries = [];
 let _categories = [];
 let _activeFilter = { category: null, tag: null };
-let _deleteTarget = null;
+let _searchBinding = null;
 
-// ── API helpers ─────────────────────────────────────────────────────
-
-async function api(path, opts) {
-  const res = await fetch('/api/vocabulary' + path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...opts,
-  });
-  return res;
-}
+const api = createApi('vocabulary');
 
 // ── HTML ────────────────────────────────────────────────────────────
 
 const BODY_HTML = `
-  <header>
-    <div class="brand">Vocabulary</div>
-    <div class="header-meta">
-      <span id="vc-count"></span>
-    </div>
-    <div class="toolbar-actions">
-      <select id="vc-filter-category" class="vc-filter-select" title="Filter by category">
+  ${createHeader({
+    brand: 'Vocabulary',
+    meta: '<span id="vc-count"></span>',
+    actions: `
+      <select id="vc-filter-category" class="filter-select" title="Filter by category">
         <option value="">All categories</option>
       </select>
       <button class="btn btn-primary" id="vc-btn-add">+ Add Term</button>
-    </div>
-  </header>
+    `,
+  })}
 
   <main>
-    <div class="vc-container" id="vc-container">
-      <div class="vc-search-bar">
-        <input type="text" id="vc-search" class="vc-search-input" placeholder="Search terms..." autocomplete="off" />
-      </div>
+    <div class="content-container" id="vc-container">
+      ${createSearchBar({ placeholder: 'Search terms...', id: 'vc-search' })}
       <div class="vc-entries" id="vc-entries"></div>
     </div>
   </main>
-
-  <!-- Delete Confirmation Dialog -->
-  <div class="modal-overlay hidden" id="vc-delete-overlay" role="dialog" aria-modal="true">
-    <div class="modal">
-      <div class="modal-header">
-        <h2>Delete Term</h2>
-        <p class="modal-desc" id="vc-delete-msg"></p>
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" id="vc-delete-cancel">Cancel</button>
-        <button class="btn btn-danger" id="vc-delete-confirm">Delete</button>
-      </div>
-    </div>
-  </div>
 `;
 
 // ── Data loading ────────────────────────────────────────────────────
@@ -141,10 +119,10 @@ function renderEntries() {
 
   for (const [category, entries] of groups) {
     const section = document.createElement('section');
-    section.className = 'vc-group';
+    section.className = 'group';
 
     const title = document.createElement('h2');
-    title.className = 'vc-group-title';
+    title.className = 'group-title';
     title.textContent = category;
     const countBadge = document.createElement('span');
     countBadge.className = 'badge';
@@ -162,7 +140,7 @@ function renderEntries() {
 
 function buildEntryRow(entry) {
   const row = document.createElement('div');
-  row.className = 'vc-entry-row';
+  row.className = 'entry-row';
   row.dataset.id = entry.id;
 
   const left = document.createElement('div');
@@ -199,7 +177,7 @@ function buildEntryRow(entry) {
   }
 
   const actions = document.createElement('div');
-  actions.className = 'vc-entry-actions';
+  actions.className = 'entry-actions entry-actions--hover';
 
   const editBtn = document.createElement('button');
   editBtn.className = 'btn btn-sm btn-secondary';
@@ -212,9 +190,16 @@ function buildEntryRow(entry) {
   const deleteBtn = document.createElement('button');
   deleteBtn.className = 'btn btn-sm btn-danger';
   deleteBtn.textContent = 'Delete';
-  deleteBtn.addEventListener('click', (e) => {
+  deleteBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
-    openDeleteDialog(entry);
+    const confirmed = await confirmModal(_container, {
+      title: 'Delete Term',
+      message: `Are you sure you want to delete <strong>${escapeHtml(entry.term)}</strong>? This action cannot be undone.`,
+    });
+    if (confirmed) {
+      await api('/entries/' + entry.id, { method: 'DELETE' });
+      loadEntries();
+    }
   });
 
   actions.appendChild(editBtn);
@@ -226,58 +211,30 @@ function buildEntryRow(entry) {
   return row;
 }
 
-// ── Delete confirmation dialog ──────────────────────────────────────
-
-function openDeleteDialog(entry) {
-  _deleteTarget = entry;
-  const overlay = _container?.querySelector('#vc-delete-overlay');
-  if (!overlay) return;
-  const msg = overlay.querySelector('#vc-delete-msg');
-  if (msg) msg.innerHTML = `Are you sure you want to delete <strong>${escapeHtml(entry.term)}</strong>? This action cannot be undone.`;
-  overlay.classList.remove('hidden');
-}
-
-function closeDeleteDialog() {
-  _deleteTarget = null;
-  _container?.querySelector('#vc-delete-overlay')?.classList.add('hidden');
-}
-
-function bindDeleteDialog() {
-  const overlay = _container?.querySelector('#vc-delete-overlay');
-  if (!overlay) return;
-
-  overlay.querySelector('#vc-delete-cancel').addEventListener('click', closeDeleteDialog);
-
-  overlay.querySelector('#vc-delete-confirm').addEventListener('click', async () => {
-    if (!_deleteTarget) return;
-    await api('/entries/' + _deleteTarget.id, { method: 'DELETE' });
-    closeDeleteDialog();
-    loadEntries();
-  });
-}
-
 // ── Modal ───────────────────────────────────────────────────────────
 
 function openModal(mode, entry) {
   closeModal();
 
   const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
+  overlay.className = 'sui-modal-overlay';
   overlay.id = 'vc-modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
 
   const modal = document.createElement('div');
-  modal.className = 'modal';
+  modal.className = 'sui-modal';
 
   const isEdit = mode === 'edit';
   const title = isEdit ? 'Edit Term' : 'Add Term';
   const submitLabel = isEdit ? 'Save' : 'Add';
 
   modal.innerHTML = `
-    <div class="modal-header">
+    <div class="sui-modal-header">
       <h2>${title}</h2>
-      <p class="modal-desc">${isEdit ? 'Update term details.' : 'Add a domain-specific term for LLM context.'}</p>
+      <p>${isEdit ? 'Update term details.' : 'Add a domain-specific term for LLM context.'}</p>
     </div>
-    <div class="modal-body">
+    <div class="sui-modal-body">
       <div class="form-group">
         <label for="vc-m-term">Term</label>
         <input type="text" id="vc-m-term" value="${isEdit ? escapeHtml(entry.term) : ''}" placeholder="e.g. PR, LGTM, K8s" autocomplete="off" />
@@ -308,9 +265,9 @@ function openModal(mode, entry) {
         <input type="text" id="vc-m-tags" value="${isEdit && entry.tags ? escapeHtml(entry.tags.join(', ')) : ''}" placeholder="e.g. git, review, workflow" autocomplete="off" />
       </div>
 
-      <div class="vc-modal-error" id="vc-m-error"></div>
+      <div class="sui-modal-error" id="vc-m-error"></div>
 
-      <div class="modal-actions">
+      <div class="sui-modal-actions">
         <button class="btn btn-secondary" id="vc-m-cancel">Cancel</button>
         <button class="btn btn-primary" id="vc-m-submit">${submitLabel}</button>
       </div>
@@ -318,7 +275,7 @@ function openModal(mode, entry) {
   `;
 
   overlay.appendChild(modal);
-  document.body.appendChild(overlay);
+  _container.appendChild(overlay);
 
   const termInput = document.getElementById('vc-m-term');
   requestAnimationFrame(() => termInput.focus());
@@ -404,13 +361,11 @@ function bindEvents() {
     loadEntries();
   });
 
-  let searchTimer;
-  _container.querySelector('#vc-search').addEventListener('input', () => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(renderEntries, 150);
+  _searchBinding = bindSearchBar(_container, {
+    id: 'vc-search',
+    onSearch: () => renderEntries(),
+    debounceMs: 150,
   });
-
-  bindDeleteDialog();
 }
 
 // ── Exports ─────────────────────────────────────────────────────────
@@ -421,7 +376,7 @@ export function mount(container, ctx) {
   _categories = [];
   _activeFilter = { category: null, tag: null };
 
-  container.classList.add('page-vocabulary');
+  container.classList.add('page-vocabulary', 'app-page');
   container.innerHTML = BODY_HTML;
 
   bindEvents();
@@ -429,13 +384,14 @@ export function mount(container, ctx) {
 }
 
 export function unmount(container) {
+  _searchBinding?.destroy();
+  _searchBinding = null;
   closeModal();
-  container.classList.remove('page-vocabulary');
+  container.classList.remove('page-vocabulary', 'app-page');
   container.innerHTML = '';
   _container = null;
   _entries = [];
   _categories = [];
-  _deleteTarget = null;
 }
 
 export function onProjectChange(project) {

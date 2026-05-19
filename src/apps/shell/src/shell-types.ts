@@ -4,6 +4,9 @@ export interface PtyEntry {
   ptyProcess: IPty;
   chunks: string[];
   totalLen: number;
+  cursorReportRequestCarry?: string;
+  pendingCursorReportRequests?: number;
+  lastCursorReportRequestAt?: number;
 }
 
 export interface PaneInfo {
@@ -14,6 +17,11 @@ export interface PaneInfo {
   cwd: string | null;
   url?: string;
   projectId: string | null;
+  chatName?: string | null;
+  /** Base CLI name for a launched LLM that has not necessarily joined chat yet. */
+  llmCli?: string | null;
+  /** Permission mode the LLM was launched with (set by invite). */
+  permissionMode?: 'supervised' | 'auto-accept' | 'unrestricted' | null;
 }
 
 export interface DashboardState {
@@ -28,10 +36,21 @@ export interface ShellConfig {
   env: Record<string, string>;
 }
 
+/** Minimal emitter interface — socket.io Namespace in router mode, no-op in standalone MCP. */
+export interface ShellEmitter {
+  to(room: string): ShellEmitter;
+  emit(event: string, data?: unknown): ShellEmitter;
+}
+
+export const NOOP_EMITTER: ShellEmitter = {
+  to() { return this; },
+  emit() { return this; },
+};
+
 export interface McpState {
   globalPtys: Map<string, PtyEntry>;
   dashboardState: DashboardState;
-  io: any;
+  io: ShellEmitter;
   spawnGlobalPty: (id: string, command: string, args: string[], env: Record<string, string>, cols: number, rows: number, trackCwd: boolean, oscOnly: boolean, startCwd: string | null) => IPty;
   SHELL_CONFIGS: Record<string, ShellConfig>;
   MAX_PANES: number;

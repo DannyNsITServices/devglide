@@ -1,8 +1,13 @@
 import { Router, Request, Response } from "express";
-import { getDb, generateId, nowIso, appendVersionedEntry, getVersionedEntries } from "../db.js";
+import { z } from "zod";
+import { getDb, nowIso, appendVersionedEntry, getVersionedEntries, ftsUpdate, ftsDelete } from "../db.js";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
+import { getUploadsDir } from "./attachments.js";
+import type { IssueRow } from "../db.js";
+import { createKanbanItem } from "../kanban-create-helper.js";
+import { sanitizeFtsQuery } from "../mcp-helpers.js";
+import { asyncHandler, badRequest, notFound } from "../../../../packages/error-middleware.js";
 
 declare module "express" {
   interface Request {
@@ -10,25 +15,36 @@ declare module "express" {
   }
 }
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsDir = path.join(__dirname, "..", "..", "uploads");
-
 export const issuesRouter: Router = Router();
 
-function mapIssue(row: any) {
+type JsonRow = { projectId?: string } & Record<string, unknown>;
+type IssueLikeRow = { projectId?: string } & object;
+
+const listIssuesQuerySchema = z.object({
+  featureId: z.string().optional(),
+  columnId: z.string().optional(),
+  priority: z.string().optional(),
+  type: z.string().optional(),
+});
+
+const issueIdParamSchema = z.object({
+  id: z.string().min(1, "issue id is required"),
+});
+
+function mapIssue(row: IssueLikeRow | undefined): Record<string, unknown> | undefined {
   if (!row) return row;
   const { projectId, ...rest } = row;
   return { ...rest, featureId: projectId };
 }
 
 // GET /api/issues
-issuesRouter.get("/", (req: Request, res: Response) => {
-  try {
-    const { featureId, columnId, priority, type } = req.query;
+issuesRouter.get("/", asyncHandler(async (req: Request, res: Response) => {
+    const qp = listIssuesQuerySchema.safeParse(req.query);
+    const { featureId, columnId, priority, type } = qp.success ? qp.data : {};
     const db = getDb(req.projectId);
 
     const conditions: string[] = [];
-    const params: any[] = [];
+    const params: (string | number)[] = [];
 
     if (featureId) {
       conditions.push(`i."projectId" = ?`);
@@ -57,85 +73,149 @@ issuesRouter.get("/", (req: Request, res: Response) => {
          ${where}
          ORDER BY i."order" ASC`
       )
-      .all(...params);
+      .all(...params) as JsonRow[];
 
     res.json(rows.map(mapIssue));
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
+}));
+
+import { KANBAN_PRIORITIES, KANBAN_ITEM_TYPES_EXTENDED } from "../../../../packages/shared-types/src/index.js";
+
+const createIssueSchema = z.object({
+  title: z.string().min(1).max(500),
+  description: z.string().optional(),
+  priority: z.enum(KANBAN_PRIORITIES).optional(),
+  type: z.enum(KANBAN_ITEM_TYPES_EXTENDED).optional(),
+  labels: z.union([z.string(), z.array(z.string())]).optional(),
+  dueDate: z.string().optional().nullable(),
+  featureId: z.string().min(1),
+  columnId: z.string().min(1),
 });
 
-const VALID_PRIORITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "NONE"];
-const VALID_TYPES = ["BUG", "TASK", "FEATURE", "IMPROVEMENT", "EPIC"];
+const updateIssueSchema = createIssueSchema.partial().extend({
+  columnId: z.string().optional(),
+  reviewFeedback: z.string().optional(),
+});
+
+const reorderSchema = z.object({
+  issueId: z.string().min(1),
+  newColumnId: z.string().min(1),
+  newOrder: z.number(),
+});
+
+const contentSchema = z.object({
+  content: z.string().min(1),
+});
 
 // POST /api/issues
-issuesRouter.post("/", (req: Request, res: Response) => {
-  try {
-    const { title, description, priority, type, labels, dueDate, featureId, columnId } = req.body;
-
-    if (!title || !featureId || !columnId) {
-      res.status(400).json({ error: "title, featureId, and columnId are required" });
+issuesRouter.post("/", asyncHandler(async (req: Request, res: Response) => {
+    const parsed = createIssueSchema.safeParse(req.body);
+    if (!parsed.success) {
+      badRequest(res, parsed.error.issues[0]?.message ?? "Invalid input");
       return;
     }
-
-    if (typeof title !== "string" || title.length > 500) {
-      res.status(400).json({ error: "title must be a string of at most 500 characters" });
-      return;
-    }
-
-    if (priority && !VALID_PRIORITIES.includes(priority)) {
-      res.status(400).json({ error: `priority must be one of: ${VALID_PRIORITIES.join(", ")}` });
-      return;
-    }
-
-    if (type && !VALID_TYPES.includes(type)) {
-      res.status(400).json({ error: `type must be one of: ${VALID_TYPES.join(", ")}` });
-      return;
-    }
+    const { title, description, priority, type, labels, dueDate, featureId, columnId } = parsed.data;
 
     const db = getDb(req.projectId);
-    const now = nowIso();
-    const id = generateId();
+    const normalizedLabels = Array.isArray(labels)
+      ? labels
+      : typeof labels === "string"
+        ? (() => {
+            try {
+              const parsedLabels = JSON.parse(labels);
+              return Array.isArray(parsedLabels) ? parsedLabels.map(String) : [labels];
+            } catch {
+              return [labels];
+            }
+          })()
+        : undefined;
 
-    // Calculate order: max order in target column + 1
-    const maxOrder = db
-      .prepare(`SELECT MAX("order") AS maxOrd FROM "Issue" WHERE "columnId" = ?`)
-      .get(columnId) as any;
-    const order = (maxOrder?.maxOrd ?? -1) + 1;
-
-    db.prepare(
-      `INSERT INTO "Issue" ("id", "title", "description", "type", "priority", "order", "labels", "dueDate", "projectId", "columnId", "updatedAt")
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      id,
+    const result = createKanbanItem(db, {
       title,
-      description ?? null,
-      type ?? "TASK",
-      priority ?? "MEDIUM",
-      order,
-      labels ?? "[]",
-      dueDate ?? null,
+      description,
       featureId,
       columnId,
-      now
-    );
+      priority,
+      type,
+      labels: normalizedLabels,
+      dueDate: dueDate ?? null,
+    });
 
-    const row = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(id);
-    res.status(201).json(mapIssue(row));
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
-
-// POST /api/issues/reorder  (defined before /:id to avoid route conflict)
-issuesRouter.post("/reorder", (req: Request, res: Response) => {
-  try {
-    const { issueId, newColumnId, newOrder } = req.body;
-
-    if (!issueId || !newColumnId || newOrder === undefined) {
-      res.status(400).json({ error: "issueId, newColumnId, and newOrder are required" });
+    if (!result.ok) {
+      badRequest(res, result.error);
       return;
     }
+
+    res.status(201).json(mapIssue(result.item));
+}));
+
+// GET /api/issues/search  (defined before /:id to avoid route conflict)
+issuesRouter.get("/search", asyncHandler(async (req: Request, res: Response) => {
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (!q) {
+      badRequest(res, "Query parameter 'q' is required");
+      return;
+    }
+    const safeQuery = sanitizeFtsQuery(q);
+    if (!safeQuery) {
+      badRequest(res, "Search query is empty or contains only special characters.");
+      return;
+    }
+    const featureId = typeof req.query.featureId === 'string' ? req.query.featureId : undefined;
+    const columnName = typeof req.query.columnName === 'string' ? req.query.columnName : undefined;
+    const priority = typeof req.query.priority === 'string' ? req.query.priority : undefined;
+    const type = typeof req.query.type === 'string' ? req.query.type : undefined;
+    const limit = Math.min(parseInt(typeof req.query.limit === 'string' ? req.query.limit : '20', 10) || 20, 50);
+
+    const db = getDb(req.projectId);
+
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+
+    if (featureId) { conditions.push(`i."projectId" = ?`); params.push(featureId); }
+    if (columnName) { conditions.push(`c."name" = ?`); params.push(columnName); }
+    if (priority) { conditions.push(`i."priority" = ?`); params.push(priority); }
+    if (type) { conditions.push(`i."type" = ?`); params.push(type); }
+
+    const extraWhere = conditions.length > 0 ? `AND ${conditions.join(" AND ")}` : "";
+
+    const rows = db.prepare(
+      `SELECT i."id", i."title", i."priority", i."type", i."labels",
+              c."name" AS columnName,
+              p."name" AS featureName, i."projectId" AS featureId,
+              rank
+       FROM "IssueFts" fts
+       JOIN "Issue" i ON fts."id" = i."id"
+       LEFT JOIN "Column" c ON i."columnId" = c."id"
+       LEFT JOIN "Project" p ON i."projectId" = p."id"
+       WHERE "IssueFts" MATCH ?
+       ${extraWhere}
+       ORDER BY rank
+       LIMIT ?`
+    ).all(safeQuery, ...params, limit);
+
+    res.json({
+      data: (rows as JsonRow[]).map(r => ({
+        id: r.id,
+        title: r.title,
+        priority: r.priority,
+        type: r.type,
+        labels: r.labels,
+        columnName: r.columnName,
+        featureName: r.featureName,
+        featureId: r.featureId ?? r.projectId,
+      })),
+      total: rows.length,
+    });
+}));
+
+// POST /api/issues/reorder  (defined before /:id to avoid route conflict)
+issuesRouter.post("/reorder", asyncHandler(async (req: Request, res: Response) => {
+    const parsed = reorderSchema.safeParse(req.body);
+    if (!parsed.success) {
+      badRequest(res, parsed.error.issues[0]?.message ?? "Invalid input");
+      return;
+    }
+    const { issueId, newColumnId, newOrder } = parsed.data;
 
     const db = getDb(req.projectId);
     const now = nowIso();
@@ -160,22 +240,23 @@ issuesRouter.post("/reorder", (req: Request, res: Response) => {
 
     const result = txn();
     if (!result) {
-      res.status(404).json({ error: "Issue not found" });
+      notFound(res, "Issue not found");
       return;
     }
 
-    const row = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(issueId);
+    const row = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(issueId) as JsonRow | undefined;
 
     res.json(mapIssue(row));
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));
 
 // GET /api/issues/:id
-issuesRouter.get("/:id", (req: Request, res: Response) => {
-  try {
-    const id = req.params.id as string;
+issuesRouter.get("/:id", asyncHandler(async (req: Request, res: Response) => {
+    const idParams = issueIdParamSchema.safeParse(req.params);
+    if (!idParams.success) {
+      badRequest(res, idParams.error.issues[0]?.message ?? "Invalid input");
+      return;
+    }
+    const { id } = idParams.data;
     const db = getDb(req.projectId);
 
     const row = db
@@ -188,10 +269,10 @@ issuesRouter.get("/:id", (req: Request, res: Response) => {
          LEFT JOIN "Project" p ON i."projectId" = p."id"
          WHERE i."id" = ?`
       )
-      .get(id);
+      .get(id) as JsonRow | undefined;
 
     if (!row) {
-      res.status(404).json({ error: "Issue not found" });
+      notFound(res, "Issue not found");
       return;
     }
 
@@ -200,26 +281,37 @@ issuesRouter.get("/:id", (req: Request, res: Response) => {
       .all(id);
 
     const mapped = mapIssue(row);
+    if (!mapped) {
+      res.status(500).json({ error: "Failed to map issue" });
+      return;
+    }
     mapped.attachments = attachments;
     mapped.workLog = getVersionedEntries(db, id, "work_log");
     mapped.reviewHistory = getVersionedEntries(db, id, "review");
 
     res.json(mapped);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));
 
 // PATCH /api/issues/:id
-issuesRouter.patch("/:id", (req: Request, res: Response) => {
-  try {
-    const id = req.params.id as string;
+issuesRouter.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
+    const params = issueIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      badRequest(res, params.error.issues[0]?.message ?? "Invalid input");
+      return;
+    }
+    const parsed = updateIssueSchema.safeParse(req.body);
+    if (!parsed.success) {
+      badRequest(res, parsed.error.issues[0]?.message ?? "Invalid input");
+      return;
+    }
+
+    const { id } = params.data;
     const db = getDb(req.projectId);
 
     // Check issue exists
     const existing = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(id);
     if (!existing) {
-      res.status(404).json({ error: "Issue not found" });
+      notFound(res, "Issue not found");
       return;
     }
 
@@ -235,127 +327,184 @@ issuesRouter.patch("/:id", (req: Request, res: Response) => {
     };
 
     // Redirect reviewFeedback to versioned entry
-    if (req.body.reviewFeedback && typeof req.body.reviewFeedback === "string" && req.body.reviewFeedback.trim()) {
-      appendVersionedEntry(db, id, "review", req.body.reviewFeedback.trim());
+    const { reviewFeedback, featureId: targetFeatureId, ...updateFields } = parsed.data;
+    if (reviewFeedback && reviewFeedback.trim()) {
+      appendVersionedEntry(db, id, "review", reviewFeedback.trim());
+    }
+
+    // Handle cross-feature move: validate target feature and resolve column
+    if (targetFeatureId && targetFeatureId !== (existing as IssueRow).projectId) {
+      const targetFeature = db.prepare(`SELECT "id" FROM "Project" WHERE "id" = ?`).get(targetFeatureId) as { id: string } | undefined;
+      if (!targetFeature) {
+        badRequest(res, `Target feature "${targetFeatureId}" not found.`);
+        return;
+      }
+
+      // If columnId is also provided, verify it belongs to the target feature
+      if (updateFields.columnId) {
+        const col = db.prepare(`SELECT "projectId" FROM "Column" WHERE "id" = ?`).get(updateFields.columnId) as { projectId: string } | undefined;
+        if (!col || col.projectId !== targetFeatureId) {
+          badRequest(res, "Provided columnId does not belong to the target feature.");
+          return;
+        }
+      } else {
+        // Resolve current column name in the target feature
+        const currentCol = db.prepare(`SELECT "name" FROM "Column" WHERE "id" = ?`).get((existing as IssueRow).columnId) as { name: string } | undefined;
+        const colName = currentCol?.name ?? 'Backlog';
+        const resolved = db.prepare(`SELECT "id" FROM "Column" WHERE "projectId" = ? AND "name" = ?`).get(targetFeatureId, colName) as { id: string } | undefined;
+        if (!resolved) {
+          badRequest(res, `Column "${colName}" not found in target feature.`);
+          return;
+        }
+        updateFields.columnId = resolved.id;
+      }
+
+      // Add projectId to the update
+      allowedFields.projectId = '"projectId"';
+      (updateFields as Record<string, unknown>).projectId = targetFeatureId;
+
+      // Recalculate order in the destination column (append to end)
+      // This matches the MCP tool behavior in item-tools.ts
+      const destColumnId = updateFields.columnId!;
+      const maxOrder = db.prepare(`SELECT MAX("order") AS maxOrd FROM "Issue" WHERE "columnId" = ?`).get(destColumnId) as { maxOrd: number | null } | undefined;
+      (updateFields as Record<string, unknown>).order = (maxOrder?.maxOrd ?? -1) + 1;
     }
 
     const setClauses: string[] = [];
-    const params: any[] = [];
+    const updateParams: (string | number | null)[] = [];
+    const data: Record<string, unknown> = updateFields;
 
     for (const [key, col] of Object.entries(allowedFields)) {
-      if (req.body[key] !== undefined) {
+      if (data[key] !== undefined) {
         setClauses.push(`${col} = ?`);
-        params.push(req.body[key]);
+        updateParams.push(data[key] as string | number | null);
       }
     }
 
     if (setClauses.length === 0) {
-      res.status(400).json({ error: "No valid fields to update" });
+      badRequest(res, "No valid fields to update");
       return;
     }
 
     // Always set updatedAt
     const now = nowIso();
     setClauses.push(`"updatedAt" = ?`);
-    params.push(now);
+    updateParams.push(now);
 
-    params.push(id);
+    updateParams.push(id);
 
-    db.prepare(`UPDATE "Issue" SET ${setClauses.join(", ")} WHERE "id" = ?`).run(...params);
+    // Sync FTS index if any indexed fields changed
+    if (data.title !== undefined || data.description !== undefined || data.labels !== undefined) {
+      const current = db.prepare(`SELECT "title", "description", "labels" FROM "Issue" WHERE "id" = ?`).get(id) as { title: string; description: string | null; labels: string };
+      ftsUpdate(db, id,
+        (data.title as string) ?? current.title,
+        data.description !== undefined ? (data.description as string | null) : current.description,
+        data.labels !== undefined ? (data.labels as string) : current.labels,
+      );
+    }
 
-    const row = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(id);
+    db.prepare(`UPDATE "Issue" SET ${setClauses.join(", ")} WHERE "id" = ?`).run(...updateParams);
+
+    const row = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(id) as JsonRow | undefined;
     res.json(mapIssue(row));
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));
 
 // GET /api/issues/:id/work-log
-issuesRouter.get("/:id/work-log", (req: Request, res: Response) => {
-  try {
-    const id = req.params.id as string;
+issuesRouter.get("/:id/work-log", asyncHandler(async (req: Request, res: Response) => {
+    const params = issueIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      badRequest(res, params.error.issues[0]?.message ?? "Invalid input");
+      return;
+    }
+    const { id } = params.data;
     const db = getDb(req.projectId);
     const entries = getVersionedEntries(db, id, "work_log");
     res.json(entries);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));
 
 // POST /api/issues/:id/work-log
-issuesRouter.post("/:id/work-log", (req: Request, res: Response) => {
-  try {
-    const id = req.params.id as string;
-    const { content } = req.body;
-    if (!content || typeof content !== "string" || !content.trim()) {
-      res.status(400).json({ error: "content is required" });
+issuesRouter.post("/:id/work-log", asyncHandler(async (req: Request, res: Response) => {
+    const params = issueIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      badRequest(res, params.error.issues[0]?.message ?? "Invalid input");
       return;
     }
+    const parsed = contentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      badRequest(res, parsed.error.issues[0]?.message ?? "Invalid input");
+      return;
+    }
+    const { id } = params.data;
+    const { content } = parsed.data;
     const db = getDb(req.projectId);
     const existing = db.prepare(`SELECT "id" FROM "Issue" WHERE "id" = ?`).get(id);
-    if (!existing) { res.status(404).json({ error: "Issue not found" }); return; }
+    if (!existing) { notFound(res, "Issue not found"); return; }
     const entry = appendVersionedEntry(db, id, "work_log", content.trim());
     db.prepare(`UPDATE "Issue" SET "updatedAt" = ? WHERE "id" = ?`).run(nowIso(), id);
     res.status(201).json(entry);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));
 
 // GET /api/issues/:id/review
-issuesRouter.get("/:id/review", (req: Request, res: Response) => {
-  try {
-    const id = req.params.id as string;
+issuesRouter.get("/:id/review", asyncHandler(async (req: Request, res: Response) => {
+    const params = issueIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      badRequest(res, params.error.issues[0]?.message ?? "Invalid input");
+      return;
+    }
+    const { id } = params.data;
     const db = getDb(req.projectId);
     const entries = getVersionedEntries(db, id, "review");
     res.json(entries);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));
 
 // POST /api/issues/:id/review
-issuesRouter.post("/:id/review", (req: Request, res: Response) => {
-  try {
-    const id = req.params.id as string;
-    const { content } = req.body;
-    if (!content || typeof content !== "string" || !content.trim()) {
-      res.status(400).json({ error: "content is required" });
+issuesRouter.post("/:id/review", asyncHandler(async (req: Request, res: Response) => {
+    const params = issueIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      badRequest(res, params.error.issues[0]?.message ?? "Invalid input");
       return;
     }
+    const parsed = contentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      badRequest(res, parsed.error.issues[0]?.message ?? "Invalid input");
+      return;
+    }
+    const { id } = params.data;
+    const { content } = parsed.data;
     const db = getDb(req.projectId);
     const existing = db.prepare(`SELECT "id" FROM "Issue" WHERE "id" = ?`).get(id);
-    if (!existing) { res.status(404).json({ error: "Issue not found" }); return; }
+    if (!existing) { notFound(res, "Issue not found"); return; }
     const entry = appendVersionedEntry(db, id, "review", content.trim());
     db.prepare(`UPDATE "Issue" SET "updatedAt" = ? WHERE "id" = ?`).run(nowIso(), id);
     res.status(201).json(entry);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));
 
 // DELETE /api/issues/:id
-issuesRouter.delete("/:id", (req: Request, res: Response) => {
-  try {
-    const id = req.params.id as string;
+issuesRouter.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
+    const params = issueIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      badRequest(res, params.error.issues[0]?.message ?? "Invalid input");
+      return;
+    }
+    const { id } = params.data;
     const db = getDb(req.projectId);
 
     // Check issue exists
-    const existing = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(id);
+    const existing = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(id) as IssueRow | undefined;
     if (!existing) {
-      res.status(404).json({ error: "Issue not found" });
+      notFound(res, "Issue not found");
       return;
     }
 
     // Fetch attachments so we can delete files from disk
     const attachments = db
       .prepare(`SELECT * FROM "Attachment" WHERE "issueId" = ?`)
-      .all(id) as any[];
+      .all(id) as { id: string; filename: string }[];
 
     // Delete attachment files from disk
     for (const att of attachments) {
       const ext = path.extname(att.filename);
-      const filePath = path.join(uploadsDir, `${att.id}${ext}`);
+      const filePath = path.join(getUploadsDir(req.projectId ?? 'default'), `${att.id}${ext}`);
       try {
         fs.unlinkSync(filePath);
       } catch {
@@ -363,11 +512,11 @@ issuesRouter.delete("/:id", (req: Request, res: Response) => {
       }
     }
 
+    // Remove from FTS index before deleting
+    ftsDelete(db, id);
+
     // Delete the issue (CASCADE handles attachment DB records)
     db.prepare(`DELETE FROM "Issue" WHERE "id" = ?`).run(id);
 
     res.json({ success: true });
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));

@@ -1,3 +1,5 @@
+/* ── Log — App-specific styles ─────────────────────────────────────────────── */
+/* Common primitives (page root, header, scrollbar) are in shared-ui.css.      */
 
   .page-log {
     font-family: var(--df-font-mono);

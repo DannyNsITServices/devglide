@@ -1,7 +1,7 @@
-import { writeFileSync, unlinkSync, mkdirSync, existsSync, createWriteStream } from "fs";
+import { writeFileSync, readFileSync, unlinkSync, mkdirSync, existsSync, createWriteStream } from "fs";
 import { join, resolve, dirname } from "path";
 import { tmpdir } from "os";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import { execSync } from "child_process";
 import { createRequire } from "module";
 import type {
@@ -9,6 +9,53 @@ import type {
   TranscribeOptions,
   TranscriptionResult,
 } from "./types.js";
+
+interface LocalWhisperSegment {
+  speech?: string;
+  text?: string;
+}
+
+interface LocalWhisperOptions {
+  modelName: string;
+  autoDownloadModelName: string;
+  removeWavFileAfterTranscription: boolean;
+  whisperOptions: {
+    outputInText: boolean;
+    outputInVtt: boolean;
+    outputInSrt: boolean;
+    outputInCsv: boolean;
+    translateToEnglish: boolean;
+    wordTimestamps: boolean;
+    timestamps_length: number;
+    splitOnWord: boolean;
+    language?: string;
+    prompt?: string;
+  };
+}
+
+type LocalWhisperResult =
+  | string
+  | LocalWhisperSegment[]
+  | Record<string, unknown>
+  | null
+  | undefined;
+
+type LocalWhisperFn = (
+  filePath: string,
+  options: LocalWhisperOptions
+) => Promise<LocalWhisperResult>;
+
+function isLocalWhisperFn(value: unknown): value is LocalWhisperFn {
+  return typeof value === "function";
+}
+
+async function loadLocalWhisper(): Promise<LocalWhisperFn> {
+  const mod = await import("nodejs-whisper");
+  if (!isLocalWhisperFn(mod.nodewhisper)) {
+    throw new Error("The installed nodejs-whisper package does not expose a usable nodewhisper function");
+  }
+  return mod.nodewhisper;
+}
 
 const FFMPEG_INSTALL_HINT =
   "Install FFmpeg:\n" +
@@ -39,6 +86,49 @@ const BUILD_TOOLS_HINT =
 
 const WHISPER_CPP_RELEASE_VERSION = "v1.8.3";
 const WHISPER_CPP_RELEASE_BASE = `https://github.com/ggml-org/whisper.cpp/releases/download/${WHISPER_CPP_RELEASE_VERSION}`;
+
+/**
+ * SHA-256 checksums for prebuilt whisper.cpp release assets.
+ * Keyed by "{version}:{assetFilename}".
+ * Computed from the official GitHub release downloads for the pinned version.
+ */
+const WHISPER_PREBUILT_SHA256: Record<string, string> = {
+  [`${WHISPER_CPP_RELEASE_VERSION}:whisper-bin-x64.zip`]:
+    "d824b1e37599f882b396e73f1ee0bfd5d0529f700314c48311dcbd00b803321d",
+  [`${WHISPER_CPP_RELEASE_VERSION}:whisper-bin-Win32.zip`]:
+    "219dd423cd910b72e7794b9a17f578367ba815010afcff26e3d7b527b3c111fa",
+};
+
+/** Compute SHA-256 hex digest of a file on disk. */
+function computeFileSha256(filePath: string): string {
+  const hash = createHash("sha256");
+  hash.update(readFileSync(filePath));
+  return hash.digest("hex");
+}
+
+/** Verify a downloaded file's SHA-256 against the expected hash. Warns for missing/placeholder hashes. */
+function verifyIntegrity(filePath: string, assetName: string): void {
+  const key = `${WHISPER_CPP_RELEASE_VERSION}:${assetName}`;
+  const expected = WHISPER_PREBUILT_SHA256[key];
+  if (!expected || expected.startsWith('PLACEHOLDER')) {
+    console.warn(
+      `[local-whisper] No verified SHA-256 hash for "${assetName}" — skipping integrity check. ` +
+      `Compute hashes from trusted release downloads and update WHISPER_PREBUILT_SHA256.`
+    );
+    return;
+  }
+
+  const actual = computeFileSha256(filePath);
+  if (actual !== expected) {
+    throw new Error(
+      `SHA-256 integrity check failed for ${assetName}.\n` +
+      `  Expected: ${expected}\n` +
+      `  Actual:   ${actual}\n` +
+      `The downloaded file may be corrupted or tampered with. ` +
+      `If the release was updated, verify the new hash and update WHISPER_PREBUILT_SHA256.`
+    );
+  }
+}
 
 /** Maps platform+arch to the release asset name and executable path inside the archive. */
 function getPrebuiltAsset(): { url: string; exeName: string; archiveFiles: string[] } | null {
@@ -104,7 +194,7 @@ async function downloadFile(url: string, dest: string): Promise<void> {
 
   // Stream the response body into the file
   const fileStream = createWriteStream(dest);
-  const reader = (res.body as any).getReader();
+  const reader = (res.body as ReadableStream<Uint8Array>).getReader();
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -185,6 +275,10 @@ async function ensureWhisperBinary(): Promise<boolean> {
     try {
       await downloadFile(asset.url, tmpZip);
 
+      // Verify SHA-256 integrity before extracting/executing the downloaded archive
+      const assetName = asset.url.split("/").pop()!;
+      verifyIntegrity(tmpZip, assetName);
+
       const extractDir = join(tmpdir(), `whisper-extract-${randomBytes(4).toString("hex")}`);
       extractZip(tmpZip, extractDir, asset.archiveFiles);
 
@@ -248,9 +342,9 @@ export class LocalWhisperProvider implements TranscriptionProvider {
     audio: File,
     options: TranscribeOptions = {}
   ): Promise<TranscriptionResult> {
-    let nodeWhisper: typeof import("nodejs-whisper")["nodewhisper"];
+    let nodeWhisper: LocalWhisperFn;
     try {
-      nodeWhisper = (await import("nodejs-whisper")).nodewhisper;
+      nodeWhisper = await loadLocalWhisper();
     } catch {
       throw new Error(
         "Local whisper provider requires the 'nodejs-whisper' package. Install it with: pnpm add nodejs-whisper"
@@ -280,8 +374,8 @@ export class LocalWhisperProvider implements TranscriptionProvider {
       let result;
       try {
         result = await nodeWhisper(tmpFile, {
-          modelName: this.model as any,
-          autoDownloadModelName: this.model as any,
+          modelName: this.model,
+          autoDownloadModelName: this.model,
           removeWavFileAfterTranscription: true,
           whisperOptions: {
             outputInText: false,
@@ -316,7 +410,7 @@ export class LocalWhisperProvider implements TranscriptionProvider {
       let text: string;
       if (Array.isArray(result)) {
         text = result
-          .map((segment: any) => {
+          .map((segment) => {
             const raw = (segment.speech ?? segment.text ?? "").trim();
             return raw.replace(TIMESTAMP_RE, "").replace(/\s+/g, " ").trim();
           })

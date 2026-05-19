@@ -6,6 +6,13 @@
 // that renders terminal panes directly in the app shell container.
 
 import { shellSocket as socket } from '/state.js';
+import { createHeader } from '/shared-ui/components/header.js';
+import { confirmModal } from '/shared-ui/components/modal.js';
+import {
+  getVisibleFallbackPaneId,
+  isPaneIdVisible,
+  isPaneVisibleForProject,
+} from './pane-visibility.js';
 
 // ── Module state ─────────────────────────────────────────────────────
 
@@ -43,6 +50,7 @@ const TERMINAL_THEME = {
 const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 const isMobile = () => window.innerWidth <= 640;
 const isMobileDevice = 'ontouchstart' in window;
+const MAX_PROJECT_PANES = 9;
 
 function makeLabel(num, folder) {
   return folder ? `${num}: ${folder}` : `${num}`;
@@ -109,16 +117,16 @@ async function ensureXterm() {
 // ── HTML ─────────────────────────────────────────────────────────────
 
 const BODY_HTML = `
-  <header>
-    <div class="brand">Shell</div>
-    <div class="header-meta">
-      <span class="pane-count" data-ref="paneCount">0 panes</span>
-      <div class="mobile-actions" data-ref="mobileActions">
-        <button class="mobile-action-btn" data-action="new-terminal" title="New Terminal">&gt;_</button>
-        <button class="mobile-action-btn" data-action="new-browser" title="New Browser">&#x25A1;</button>
+  ${createHeader({
+    brand: 'Shell',
+    meta: '<span class="pane-count" data-ref="paneCount">0 panes</span><div class="mobile-actions" data-ref="mobileActions"><button class="mobile-action-btn" data-action="new-terminal" title="New Terminal">&gt;_</button><button class="mobile-action-btn" data-action="new-browser" title="New Browser">&#x25A1;</button></div>',
+    actions: `
+      <div class="shell-agent-toolbar">
+        <button class="btn btn-primary shell-agent-btn" type="button" data-ref="launchAgentBtn">Add LLM</button>
+        <div class="shell-agent-dropdown hidden" data-ref="agentDropdown"></div>
       </div>
-    </div>
-  </header>
+    `,
+  })}
   <div class="shell-disconnect-banner" data-ref="disconnect">Disconnected — reconnecting...</div>
   <div class="shell-tab-bar" data-ref="tabBar" role="tablist">
     <button class="shell-tab active" data-tab="grid" role="tab">Dashboard</button>
@@ -129,6 +137,7 @@ const BODY_HTML = `
       <div class="sub">Use keyboard shortcuts to open a shell or browser</div>
     </div>
   </div>
+  <div class="shell-tooltip hidden" id="shell-tooltip" role="tooltip"></div>
 `;
 
 // ── Refs helper ─────────────────────────────────────────────────────
@@ -141,13 +150,233 @@ function getRefs(container) {
     disconnect: container.querySelector('[data-ref="disconnect"]'),
     paneCount: container.querySelector('[data-ref="paneCount"]'),
     mobileActions: container.querySelector('[data-ref="mobileActions"]'),
+    launchAgentBtn: container.querySelector('[data-ref="launchAgentBtn"]'),
+    agentDropdown: container.querySelector('[data-ref="agentDropdown"]'),
   };
 }
 
 function updatePaneCount(refs) {
-  if (!refs.paneCount) return;
   const visible = [...panes.values()].filter(p => !p.element.classList.contains('project-hidden')).length;
-  refs.paneCount.textContent = `${visible} pane${visible !== 1 ? 's' : ''}`;
+  if (refs.paneCount) {
+    refs.paneCount.textContent = `${visible} pane${visible !== 1 ? 's' : ''}`;
+  }
+  if (refs.launchAgentBtn) {
+    const atLimit = visible >= MAX_PROJECT_PANES;
+    refs.launchAgentBtn.disabled = atLimit;
+    refs.launchAgentBtn.dataset.shellTooltip = atLimit
+      ? `Maximum pane limit (${MAX_PROJECT_PANES}) per project reached`
+      : '';
+    if (atLimit) refs.agentDropdown?.classList.add('hidden');
+  }
+}
+
+// ── Custom tooltip (matches DevGlide style guide) ───────────────────
+
+let _tooltipTarget = null;
+
+function showTooltip(target) {
+  const el = _container?.querySelector('#shell-tooltip');
+  const text = target?.dataset?.shellTooltip;
+  if (!el || !text) return;
+
+  el.textContent = text;
+  el.classList.remove('hidden');
+
+  const rect = target.getBoundingClientRect();
+  const tipRect = el.getBoundingClientRect();
+  const gap = 6;
+  let top = rect.top - tipRect.height - gap;
+  let left = rect.left + (rect.width / 2) - (tipRect.width / 2);
+
+  if (top < gap) top = rect.bottom + gap;
+  left = Math.max(gap, Math.min(left, window.innerWidth - tipRect.width - gap));
+
+  el.style.top = `${top}px`;
+  el.style.left = `${left}px`;
+  _tooltipTarget = target;
+}
+
+function hideTooltip() {
+  const el = _container?.querySelector('#shell-tooltip');
+  if (!el) return;
+  el.classList.add('hidden');
+  el.textContent = '';
+  _tooltipTarget = null;
+}
+
+function onTooltipOver(e) {
+  const target = e.target?.closest?.('[data-shell-tooltip]');
+  if (!target || target === _tooltipTarget) return;
+  showTooltip(target);
+}
+
+function onTooltipOut(e) {
+  const target = e.target?.closest?.('[data-shell-tooltip]');
+  if (!target) return;
+  if (target.contains(e.relatedTarget)) return;
+  if (_tooltipTarget === target) hideTooltip();
+}
+
+function estimatePaneSize() {
+  let cols = 80;
+  let rows = 24;
+  const anyPane = panes.values().next().value;
+  if (anyPane) {
+    cols = anyPane.term?.cols ?? cols;
+    rows = anyPane.term?.rows ?? rows;
+  } else {
+    const container = document.querySelector('.shell-pane-container');
+    if (container) {
+      const w = container.clientWidth - 16;
+      const h = container.clientHeight - 32;
+      const charW = 8.5;
+      const charH = 17;
+      if (w > 0 && h > 0) {
+        cols = Math.max(40, Math.floor(w / charW));
+        rows = Math.max(10, Math.floor(h / charH));
+      }
+    }
+  }
+  return { cols, rows };
+}
+
+async function waitForPaneMount(paneId, timeoutMs = 3000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (panes.has(paneId)) return true;
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  return panes.has(paneId);
+}
+
+function modeLabel(mode) {
+  if (mode === 'auto-accept') return 'Auto';
+  if (mode === 'unrestricted') return 'Open';
+  return 'Ask';
+}
+
+async function confirmAgentMode(llm, mode) {
+  // `dangerByDefault` LLMs (e.g. Pi) have no sandboxing or approval prompts at all,
+  // so we always confirm regardless of mode and use the danger styling + a stronger warning.
+  if (llm.dangerByDefault) {
+    return confirmModal(_container, {
+      title: `Launch ${llm.name}?`,
+      message: `<strong>${llm.name}</strong> runs without sandboxing or approval prompts. It will execute commands and edit files without asking. Continue?`,
+      confirmLabel: 'Launch',
+      confirmCls: 'btn-danger',
+    });
+  }
+  if (mode !== 'auto-accept' && mode !== 'unrestricted') return true;
+  const modeDesc = mode === 'auto-accept'
+    ? 'This launches without approval prompts.'
+    : 'This bypasses all permission checks.';
+  return confirmModal(_container, {
+    title: `Launch ${llm.name}?`,
+    message: `<strong>${llm.name}</strong> will run in <strong>${mode}</strong> mode. ${modeDesc}`,
+    confirmLabel: 'Launch',
+    confirmCls: mode === 'unrestricted' ? 'btn-danger' : 'btn-primary',
+  });
+}
+
+async function toggleAgentDropdown(rescan) {
+  const refs = _container ? getRefs(_container) : null;
+  const dropdown = refs?.agentDropdown;
+  if (!dropdown) return;
+
+  rescan = rescan === true;
+  if (!rescan && !dropdown.classList.contains('hidden')) {
+    dropdown.classList.add('hidden');
+    return;
+  }
+
+  dropdown.innerHTML = '<div class="shell-agent-state">Scanning PATH...</div>';
+  dropdown.classList.remove('hidden');
+
+  try {
+    const url = rescan ? '/api/chat/invite/available?rescan=true' : '/api/chat/invite/available';
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Failed to fetch agents');
+    const llms = await res.json();
+
+    dropdown.innerHTML = '';
+    if (llms.length === 0) {
+      dropdown.innerHTML = '<div class="shell-agent-state">No LLM CLIs found on PATH</div>';
+      return;
+    }
+
+    for (const llm of llms) {
+      const item = document.createElement('div');
+      item.className = 'shell-agent-item';
+
+      const name = document.createElement('span');
+      name.className = 'shell-agent-name';
+      name.textContent = llm.name;
+      item.appendChild(name);
+
+      const chips = document.createElement('div');
+      chips.className = 'shell-agent-modes';
+      for (const mode of llm.modes || ['supervised']) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `shell-agent-mode ${mode}`;
+        btn.textContent = modeLabel(mode);
+        btn.dataset.shellTooltip = `${llm.name} in ${mode} mode`;
+        btn.setAttribute('aria-label', `${llm.name} in ${mode} mode`);
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!await confirmAgentMode(llm, mode)) return;
+          dropdown.classList.add('hidden');
+          await launchAgent(llm.cli, mode);
+        });
+        chips.appendChild(btn);
+      }
+
+      item.appendChild(chips);
+      dropdown.appendChild(item);
+    }
+
+    const footer = document.createElement('div');
+    footer.className = 'shell-agent-footer';
+    const rescanBtn = document.createElement('button');
+    rescanBtn.type = 'button';
+    rescanBtn.className = 'btn btn-secondary btn-sm';
+    rescanBtn.textContent = 'Rescan';
+    rescanBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleAgentDropdown(true);
+    });
+    footer.appendChild(rescanBtn);
+    dropdown.appendChild(footer);
+  } catch (err) {
+    console.error('[shell] failed to list agents', err);
+    dropdown.innerHTML = '<div class="shell-agent-state shell-agent-state-error">Failed to detect LLMs</div>';
+  }
+}
+
+async function launchAgent(cli, mode = 'supervised') {
+  const refs = _container ? getRefs(_container) : null;
+  const { cols, rows } = estimatePaneSize();
+
+  try {
+    const res = await fetch('/api/chat/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cli, mode, cols, rows }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error('[shell] launch agent failed', data?.error || res.statusText);
+      return;
+    }
+
+    const mounted = await waitForPaneMount(data.paneId);
+    if (mounted && refs && activeTab !== 'grid') {
+      setActiveTab(refs, data.paneId);
+      socket.emit('state:set-active-pane', { paneId: data.paneId });
+    }
+  } catch (err) {
+    console.error('[shell] launch agent error', err);
+  }
 }
 
 // ── Tab management ──────────────────────────────────────────────────
@@ -304,6 +533,30 @@ function setActivePaneHighlight(id) {
   if (activePaneId) panes.get(activePaneId)?.element.classList.remove('active');
   activePaneId = id;
   if (id) panes.get(id)?.element.classList.add('active');
+}
+
+function _currentProjectId() {
+  return activeProject?.id || null;
+}
+
+function _isPaneVisible(id) {
+  return isPaneIdVisible(panes, _currentProjectId(), id);
+}
+
+function _syncVisibleActivePane(refs, broadcast = false) {
+  if (_isPaneVisible(activePaneId)) return activePaneId;
+
+  panes.get(activePaneId)?.element.querySelector('.xterm-helper-textarea')?.blur();
+  const nextPaneId = getVisibleFallbackPaneId(panes, _currentProjectId(), activePaneId);
+  setActivePaneHighlight(nextPaneId);
+
+  if (broadcast) socket.emit('state:set-active-pane', { paneId: nextPaneId });
+
+  if (nextPaneId && activeTab === 'grid') {
+    panes.get(nextPaneId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
+  }
+
+  return nextPaneId;
 }
 
 // ── Drag-to-reorder helpers ─────────────────────────────────────────
@@ -575,17 +828,6 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
     if (h) h.removeAttribute('inputmode');
   }
 
-  // Auto-scroll tracking — only scroll to bottom when user hasn't scrolled up
-  let _atBottom = true;
-  term.onScroll(() => {
-    const buf = term.buffer.active;
-    _atBottom = buf.viewportY >= buf.baseY;
-  });
-
-  function autoScroll() {
-    if (_atBottom) term.scrollToBottom();
-  }
-
   // Socket handlers
   const exitHandler = ({ id: eid, code }) => {
     if (disposed) return;
@@ -599,7 +841,6 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
   function writeData(data) {
     if (disposed) return;
     term.write(data);
-    autoScroll();
   }
 
   term.onData((data) => {
@@ -615,7 +856,6 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
       if (disposed || _restoring) return;
       try {
         fitAddon.fit();
-        autoScroll();
         socket.emit('terminal:resize', { id, cols: term.cols, rows: term.rows });
       } catch {}
     }, 100);
@@ -646,7 +886,6 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
   function fit() {
     try {
       fitAddon.fit();
-      autoScroll();
       socket.emit('terminal:resize', { id, cols: term.cols, rows: term.rows });
     } catch {}
   }
@@ -694,14 +933,13 @@ function createTerminalPane({ id, shellType, title, onClose, onFocus, skipInitia
             fitAddon.fit();
             socket.emit('terminal:resize', { id, cols: term.cols, rows: term.rows });
           }
-          _atBottom = true;
           term.scrollToBottom();
         });
       });
     });
   }
 
-  function scrollToBottom() { _atBottom = true; term.scrollToBottom(); }
+  function scrollToBottom() { term.scrollToBottom(); }
 
   function refresh() { term.refresh(0, term.rows - 1); }
 
@@ -1059,7 +1297,7 @@ function createBrowserPaneLocal({ id, url, title, onClose, onFocus, onTitleChang
 
 // ── Server-driven pane lifecycle ────────────────────────────────────
 
-async function _addPaneFromServer(refs, { id, shellType, title, num, cwd, url, projectId }, scrollback, skipRelayout = false) {
+async function _addPaneFromServer(refs, { id, shellType, title, num, cwd, url, projectId, chatName, llmCli, permissionMode }, scrollback, skipRelayout = false) {
   if (panes.has(id)) return;
 
   // Ensure xterm.js is loaded before creating terminal panes
@@ -1094,6 +1332,15 @@ async function _addPaneFromServer(refs, { id, shellType, title, num, cwd, url, p
   pane._num = num;
   pane._cwd = cwd || null;
   pane._projectId = projectId || null;
+  pane._llmCli = llmCli || null;
+  pane._permissionMode = permissionMode || null;
+
+  // Build display chatName with mode suffix for snapshot restore
+  const modeSuffix = permissionMode && permissionMode !== 'supervised'
+    ? (permissionMode === 'auto-accept' ? ' [AUTO]' : ' [UNRESTRICTED]')
+    : '';
+  const displayChatName = chatName ? `${chatName}${modeSuffix}` : null;
+  pane._chatName = displayChatName;
   panes.set(id, pane);
 
   // Terminal panes are already in DOM (parentElement), but browser panes need appending.
@@ -1107,8 +1354,13 @@ async function _addPaneFromServer(refs, { id, shellType, title, num, cwd, url, p
     pendingData.delete(id);
   }
 
-  // If CWD is known, show folder in label
-  if (cwd) {
+  // Chat name takes priority over CWD folder name for tab label
+  if (displayChatName) {
+    const label = makeLabel(num, displayChatName);
+    pane.setTitle(label);
+    const tabEl = refs.tabBar.querySelector(`.shell-tab[data-tab="${id}"] .shell-tab-label`);
+    if (tabEl) tabEl.textContent = label;
+  } else if (cwd) {
     const folder = cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() || '/';
     const label = makeLabel(num, folder);
     pane.setTitle(label);
@@ -1134,16 +1386,14 @@ function _removePaneLocal(refs, id) {
   const pane = panes.get(id);
   if (!pane) return;
 
-  const keys = [...panes.keys()];
-  const closedIdx = keys.indexOf(id);
-  const prevKey = closedIdx > 0 ? keys[closedIdx - 1] : keys[closedIdx + 1] ?? null;
+  const fallbackPaneId = getVisibleFallbackPaneId(panes, _currentProjectId(), id);
 
   pane.cleanup();
   panes.delete(id);
   pendingData.delete(id);
   removeTab(refs, id);
 
-  if (activePaneId === id) setActivePaneHighlight(prevKey);
+  if (activePaneId === id) setActivePaneHighlight(fallbackPaneId);
   if (activeTab === id) activeTab = 'grid';
   relayout(refs);
 
@@ -1157,23 +1407,7 @@ function _removePaneLocal(refs, id) {
 // ── Request a new pane ──────────────────────────────────────────────
 
 function requestPane({ shellType, cwd }) {
-  // Estimate cols/rows from an existing pane, or from the container + font metrics.
-  // Sending the real size at spawn time prevents ConPTY (Windows) from withholding
-  // the initial prompt until it receives a resize event.
-  let cols = 80, rows = 24;
-  const anyPane = panes.values().next().value;
-  if (anyPane) {
-    cols = anyPane.term?.cols ?? 80;
-    rows = anyPane.term?.rows ?? 24;
-  } else {
-    const container = document.querySelector('.shell-pane-container');
-    if (container) {
-      const w = container.clientWidth - 16; // subtract padding
-      const h = container.clientHeight - 32; // subtract header ~32px
-      const charW = 8.5, charH = 17; // approx for 14px monospace
-      if (w > 0 && h > 0) { cols = Math.max(40, Math.floor(w / charW)); rows = Math.max(10, Math.floor(h / charH)); }
-    }
-  }
+  const { cols, rows } = estimatePaneSize();
   socket.emit('terminal:create', {
     shellType,
     cwd: cwd || activeProject?.path || null,
@@ -1186,9 +1420,9 @@ function requestPane({ shellType, cwd }) {
 // ── Project filtering ───────────────────────────────────────────────
 
 function _applyProjectFilter(refs) {
-  const pid = activeProject?.id || null;
+  const pid = _currentProjectId();
   for (const [id, pane] of panes) {
-    const visible = !pid || !pane._projectId || pane._projectId === pid;
+    const visible = isPaneVisibleForProject(pane._projectId || null, pid);
     pane.element.classList.toggle('project-hidden', !visible);
     const tab = refs.tabBar.querySelector(`.shell-tab[data-tab="${id}"]`);
     if (tab) tab.classList.toggle('project-hidden', !visible);
@@ -1198,6 +1432,7 @@ function _applyProjectFilter(refs) {
 function _switchProject(refs, newProject) {
   activeProject = newProject;
   _applyProjectFilter(refs);
+  _syncVisibleActivePane(refs, true);
 
   if (activeTab !== 'grid') {
     const activePane = panes.get(activeTab);
@@ -1286,13 +1521,15 @@ function wireSocketEvents(refs) {
       }
     }, 300);
 
-    if (ap) {
+    if (ap && _isPaneVisible(ap)) {
       setActivePaneHighlight(ap);
       if ((at || 'grid') === 'grid') {
         setTimeout(() => {
           panes.get(ap)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
         }, 100);
       }
+    } else {
+      _syncVisibleActivePane(refs, false);
     }
   };
 
@@ -1324,6 +1561,10 @@ function wireSocketEvents(refs) {
   };
 
   _socketHandlers['state:active-pane'] = ({ paneId }) => {
+    if (paneId && !_isPaneVisible(paneId)) {
+      _syncVisibleActivePane(refs, false);
+      return;
+    }
     setActivePaneHighlight(paneId);
     if (paneId && activeTab === 'grid') {
       setTimeout(() => {
@@ -1335,6 +1576,8 @@ function wireSocketEvents(refs) {
   _socketHandlers['terminal:cwd'] = ({ id, cwd }) => {
     const pane = panes.get(id);
     if (!pane) return;
+    // Don't override agent labels with CWD folder names.
+    if (pane._chatName || pane._llmCli) return;
     pane._cwd = cwd;
     const folder = cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() || '/';
     const label = makeLabel(pane._num, folder);
@@ -1342,6 +1585,19 @@ function wireSocketEvents(refs) {
     if (tab) {
       tab.querySelector('.shell-tab-label').textContent = label;
       tab.title = cwd;
+    }
+    pane.setTitle(label);
+  };
+
+  _socketHandlers['state:pane-chat-name'] = ({ id, chatName }) => {
+    const pane = panes.get(id);
+    if (!pane) return;
+    pane._chatName = chatName;
+    const label = makeLabel(pane._num, chatName);
+    const tab = refs.tabBar.querySelector(`.shell-tab[data-tab="${id}"]`);
+    if (tab) {
+      tab.querySelector('.shell-tab-label').textContent = label;
+      tab.title = chatName;
     }
     pane.setTitle(label);
   };
@@ -1371,10 +1627,9 @@ function wireSocketEvents(refs) {
       const pane = panes.get(id);
       if (!pane) continue;
       pane._num = num;
-      const folder = pane._cwd
-        ? pane._cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() || '/'
-        : null;
-      const label = makeLabel(num, folder);
+      const displayName = pane._chatName
+        || (pane._cwd ? pane._cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() || '/' : null);
+      const label = makeLabel(num, displayName);
       pane.setTitle(label);
       const tab = refs.tabBar.querySelector(`.shell-tab[data-tab="${id}"]`);
       if (tab) tab.querySelector('.shell-tab-label').textContent = label;
@@ -1413,7 +1668,7 @@ export async function mount(container, ctx) {
   _container = container;
 
   // 1. Scope the container
-  container.classList.add('page-shell');
+  container.classList.add('page-shell', 'app-page');
 
   // 2. Build HTML
   container.innerHTML = BODY_HTML;
@@ -1424,14 +1679,46 @@ export async function mount(container, ctx) {
   // 4. Set initial project
   activeProject = ctx?.project || null;
 
-  // 5. Load xterm.js dynamically
+  // 5. Wire UI events (before xterm so they work even if CDN load fails)
+  refs.tabBar.querySelector('[data-tab="grid"]').addEventListener('click', () => setActiveTab(refs, 'grid'));
+  refs.launchAgentBtn?.addEventListener('click', () => toggleAgentDropdown(false));
+  container.addEventListener('mouseover', onTooltipOver);
+  container.addEventListener('mouseout', onTooltipOut);
+  refs.mobileActions?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    if (btn.dataset.action === 'new-terminal') requestPane({ shellType: 'default' });
+    if (btn.dataset.action === 'new-browser') socket.emit('browser:create', { url: '', currentTab: activeTab });
+  });
+  container.addEventListener('click', (e) => {
+    const dropdown = refs.agentDropdown;
+    if (dropdown && !dropdown.classList.contains('hidden')) {
+      const withinToolbar = e.target.closest('.shell-agent-toolbar');
+      if (!withinToolbar) dropdown.classList.add('hidden');
+    }
+    if (isMobile()) return;
+    // Only handle clicks on the container/pane-container background, not on interactive elements
+    const target = e.target;
+    if (target !== container && target !== refs.paneContainer && !target.matches('.shell-empty-state, .shell-empty-state *')) return;
+    const focusId = activeTab !== 'grid' ? activeTab : activePaneId;
+    if (focusId) {
+      setTimeout(() => {
+        panes.get(focusId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
+      }, 300);
+    }
+  });
+
+  // 6. Load xterm.js dynamically
   await ensureXterm();
 
   // Guard: if unmounted while loading xterm, bail out
   if (!_container) return;
 
-  // 6. Wire socket events
+  // 7. Wire socket events
   wireSocketEvents(refs);
+
+  // 8. Always request a fresh snapshot so panes created while unmounted are picked up
+  socket.emit('state:request-snapshot');
 
   if (panes.size > 0) {
     // Reattach existing panes (returning from another page)
@@ -1462,43 +1749,17 @@ export async function mount(container, ctx) {
       });
     });
   } else {
-    // Fresh mount — request snapshot from server
-    socket.emit('state:request-snapshot');
+    // Fresh mount — snapshot requested above will populate panes
   }
 
-  // 7. Wire Grid tab click
-  refs.tabBar.querySelector('[data-tab="grid"]').addEventListener('click', () => setActiveTab(refs, 'grid'));
-
-  // 7a. Wire mobile action buttons (new terminal / new browser)
-  refs.mobileActions?.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    if (btn.dataset.action === 'new-terminal') requestPane({ shellType: 'default' });
-    if (btn.dataset.action === 'new-browser') socket.emit('browser:create', { url: '', currentTab: activeTab });
-  });
-
-  // 7b. Auto-focus active terminal when clicking the shell container background
-  container.addEventListener('click', (e) => {
-    if (isMobile()) return;
-    // Only handle clicks on the container/pane-container background, not on interactive elements
-    const target = e.target;
-    if (target !== container && target !== refs.paneContainer && !target.matches('.shell-empty-state, .shell-empty-state *')) return;
-    const focusId = activeTab !== 'grid' ? activeTab : activePaneId;
-    if (focusId) {
-      setTimeout(() => {
-        panes.get(focusId)?.element.querySelector('.xterm-helper-textarea')?.focus({ preventScroll: true });
-      }, 300);
-    }
-  });
-
-  // 8. Voice input — listen for voice:result on document
+  // 9. Voice input — listen for voice:result on document
   _voiceHandler = (e) => {
     const text = e.detail?.text;
     if (text && activePaneId) panes.get(activePaneId)?.sendInput(text);
   };
   document.addEventListener('voice:result', _voiceHandler);
 
-  // 9. Keyboard shortcuts
+  // 10. Keyboard shortcuts
   _keydownHandler = (e) => {
     if (typeof KeymapRegistry === 'undefined') return;
     const action = KeymapRegistry.resolve(e);
@@ -1552,7 +1813,7 @@ export async function mount(container, ctx) {
       }
       case 'shell:close-pane': {
         e.preventDefault();
-        if (activePaneId) panes.get(activePaneId)?.destroy();
+        if (activePaneId && _isPaneVisible(activePaneId)) panes.get(activePaneId)?.destroy();
         break;
       }
       case 'shell:dashboard': {
@@ -1577,7 +1838,7 @@ export async function mount(container, ctx) {
   };
   document.addEventListener('keydown', _keydownHandler);
 
-  // 10. Swipe navigation (mobile)
+  // 11. Swipe navigation (mobile)
   let touchStartX = 0;
   refs.paneContainer.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
@@ -1596,7 +1857,7 @@ export async function mount(container, ctx) {
     }
   }, { passive: true });
 
-  // 11. Window resize handler
+  // 12. Window resize handler
   const resizeHandler = () => {
     clearTimeout(_resizeTimer);
     _resizeTimer = setTimeout(() => relayout(refs), 100);
@@ -1640,7 +1901,7 @@ export function unmount(container) {
 
   // 6. Remove scope class & clear HTML
   _restoring = false;
-  container.classList.remove('page-shell');
+  container.classList.remove('page-shell', 'app-page');
   container.innerHTML = '';
 
   // 7. Clear module reference
@@ -1652,6 +1913,7 @@ export function onProjectChange(project) {
   if (!_container) return;
   const refs = getRefs(_container);
   _applyProjectFilter(refs);
+  _syncVisibleActivePane(refs, true);
 
   if (activeTab !== 'grid') {
     const activePane = panes.get(activeTab);

@@ -18,6 +18,7 @@ import { LOGS_DIR, projectDataDir } from './packages/paths.js';
 import { snifferSource, runnerSource } from './packages/devtools-middleware.js';
 import { initServerSniffer, shutdownServerSniffer } from './packages/server-sniffer.js';
 import { mountMcpHttp } from './packages/mcp-utils/src/index.js';
+import { errorHandler } from './packages/error-middleware.js';
 
 // Project context
 import { getActiveProject, setActiveProject } from './project-context.js';
@@ -37,6 +38,16 @@ import { router as workflowRouter, initWorkflow, shutdownWorkflow, createWorkflo
 import { router as voiceRouter, createVoiceMcpServer } from './routers/voice.js';
 import { router as vocabularyRouter, createVocabularyMcpServer } from './routers/vocabulary.js';
 import { router as promptsRouter, createPromptsMcpServer } from './routers/prompts.js';
+import {
+  router as chatRouter,
+  initChat,
+  createChatMcpServer,
+  chatServerSessions,
+  registerChatMcpHttpSession,
+  unregisterChatMcpHttpSession,
+} from './routers/chat.js';
+import { router as documentationRouter, createDocumentationMcpServer } from './routers/documentation.js';
+import * as chatRegistry from './apps/chat/services/chat-registry.js';
 
 
 // ---------------------------------------------------------------------------
@@ -108,7 +119,7 @@ const jsonDefault = express.json({ limit: '1mb' });
 const jsonLarge = express.json({ limit: '25mb' });
 
 app.use((req, res, next) => {
-  const isVoiceUpload = req.path.startsWith('/api/voice/transcribe') || req.path === '/api/transcribe';
+  const isVoiceUpload = req.path.startsWith('/api/voice/transcribe');
   (isVoiceUpload ? jsonLarge : jsonDefault)(req, res, next);
 });
 
@@ -117,6 +128,7 @@ app.use((req, res, next) => {
 // ---------------------------------------------------------------------------
 
 app.use('/shared-assets', express.static(path.join(ROOT, 'src/packages/shared-assets')));
+app.use('/shared-ui', express.static(path.join(ROOT, 'src/packages/shared-ui')));
 app.use('/assets', express.static(path.join(ROOT, 'assets')));
 app.use('/df', express.static(path.join(ROOT, 'src/packages/design-tokens/dist')));
 app.use('/design-tokens', express.static(path.join(ROOT, 'src/packages/design-tokens/dist')));
@@ -132,6 +144,7 @@ app.use('/app/voice', express.static(path.join(ROOT, 'src/apps/voice/public')));
 app.use('/app/vocabulary', express.static(path.join(ROOT, 'src/apps/vocabulary/public')));
 app.use('/app/keymap', express.static(path.join(ROOT, 'src/apps/keymap/public')));
 app.use('/app/prompts', express.static(path.join(ROOT, 'src/apps/prompts/public')));
+app.use('/app/chat', express.static(path.join(ROOT, 'src/apps/chat/public')));
 app.use('/app/documentation', express.static(path.join(ROOT, 'src/apps/documentation/public')));
 
 // App shell (unified SPA) is the default landing page at root
@@ -232,9 +245,13 @@ app.use('/api/workflow', workflowRouter);
 app.use('/api/voice', voiceRouter);
 app.use('/api/vocabulary', vocabularyRouter);
 app.use('/api/prompts', promptsRouter);
-
+app.use('/api/chat', chatRouter);
+app.use('/api/documentation', documentationRouter);
 
 app.use('/', rateLimit(60, 60_000), shellRouter);  // /preview, /proxy
+
+// Final error handler — catches unhandled errors from all routes above
+app.use(errorHandler);
 
 // ---------------------------------------------------------------------------
 // MCP endpoints
@@ -247,6 +264,22 @@ mountMcpHttp(app, createVoiceMcpServer, '/mcp/voice');
 mountMcpHttp(app, createWorkflowMcpServer, '/mcp/workflow');
 mountMcpHttp(app, createVocabularyMcpServer, '/mcp/vocabulary');
 mountMcpHttp(app, createPromptsMcpServer, '/mcp/prompts');
+mountMcpHttp(app, createDocumentationMcpServer, '/mcp/documentation');
+mountMcpHttp(app, createChatMcpServer, '/mcp/chat', {
+  onSessionOpen: (sessionId, server) => {
+    registerChatMcpHttpSession(sessionId, server);
+  },
+  onSessionClose: (server, sessionId) => {
+    const entries = chatServerSessions.get(server);
+    if (entries) {
+      // Detach instead of leave — alias stays reserved for reclaim on rejoin.
+      // Full removal happens only on pane closure or explicit chat_leave.
+      for (const entry of entries) chatRegistry.detach(entry.name, entry.projectId);
+      chatServerSessions.delete(server);
+    }
+    unregisterChatMcpHttpSession(server, sessionId);
+  },
+});
 
 mountShellMcp(app, '/mcp/shell');
 
@@ -260,6 +293,7 @@ mountShellMcp(app, '/mcp/shell');
 // uses project:*, shell uses terminal:*/state:*/browser:*).
 initDashboard(io.of('/'));
 initShell(io.of('/'));
+initChat(io.of('/'));
 
 // ---------------------------------------------------------------------------
 // Service initialization

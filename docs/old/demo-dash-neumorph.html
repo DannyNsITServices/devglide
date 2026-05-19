@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevGlide Dashboard — Neumorphism (Soft UI)</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ── Reset & Base ─────────────────────────────────────────── */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    font-family: 'Nunito', sans-serif;
+    background: #e0e5ec;
+    color: #2d3748;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* ── Layout Shell ─────────────────────────────────────────── */
+  .dashboard {
+    display: grid;
+    grid-template-rows: 64px 1fr;
+    grid-template-columns: 240px 1fr;
+    grid-template-areas:
+      "topbar topbar"
+      "sidebar main";
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── Topbar ───────────────────────────────────────────────── */
+  .topbar {
+    grid-area: topbar;
+    background: #e0e5ec;
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 16px;
+    box-shadow: 0 4px 8px #b8bec7, 0 -2px 6px #ffffff;
+    z-index: 10;
+  }
+  .topbar-logo {
+    font-size: 20px;
+    font-weight: 700;
+    color: #6c63ff;
+    letter-spacing: 0.5px;
+    text-shadow: 1px 1px 2px #fff, -1px -1px 2px #b8bec7;
+    flex-shrink: 0;
+  }
+  .topbar-search {
+    flex: 1;
+    max-width: 420px;
+    margin-left: 24px;
+  }
+  .topbar-search input {
+    width: 100%;
+    padding: 10px 16px 10px 40px;
+    border: none;
+    outline: none;
+    background: #e0e5ec;
+    border-radius: 24px;
+    font-family: 'Nunito', sans-serif;
+    font-size: 13px;
+    color: #2d3748;
+    box-shadow: inset 4px 4px 8px #b8bec7, inset -4px -4px 8px #ffffff;
+  }
+  .topbar-search input::placeholder { color: #a0aec0; }
+  .topbar-search { position: relative; }
+  .topbar-search .search-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #a0aec0;
+    font-size: 14px;
+  }
+  .topbar-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .topbar-btn {
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: #e0e5ec;
+    border-radius: 12px;
+    box-shadow: 4px 4px 8px #b8bec7, -4px -4px 8px #ffffff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #718096;
+    font-size: 16px;
+    transition: box-shadow 0.15s;
+    position: relative;
+  }
+  .topbar-btn:active {
+    box-shadow: inset 4px 4px 8px #b8bec7, inset -4px -4px 8px #ffffff;
+  }
+  .notif-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 8px;
+    height: 8px;
+    background: #e53e3e;
+    border-radius: 50%;
+  }
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #6c63ff, #a78bfa);
+    box-shadow: 4px 4px 8px #b8bec7, -4px -4px 8px #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+  }
+
+  /* ── Sidebar ──────────────────────────────────────────────── */
+  .sidebar {
+    grid-area: sidebar;
+    background: #e0e5ec;
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-shadow: 4px 0 8px #b8bec7, -2px 0 6px #ffffff;
+    overflow-y: auto;
+    z-index: 5;
+  }
+  .sidebar-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #a0aec0;
+    padding: 8px 12px 4px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: #718096;
+    transition: all 0.2s;
+    background: #e0e5ec;
+  }
+  .nav-item:hover {
+    color: #2d3748;
+  }
+  .nav-item.active {
+    color: #6c63ff;
+    box-shadow: inset 4px 4px 8px #b8bec7, inset -4px -4px 8px #ffffff;
+  }
+  .nav-item .nav-icon {
+    width: 20px;
+    text-align: center;
+    font-size: 15px;
+  }
+
+  /* ── Main Content ─────────────────────────────────────────── */
+  .main {
+    grid-area: main;
+    padding: 24px 28px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* ── Stats Row ────────────────────────────────────────────── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+  }
+  .stat-card {
+    background: #e0e5ec;
+    border-radius: 16px;
+    padding: 22px 20px;
+    box-shadow: 8px 8px 16px #b8bec7, -8px -8px 16px #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .stat-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #a0aec0;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  .stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: #2d3748;
+    text-shadow: 1px 1px 2px #fff, -1px -1px 2px #b8bec7;
+  }
+  .stat-sub {
+    font-size: 12px;
+    color: #718096;
+  }
+  .stat-sub .up { color: #38a169; font-weight: 700; }
+  .stat-sub .down { color: #e53e3e; font-weight: 700; }
+  .stat-icon-wrap {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .stat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: #e0e5ec;
+    box-shadow: inset 3px 3px 6px #b8bec7, inset -3px -3px 6px #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: #6c63ff;
+  }
+
+  /* ── Middle Grid (Chart + Activity) ───────────────────────── */
+  .mid-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 20px;
+  }
+
+  /* ── Chart Card ───────────────────────────────────────────── */
+  .chart-card {
+    background: #e0e5ec;
+    border-radius: 16px;
+    padding: 22px 20px;
+    box-shadow: 8px 8px 16px #b8bec7, -8px -8px 16px #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .card-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #2d3748;
+    text-shadow: 1px 1px 2px #fff, -1px -1px 2px #b8bec7;
+  }
+  .chart-container {
+    background: #e0e5ec;
+    border-radius: 16px;
+    box-shadow: inset 4px 4px 8px #b8bec7, inset -4px -4px 8px #ffffff;
+    padding: 16px;
+    flex: 1;
+    min-height: 0;
+  }
+  .chart-container svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* ── Activity Feed ────────────────────────────────────────── */
+  .activity-card {
+    background: #e0e5ec;
+    border-radius: 16px;
+    padding: 22px 20px;
+    box-shadow: 8px 8px 16px #b8bec7, -8px -8px 16px #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .activity-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #e0e5ec;
+    box-shadow: inset 3px 3px 6px #b8bec7, inset -3px -3px 6px #ffffff;
+  }
+  .activity-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 5px;
+  }
+  .dot-blue  { background: #6c63ff; }
+  .dot-green { background: #38a169; }
+  .dot-amber { background: #d69e2e; }
+  .dot-red   { background: #e53e3e; }
+  .activity-text {
+    flex: 1;
+    font-size: 13px;
+    color: #2d3748;
+    line-height: 1.4;
+  }
+  .activity-time {
+    font-size: 11px;
+    color: #a0aec0;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  /* ── Kanban Section ───────────────────────────────────────── */
+  .kanban-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .kanban-columns {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .kanban-col {
+    background: #e0e5ec;
+    border-radius: 16px;
+    box-shadow: inset 4px 4px 8px #b8bec7, inset -4px -4px 8px #ffffff;
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 120px;
+  }
+  .kanban-col-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 6px;
+  }
+  .kanban-col-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #718096;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  .kanban-col-count {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: #e0e5ec;
+    box-shadow: 3px 3px 6px #b8bec7, -3px -3px 6px #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #6c63ff;
+  }
+  .kanban-card {
+    background: #e0e5ec;
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: 5px 5px 10px #b8bec7, -5px -5px 10px #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    cursor: grab;
+    transition: box-shadow 0.15s;
+  }
+  .kanban-card:active {
+    box-shadow: inset 3px 3px 6px #b8bec7, inset -3px -3px 6px #ffffff;
+    cursor: grabbing;
+  }
+  .kanban-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #2d3748;
+  }
+  .kanban-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: #a0aec0;
+  }
+  .kanban-tag {
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .tag-task { background: #e0e5ec; color: #6c63ff; box-shadow: inset 2px 2px 4px #b8bec7, inset -2px -2px 4px #ffffff; }
+  .tag-bug  { background: #e0e5ec; color: #e53e3e; box-shadow: inset 2px 2px 4px #b8bec7, inset -2px -2px 4px #ffffff; }
+  .priority-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .prio-high   { background: #e53e3e; }
+  .prio-medium { background: #d69e2e; }
+  .prio-low    { background: #38a169; }
+  .prio-urgent { background: #9b2c2c; }
+
+  /* ── SVG Chart Styles ─────────────────────────────────────── */
+  .chart-line {
+    fill: none;
+    stroke: #6c63ff;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .chart-area {
+    fill: url(#areaGrad);
+    opacity: 0.35;
+  }
+  .chart-dot {
+    fill: #6c63ff;
+    stroke: #e0e5ec;
+    stroke-width: 3;
+  }
+  .chart-grid-line {
+    stroke: #c5cad3;
+    stroke-width: 0.5;
+    stroke-dasharray: 4 3;
+  }
+  .chart-label {
+    font-family: 'Nunito', sans-serif;
+    font-size: 11px;
+    fill: #a0aec0;
+  }
+  .chart-val-label {
+    font-family: 'Nunito', sans-serif;
+    font-size: 10px;
+    fill: #718096;
+  }
+
+  /* ── Scrollbar ────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #e0e5ec; }
+  ::-webkit-scrollbar-thumb { background: #c5cad3; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #a0aec0; }
+</style>
+</head>
+<body>
+
+<div class="dashboard">
+  <!-- ═══════ TOPBAR ═══════ -->
+  <header class="topbar">
+    <div class="topbar-logo">DevGlide</div>
+    <div class="topbar-search">
+      <span class="search-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </span>
+      <input type="text" placeholder="Search tasks, commands, tests...">
+    </div>
+    <div class="topbar-right">
+      <button class="topbar-btn" title="Notifications">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+        <span class="notif-badge"></span>
+      </button>
+      <div class="avatar" title="User">DK</div>
+    </div>
+  </header>
+
+  <!-- ═══════ SIDEBAR ═══════ -->
+  <nav class="sidebar">
+    <div class="sidebar-label">Navigation</div>
+    <div class="nav-item active" data-nav="kanban">
+      <span class="nav-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+      </span>
+      Kanban
+    </div>
+    <div class="nav-item" data-nav="shell">
+      <span class="nav-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+      </span>
+      Shell
+    </div>
+    <div class="nav-item" data-nav="test">
+      <span class="nav-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+      </span>
+      Test
+    </div>
+    <div class="nav-item" data-nav="workflow">
+      <span class="nav-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      </span>
+      Workflow
+    </div>
+    <div class="nav-item" data-nav="voice">
+      <span class="nav-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </span>
+      Voice
+    </div>
+    <div class="nav-item" data-nav="chat">
+      <span class="nav-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+      </span>
+      Chat
+    </div>
+    <div class="nav-item" data-nav="docs">
+      <span class="nav-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      </span>
+      Docs
+    </div>
+  </nav>
+
+  <!-- ═══════ MAIN CONTENT ═══════ -->
+  <main class="main">
+
+    <!-- ── Stats Row ──────────────────────────────── -->
+    <section class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon-wrap">
+          <div>
+            <div class="stat-label">Active Tasks</div>
+            <div class="stat-value">47</div>
+            <div class="stat-sub"><span class="up">+12%</span> from last week</div>
+          </div>
+          <div class="stat-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon-wrap">
+          <div>
+            <div class="stat-label">MCP Calls</div>
+            <div class="stat-value">2,841</div>
+            <div class="stat-sub"><span class="up">+8%</span> from last week</div>
+          </div>
+          <div class="stat-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon-wrap">
+          <div>
+            <div class="stat-label">Test Pass Rate</div>
+            <div class="stat-value">98%</div>
+            <div class="stat-sub"><span class="up">+2.1%</span> from last week</div>
+          </div>
+          <div class="stat-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M9 12l2 2 4-4"/></svg>
+          </div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon-wrap">
+          <div>
+            <div class="stat-label">Voice Commands</div>
+            <div class="stat-value">87</div>
+            <div class="stat-sub"><span class="down">-3%</span> from last week</div>
+          </div>
+          <div class="stat-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/></svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Chart + Activity ───────────────────────── -->
+    <section class="mid-grid">
+      <!-- Chart -->
+      <div class="chart-card">
+        <div class="card-title">Weekly Activity</div>
+        <div class="chart-container">
+          <svg id="areaChart" viewBox="0 0 500 200" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#6c63ff" stop-opacity="0.45"/>
+                <stop offset="100%" stop-color="#6c63ff" stop-opacity="0.02"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Activity Feed -->
+      <div class="activity-card">
+        <div class="card-title">Recent Activity</div>
+        <div class="activity-item">
+          <span class="activity-dot dot-blue"></span>
+          <span class="activity-text">Kanban task "API Integration" moved to In Progress</span>
+          <span class="activity-time">2m ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot dot-green"></span>
+          <span class="activity-text">Test suite "Auth Flow" passed (14/14)</span>
+          <span class="activity-time">15m ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot dot-amber"></span>
+          <span class="activity-text">Workflow "Deploy Staging" triggered manually</span>
+          <span class="activity-time">32m ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot dot-red"></span>
+          <span class="activity-text">Voice command failed: microphone not detected</span>
+          <span class="activity-time">1h ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot dot-blue"></span>
+          <span class="activity-text">MCP server "devglide-shell" restarted successfully</span>
+          <span class="activity-time">2h ago</span>
+        </div>
+        <div class="activity-item">
+          <span class="activity-dot dot-green"></span>
+          <span class="activity-text">Chat session started with 3 participants</span>
+          <span class="activity-time">3h ago</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Kanban Board ───────────────────────────── -->
+    <section class="kanban-section">
+      <div class="card-title">Kanban Board</div>
+      <div class="kanban-columns">
+        <!-- Backlog -->
+        <div class="kanban-col">
+          <div class="kanban-col-header">
+            <span class="kanban-col-title">Backlog</span>
+            <span class="kanban-col-count">3</span>
+          </div>
+          <div class="kanban-card">
+            <span class="kanban-card-title">Research MCP protocol v2</span>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag tag-task">Task</span>
+              <span class="priority-dot prio-low"></span>
+              <span>Low</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kanban-card-title">Design voice UI concepts</span>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag tag-task">Task</span>
+              <span class="priority-dot prio-medium"></span>
+              <span>Medium</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kanban-card-title">Audit test coverage gaps</span>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag tag-task">Task</span>
+              <span class="priority-dot prio-low"></span>
+              <span>Low</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Todo -->
+        <div class="kanban-col">
+          <div class="kanban-col-header">
+            <span class="kanban-col-title">Todo</span>
+            <span class="kanban-col-count">4</span>
+          </div>
+          <div class="kanban-card">
+            <span class="kanban-card-title">Add workflow templates</span>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag tag-task">Task</span>
+              <span class="priority-dot prio-high"></span>
+              <span>High</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kanban-card-title">Fix shell pane resize bug</span>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag tag-bug">Bug</span>
+              <span class="priority-dot prio-urgent"></span>
+              <span>Urgent</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kanban-card-title">Implement chat @mentions</span>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag tag-task">Task</span>
+              <span class="priority-dot prio-medium"></span>
+              <span>Medium</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kanban-card-title">Update API documentation</span>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag tag-task">Task</span>
+              <span class="priority-dot prio-low"></span>
+              <span>Low</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- In Progress -->
+        <div class="kanban-col">
+          <div class="kanban-col-header">
+            <span class="kanban-col-title">In Progress</span>
+            <span class="kanban-col-count">2</span>
+          </div>
+          <div class="kanban-card">
+            <span class="kanban-card-title">API integration layer</span>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag tag-task">Task</span>
+              <span class="priority-dot prio-high"></span>
+              <span>High</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kanban-card-title">Voice transcription pipeline</span>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag tag-task">Task</span>
+              <span class="priority-dot prio-medium"></span>
+              <span>Medium</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Done -->
+        <div class="kanban-col">
+          <div class="kanban-col-header">
+            <span class="kanban-col-title">Done</span>
+            <span class="kanban-col-count">5</span>
+          </div>
+          <div class="kanban-card">
+            <span class="kanban-card-title">Setup CI/CD pipeline</span>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag tag-task">Task</span>
+              <span class="priority-dot prio-high"></span>
+              <span>High</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kanban-card-title">Fix login token refresh</span>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag tag-bug">Bug</span>
+              <span class="priority-dot prio-urgent"></span>
+              <span>Urgent</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kanban-card-title">Kanban drag-and-drop</span>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag tag-task">Task</span>
+              <span class="priority-dot prio-medium"></span>
+              <span>Medium</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kanban-card-title">Shell command history</span>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag tag-task">Task</span>
+              <span class="priority-dot prio-low"></span>
+              <span>Low</span>
+            </div>
+          </div>
+          <div class="kanban-card">
+            <span class="kanban-card-title">Test result export CSV</span>
+            <div class="kanban-card-meta">
+              <span class="kanban-tag tag-task">Task</span>
+              <span class="priority-dot prio-medium"></span>
+              <span>Medium</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+(function() {
+  /* ── Area Chart ─────────────────────────────────────────── */
+  const data = [
+    { day: 'Mon', val: 120 },
+    { day: 'Tue', val: 180 },
+    { day: 'Wed', val: 150 },
+    { day: 'Thu', val: 220 },
+    { day: 'Fri', val: 190 },
+    { day: 'Sat', val: 250 },
+    { day: 'Sun', val: 210 }
+  ];
+
+  const svg = document.getElementById('areaChart');
+  const vb = { w: 500, h: 200 };
+  const pad = { top: 20, right: 20, bottom: 30, left: 40 };
+  const chartW = vb.w - pad.left - pad.right;
+  const chartH = vb.h - pad.top - pad.bottom;
+
+  const maxVal = 280;
+  const minVal = 0;
+
+  function x(i) { return pad.left + (i / (data.length - 1)) * chartW; }
+  function y(v) { return pad.top + chartH - ((v - minVal) / (maxVal - minVal)) * chartH; }
+
+  // Grid lines
+  const gridSteps = [0, 70, 140, 210, 280];
+  gridSteps.forEach(function(v) {
+    var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', pad.left);
+    line.setAttribute('x2', vb.w - pad.right);
+    line.setAttribute('y1', y(v));
+    line.setAttribute('y2', y(v));
+    line.setAttribute('class', 'chart-grid-line');
+    svg.appendChild(line);
+
+    var label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', pad.left - 8);
+    label.setAttribute('y', y(v) + 3);
+    label.setAttribute('text-anchor', 'end');
+    label.setAttribute('class', 'chart-val-label');
+    label.textContent = v;
+    svg.appendChild(label);
+  });
+
+  // Day labels
+  data.forEach(function(d, i) {
+    var label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', x(i));
+    label.setAttribute('y', vb.h - 6);
+    label.setAttribute('text-anchor', 'middle');
+    label.setAttribute('class', 'chart-label');
+    label.textContent = d.day;
+    svg.appendChild(label);
+  });
+
+  // Area path
+  var areaD = 'M' + x(0) + ',' + y(data[0].val);
+  data.forEach(function(d, i) {
+    if (i > 0) areaD += ' L' + x(i) + ',' + y(d.val);
+  });
+  areaD += ' L' + x(data.length - 1) + ',' + (pad.top + chartH);
+  areaD += ' L' + x(0) + ',' + (pad.top + chartH) + ' Z';
+
+  var area = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  area.setAttribute('d', areaD);
+  area.setAttribute('class', 'chart-area');
+  svg.appendChild(area);
+
+  // Line path
+  var lineD = 'M' + x(0) + ',' + y(data[0].val);
+  data.forEach(function(d, i) {
+    if (i > 0) lineD += ' L' + x(i) + ',' + y(d.val);
+  });
+
+  var line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  line.setAttribute('d', lineD);
+  line.setAttribute('class', 'chart-line');
+  svg.appendChild(line);
+
+  // Dots
+  data.forEach(function(d, i) {
+    var circ = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circ.setAttribute('cx', x(i));
+    circ.setAttribute('cy', y(d.val));
+    circ.setAttribute('r', 5);
+    circ.setAttribute('class', 'chart-dot');
+    svg.appendChild(circ);
+  });
+
+  /* ── Sidebar Nav ────────────────────────────────────────── */
+  document.querySelectorAll('.nav-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+      document.querySelectorAll('.nav-item').forEach(function(el) {
+        el.classList.remove('active');
+      });
+      item.classList.add('active');
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,2120 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="evening">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ember — Adaptive Biophilic Design System</title>
+
+<!-- Fonts -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/bricolage-grotesque@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/bricolage-grotesque@latest/latin-600-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/bricolage-grotesque@latest/latin-800-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/dm-sans@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/dm-sans@latest/latin-500-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/dm-sans@latest/latin-600-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@latest/latin-400-normal.css">
+
+<style>
+/* ============================================================
+   SVG FILTERS — paper grain texture
+   ============================================================ */
+svg.filters { position: absolute; width: 0; height: 0; }
+
+/* ============================================================
+   CSS CUSTOM PROPERTIES — Three time-of-day themes
+   ============================================================ */
+
+/* EVENING (default) — warm, amber-tinted */
+:root,
+[data-theme="evening"] {
+  --bg-base: #1a1a2a;
+  --bg-surface: #212135;
+  --bg-raised: #2a2a40;
+  --bg-hover: #32324d;
+  --bg-inset: #161624;
+
+  --accent: #a6d189;
+  --accent-dim: #7fb36a;
+  --accent-glow: rgba(166, 209, 137, 0.12);
+  --secondary: #e5c890;
+  --secondary-dim: #c9a85e;
+  --secondary-glow: rgba(229, 200, 144, 0.10);
+  --tertiary: #f2a8a1;
+  --tertiary-dim: #d98b84;
+
+  --text-primary: #cdd6f4;
+  --text-secondary: #9399b5;
+  --text-tertiary: #6c7086;
+  --text-inverse: #1a1a2a;
+
+  --success: #a6d189;
+  --error: #f38ba8;
+  --warning: #f9e2af;
+  --info: #89b4fa;
+
+  --border-subtle: rgba(147, 153, 181, 0.10);
+  --border-default: rgba(147, 153, 181, 0.16);
+  --border-strong: rgba(147, 153, 181, 0.24);
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.25);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.30);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.40);
+  --shadow-glow-accent: 0 0 24px rgba(166, 209, 137, 0.10);
+  --shadow-glow-secondary: 0 0 24px rgba(229, 200, 144, 0.08);
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-xl: 32px;
+  --radius-full: 9999px;
+
+  --grain-opacity: 0.028;
+  --transition-fast: 150ms ease;
+  --transition-base: 250ms ease;
+  --transition-slow: 500ms ease;
+  --transition-theme: 600ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  --font-display: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-code: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+
+  --mode-label: "Evening";
+  --mode-emoji: "🌙";
+}
+
+/* MORNING — cool, bright, refreshing */
+[data-theme="morning"] {
+  --bg-base: #1e2030;
+  --bg-surface: #232538;
+  --bg-raised: #2c2e44;
+  --bg-hover: #353750;
+  --bg-inset: #191b2a;
+
+  --accent: #94d0a0;
+  --accent-dim: #6eb87e;
+  --accent-glow: rgba(148, 208, 160, 0.14);
+  --secondary: #c8d8e8;
+  --secondary-dim: #99b3cc;
+  --secondary-glow: rgba(200, 216, 232, 0.10);
+  --tertiary: #b4c8f0;
+  --tertiary-dim: #8da6d8;
+
+  --text-primary: #d8e0f8;
+  --text-secondary: #a0a8c4;
+  --text-tertiary: #707890;
+
+  --success: #94d0a0;
+  --error: #f09090;
+  --warning: #ead8a0;
+  --info: #90b8f0;
+
+  --border-subtle: rgba(160, 168, 196, 0.10);
+  --border-default: rgba(160, 168, 196, 0.16);
+  --border-strong: rgba(160, 168, 196, 0.24);
+
+  --shadow-glow-accent: 0 0 24px rgba(148, 208, 160, 0.12);
+  --shadow-glow-secondary: 0 0 24px rgba(200, 216, 232, 0.08);
+
+  --grain-opacity: 0.022;
+  --mode-label: "Morning";
+  --mode-emoji: "🌅";
+}
+
+/* DAY — balanced, warm but not heavy */
+[data-theme="day"] {
+  --bg-base: #1c1c2e;
+  --bg-surface: #222238;
+  --bg-raised: #2a2a42;
+  --bg-hover: #33334f;
+  --bg-inset: #171728;
+
+  --accent: #9dd88e;
+  --accent-dim: #78b86a;
+  --accent-glow: rgba(157, 216, 142, 0.13);
+  --secondary: #dcc888;
+  --secondary-dim: #bba55c;
+  --secondary-glow: rgba(220, 200, 136, 0.09);
+  --tertiary: #e8a8b0;
+  --tertiary-dim: #c88890;
+
+  --text-primary: #d2daf0;
+  --text-secondary: #9aa0b8;
+  --text-tertiary: #6e7490;
+
+  --success: #9dd88e;
+  --error: #f08898;
+  --warning: #f0dca0;
+  --info: #88b0f0;
+
+  --border-subtle: rgba(154, 160, 184, 0.10);
+  --border-default: rgba(154, 160, 184, 0.16);
+  --border-strong: rgba(154, 160, 184, 0.24);
+
+  --shadow-glow-accent: 0 0 24px rgba(157, 216, 142, 0.11);
+  --shadow-glow-secondary: 0 0 24px rgba(220, 200, 136, 0.08);
+
+  --grain-opacity: 0.025;
+  --mode-label: "Day";
+  --mode-emoji: "☀️";
+}
+
+/* ============================================================
+   GLOBAL RESET & BASE
+   ============================================================ */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  transition:
+    background var(--transition-theme),
+    color var(--transition-theme);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Paper grain texture overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: var(--grain-opacity);
+  filter: url(#grain);
+  background: transparent;
+  mix-blend-mode: overlay;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--bg-base);
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+a:hover { color: var(--secondary); }
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.page-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 32px 80px;
+}
+
+section {
+  margin-bottom: 72px;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+  transition: color var(--transition-theme);
+}
+
+.section-subtitle {
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  margin-bottom: 32px;
+  max-width: 600px;
+  transition: color var(--transition-theme);
+}
+
+/* ============================================================
+   SURFACE — shared card/panel base
+   ============================================================ */
+.surface {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  transition:
+    background var(--transition-theme),
+    border-color var(--transition-theme),
+    box-shadow var(--transition-base);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Grain overlay on surfaces */
+.surface::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: calc(var(--grain-opacity) * 1.5);
+  filter: url(#grain);
+  z-index: 1;
+  mix-blend-mode: soft-light;
+}
+
+.surface > * { position: relative; z-index: 2; }
+
+.surface:hover {
+  border-color: var(--border-default);
+  box-shadow: var(--shadow-md);
+}
+
+.surface-raised {
+  background: var(--bg-raised);
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+.header {
+  text-align: center;
+  padding: 64px 0 48px;
+  position: relative;
+}
+
+.header-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-code);
+  font-size: 0.78rem;
+  color: var(--accent);
+  background: var(--accent-glow);
+  border: 1px solid rgba(166, 209, 137, 0.15);
+  border-radius: var(--radius-full);
+  padding: 6px 18px;
+  margin-bottom: 24px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition:
+    background var(--transition-theme),
+    color var(--transition-theme),
+    border-color var(--transition-theme);
+}
+
+.header-badge .dot {
+  width: 7px;
+  height: 7px;
+  background: var(--accent);
+  border-radius: 50%;
+  animation: pulse-dot 2.5s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+.header h1 {
+  font-family: var(--font-display);
+  font-size: clamp(3rem, 8vw, 5rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--secondary) 50%, var(--tertiary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 16px;
+  transition: filter var(--transition-theme);
+}
+
+.header .tagline {
+  font-family: var(--font-body);
+  font-size: 1.15rem;
+  color: var(--text-secondary);
+  max-width: 520px;
+  margin: 0 auto 40px;
+  line-height: 1.7;
+  transition: color var(--transition-theme);
+}
+
+/* Decorative organic blobs */
+.blob-deco {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  opacity: 0.15;
+  transition: opacity var(--transition-theme), background var(--transition-theme);
+}
+
+.blob-deco-1 {
+  width: 350px;
+  height: 350px;
+  background: var(--accent);
+  top: -80px;
+  left: -120px;
+  animation: blob-drift 18s ease-in-out infinite alternate;
+}
+
+.blob-deco-2 {
+  width: 280px;
+  height: 280px;
+  background: var(--secondary);
+  top: -40px;
+  right: -80px;
+  animation: blob-drift 22s ease-in-out infinite alternate-reverse;
+}
+
+.blob-deco-3 {
+  width: 200px;
+  height: 200px;
+  background: var(--tertiary);
+  bottom: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  animation: blob-drift 15s ease-in-out infinite alternate;
+}
+
+@keyframes blob-drift {
+  0% { transform: translate(0, 0) scale(1); border-radius: 50% 40% 60% 50%; }
+  33% { transform: translate(20px, -15px) scale(1.05); border-radius: 40% 60% 50% 55%; }
+  66% { transform: translate(-10px, 10px) scale(0.97); border-radius: 55% 45% 55% 45%; }
+  100% { transform: translate(15px, -8px) scale(1.02); border-radius: 45% 55% 45% 60%; }
+}
+
+/* ============================================================
+   TIME-OF-DAY TOGGLE
+   ============================================================ */
+.tod-toggle {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 5px;
+  transition: background var(--transition-theme), border-color var(--transition-theme);
+}
+
+.tod-btn {
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 10px 22px;
+  cursor: pointer;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast),
+    box-shadow var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tod-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.tod-btn.active {
+  color: var(--bg-base);
+  background: var(--accent);
+  box-shadow: var(--shadow-glow-accent);
+  font-weight: 600;
+}
+
+.tod-btn .icon {
+  font-size: 1.05em;
+}
+
+/* ============================================================
+   DESIGN PRINCIPLES
+   ============================================================ */
+.principles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.principle-card {
+  padding: 28px 24px;
+}
+
+.principle-card .principle-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  margin-bottom: 18px;
+  transition: background var(--transition-theme);
+}
+
+.principle-card .principle-icon.green {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+.principle-card .principle-icon.amber {
+  background: var(--secondary-glow);
+  color: var(--secondary);
+}
+.principle-card .principle-icon.coral {
+  background: rgba(242, 168, 161, 0.12);
+  color: var(--tertiary);
+}
+.principle-card .principle-icon.blue {
+  background: rgba(137, 180, 250, 0.10);
+  color: var(--info);
+}
+
+.principle-card h3 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  transition: color var(--transition-theme);
+}
+
+.principle-card p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  transition: color var(--transition-theme);
+}
+
+/* ============================================================
+   COLOR PALETTE
+   ============================================================ */
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
+}
+
+.swatch {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  transition:
+    border-color var(--transition-base),
+    transform var(--transition-base),
+    box-shadow var(--transition-base);
+}
+
+.swatch:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-default);
+}
+
+.swatch-color {
+  height: 80px;
+  transition: background var(--transition-theme);
+}
+
+.swatch-info {
+  padding: 12px 14px;
+  background: var(--bg-surface);
+  transition: background var(--transition-theme);
+}
+
+.swatch-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+  transition: color var(--transition-theme);
+}
+
+.swatch-value {
+  font-family: var(--font-code);
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  transition: color var(--transition-theme);
+}
+
+/* ============================================================
+   TYPOGRAPHY SPECIMEN
+   ============================================================ */
+.type-specimen {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.type-row {
+  display: flex;
+  align-items: baseline;
+  gap: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: border-color var(--transition-theme);
+}
+
+.type-row:last-child { border-bottom: none; }
+
+.type-label {
+  flex: 0 0 140px;
+  font-family: var(--font-code);
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  transition: color var(--transition-theme);
+}
+
+.type-sample {
+  flex: 1;
+  transition: color var(--transition-theme);
+}
+
+.type-sample.display-xl {
+  font-family: var(--font-display);
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+
+.type-sample.display-lg {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.type-sample.heading {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.type-sample.body-text {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--text-primary);
+  line-height: 1.7;
+}
+
+.type-sample.body-small {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.type-sample.code-text {
+  font-family: var(--font-code);
+  font-size: 0.9rem;
+  color: var(--accent);
+  background: var(--bg-inset);
+  padding: 16px 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  display: block;
+  line-height: 1.65;
+  white-space: pre;
+  overflow-x: auto;
+  transition:
+    background var(--transition-theme),
+    color var(--transition-theme),
+    border-color var(--transition-theme);
+}
+
+/* ============================================================
+   COMPONENT SHOWCASE
+   ============================================================ */
+.components-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.comp-group-title {
+  font-family: var(--font-code);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  margin-bottom: 16px;
+  transition: color var(--transition-theme);
+}
+
+/* Buttons */
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.btn {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-full);
+  padding: 11px 26px;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn:active { transform: scale(0.97); }
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg-base);
+  box-shadow: var(--shadow-glow-accent);
+}
+.btn-primary:hover {
+  background: var(--accent-dim);
+  box-shadow: 0 0 32px rgba(166, 209, 137, 0.2);
+}
+
+.btn-secondary {
+  background: var(--secondary);
+  color: var(--bg-base);
+  box-shadow: var(--shadow-glow-secondary);
+}
+.btn-secondary:hover {
+  background: var(--secondary-dim);
+  box-shadow: 0 0 32px rgba(229, 200, 144, 0.18);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+}
+.btn-ghost:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.btn-danger {
+  background: var(--error);
+  color: var(--bg-base);
+}
+.btn-danger:hover {
+  background: #e07090;
+  box-shadow: 0 0 24px rgba(243, 139, 168, 0.18);
+}
+
+.btn-sm {
+  font-size: 0.8rem;
+  padding: 7px 18px;
+}
+
+.btn-lg {
+  font-size: 1rem;
+  padding: 14px 32px;
+}
+
+/* Inputs */
+.input-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.input-label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: color var(--transition-theme);
+}
+
+.input-field {
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  color: var(--text-primary);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 11px 16px;
+  outline: none;
+  transition:
+    background var(--transition-theme),
+    border-color var(--transition-fast),
+    color var(--transition-theme),
+    box-shadow var(--transition-fast);
+}
+
+.input-field::placeholder {
+  color: var(--text-tertiary);
+}
+
+.input-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.input-field.error {
+  border-color: var(--error);
+  box-shadow: 0 0 0 3px rgba(243, 139, 168, 0.12);
+}
+
+textarea.input-field {
+  resize: vertical;
+  min-height: 80px;
+}
+
+select.input-field {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239399b5' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+/* Badges */
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.badge {
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition:
+    background var(--transition-theme),
+    color var(--transition-theme);
+}
+
+.badge-success {
+  background: rgba(166, 209, 137, 0.14);
+  color: var(--success);
+}
+.badge-error {
+  background: rgba(243, 139, 168, 0.14);
+  color: var(--error);
+}
+.badge-warning {
+  background: rgba(249, 226, 175, 0.14);
+  color: var(--warning);
+}
+.badge-info {
+  background: rgba(137, 180, 250, 0.14);
+  color: var(--info);
+}
+.badge-neutral {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+/* Toasts */
+.toast-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  font-size: 0.88rem;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  transition:
+    background var(--transition-theme),
+    border-color var(--transition-theme);
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-top: 1px;
+}
+
+.toast-success .toast-icon { background: rgba(166,209,137,0.18); color: var(--success); }
+.toast-error .toast-icon { background: rgba(243,139,168,0.18); color: var(--error); }
+.toast-warning .toast-icon { background: rgba(249,226,175,0.18); color: var(--warning); }
+.toast-info .toast-icon { background: rgba(137,180,250,0.18); color: var(--info); }
+
+.toast-content { flex: 1; }
+.toast-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+  transition: color var(--transition-theme);
+}
+.toast-message {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  transition: color var(--transition-theme);
+}
+
+/* Status indicators */
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  transition: color var(--transition-theme);
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  position: relative;
+}
+
+.status-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  opacity: 0;
+  animation: status-pulse 2s ease-in-out infinite;
+}
+
+.status-dot.online {
+  background: var(--success);
+}
+.status-dot.online::after {
+  background: var(--success);
+  animation-name: status-pulse;
+}
+
+.status-dot.warning {
+  background: var(--warning);
+}
+.status-dot.warning::after {
+  background: var(--warning);
+  animation-name: status-pulse;
+  animation-delay: 0.4s;
+}
+
+.status-dot.error {
+  background: var(--error);
+}
+.status-dot.error::after {
+  background: var(--error);
+  animation-name: status-pulse;
+  animation-delay: 0.8s;
+}
+
+.status-dot.idle {
+  background: var(--text-tertiary);
+}
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 0; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(1.8); }
+}
+
+/* ============================================================
+   MINI DASHBOARD MOCKUP
+   ============================================================ */
+.dashboard-mockup {
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  background: var(--bg-base);
+  box-shadow: var(--shadow-lg);
+  transition:
+    background var(--transition-theme),
+    border-color var(--transition-theme);
+}
+
+.dashboard-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  transition:
+    background var(--transition-theme),
+    border-color var(--transition-theme);
+}
+
+.dashboard-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dashboard-logo {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--accent);
+  transition: color var(--transition-theme);
+}
+
+.dashboard-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.dashboard-nav-item {
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  transition: all var(--transition-fast);
+  cursor: default;
+}
+
+.dashboard-nav-item.active {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.dashboard-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dashboard-search {
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  color: var(--text-primary);
+  background: var(--bg-inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 6px 14px;
+  width: 180px;
+  outline: none;
+  transition:
+    background var(--transition-theme),
+    border-color var(--transition-fast);
+}
+.dashboard-search:focus {
+  border-color: var(--accent);
+}
+.dashboard-search::placeholder {
+  color: var(--text-tertiary);
+}
+
+.dashboard-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--secondary));
+}
+
+.dashboard-body {
+  display: flex;
+  min-height: 380px;
+}
+
+.dashboard-sidebar {
+  width: 200px;
+  padding: 16px 12px;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+  transition:
+    background var(--transition-theme),
+    border-color var(--transition-theme);
+}
+
+.sidebar-section-label {
+  font-family: var(--font-code);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  padding: 8px 12px 6px;
+  transition: color var(--transition-theme);
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  cursor: default;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.sidebar-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.sidebar-item.active {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+
+.sidebar-icon {
+  width: 18px;
+  text-align: center;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.sidebar-count {
+  margin-left: auto;
+  font-family: var(--font-code);
+  font-size: 0.65rem;
+  color: var(--text-tertiary);
+  background: var(--bg-inset);
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  transition:
+    background var(--transition-theme),
+    color var(--transition-theme);
+}
+
+/* Kanban columns */
+.dashboard-main {
+  flex: 1;
+  padding: 20px;
+  overflow-x: auto;
+}
+
+.kanban-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.kanban-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  transition: color var(--transition-theme);
+}
+
+.kanban-columns {
+  display: flex;
+  gap: 14px;
+}
+
+.kanban-col {
+  flex: 1;
+  min-width: 170px;
+}
+
+.kanban-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+
+.kanban-col-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  transition: color var(--transition-theme);
+}
+
+.kanban-col-count {
+  font-family: var(--font-code);
+  font-size: 0.65rem;
+  color: var(--text-tertiary);
+  background: var(--bg-inset);
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  transition:
+    background var(--transition-theme),
+    color var(--transition-theme);
+}
+
+.kanban-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  cursor: default;
+  transition:
+    background var(--transition-theme),
+    border-color var(--transition-base),
+    box-shadow var(--transition-base),
+    transform var(--transition-fast);
+}
+
+.kanban-card:hover {
+  border-color: var(--border-default);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.kanban-card-title {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+  transition: color var(--transition-theme);
+}
+
+.kanban-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kanban-card-tag {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  transition:
+    background var(--transition-theme),
+    color var(--transition-theme);
+}
+
+.tag-ui { background: rgba(137,180,250,0.12); color: var(--info); }
+.tag-api { background: rgba(166,209,137,0.12); color: var(--success); }
+.tag-bug { background: rgba(243,139,168,0.12); color: var(--error); }
+.tag-perf { background: rgba(249,226,175,0.12); color: var(--warning); }
+
+.kanban-card-priority {
+  margin-left: auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.priority-high { background: var(--error); }
+.priority-medium { background: var(--warning); }
+.priority-low { background: var(--success); }
+
+/* ============================================================
+   BIOMORPHIC LOADING SPINNER
+   ============================================================ */
+.spinner-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 48px;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.spinner-label {
+  font-family: var(--font-code);
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  transition: color var(--transition-theme);
+}
+
+/* Organic blob spinner */
+.spinner-blob {
+  width: 56px;
+  height: 56px;
+  position: relative;
+}
+
+.spinner-blob-shape {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  border-top-color: var(--accent);
+  animation: blob-spin 1.4s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+}
+
+.spinner-blob-shape:nth-child(2) {
+  inset: 6px;
+  border-top-color: var(--secondary);
+  animation-delay: -0.2s;
+  animation-duration: 1.8s;
+}
+
+.spinner-blob-shape:nth-child(3) {
+  inset: 12px;
+  border-top-color: var(--tertiary);
+  animation-delay: -0.4s;
+  animation-duration: 2.2s;
+}
+
+@keyframes blob-spin {
+  0% { transform: rotate(0deg); border-radius: 50% 45% 55% 48%; }
+  25% { border-radius: 45% 55% 48% 52%; }
+  50% { transform: rotate(360deg); border-radius: 55% 48% 45% 55%; }
+  75% { border-radius: 48% 52% 55% 45%; }
+  100% { transform: rotate(720deg); border-radius: 50% 45% 55% 48%; }
+}
+
+/* Fractal-like spinner */
+.spinner-fractal {
+  width: 56px;
+  height: 56px;
+  position: relative;
+}
+
+.fractal-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  animation: fractal-rotate linear infinite;
+}
+
+.fractal-ring:nth-child(1) {
+  inset: 0;
+  border-color: var(--accent) transparent transparent transparent;
+  animation-duration: 2s;
+}
+.fractal-ring:nth-child(2) {
+  inset: 5px;
+  border-color: transparent var(--secondary) transparent transparent;
+  animation-duration: 2.6s;
+  animation-direction: reverse;
+}
+.fractal-ring:nth-child(3) {
+  inset: 10px;
+  border-color: transparent transparent var(--tertiary) transparent;
+  animation-duration: 1.6s;
+}
+.fractal-ring:nth-child(4) {
+  inset: 15px;
+  border-color: transparent transparent transparent var(--info);
+  animation-duration: 3s;
+  animation-direction: reverse;
+}
+.fractal-ring::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: currentColor;
+  border-radius: 50%;
+  top: -2px;
+  left: calc(50% - 2px);
+}
+.fractal-ring:nth-child(1)::after { color: var(--accent); }
+.fractal-ring:nth-child(2)::after { color: var(--secondary); }
+.fractal-ring:nth-child(3)::after { color: var(--tertiary); }
+.fractal-ring:nth-child(4)::after { color: var(--info); }
+
+@keyframes fractal-rotate {
+  to { transform: rotate(360deg); }
+}
+
+/* Breathing blob spinner */
+.spinner-breathing {
+  width: 56px;
+  height: 56px;
+  position: relative;
+}
+
+.breathing-blob {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  animation: breathe 2.8s ease-in-out infinite;
+}
+
+.breathing-blob:nth-child(1) {
+  background: var(--accent);
+  top: 0; left: calc(50% - 12px);
+  animation-delay: 0s;
+}
+.breathing-blob:nth-child(2) {
+  background: var(--secondary);
+  bottom: 4px; left: 4px;
+  animation-delay: -0.9s;
+}
+.breathing-blob:nth-child(3) {
+  background: var(--tertiary);
+  bottom: 4px; right: 4px;
+  animation-delay: -1.8s;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(0.6); opacity: 0.4; }
+  50% { transform: scale(1); opacity: 0.85; }
+}
+
+/* Organic wave spinner */
+.spinner-wave {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  height: 56px;
+}
+
+.wave-bar {
+  width: 5px;
+  border-radius: var(--radius-full);
+  animation: wave-stretch 1.4s ease-in-out infinite;
+  transition: background var(--transition-theme);
+}
+
+.wave-bar:nth-child(1) { background: var(--accent); animation-delay: 0s; }
+.wave-bar:nth-child(2) { background: var(--accent); animation-delay: 0.1s; opacity: 0.85; }
+.wave-bar:nth-child(3) { background: var(--secondary); animation-delay: 0.2s; }
+.wave-bar:nth-child(4) { background: var(--secondary); animation-delay: 0.3s; opacity: 0.85; }
+.wave-bar:nth-child(5) { background: var(--tertiary); animation-delay: 0.4s; }
+
+@keyframes wave-stretch {
+  0%, 100% { height: 12px; }
+  50% { height: 44px; }
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  .page-wrapper {
+    padding: 24px 16px 60px;
+  }
+  .header { padding: 40px 0 32px; }
+  .header h1 { font-size: 2.6rem; }
+
+  .dashboard-body { flex-direction: column; }
+  .dashboard-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .sidebar-section-label { display: none; }
+  .sidebar-count { display: none; }
+
+  .kanban-columns {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .type-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .type-label { flex: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- SVG FILTERS -->
+<svg class="filters" aria-hidden="true">
+  <defs>
+    <filter id="grain" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" result="noise" />
+      <feColorMatrix type="saturate" values="0" in="noise" result="gray-noise" />
+      <feBlend in="SourceGraphic" in2="gray-noise" mode="multiply" />
+    </filter>
+  </defs>
+</svg>
+
+<div class="page-wrapper">
+
+  <!-- ========== HEADER ========== -->
+  <header class="header">
+    <div class="blob-deco blob-deco-1"></div>
+    <div class="blob-deco blob-deco-2"></div>
+    <div class="blob-deco blob-deco-3"></div>
+
+    <div class="header-badge">
+      <span class="dot"></span>
+      DevGlide Design System
+    </div>
+
+    <h1>Ember</h1>
+
+    <p class="tagline">
+      An adaptive biophilic design system. Nature-derived warmth that shifts
+      with the rhythm of your day. Structure felt, not seen.
+    </p>
+
+    <!-- TIME-OF-DAY TOGGLE -->
+    <div class="tod-toggle" role="radiogroup" aria-label="Time of day theme">
+      <button class="tod-btn" data-theme-value="morning" role="radio" aria-checked="false">
+        <span class="icon" aria-hidden="true">&#x1F305;</span> Morning
+      </button>
+      <button class="tod-btn" data-theme-value="day" role="radio" aria-checked="false">
+        <span class="icon" aria-hidden="true">&#x2600;&#xFE0F;</span> Day
+      </button>
+      <button class="tod-btn active" data-theme-value="evening" role="radio" aria-checked="true">
+        <span class="icon" aria-hidden="true">&#x1F319;</span> Evening
+      </button>
+    </div>
+  </header>
+
+  <!-- ========== DESIGN PRINCIPLES ========== -->
+  <section>
+    <h2 class="section-title">Design Principles</h2>
+    <p class="section-subtitle">
+      Ember draws from organic forms and warm earth tones to create an
+      interface that breathes with you.
+    </p>
+
+    <div class="principles-grid">
+      <div class="surface principle-card">
+        <div class="principle-icon green">&#x1F33F;</div>
+        <h3>Biophilic Warmth</h3>
+        <p>Nature-derived colors and textures reduce cognitive strain. Forest greens, amber, and stone tones ground the experience in the organic world.</p>
+      </div>
+      <div class="surface principle-card">
+        <div class="principle-icon amber">&#x23F0;</div>
+        <h3>Adaptive Rhythm</h3>
+        <p>Three time-of-day modes shift the entire color temperature, aligning your workspace with your natural circadian pattern.</p>
+      </div>
+      <div class="surface principle-card">
+        <div class="principle-icon coral">&#x1F4A0;</div>
+        <h3>Organic Geometry</h3>
+        <p>Generous border-radius and soft edges everywhere. No sharp corners, no harsh lines. Surfaces feel grown, not constructed.</p>
+      </div>
+      <div class="surface principle-card">
+        <div class="principle-icon blue">&#x1F50D;</div>
+        <h3>Accessible Contrast</h3>
+        <p>OKLCH-informed palette with 7:1+ contrast ratio for body text. Readability is never sacrificed for aesthetics.</p>
+      </div>
+      <div class="surface principle-card">
+        <div class="principle-icon green">&#x1F4C4;</div>
+        <h3>Paper Grain</h3>
+        <p>Subtle SVG noise texture on surfaces evokes natural paper, adding tactile depth without competing with content.</p>
+      </div>
+      <div class="surface principle-card">
+        <div class="principle-icon amber">&#x2728;</div>
+        <h3>Structure Felt, Not Seen</h3>
+        <p>Soft borders, gentle shadows, and translucent layers create spatial hierarchy that guides without demanding attention.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== COLOR PALETTE ========== -->
+  <section>
+    <h2 class="section-title">Color Palette</h2>
+    <p class="section-subtitle">
+      Warm, nature-derived tokens that shift with the active time-of-day mode.
+      Toggle above to see palette adaptation.
+    </p>
+
+    <div class="palette-grid">
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--bg-base);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Base</div>
+          <div class="swatch-value" data-var="bg-base"></div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--bg-surface);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Surface</div>
+          <div class="swatch-value" data-var="bg-surface"></div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--bg-raised);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Raised</div>
+          <div class="swatch-value" data-var="bg-raised"></div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--accent);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Accent</div>
+          <div class="swatch-value" data-var="accent"></div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--secondary);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Secondary</div>
+          <div class="swatch-value" data-var="secondary"></div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--tertiary);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Tertiary</div>
+          <div class="swatch-value" data-var="tertiary"></div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--text-primary); border-bottom: 1px solid var(--border-subtle);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Text Primary</div>
+          <div class="swatch-value" data-var="text-primary"></div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--text-secondary);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Text Secondary</div>
+          <div class="swatch-value" data-var="text-secondary"></div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--success);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Success</div>
+          <div class="swatch-value" data-var="success"></div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--error);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Error</div>
+          <div class="swatch-value" data-var="error"></div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--warning);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Warning</div>
+          <div class="swatch-value" data-var="warning"></div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: var(--info);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Info</div>
+          <div class="swatch-value" data-var="info"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== TYPOGRAPHY ========== -->
+  <section>
+    <h2 class="section-title">Typography</h2>
+    <p class="section-subtitle">
+      Three font families tuned for warmth and legibility. Bricolage Grotesque for display,
+      DM Sans for body, JetBrains Mono for code.
+    </p>
+
+    <div class="surface" style="padding: 36px 32px;">
+      <div class="type-specimen">
+        <div class="type-row">
+          <div class="type-label">Display XL<br>Bricolage 800</div>
+          <div class="type-sample display-xl">Organic Warmth</div>
+        </div>
+        <div class="type-row">
+          <div class="type-label">Display LG<br>Bricolage 600</div>
+          <div class="type-sample display-lg">Adaptive by nature, precise by design</div>
+        </div>
+        <div class="type-row">
+          <div class="type-label">Heading<br>Bricolage 600</div>
+          <div class="type-sample heading">Building tools that feel alive</div>
+        </div>
+        <div class="type-row">
+          <div class="type-label">Body<br>DM Sans 400</div>
+          <div class="type-sample body-text">Good design is invisible. It creates rhythm without
+            disruption, guides without forcing, and adapts without losing identity.
+            Ember brings this philosophy to developer tools.</div>
+        </div>
+        <div class="type-row">
+          <div class="type-label">Body Small<br>DM Sans 400</div>
+          <div class="type-sample body-small">Subtle shifts in color temperature throughout the day help maintain
+            focus during long coding sessions while respecting your natural energy cycles.</div>
+        </div>
+        <div class="type-row">
+          <div class="type-label">Code<br>JetBrains Mono</div>
+          <code class="type-sample code-text">const ember = createTheme({
+  mode: 'evening',
+  accent: oklch(0.78 0.12 145),
+  grain: { opacity: 0.028, blend: 'overlay' }
+});</code>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== COMPONENTS ========== -->
+  <section>
+    <h2 class="section-title">Components</h2>
+    <p class="section-subtitle">
+      Interactive elements designed with organic curves, gentle transitions, and semantic color coding.
+    </p>
+
+    <div class="components-grid">
+
+      <!-- Buttons -->
+      <div>
+        <div class="comp-group-title">Buttons</div>
+        <div class="btn-row">
+          <button class="btn btn-primary">Primary Action</button>
+          <button class="btn btn-secondary">Secondary</button>
+          <button class="btn btn-ghost">Ghost</button>
+          <button class="btn btn-danger">Danger</button>
+        </div>
+        <div class="btn-row" style="margin-top: 12px;">
+          <button class="btn btn-primary btn-sm">Small</button>
+          <button class="btn btn-primary">Default</button>
+          <button class="btn btn-primary btn-lg">Large</button>
+          <button class="btn btn-ghost btn-sm" disabled style="opacity: 0.45; cursor: not-allowed;">Disabled</button>
+        </div>
+      </div>
+
+      <!-- Inputs -->
+      <div>
+        <div class="comp-group-title">Inputs</div>
+        <div class="input-row">
+          <div class="input-group">
+            <label class="input-label">Project Name</label>
+            <input type="text" class="input-field" placeholder="e.g. ember-dashboard" />
+          </div>
+          <div class="input-group">
+            <label class="input-label">Status</label>
+            <select class="input-field">
+              <option>Active</option>
+              <option>Paused</option>
+              <option>Archived</option>
+            </select>
+          </div>
+          <div class="input-group">
+            <label class="input-label">Error State</label>
+            <input type="text" class="input-field error" value="Invalid input" />
+          </div>
+        </div>
+        <div class="input-row" style="margin-top: 12px;">
+          <div class="input-group" style="flex: 2;">
+            <label class="input-label">Description</label>
+            <textarea class="input-field" placeholder="Describe your project..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Badges -->
+      <div>
+        <div class="comp-group-title">Badges</div>
+        <div class="badge-row">
+          <span class="badge badge-success">&#x2713; Deployed</span>
+          <span class="badge badge-error">&#x2717; Failed</span>
+          <span class="badge badge-warning">&#x26A0; Pending</span>
+          <span class="badge badge-info">&#x2139; In Review</span>
+          <span class="badge badge-neutral">v2.4.0</span>
+          <span class="badge badge-success">&#x25CF; Online</span>
+        </div>
+      </div>
+
+      <!-- Status Indicators -->
+      <div>
+        <div class="comp-group-title">Status Indicators</div>
+        <div class="status-row">
+          <div class="status-indicator">
+            <div class="status-dot online"></div>
+            MCP Server
+          </div>
+          <div class="status-indicator">
+            <div class="status-dot online"></div>
+            Dashboard
+          </div>
+          <div class="status-indicator">
+            <div class="status-dot warning"></div>
+            Test Runner
+          </div>
+          <div class="status-indicator">
+            <div class="status-dot error"></div>
+            Voice Service
+          </div>
+          <div class="status-indicator">
+            <div class="status-dot idle"></div>
+            Shell Pane 3
+          </div>
+        </div>
+      </div>
+
+      <!-- Toasts -->
+      <div>
+        <div class="comp-group-title">Toasts</div>
+        <div class="toast-stack">
+          <div class="toast toast-success">
+            <div class="toast-icon">&#x2713;</div>
+            <div class="toast-content">
+              <div class="toast-title">Build Successful</div>
+              <div class="toast-message">All 47 tests passed in 3.2s</div>
+            </div>
+          </div>
+          <div class="toast toast-error">
+            <div class="toast-icon">!</div>
+            <div class="toast-content">
+              <div class="toast-title">Connection Lost</div>
+              <div class="toast-message">MCP server unreachable. Retrying...</div>
+            </div>
+          </div>
+          <div class="toast toast-warning">
+            <div class="toast-icon">&#x26A0;</div>
+            <div class="toast-content">
+              <div class="toast-title">Deprecation Warning</div>
+              <div class="toast-message">voice_speak v1 will be removed in 3.0</div>
+            </div>
+          </div>
+          <div class="toast toast-info">
+            <div class="toast-icon">i</div>
+            <div class="toast-content">
+              <div class="toast-title">New Agent Joined</div>
+              <div class="toast-message">claude-2 has entered the chat room</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========== MINI DASHBOARD ========== -->
+  <section>
+    <h2 class="section-title">Dashboard Mockup</h2>
+    <p class="section-subtitle">
+      A miniature representation of the DevGlide dashboard with sidebar navigation
+      and kanban board, demonstrating how Ember feels in context.
+    </p>
+
+    <div class="dashboard-mockup">
+      <div class="dashboard-topbar">
+        <div class="dashboard-topbar-left">
+          <div class="dashboard-logo">DevGlide</div>
+          <div class="dashboard-nav">
+            <div class="dashboard-nav-item active">Kanban</div>
+            <div class="dashboard-nav-item">Shell</div>
+            <div class="dashboard-nav-item">Chat</div>
+            <div class="dashboard-nav-item">Tests</div>
+          </div>
+        </div>
+        <div class="dashboard-topbar-right">
+          <input type="text" class="dashboard-search" placeholder="Search..." />
+          <div class="dashboard-avatar"></div>
+        </div>
+      </div>
+      <div class="dashboard-body">
+        <div class="dashboard-sidebar">
+          <div class="sidebar-section-label">Features</div>
+          <div class="sidebar-item active">
+            <span class="sidebar-icon">&#x1F4CB;</span>
+            Ember Design System
+            <span class="sidebar-count">8</span>
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-icon">&#x1F50A;</span>
+            Voice v2
+            <span class="sidebar-count">5</span>
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-icon">&#x1F4AC;</span>
+            Chat Rooms
+            <span class="sidebar-count">3</span>
+          </div>
+          <div class="sidebar-section-label">Tools</div>
+          <div class="sidebar-item">
+            <span class="sidebar-icon">&#x2699;&#xFE0F;</span>
+            Workflows
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-icon">&#x1F4D6;</span>
+            Vocabulary
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-icon">&#x1F4DD;</span>
+            Prompts
+          </div>
+        </div>
+        <div class="dashboard-main">
+          <div class="kanban-header">
+            <div class="kanban-title">Ember Design System</div>
+            <button class="btn btn-primary btn-sm">+ Add Task</button>
+          </div>
+          <div class="kanban-columns">
+            <!-- Todo -->
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">Todo</span>
+                <span class="kanban-col-count">3</span>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Define OKLCH palette tokens</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-ui">ui</span>
+                  <span class="kanban-card-priority priority-high"></span>
+                </div>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Paper grain SVG filter</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-ui">ui</span>
+                  <span class="kanban-card-priority priority-medium"></span>
+                </div>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Biomorphic spinner set</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-ui">ui</span>
+                  <span class="kanban-card-priority priority-low"></span>
+                </div>
+              </div>
+            </div>
+            <!-- In Progress -->
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">In Progress</span>
+                <span class="kanban-col-count">2</span>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Time-of-day toggle component</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-ui">ui</span>
+                  <span class="kanban-card-priority priority-high"></span>
+                </div>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Fix contrast ratio on badges</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-bug">bug</span>
+                  <span class="kanban-card-priority priority-medium"></span>
+                </div>
+              </div>
+            </div>
+            <!-- In Review -->
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">In Review</span>
+                <span class="kanban-col-count">2</span>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Typography specimen page</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-ui">ui</span>
+                  <span class="kanban-card-priority priority-medium"></span>
+                </div>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Optimize transition perf</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-perf">perf</span>
+                  <span class="kanban-card-priority priority-low"></span>
+                </div>
+              </div>
+            </div>
+            <!-- Done -->
+            <div class="kanban-col">
+              <div class="kanban-col-header">
+                <span class="kanban-col-title">Done</span>
+                <span class="kanban-col-count">1</span>
+              </div>
+              <div class="kanban-card" style="opacity: 0.6;">
+                <div class="kanban-card-title">Surface elevation system</div>
+                <div class="kanban-card-meta">
+                  <span class="kanban-card-tag tag-api">api</span>
+                  <span class="kanban-card-priority priority-high"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== LOADING SPINNERS ========== -->
+  <section>
+    <h2 class="section-title">Biomorphic Spinners</h2>
+    <p class="section-subtitle">
+      CSS-only loading animations inspired by organic forms. Blob shapes, fractal rings,
+      breathing dots, and wave rhythms.
+    </p>
+
+    <div class="surface" style="padding: 48px 32px;">
+      <div class="spinner-section">
+        <div class="spinner-container">
+          <div class="spinner-blob">
+            <div class="spinner-blob-shape"></div>
+            <div class="spinner-blob-shape"></div>
+            <div class="spinner-blob-shape"></div>
+          </div>
+          <div class="spinner-label">Organic Rings</div>
+        </div>
+
+        <div class="spinner-container">
+          <div class="spinner-fractal">
+            <div class="fractal-ring"></div>
+            <div class="fractal-ring"></div>
+            <div class="fractal-ring"></div>
+            <div class="fractal-ring"></div>
+          </div>
+          <div class="spinner-label">Fractal Orbit</div>
+        </div>
+
+        <div class="spinner-container">
+          <div class="spinner-breathing">
+            <div class="breathing-blob"></div>
+            <div class="breathing-blob"></div>
+            <div class="breathing-blob"></div>
+          </div>
+          <div class="spinner-label">Breathing</div>
+        </div>
+
+        <div class="spinner-container">
+          <div class="spinner-wave">
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+            <div class="wave-bar"></div>
+          </div>
+          <div class="spinner-label">Wave</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /page-wrapper -->
+
+<!-- ========== JAVASCRIPT ========== -->
+<script>
+(function () {
+  'use strict';
+
+  // Theme toggle
+  const html = document.documentElement;
+  const buttons = document.querySelectorAll('.tod-btn');
+
+  function setTheme(theme) {
+    html.setAttribute('data-theme', theme);
+    buttons.forEach(btn => {
+      const isActive = btn.dataset.themeValue === theme;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-checked', isActive ? 'true' : 'false');
+    });
+    updateSwatchValues();
+  }
+
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => setTheme(btn.dataset.themeValue));
+  });
+
+  // Read computed CSS variable values and display them in swatch labels
+  function updateSwatchValues() {
+    // Small delay to let CSS transition settle for reading computed values
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.swatch-value[data-var]').forEach(el => {
+        const varName = el.dataset.var;
+        const value = getComputedStyle(html).getPropertyValue('--' + varName).trim();
+        el.textContent = value;
+      });
+    });
+  }
+
+  // rgbToHex helper (computed styles return rgb)
+  function rgbToHex(rgb) {
+    const match = rgb.match(/\d+/g);
+    if (!match || match.length < 3) return rgb;
+    return '#' + match.slice(0, 3).map(n => {
+      const hex = parseInt(n, 10).toString(16);
+      return hex.length === 1 ? '0' + hex : hex;
+    }).join('');
+  }
+
+  // Initialize swatch values
+  updateSwatchValues();
+
+  // Smooth entrance animation
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = '1';
+          entry.target.style.transform = 'translateY(0)';
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+  );
+
+  document.querySelectorAll('section').forEach(section => {
+    section.style.opacity = '0';
+    section.style.transform = 'translateY(24px)';
+    section.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+    observer.observe(section);
+  });
+
+  // Make the header visible immediately (no entrance delay)
+  const header = document.querySelector('.header');
+  if (header) {
+    header.style.opacity = '1';
+    header.style.transform = 'translateY(0)';
+  }
+})();
+</script>
+
+</body>
+</html>

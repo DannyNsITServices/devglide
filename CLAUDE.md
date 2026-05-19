@@ -17,8 +17,28 @@ Monorepo managed with **pnpm workspaces** and **Turborepo**.
   All apps/features render within it. It is the container, not an app itself.
 - **Shell** — the MCP server for terminal pane management (`shell_create_pane`,
   `shell_run_command`, etc.). Panes are ephemeral and in-memory.
-- **Apps** — individual features (kanban, voice, test, workflow, etc.) that each
+- **Apps** — individual features (kanban, voice, test, workflow, chat, etc.) that each
   expose both REST routes (mounted by the dashboard) and an MCP server (stdio).
+- **Chat** — the MCP server for multi-LLM communication (`chat_join`,
+  `chat_send`, etc.). Participants and message delivery are in-memory;
+  message history is persisted per-project as JSONL; pipe messages are
+  additionally dual-written to per-pipe JSONL files (`pipes/{pipeId}.jsonl`)
+  for efficient scoped reads. `chat_join` requires an explicit `paneId`,
+  which should be read from `DEVGLIDE_PANE_ID` in the shell session. REST
+  and MCP joins share session state — a REST join with `mcp-session-id`
+  header binds to the MCP session, and MCP tools can adopt REST-joined
+  participants by `paneId`. Pane collisions preserve the existing session
+  (409 `PANE_ALREADY_BOUND`). Chat REST endpoints accept scoped `projectId`
+  overrides, and `POST /api/chat/messages` accepts `projectId` in the body
+  so the dashboard can target a non-active project explicitly. The effective
+  chat rules of engagement are returned on join and can be overridden per
+  project.
+- **Documentation** — the MCP server for operational guidance on DevGlide
+  tools (`docs_list`, `docs_match`, `docs_context`, etc.). Provides tool
+  guides, workflows, examples, troubleshooting entries, and project
+  overrides. Hybrid-scoped: global docs in `~/.devglide/documentation/`,
+  project overrides in `projects/{id}/documentation/`. Seed content is
+  auto-installed on first use.
 
 ## MCP Server Pattern
 
@@ -66,12 +86,16 @@ All runtime state lives in `~/.devglide/`. The directory structure:
 │   ├── logs/                  #   project log files
 │   ├── workflows/             #   project-scoped workflows
 │   ├── vocabulary/            #   project-scoped vocabulary
-│   └── prompts/               #   project-scoped prompts
+│   ├── prompts/               #   project-scoped prompts
+│   ├── chat/                  #   chat message history (messages.jsonl)
+│   │   └── pipes/             #   per-pipe JSONL files ({pipeId}.jsonl)
+│   └── documentation/         #   project-scoped documentation overrides
 ├── voice/                     # global voice config, history, stats
 │   └── config.json
 ├── workflows/                 # global workflows
 ├── vocabulary/                # global vocabulary
 ├── prompts/                   # global prompts
+├── documentation/             # global documentation (tool guides, workflows, etc.)
 ├── logs/                      # server logs
 └── pids/                      # daemon PID files
 ```
@@ -93,6 +117,7 @@ These rules are intentional — do not change an app's scoping without discussio
 | **Test** | `projects/{id}/scenarios.json` | Saved test scenarios |
 | **Log** | `projects/{id}/logs/` | Log file tailing scoped to active project |
 | **Shell** | In-memory | Panes belong to a project session, no disk persistence |
+| **Chat** | `projects/{id}/chat/` | Message history (`messages.jsonl`) and rules override (`rules.md`) per project; participants are in-memory |
 
 ### Hybrid (global + per-project overlay; per-project takes precedence)
 | App | Path | Notes |
@@ -100,6 +125,7 @@ These rules are intentional — do not change an app's scoping without discussio
 | **Workflow** | `~/.devglide/workflows/` + `projects/{id}/workflows/` | Project workflows override global |
 | **Vocabulary** | `~/.devglide/vocabulary/` + `projects/{id}/vocabulary/` | Project terms overlay global |
 | **Prompts** | `~/.devglide/prompts/` + `projects/{id}/prompts/` | Project prompts overlay global |
+| **Documentation** | `~/.devglide/documentation/` + `projects/{id}/documentation/` | Project docs override global by ID; seed content auto-installed |
 
 ## Platform Notes
 

@@ -2,6 +2,10 @@ import fs from 'fs/promises';
 import path from 'path';
 import type { ExecutorFunction, ExecutorResult, NodeConfig, ExecutionContext, SSEEmitter, FileConfig } from '../../types.js';
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 async function safePath(reqPath: string, root: string): Promise<string> {
   const abs = path.resolve(root, reqPath.replace(/^\/+/, ''));
   if (!abs.startsWith(root + path.sep) && abs !== root) throw new Error('Path traversal denied');
@@ -85,6 +89,6 @@ export const fileExecutor: ExecutorFunction = async (
         return { status: 'failed', error: `Unknown file operation: ${(cfg as FileConfig).operation}` };
     }
   } catch (err) {
-    return { status: 'failed', error: (err as Error).message };
+    return { status: 'failed', error: errorMessage(err) };
   }
 };

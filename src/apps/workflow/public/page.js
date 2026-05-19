@@ -3,6 +3,11 @@
 // ES module: mount(container, ctx), unmount(container), onProjectChange(project)
 
 import { escapeHtml } from '/shared-assets/ui-utils.js';
+import { createApi } from '/shared-ui/app-page.js';
+import { showModal as suiShowModal, confirmModal } from '/shared-ui/components/modal.js';
+import { showToast as suiToast, clearToasts } from '/shared-ui/components/toast.js';
+
+const api = createApi('workflow');
 
 let _container = null;
 let _builderModules = null;
@@ -21,16 +26,7 @@ const BODY_HTML = `
     </div>
     <div id="wb-run-view"></div>
   </div>
-  <div class="modal-overlay hidden" id="wf-modal" role="dialog" aria-modal="true">
-    <div class="modal">
-      <div class="modal-header">
-        <h2 class="wf-modal-title"></h2>
-        <div class="modal-desc wf-modal-body"></div>
-      </div>
-      <div class="modal-actions wf-modal-actions"></div>
-    </div>
-  </div>
-  <div class="wf-toast-container" id="wf-toast-container"></div>
+  <!-- Modal and toast provided by shared-ui -->
 `;
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -41,73 +37,30 @@ function $(selector) {
 
 const esc = escapeHtml;
 
-// ── Modal / Toast helpers ───────────────────────────────────────────
+// ── Modal / Toast helpers (delegated to shared-ui) ──────────────────
 
 function showModal(title, bodyHtml, buttons) {
-  return new Promise(resolve => {
-    const overlay = _container?.querySelector('.modal-overlay');
-    if (!overlay) { resolve(null); return; }
-
-    overlay.querySelector('.wf-modal-title').textContent = title;
-    overlay.querySelector('.wf-modal-body').innerHTML = bodyHtml;
-    const actionsEl = overlay.querySelector('.wf-modal-actions');
-    actionsEl.innerHTML = buttons.map(b =>
-      `<button class="${b.cls}" data-value="${b.value}">${b.label}</button>`
-    ).join('');
-
-    overlay.classList.remove('hidden');
-
-    const ac = new AbortController();
-    const close = (value) => {
-      overlay.classList.add('hidden');
-      ac.abort();
-      resolve(value);
-    };
-
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) close(null);
-    }, { signal: ac.signal });
-
-    actionsEl.querySelectorAll('button').forEach(btn => {
-      btn.addEventListener('click', () => close(btn.dataset.value), { signal: ac.signal });
-    });
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') close(null);
-    }, { signal: ac.signal });
+  if (!_container) return Promise.resolve(null);
+  return suiShowModal(_container, {
+    title,
+    body: bodyHtml,
+    buttons: buttons.map(b => ({ key: b.value, label: b.label, cls: b.cls?.replace('btn ', '') || 'btn-secondary' })),
   });
 }
 
 async function wfConfirm(title, message) {
-  const result = await showModal(title, `<p>${esc(message)}</p>`, [
-    { label: 'Cancel', cls: 'btn btn-secondary', value: 'cancel' },
-    { label: 'Delete', cls: 'btn btn-danger', value: 'confirm' },
-  ]);
-  return result === 'confirm';
-}
-
-async function wfAlert(title, bodyHtml) {
-  await showModal(title, bodyHtml, [
-    { label: 'OK', cls: 'btn btn-primary', value: 'ok' },
-  ]);
+  if (!_container) return false;
+  return confirmModal(_container, { title, message: esc(message), confirmLabel: 'Delete', confirmCls: 'btn-danger' });
 }
 
 function wfToast(message, type = 'info') {
-  const container = _container?.querySelector('.wf-toast-container');
-  if (!container) return;
-  const toast = document.createElement('div');
-  toast.className = `wf-toast wf-toast-${type}`;
-  toast.textContent = message;
-  container.appendChild(toast);
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    setTimeout(() => toast.remove(), 300);
-  }, 3000);
+  if (!_container) return;
+  suiToast(_container, message, type);
 }
 
 // ── Builder API ─────────────────────────────────────────────────────
 
-const API = '/api/workflow';
+// API fetch handled by createApi('workflow') — imported above
 
 async function loadBuilderModules() {
   if (_builderModules) return _builderModules;
@@ -175,9 +128,16 @@ function showBuilderList() {
   const builderLayout = $('#wf-builder-layout');
   if (!builderLayout) return;
 
-  builderLayout.innerHTML = `<div id="wb-workflow-list" style="display:flex;flex-direction:column;flex:1;overflow:hidden;"></div>`;
+  builderLayout.replaceChildren();
 
-  const listContainer = builderLayout.querySelector('#wb-workflow-list');
+  const listContainer = document.createElement('div');
+  listContainer.id = 'wb-workflow-list';
+  listContainer.style.display = 'flex';
+  listContainer.style.flexDirection = 'column';
+  listContainer.style.flex = '1';
+  listContainer.style.overflow = 'hidden';
+  builderLayout.appendChild(listContainer);
+
   WorkflowList.mount(listContainer);
   WorkflowList.setConfirm(wfConfirm);
   WorkflowList.setToast(wfToast);
@@ -214,7 +174,7 @@ async function openWorkflowInEditor(wf) {
 
   if (wf) {
     try {
-      const res = await fetch(`${API}/workflows/${wf.id}`);
+      const res = await api(`/workflows/${wf.id}`);
       if (res.ok) {
         WorkflowModel.load(await res.json());
       } else {
@@ -235,14 +195,22 @@ async function openWorkflowInEditor(wf) {
   const builderLayout = $('#wf-builder-layout');
   if (!builderLayout) return;
 
-  builderLayout.innerHTML = `
-    <div class="wb-toolbar" id="wb-toolbar"></div>
-    <div class="wb-main-layout">
-      <div class="wb-canvas-container" id="wb-canvas"></div>
-      <div class="wb-inspector" id="wb-inspector"></div>
-    </div>
-    <div id="wb-run-view"></div>
-  `;
+  builderLayout.replaceChildren();
+  const toolbar = document.createElement('div');
+  toolbar.className = 'wb-toolbar';
+  toolbar.id = 'wb-toolbar';
+  const mainLayout = document.createElement('div');
+  mainLayout.className = 'wb-main-layout';
+  const canvas = document.createElement('div');
+  canvas.className = 'wb-canvas-container';
+  canvas.id = 'wb-canvas';
+  const inspector = document.createElement('div');
+  inspector.className = 'wb-inspector';
+  inspector.id = 'wb-inspector';
+  mainLayout.append(canvas, inspector);
+  const runView = document.createElement('div');
+  runView.id = 'wb-run-view';
+  builderLayout.append(toolbar, mainLayout, runView);
 
   const canvasContainerEl = builderLayout.querySelector('#wb-canvas');
 
@@ -396,22 +364,19 @@ async function saveWorkflow() {
   try {
     let res;
     if (data.id) {
-      res = await fetch(`${API}/workflows/${data.id}`, {
+      res = await api(`/workflows/${data.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
       if (res.status === 404) {
-        res = await fetch(`${API}/workflows`, {
+        res = await api('/workflows', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data),
         });
       }
     } else {
-      res = await fetch(`${API}/workflows`, {
+      res = await api('/workflows', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
     }
@@ -631,7 +596,7 @@ function teardownKeyboardShortcuts() {
 export function mount(container, ctx) {
   _container = container;
 
-  container.classList.add('page-workflow');
+  container.classList.add('page-workflow', 'app-page');
   container.innerHTML = BODY_HTML;
 
   setupKeyboardShortcuts();
@@ -642,7 +607,7 @@ export function unmount(container) {
   unmountBuilder();
   teardownKeyboardShortcuts();
 
-  container.classList.remove('page-workflow');
+  container.classList.remove('page-workflow', 'app-page');
   container.innerHTML = '';
 
   _container = null;

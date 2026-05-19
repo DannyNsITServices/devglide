@@ -1,0 +1,27 @@
+{
+  "id": "ts-navigate-reload",
+  "type": "troubleshooting",
+  "toolName": "devglide-test",
+  "symptom": "navigate causes reload and context loss",
+  "likelyCauses": [
+    "The scenario uses a navigate step that triggers a full page reload instead of client-side routing.",
+    "The app is a single-page app (SPA) but the navigate step goes to a different origin or uses a full URL that bypasses the client router.",
+    "React or framework state (form data, auth tokens, component state) is lost on full reload.",
+    "devtools.js must re-initialize after a full page reload, causing a gap in the polling loop."
+  ],
+  "howToDiagnose": [
+    "Check the scenario steps — is there a navigate command mid-flow?",
+    "Check if the app uses client-side routing (React Router, Next.js, etc.).",
+    "Look at the browser network tab to confirm whether a full page load occurred."
+  ],
+  "howToFix": [
+    "Replace navigate steps with click-based navigation. Click the link, button, or menu item that the user would click to reach that page.",
+    "If a navigate is necessary (e.g. initial page load), keep it as the first step only.",
+    "For SPAs, ensure the navigate URL uses the same origin and lets the client router handle routing.",
+    "If form state is lost: restructure the scenario to complete one form before navigating away."
+  ],
+  "whenToRetry": "After rewriting the scenario to use click-based navigation instead of navigate steps.",
+  "tags": ["test", "navigate", "reload", "spa", "state-loss"],
+  "createdAt": "2026-03-24T00:00:00.000Z",
+  "updatedAt": "2026-03-24T00:00:00.000Z"
+}

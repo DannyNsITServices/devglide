@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createWorkflowMcpServer } from "../mcp.js";
+import { createWorkflowMcpServer } from "./mcp.js";
 import { runStdio } from "../../../packages/mcp-utils/src/index.js";
 
 // ── Stdio MCP mode ──────────────────────────────────────────────────────────

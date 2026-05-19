@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import type { ColumnRow, IssueRow } from "./db.js";
+import { KANBAN_DEFAULT_COLUMNS } from "../../../packages/shared-types/src/index.js";
 
 /** Convert literal escape sequences (\n, \t) to real characters. */
 export function normalizeEscapes(text: string): string {
@@ -8,14 +9,7 @@ export function normalizeEscapes(text: string): string {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-export const DEFAULT_COLUMNS = [
-  { name: "Backlog", color: "#64748b", order: 0 },
-  { name: "Todo", color: "#3b82f6", order: 1 },
-  { name: "In Progress", color: "#f59e0b", order: 2 },
-  { name: "In Review", color: "#8b5cf6", order: 3 },
-  { name: "Testing", color: "#14b8a6", order: 4 },
-  { name: "Done", color: "#22c55e", order: 5 },
-];
+export const DEFAULT_COLUMNS = KANBAN_DEFAULT_COLUMNS;
 
 // ── Row mappers ──────────────────────────────────────────────────────────────
 // Remap internal "projectId" column to external "featureId" for MCP consumers.
@@ -50,6 +44,28 @@ export function resolveColumnId(
     .prepare('SELECT id FROM "Column" WHERE projectId = ? AND name = ?')
     .get(featureId, columnName) as { id: string } | undefined;
   return col?.id ?? null;
+}
+
+// ── FTS query sanitization ───────────────────────────────────────────────────
+
+/**
+ * Sanitize a plain-text search query for safe use with SQLite FTS5 MATCH.
+ * Strips FTS5 operators and special characters that could cause parser errors,
+ * then wraps each remaining token with `"..."` to force literal matching.
+ * Returns null if the query produces no usable tokens.
+ */
+export function sanitizeFtsQuery(raw: string): string | null {
+  // Remove characters that are FTS5 syntax: " ( ) { } * ^
+  const stripped = raw.replace(/["""(){}*^]/g, ' ');
+  // Split into tokens, drop FTS5 keywords used as bare operators
+  const ftsKeywords = new Set(['AND', 'OR', 'NOT', 'NEAR']);
+  const tokens = stripped
+    .split(/\s+/)
+    .map(t => t.trim())
+    .filter(t => t.length > 0 && !ftsKeywords.has(t.toUpperCase()));
+  if (tokens.length === 0) return null;
+  // Quote each token for literal matching
+  return tokens.map(t => `"${t}"`).join(' ');
 }
 
 const DESC_TRUNCATE_LEN = 200;

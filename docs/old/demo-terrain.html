@@ -1,0 +1,2029 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="rich">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevGlide — Terrain Design System</title>
+
+<!-- Fonts: Newsreader (display), Source Sans 3 (body), JetBrains Mono (code) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/newsreader@5/latin-400.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/newsreader@5/latin-400-italic.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/newsreader@5/latin-500.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/newsreader@5/latin-600.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/newsreader@5/latin-700.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/source-sans-3@5/latin-300.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/source-sans-3@5/latin-400.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/source-sans-3@5/latin-500.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/source-sans-3@5/latin-600.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5/latin-400.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5/latin-500.css">
+
+<style>
+/* =====================================================================
+   T E R R A I N  — E-Ink Inspired Hybrid Design System
+   A warm, tactile, paper-forward aesthetic for DevGlide
+   ===================================================================== */
+
+/* --- SVG Noise Filter (referenced in CSS as url(#paperGrain)) --- */
+
+:root {
+  --font-display: 'Newsreader', 'Georgia', 'Times New Roman', serif;
+  --font-body: 'Source Sans 3', 'Source Sans Pro', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+  --text-xs:   clamp(0.625rem, 0.58rem + 0.2vw, 0.6875rem);
+  --text-sm:   clamp(0.75rem, 0.7rem + 0.2vw, 0.8125rem);
+  --text-base: clamp(0.8125rem, 0.75rem + 0.25vw, 0.9375rem);
+  --text-lg:   clamp(1rem, 0.9rem + 0.3vw, 1.125rem);
+  --text-xl:   clamp(1.25rem, 1.1rem + 0.4vw, 1.5rem);
+  --text-2xl:  clamp(1.5rem, 1.3rem + 0.6vw, 2rem);
+  --text-3xl:  clamp(2rem, 1.7rem + 0.8vw, 2.75rem);
+  --text-4xl:  clamp(2.5rem, 2rem + 1.2vw, 3.5rem);
+  --text-5xl:  clamp(3rem, 2.5rem + 1.5vw, 4.5rem);
+
+  --sp-1: 0.25rem; --sp-2: 0.5rem; --sp-3: 0.75rem; --sp-4: 1rem;
+  --sp-5: 1.25rem; --sp-6: 1.5rem; --sp-8: 2rem; --sp-10: 2.5rem;
+  --sp-12: 3rem; --sp-16: 4rem; --sp-20: 5rem; --sp-24: 6rem;
+
+  --duration-fast: 100ms;
+  --duration-base: 200ms;
+  --duration-slow: 350ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-organic: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+}
+
+
+/* =====================================================================
+   RICH MODE — Full Color, Warm Parchment
+   ===================================================================== */
+
+[data-mode="rich"] {
+  --color-bg-base:     #f0ebe3;
+  --color-bg-surface:  #e8e2d8;
+  --color-bg-raised:   #faf6ef;
+  --color-bg-overlay:  rgba(240, 235, 227, 0.95);
+  --color-bg-sidebar:  #e0d8cc;
+  --color-bg-hover:    #e5ded4;
+  --color-bg-active:   #ddd5c8;
+  --color-bg-sunken:   #ddd6ca;
+
+  --color-text-primary:   #2c2418;
+  --color-text-secondary: #6b5e4f;
+  --color-text-muted:     #9a8e7f;
+  --color-text-on-accent: #faf6ef;
+
+  --color-accent:        #5c7a3d;
+  --color-accent-hover:  #4e6a32;
+  --color-accent-dim:    #6d8a4e;
+  --color-accent-muted:  rgba(92, 122, 61, 0.12);
+  --color-accent-subtle: rgba(92, 122, 61, 0.06);
+  --color-accent-text:   #4a6830;
+
+  --color-secondary:        #8b6834;
+  --color-secondary-hover:  #7a5a2a;
+  --color-secondary-muted:  rgba(139, 104, 52, 0.12);
+  --color-secondary-text:   #7a5a2a;
+
+  --color-border:        rgba(60, 48, 30, 0.12);
+  --color-border-strong: rgba(60, 48, 30, 0.22);
+  --color-border-subtle: rgba(60, 48, 30, 0.07);
+
+  --color-success:     #5c7a3d;
+  --color-success-bg:  rgba(92, 122, 61, 0.10);
+  --color-error:       #a0413a;
+  --color-error-bg:    rgba(160, 65, 58, 0.10);
+  --color-warning:     #b8862e;
+  --color-warning-bg:  rgba(184, 134, 46, 0.10);
+  --color-info:        #4a6f8a;
+  --color-info-bg:     rgba(74, 111, 138, 0.10);
+
+  --shadow-sm: 0 1px 3px rgba(60, 48, 30, 0.08), 0 1px 2px rgba(60, 48, 30, 0.04);
+  --shadow-md: 0 4px 12px rgba(60, 48, 30, 0.08), 0 2px 4px rgba(60, 48, 30, 0.04);
+  --shadow-lg: 0 8px 24px rgba(60, 48, 30, 0.10), 0 4px 8px rgba(60, 48, 30, 0.05);
+  --shadow-card: 0 2px 8px rgba(60, 48, 30, 0.06), 0 1px 3px rgba(60, 48, 30, 0.04);
+
+  /* Organic imperfection shadows — simulate uneven hand-made borders */
+  --shadow-organic:
+    0 1px 2px rgba(60, 48, 30, 0.08),
+    1px 0 3px rgba(60, 48, 30, 0.04),
+    -1px 1px 2px rgba(60, 48, 30, 0.06),
+    0 -1px 1px rgba(60, 48, 30, 0.03);
+  --shadow-organic-hover:
+    0 2px 6px rgba(60, 48, 30, 0.10),
+    2px 1px 4px rgba(60, 48, 30, 0.06),
+    -1px 2px 5px rgba(60, 48, 30, 0.08),
+    0 -1px 2px rgba(60, 48, 30, 0.04);
+
+  --grain-opacity: 0.35;
+}
+
+
+/* =====================================================================
+   COMFORT MODE — E-Ink, Near-Monochrome Sepia
+   ===================================================================== */
+
+[data-mode="comfort"] {
+  --color-bg-base:     #f5eed8;
+  --color-bg-surface:  #ede6d0;
+  --color-bg-raised:   #f9f3df;
+  --color-bg-overlay:  rgba(245, 238, 216, 0.97);
+  --color-bg-sidebar:  #e6dfca;
+  --color-bg-hover:    #eae3cd;
+  --color-bg-active:   #e2dbc5;
+  --color-bg-sunken:   #e2dbc5;
+
+  --color-text-primary:   #4a4035;
+  --color-text-secondary: #7a6e5e;
+  --color-text-muted:     #a39580;
+  --color-text-on-accent: #f9f3df;
+
+  --color-accent:        #7a6a52;
+  --color-accent-hover:  #6a5a42;
+  --color-accent-dim:    #8a7a62;
+  --color-accent-muted:  rgba(122, 106, 82, 0.12);
+  --color-accent-subtle: rgba(122, 106, 82, 0.06);
+  --color-accent-text:   #6a5a42;
+
+  --color-secondary:        #8a7a62;
+  --color-secondary-hover:  #7a6a52;
+  --color-secondary-muted:  rgba(138, 122, 98, 0.12);
+  --color-secondary-text:   #7a6a52;
+
+  --color-border:        rgba(80, 65, 42, 0.10);
+  --color-border-strong: rgba(80, 65, 42, 0.18);
+  --color-border-subtle: rgba(80, 65, 42, 0.06);
+
+  --color-success:     #6a6048;
+  --color-success-bg:  rgba(106, 96, 72, 0.08);
+  --color-error:       #8a6a5a;
+  --color-error-bg:    rgba(138, 106, 90, 0.08);
+  --color-warning:     #9a8560;
+  --color-warning-bg:  rgba(154, 133, 96, 0.08);
+  --color-info:        #6a7a78;
+  --color-info-bg:     rgba(106, 122, 120, 0.08);
+
+  --shadow-sm: 0 1px 2px rgba(80, 65, 42, 0.06);
+  --shadow-md: 0 2px 6px rgba(80, 65, 42, 0.06);
+  --shadow-lg: 0 4px 12px rgba(80, 65, 42, 0.06);
+  --shadow-card: 0 1px 4px rgba(80, 65, 42, 0.05);
+  --shadow-organic: 0 1px 2px rgba(80, 65, 42, 0.05);
+  --shadow-organic-hover: 0 1px 3px rgba(80, 65, 42, 0.06);
+
+  --grain-opacity: 0.25;
+}
+
+/* Comfort mode: kill ALL animations and transitions */
+[data-mode="comfort"] *,
+[data-mode="comfort"] *::before,
+[data-mode="comfort"] *::after {
+  animation: none !important;
+  animation-duration: 0s !important;
+  transition: none !important;
+  transition-duration: 0s !important;
+}
+
+
+/* =====================================================================
+   RESET & BASE
+   ===================================================================== */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  font-weight: 400;
+  line-height: 1.65;
+  color: var(--color-text-primary);
+  background: var(--color-bg-base);
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Paper grain overlay on body */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: var(--grain-opacity);
+  filter: url(#paperGrain);
+  background: transparent;
+  mix-blend-mode: multiply;
+}
+
+
+/* =====================================================================
+   TYPOGRAPHY
+   ===================================================================== */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+}
+
+h1 { font-size: var(--text-4xl); font-weight: 700; }
+h2 { font-size: var(--text-3xl); }
+h3 { font-size: var(--text-2xl); }
+h4 { font-size: var(--text-xl); }
+h5 { font-size: var(--text-lg); font-weight: 500; }
+h6 { font-size: var(--text-base); font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; }
+
+p {
+  margin-bottom: var(--sp-4);
+  color: var(--color-text-secondary);
+}
+
+a {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+a:hover {
+  color: var(--color-accent);
+}
+
+code, pre {
+  font-family: var(--font-mono);
+}
+
+code {
+  font-size: 0.88em;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.15em 0.4em;
+  color: var(--color-text-primary);
+}
+
+pre {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-4) var(--sp-5);
+  overflow-x: auto;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  box-shadow: var(--shadow-card);
+  position: relative;
+}
+pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+blockquote {
+  border-left: 3px solid var(--color-secondary);
+  padding: var(--sp-3) var(--sp-5);
+  margin: var(--sp-6) 0;
+  background: var(--color-accent-subtle);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--text-lg);
+  color: var(--color-text-secondary);
+}
+
+
+/* =====================================================================
+   PAGE LAYOUT
+   ===================================================================== */
+
+.page-wrapper {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--sp-8) var(--sp-6);
+}
+
+.section {
+  margin-bottom: var(--sp-16);
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  margin-bottom: var(--sp-2);
+  color: var(--color-text-primary);
+  position: relative;
+  display: inline-block;
+}
+.section-title::after {
+  content: '';
+  display: block;
+  width: 40px;
+  height: 2px;
+  background: var(--color-accent);
+  margin-top: var(--sp-2);
+  border-radius: 1px;
+  opacity: 0.7;
+}
+
+.section-subtitle {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--color-text-muted);
+  margin-bottom: var(--sp-8);
+  font-weight: 400;
+}
+
+
+/* =====================================================================
+   HERO / HEADER
+   ===================================================================== */
+
+.hero {
+  text-align: center;
+  padding: var(--sp-16) var(--sp-6) var(--sp-12);
+  position: relative;
+}
+
+.hero-title {
+  font-family: var(--font-display);
+  font-size: var(--text-5xl);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: -0.02em;
+  margin-bottom: var(--sp-3);
+  line-height: 1.1;
+}
+
+.hero-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  margin-left: 4px;
+  vertical-align: super;
+  font-size: 0;
+}
+
+.hero-tagline {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--text-xl);
+  color: var(--color-text-secondary);
+  max-width: 560px;
+  margin: 0 auto var(--sp-8);
+  line-height: 1.5;
+}
+
+.hero-rule {
+  width: 80px;
+  height: 1px;
+  background: var(--color-border-strong);
+  border: none;
+  margin: 0 auto var(--sp-6);
+}
+
+.hero-description {
+  font-size: var(--text-base);
+  color: var(--color-text-muted);
+  max-width: 500px;
+  margin: 0 auto;
+  line-height: 1.7;
+}
+
+
+/* =====================================================================
+   MODE TOGGLE
+   ===================================================================== */
+
+.mode-toggle {
+  display: flex;
+  justify-content: center;
+  gap: var(--sp-1);
+  margin: var(--sp-8) auto;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 3px;
+  width: fit-content;
+  box-shadow: var(--shadow-sm);
+}
+
+.mode-toggle-btn {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  padding: var(--sp-2) var(--sp-5);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--duration-base) var(--ease-out);
+  letter-spacing: 0.02em;
+  position: relative;
+}
+.mode-toggle-btn:hover {
+  color: var(--color-text-secondary);
+  background: var(--color-bg-hover);
+}
+.mode-toggle-btn.active {
+  background: var(--color-bg-raised);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.mode-toggle-icon {
+  display: inline-block;
+  margin-right: var(--sp-1);
+  font-size: var(--text-sm);
+  vertical-align: -1px;
+}
+
+
+/* =====================================================================
+   DESIGN PRINCIPLES
+   ===================================================================== */
+
+.principles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--sp-6);
+}
+
+.principle-card {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-6);
+  box-shadow: var(--shadow-organic);
+  position: relative;
+  transition: box-shadow var(--duration-slow) var(--ease-out),
+              transform var(--duration-slow) var(--ease-out);
+}
+.principle-card:hover {
+  box-shadow: var(--shadow-organic-hover);
+  transform: translateY(-1px);
+}
+
+.principle-number {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  color: var(--color-accent-muted);
+  line-height: 1;
+  margin-bottom: var(--sp-2);
+  /* Give it an organic offset */
+  display: inline-block;
+  transform: rotate(-2deg);
+}
+[data-mode="comfort"] .principle-number {
+  transform: none;
+}
+
+.principle-title {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  margin-bottom: var(--sp-2);
+}
+
+.principle-text {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.65;
+  margin-bottom: 0;
+}
+
+
+/* =====================================================================
+   COLOR SWATCHES
+   ===================================================================== */
+
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--sp-4);
+}
+
+.swatch {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+  background: var(--color-bg-raised);
+  transition: box-shadow var(--duration-base) var(--ease-out);
+}
+.swatch:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.swatch-color {
+  height: 64px;
+  position: relative;
+}
+/* Paper texture on every swatch */
+.swatch-color::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.15;
+  filter: url(#paperGrain);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.swatch-info {
+  padding: var(--sp-3);
+}
+.swatch-name {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.swatch-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+
+/* =====================================================================
+   TYPOGRAPHY SHOWCASE
+   ===================================================================== */
+
+.type-specimen {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-8);
+  box-shadow: var(--shadow-card);
+  margin-bottom: var(--sp-6);
+}
+
+.type-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: var(--sp-3);
+}
+
+.type-display {
+  font-family: var(--font-display);
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--color-text-primary);
+  margin-bottom: var(--sp-2);
+}
+
+.type-body {
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: 1.7;
+  max-width: 65ch;
+}
+
+.type-code-block {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  line-height: 1.6;
+}
+
+.type-scale {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+.type-scale-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-4);
+}
+.type-scale-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  min-width: 70px;
+  flex-shrink: 0;
+}
+.type-scale-sample {
+  font-family: var(--font-display);
+  color: var(--color-text-primary);
+}
+
+
+/* =====================================================================
+   COMPONENTS — BUTTONS
+   ===================================================================== */
+
+.component-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  align-items: center;
+  margin-bottom: var(--sp-6);
+}
+
+.btn {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  padding: var(--sp-2) var(--sp-5);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  transition: all var(--duration-base) var(--ease-out);
+  position: relative;
+  box-shadow: var(--shadow-organic);
+  letter-spacing: 0.01em;
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  border-color: var(--color-accent);
+}
+.btn-primary:hover {
+  background: var(--color-accent-hover);
+  box-shadow: var(--shadow-organic-hover);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: var(--color-bg-raised);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+}
+.btn-secondary:hover {
+  background: var(--color-bg-hover);
+  box-shadow: var(--shadow-organic-hover);
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border-color: transparent;
+  box-shadow: none;
+}
+.btn-ghost:hover {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-text);
+}
+
+.btn-ochre {
+  background: var(--color-secondary);
+  color: var(--color-text-on-accent);
+  border-color: var(--color-secondary);
+}
+.btn-ochre:hover {
+  background: var(--color-secondary-hover);
+  box-shadow: var(--shadow-organic-hover);
+  transform: translateY(-1px);
+}
+
+.btn-sm {
+  font-size: var(--text-xs);
+  padding: var(--sp-1) var(--sp-3);
+}
+.btn-lg {
+  font-size: var(--text-base);
+  padding: var(--sp-3) var(--sp-6);
+}
+
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+}
+
+
+/* =====================================================================
+   COMPONENTS — INPUTS
+   ===================================================================== */
+
+.input-group {
+  margin-bottom: var(--sp-4);
+}
+
+.input-label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin-bottom: var(--sp-1);
+}
+
+.input-hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.input {
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  width: 100%;
+  max-width: 360px;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-organic);
+  transition: border-color var(--duration-fast) var(--ease-out),
+              box-shadow var(--duration-fast) var(--ease-out);
+  outline: none;
+}
+.input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-muted);
+}
+.input::placeholder {
+  color: var(--color-text-muted);
+}
+
+textarea.input {
+  min-height: 80px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.input-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%236b5e4f' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 32px;
+}
+
+
+/* =====================================================================
+   COMPONENTS — BADGES
+   ===================================================================== */
+
+.badge {
+  font-family: var(--font-body);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  padding: 2px var(--sp-2);
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+
+.badge-default {
+  background: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
+}
+.badge-accent {
+  background: var(--color-accent-muted);
+  color: var(--color-accent-text);
+  border-color: rgba(92, 122, 61, 0.2);
+}
+.badge-ochre {
+  background: var(--color-secondary-muted);
+  color: var(--color-secondary-text);
+  border-color: rgba(139, 104, 52, 0.2);
+}
+.badge-error {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+  border-color: rgba(160, 65, 58, 0.2);
+}
+.badge-info {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  border-color: rgba(74, 111, 138, 0.2);
+}
+.badge-success {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  border-color: rgba(92, 122, 61, 0.2);
+}
+.badge-warning {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  border-color: rgba(184, 134, 46, 0.2);
+}
+
+
+/* =====================================================================
+   COMPONENTS — TOASTS
+   ===================================================================== */
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-4) var(--sp-5);
+  box-shadow: var(--shadow-lg);
+  max-width: 380px;
+  margin-bottom: var(--sp-3);
+  position: relative;
+}
+.toast::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+}
+.toast-success::before { background: var(--color-success); }
+.toast-error::before { background: var(--color-error); }
+.toast-warning::before { background: var(--color-warning); }
+.toast-info::before { background: var(--color-info); }
+
+.toast-icon {
+  font-size: var(--text-lg);
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.toast-success .toast-icon { color: var(--color-success); }
+.toast-error .toast-icon { color: var(--color-error); }
+.toast-warning .toast-icon { color: var(--color-warning); }
+.toast-info .toast-icon { color: var(--color-info); }
+
+.toast-content {
+  flex: 1;
+}
+.toast-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 2px;
+}
+.toast-message {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin-bottom: 0;
+}
+
+
+/* =====================================================================
+   HAND-DRAWN BORDERS DEMO
+   ===================================================================== */
+
+.hand-drawn-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-6);
+}
+
+.hand-drawn-card {
+  background: var(--color-bg-raised);
+  padding: var(--sp-5);
+  position: relative;
+  border-radius: var(--radius-md);
+}
+
+/* Simulate uneven hand-drawn borders with multiple box-shadows */
+.hand-drawn-card.style-a {
+  box-shadow:
+    inset 0 0 0 1px rgba(60, 48, 30, 0.12),
+    inset 2px 0 0 0 rgba(60, 48, 30, 0.06),
+    inset -1px 0 0 0 rgba(60, 48, 30, 0.09),
+    inset 0 2px 0 0 rgba(60, 48, 30, 0.05),
+    inset 0 -2px 0 0 rgba(60, 48, 30, 0.08),
+    0 2px 8px rgba(60, 48, 30, 0.06);
+  border-radius: 6px 10px 8px 12px;
+}
+
+.hand-drawn-card.style-b {
+  box-shadow:
+    inset 0 0 0 1px rgba(60, 48, 30, 0.10),
+    inset -2px 1px 0 0 rgba(60, 48, 30, 0.07),
+    inset 1px -1px 0 0 rgba(60, 48, 30, 0.05),
+    inset 0 3px 0 0 rgba(60, 48, 30, 0.04),
+    inset 0 -1px 0 0 rgba(60, 48, 30, 0.09),
+    0 3px 10px rgba(60, 48, 30, 0.05);
+  border-radius: 10px 6px 12px 8px;
+}
+
+.hand-drawn-card.style-c {
+  box-shadow:
+    inset 0 0 0 1.5px rgba(60, 48, 30, 0.11),
+    inset 1px 2px 0 0 rgba(60, 48, 30, 0.05),
+    inset -2px -1px 0 0 rgba(60, 48, 30, 0.07),
+    inset 0 -3px 0 0 rgba(60, 48, 30, 0.03),
+    inset 3px 0 0 0 rgba(60, 48, 30, 0.06),
+    0 1px 6px rgba(60, 48, 30, 0.07);
+  border-radius: 8px 12px 6px 10px;
+}
+
+.hand-drawn-label {
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: var(--sp-2);
+}
+.hand-drawn-text {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  line-height: 1.55;
+  margin-bottom: 0;
+}
+
+
+/* =====================================================================
+   DASHBOARD MOCKUP
+   ===================================================================== */
+
+.dashboard-frame {
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  background: var(--color-bg-base);
+  margin-top: var(--sp-4);
+}
+
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 420px;
+}
+
+/* Sidebar with linen texture */
+.dashboard-sidebar {
+  background: var(--color-bg-sidebar);
+  border-right: 1px solid var(--color-border);
+  padding: var(--sp-5) 0;
+  position: relative;
+}
+/* Linen texture overlay */
+.dashboard-sidebar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.20;
+  filter: url(#linenGrain);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.sidebar-brand {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  padding: 0 var(--sp-5) var(--sp-5);
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-bottom: var(--sp-3);
+}
+
+.sidebar-section-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: var(--sp-3) var(--sp-5) var(--sp-1);
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-5);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  border-left: 3px solid transparent;
+  position: relative;
+}
+.sidebar-item:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+.sidebar-item.active {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-text);
+  border-left-color: var(--color-accent);
+  font-weight: 500;
+}
+.sidebar-icon {
+  width: 16px;
+  text-align: center;
+  opacity: 0.7;
+}
+
+/* Kanban area */
+.dashboard-main {
+  padding: var(--sp-5);
+  background: var(--color-bg-base);
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-5);
+}
+.dashboard-title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 600;
+}
+.dashboard-title::after { display: none; }
+
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-3);
+  min-height: 280px;
+}
+
+.kanban-column {
+  background: var(--color-bg-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-3);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.kanban-col-header {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  padding-bottom: var(--sp-2);
+  margin-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--color-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.kanban-count {
+  font-weight: 400;
+  background: var(--color-bg-raised);
+  border-radius: var(--radius-sm);
+  padding: 0 6px;
+  font-size: 10px;
+}
+
+.kanban-card {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
+  margin-bottom: var(--sp-2);
+  box-shadow: var(--shadow-organic);
+  transition: box-shadow var(--duration-base) var(--ease-out),
+              transform var(--duration-base) var(--ease-out);
+  cursor: default;
+  position: relative;
+}
+.kanban-card:hover {
+  box-shadow: var(--shadow-organic-hover);
+  transform: translateY(-1px);
+}
+
+/* Paper texture on every kanban card */
+.kanban-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0.12;
+  filter: url(#paperGrain);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.kanban-card-title {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+.kanban-card-meta {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+
+/* =====================================================================
+   READING BLOCK
+   ===================================================================== */
+
+.reading-block {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--sp-10) var(--sp-8);
+  box-shadow: var(--shadow-card);
+  max-width: 680px;
+  margin: 0 auto;
+  position: relative;
+}
+/* Paper texture on reading block */
+.reading-block::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0.18;
+  filter: url(#paperGrain);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.reading-title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: var(--sp-2);
+  letter-spacing: -0.01em;
+}
+.reading-meta {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin-bottom: var(--sp-6);
+}
+.reading-body {
+  font-size: var(--text-base);
+  color: var(--color-text-secondary);
+  line-height: 1.78;
+  text-align: left;
+}
+.reading-body p {
+  margin-bottom: var(--sp-4);
+  text-indent: 1.5em;
+}
+.reading-body p:first-child {
+  text-indent: 0;
+}
+.reading-body p:first-child::first-letter {
+  font-family: var(--font-display);
+  font-size: 3.2em;
+  float: left;
+  line-height: 0.85;
+  margin-right: 0.08em;
+  margin-top: 0.05em;
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
+
+
+/* =====================================================================
+   FOOTER
+   ===================================================================== */
+
+.page-footer {
+  text-align: center;
+  padding: var(--sp-12) var(--sp-6) var(--sp-8);
+  border-top: 1px solid var(--color-border-subtle);
+  margin-top: var(--sp-16);
+}
+.footer-brand {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: var(--sp-1);
+}
+.footer-text {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-bottom: 0;
+}
+
+
+/* =====================================================================
+   UTILITY CLASSES
+   ===================================================================== */
+
+.mt-1 { margin-top: var(--sp-1); }
+.mt-2 { margin-top: var(--sp-2); }
+.mt-3 { margin-top: var(--sp-3); }
+.mt-4 { margin-top: var(--sp-4); }
+.mt-6 { margin-top: var(--sp-6); }
+.mt-8 { margin-top: var(--sp-8); }
+.mb-1 { margin-bottom: var(--sp-1); }
+.mb-2 { margin-bottom: var(--sp-2); }
+.mb-3 { margin-bottom: var(--sp-3); }
+.mb-4 { margin-bottom: var(--sp-4); }
+.mb-6 { margin-bottom: var(--sp-6); }
+.mb-8 { margin-bottom: var(--sp-8); }
+.text-center { text-align: center; }
+.text-muted { color: var(--color-text-muted); }
+.flex-gap-2 { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.flex-gap-3 { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-6); }
+
+/* Divider */
+.divider {
+  border: none;
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--sp-8) 0;
+}
+
+/* Subtle pulse animation for Rich mode only */
+@keyframes gentle-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+[data-mode="rich"] .pulse {
+  animation: gentle-pulse 3s ease-in-out infinite;
+}
+
+/* Fade-in on scroll (Rich mode only) */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+[data-mode="rich"] .fade-in {
+  opacity: 0;
+  animation: fadeInUp 0.5s var(--ease-out) forwards;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .dashboard-layout {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-sidebar {
+    display: none;
+  }
+  .kanban-board {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+  .hero {
+    padding: var(--sp-10) var(--sp-4) var(--sp-8);
+  }
+  .reading-block {
+    padding: var(--sp-6) var(--sp-5);
+  }
+}
+
+@media (max-width: 480px) {
+  .kanban-board {
+    grid-template-columns: 1fr;
+  }
+  .swatch-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+</style>
+</head>
+
+<body>
+
+<!-- ================================================================
+     SVG FILTERS — Paper grain & linen texture
+     ================================================================ -->
+<svg width="0" height="0" style="position:absolute;pointer-events:none">
+  <defs>
+    <!-- Paper grain: fine, organic noise -->
+    <filter id="paperGrain" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch" result="noise" />
+      <feColorMatrix type="saturate" values="0" in="noise" result="monoNoise" />
+      <feBlend in="SourceGraphic" in2="monoNoise" mode="multiply" />
+    </filter>
+    <!-- Linen grain: coarser, more directional -->
+    <filter id="linenGrain" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.55 0.9" numOctaves="3" stitchTiles="stitch" result="noise" />
+      <feColorMatrix type="saturate" values="0" in="noise" result="monoNoise" />
+      <feBlend in="SourceGraphic" in2="monoNoise" mode="multiply" />
+    </filter>
+  </defs>
+</svg>
+
+
+<!-- ================================================================
+     HERO
+     ================================================================ -->
+<div class="page-wrapper">
+
+  <section class="hero">
+    <h1 class="hero-title">Terrain<span class="hero-dot"></span></h1>
+    <p class="hero-tagline">
+      An e-ink inspired design system for tools that respect your eyes, your focus, and the quiet beauty of paper.
+    </p>
+    <hr class="hero-rule">
+    <p class="hero-description">
+      Terrain brings warmth and tactility to developer interfaces. Surfaces feel like paper.
+      Colors draw from earth and foliage. Comfort mode strips everything to near-monochrome sepia
+      for distraction-free reading.
+    </p>
+
+    <!-- Mode Toggle -->
+    <div class="mode-toggle">
+      <button class="mode-toggle-btn active" data-mode-select="rich" onclick="setMode('rich')">
+        <span class="mode-toggle-icon">&#9788;</span>Rich
+      </button>
+      <button class="mode-toggle-btn" data-mode-select="comfort" onclick="setMode('comfort')">
+        <span class="mode-toggle-icon">&#9790;</span>Comfort
+      </button>
+    </div>
+  </section>
+
+
+  <!-- ================================================================
+       DESIGN PRINCIPLES
+       ================================================================ -->
+  <section class="section">
+    <h2 class="section-title">Design Principles</h2>
+    <p class="section-subtitle">The ideas that shape every surface, color, and interaction in Terrain.</p>
+
+    <div class="principles-grid">
+      <div class="principle-card">
+        <div class="principle-number">01</div>
+        <h4 class="principle-title">Paper First</h4>
+        <p class="principle-text">
+          Every surface carries a grain. Backgrounds feel like parchment, cards like index stock.
+          The screen becomes a desk covered in well-loved notebooks.
+        </p>
+      </div>
+      <div class="principle-card">
+        <div class="principle-number">02</div>
+        <h4 class="principle-title">Organic Imperfection</h4>
+        <p class="principle-text">
+          Borders are intentionally uneven. Shadows fall naturally. Nothing is pixel-perfect because
+          real materials never are. Warmth lives in the details.
+        </p>
+      </div>
+      <div class="principle-card">
+        <div class="principle-number">03</div>
+        <h4 class="principle-title">Dual Personality</h4>
+        <p class="principle-text">
+          Rich mode offers subtle earthy colors and gentle animations. Comfort mode collapses to
+          near-monochrome sepia, zero motion, e-ink contrast. Same content, two temperaments.
+        </p>
+      </div>
+      <div class="principle-card">
+        <div class="principle-number">04</div>
+        <h4 class="principle-title">Eye Kindness</h4>
+        <p class="principle-text">
+          Near-zero blue light in Comfort mode. Warm tones everywhere. Contrast tuned for extended
+          reading without fatigue. Your eyes will thank you at midnight.
+        </p>
+      </div>
+      <div class="principle-card">
+        <div class="principle-number">05</div>
+        <h4 class="principle-title">Earth Palette</h4>
+        <p class="principle-text">
+          Colors pulled from forest floors and autumn fields. Olive greens, warm ochres, brick reds.
+          No neon, no electric blue, no synthetic palette.
+        </p>
+      </div>
+      <div class="principle-card">
+        <div class="principle-number">06</div>
+        <h4 class="principle-title">Serif Confidence</h4>
+        <p class="principle-text">
+          Display text wears Newsreader, a beautiful transitional serif that feels at home on paper.
+          Body text stays clean with Source Sans. Code stays sharp in JetBrains Mono.
+        </p>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ================================================================
+       COLOR PALETTE
+       ================================================================ -->
+  <section class="section">
+    <h2 class="section-title">Color Palette</h2>
+    <p class="section-subtitle">Earthy, warm, grounded. Colors shift to sepia-only in Comfort mode.</p>
+
+    <h6 class="mb-3">Surfaces</h6>
+    <div class="swatch-grid mb-6">
+      <div class="swatch">
+        <div class="swatch-color" style="background:var(--color-bg-base)"></div>
+        <div class="swatch-info"><div class="swatch-name">Base</div><div class="swatch-value">#f0ebe3</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:var(--color-bg-surface)"></div>
+        <div class="swatch-info"><div class="swatch-name">Surface</div><div class="swatch-value">#e8e2d8</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:var(--color-bg-raised)"></div>
+        <div class="swatch-info"><div class="swatch-name">Raised</div><div class="swatch-value">#faf6ef</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:var(--color-bg-sidebar)"></div>
+        <div class="swatch-info"><div class="swatch-name">Sidebar</div><div class="swatch-value">#e0d8cc</div></div>
+      </div>
+    </div>
+
+    <h6 class="mb-3">Text</h6>
+    <div class="swatch-grid mb-6">
+      <div class="swatch">
+        <div class="swatch-color" style="background:var(--color-text-primary)"></div>
+        <div class="swatch-info"><div class="swatch-name">Primary</div><div class="swatch-value">#2c2418</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:var(--color-text-secondary)"></div>
+        <div class="swatch-info"><div class="swatch-name">Secondary</div><div class="swatch-value">#6b5e4f</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:var(--color-text-muted)"></div>
+        <div class="swatch-info"><div class="swatch-name">Muted</div><div class="swatch-value">#9a8e7f</div></div>
+      </div>
+    </div>
+
+    <h6 class="mb-3">Accents & Semantics</h6>
+    <div class="swatch-grid">
+      <div class="swatch">
+        <div class="swatch-color" style="background:var(--color-accent)"></div>
+        <div class="swatch-info"><div class="swatch-name">Accent</div><div class="swatch-value">#5c7a3d</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:var(--color-secondary)"></div>
+        <div class="swatch-info"><div class="swatch-name">Secondary</div><div class="swatch-value">#8b6834</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:var(--color-success)"></div>
+        <div class="swatch-info"><div class="swatch-name">Success</div><div class="swatch-value">#5c7a3d</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:var(--color-error)"></div>
+        <div class="swatch-info"><div class="swatch-name">Error</div><div class="swatch-value">#a0413a</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:var(--color-warning)"></div>
+        <div class="swatch-info"><div class="swatch-name">Warning</div><div class="swatch-value">#b8862e</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:var(--color-info)"></div>
+        <div class="swatch-info"><div class="swatch-name">Info</div><div class="swatch-value">#4a6f8a</div></div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ================================================================
+       TYPOGRAPHY
+       ================================================================ -->
+  <section class="section">
+    <h2 class="section-title">Typography</h2>
+    <p class="section-subtitle">Three typefaces, each chosen for a specific role on the paper surface.</p>
+
+    <div class="type-specimen mb-6">
+      <div class="type-label">Display &mdash; Newsreader</div>
+      <div class="type-display">The quiet power of well-set type</div>
+      <p class="type-body">
+        Newsreader is a transitional serif designed for on-screen reading. Its generous x-height
+        and open counters make it feel at home on warm paper surfaces, lending authority and warmth
+        to headings and display text.
+      </p>
+    </div>
+
+    <div class="type-specimen mb-6">
+      <div class="type-label">Body &mdash; Source Sans 3</div>
+      <p class="type-body">
+        Source Sans is a humanist sans-serif that reads naturally in long passages. Its open forms
+        and careful spacing make it ideal for body text, UI labels, and secondary information.
+        At small sizes it stays crisp; at large sizes it stays friendly.
+        ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789
+      </p>
+    </div>
+
+    <div class="type-specimen mb-6">
+      <div class="type-label">Code &mdash; JetBrains Mono</div>
+      <pre class="type-code-block"><code>const terrain = {
+  surfaces: ['parchment', 'linen', 'cardstock'],
+  palette:  ['olive', 'ochre', 'sienna', 'slate'],
+  mode:     'rich' | 'comfort',
+  animate:  mode === 'rich',
+};
+
+function renderCard(item: KanbanItem): Paper {
+  return applyGrain(item, { texture: 'fine' });
+}</code></pre>
+    </div>
+
+    <!-- Type Scale -->
+    <div class="type-specimen">
+      <div class="type-label">Type Scale</div>
+      <div class="type-scale">
+        <div class="type-scale-row">
+          <span class="type-scale-label">5xl</span>
+          <span class="type-scale-sample" style="font-size:var(--text-5xl);font-weight:700;">Terrain</span>
+        </div>
+        <div class="type-scale-row">
+          <span class="type-scale-label">4xl</span>
+          <span class="type-scale-sample" style="font-size:var(--text-4xl);font-weight:700;">Design System</span>
+        </div>
+        <div class="type-scale-row">
+          <span class="type-scale-label">3xl</span>
+          <span class="type-scale-sample" style="font-size:var(--text-3xl);font-weight:600;">Section Heading</span>
+        </div>
+        <div class="type-scale-row">
+          <span class="type-scale-label">2xl</span>
+          <span class="type-scale-sample" style="font-size:var(--text-2xl);font-weight:600;">Component Title</span>
+        </div>
+        <div class="type-scale-row">
+          <span class="type-scale-label">xl</span>
+          <span class="type-scale-sample" style="font-size:var(--text-xl);font-weight:500;">Card Heading</span>
+        </div>
+        <div class="type-scale-row">
+          <span class="type-scale-label">lg</span>
+          <span class="type-scale-sample" style="font-size:var(--text-lg);">Subtitle Text</span>
+        </div>
+        <div class="type-scale-row">
+          <span class="type-scale-label">base</span>
+          <span class="type-scale-sample" style="font-size:var(--text-base);font-family:var(--font-body)">Body text reads comfortably at this size on warm parchment.</span>
+        </div>
+        <div class="type-scale-row">
+          <span class="type-scale-label">sm</span>
+          <span class="type-scale-sample" style="font-size:var(--text-sm);font-family:var(--font-body)">Secondary labels, metadata, timestamps</span>
+        </div>
+        <div class="type-scale-row">
+          <span class="type-scale-label">xs</span>
+          <span class="type-scale-sample" style="font-size:var(--text-xs);font-family:var(--font-body)">Fine print, footnotes, keyboard shortcuts</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <hr class="divider">
+
+
+  <!-- ================================================================
+       COMPONENTS — BUTTONS
+       ================================================================ -->
+  <section class="section">
+    <h2 class="section-title">Components</h2>
+    <p class="section-subtitle">Building blocks with organic character, warm borders, and earthy tones.</p>
+
+    <h5 class="mb-3">Buttons</h5>
+    <div class="component-row">
+      <button class="btn btn-primary">Primary Action</button>
+      <button class="btn btn-ochre">Ochre Action</button>
+      <button class="btn btn-secondary">Secondary</button>
+      <button class="btn btn-ghost">Ghost</button>
+    </div>
+    <div class="component-row mb-8">
+      <button class="btn btn-primary btn-sm">Small</button>
+      <button class="btn btn-primary">Default</button>
+      <button class="btn btn-primary btn-lg">Large</button>
+      <button class="btn btn-secondary btn-icon" title="Settings">&#9881;</button>
+      <button class="btn btn-secondary btn-icon" title="Search">&#8981;</button>
+    </div>
+
+    <h5 class="mb-3">Inputs</h5>
+    <div class="grid-2 mb-8">
+      <div>
+        <div class="input-group">
+          <label class="input-label">Project Name</label>
+          <input class="input" type="text" placeholder="e.g., DevGlide Dashboard" />
+          <div class="input-hint">A human-readable name for your project.</div>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Description</label>
+          <textarea class="input" placeholder="Describe what this project does..."></textarea>
+        </div>
+      </div>
+      <div>
+        <div class="input-group">
+          <label class="input-label">Priority</label>
+          <select class="input input-select">
+            <option>Low</option>
+            <option selected>Medium</option>
+            <option>High</option>
+            <option>Urgent</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label class="input-label">API Endpoint</label>
+          <input class="input" type="text" value="https://api.devglide.local" style="font-family:var(--font-mono);font-size:var(--text-xs)" />
+        </div>
+        <div class="input-group">
+          <label class="input-label">Search</label>
+          <input class="input" type="search" placeholder="Search tasks..." />
+        </div>
+      </div>
+    </div>
+
+    <h5 class="mb-3">Badges</h5>
+    <div class="component-row mb-8">
+      <span class="badge badge-default">Default</span>
+      <span class="badge badge-accent">Feature</span>
+      <span class="badge badge-ochre">In Progress</span>
+      <span class="badge badge-success">Passing</span>
+      <span class="badge badge-error">Failed</span>
+      <span class="badge badge-warning">Warning</span>
+      <span class="badge badge-info">Info</span>
+      <span class="badge badge-accent">&#9679; Active</span>
+      <span class="badge badge-ochre">v2.4.1</span>
+    </div>
+
+    <h5 class="mb-3">Toasts</h5>
+    <div class="flex-gap-3" style="flex-direction:column; align-items:flex-start;">
+      <div class="toast toast-success">
+        <span class="toast-icon">&#10003;</span>
+        <div class="toast-content">
+          <div class="toast-title">Build Complete</div>
+          <p class="toast-message">All 47 tests passed in 3.2s. Bundle size: 142KB gzipped.</p>
+        </div>
+      </div>
+      <div class="toast toast-error">
+        <span class="toast-icon">&#10007;</span>
+        <div class="toast-content">
+          <div class="toast-title">Connection Failed</div>
+          <p class="toast-message">Could not reach the MCP server on port 7000. Check that DevGlide is running.</p>
+        </div>
+      </div>
+      <div class="toast toast-warning">
+        <span class="toast-icon">&#9888;</span>
+        <div class="toast-content">
+          <div class="toast-title">Deprecation Notice</div>
+          <p class="toast-message">The <code>shell_exec</code> tool will be removed in v3.0. Use <code>shell_run_command</code> instead.</p>
+        </div>
+      </div>
+      <div class="toast toast-info">
+        <span class="toast-icon">&#8505;</span>
+        <div class="toast-content">
+          <div class="toast-title">Sync in Progress</div>
+          <p class="toast-message">Pulling latest vocabulary entries from the global store...</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <hr class="divider">
+
+
+  <!-- ================================================================
+       HAND-DRAWN BORDERS
+       ================================================================ -->
+  <section class="section">
+    <h2 class="section-title">Organic Borders</h2>
+    <p class="section-subtitle">
+      Intentionally imperfect borders using asymmetric border-radius and multi-stop box-shadows.
+      These small irregularities give surfaces a hand-crafted, tactile character.
+    </p>
+
+    <div class="hand-drawn-grid">
+      <div class="hand-drawn-card style-a">
+        <div class="hand-drawn-label">Style A &mdash; Soft Wobble</div>
+        <p class="hand-drawn-text">
+          Asymmetric radii (6/10/8/12px) with varied inset shadow weights on each edge.
+          The result: a card that looks like it was cut by hand.
+        </p>
+      </div>
+      <div class="hand-drawn-card style-b">
+        <div class="hand-drawn-label">Style B &mdash; Torn Edge</div>
+        <p class="hand-drawn-text">
+          Inverted radius pattern (10/6/12/8px) with heavier bottom shadow.
+          Feels like a note torn from a journal and pinned to a corkboard.
+        </p>
+      </div>
+      <div class="hand-drawn-card style-c">
+        <div class="hand-drawn-label">Style C &mdash; Pressed Card</div>
+        <p class="hand-drawn-text">
+          Yet another radius combination (8/12/6/10px) with right-side weight.
+          Like a card pressed slightly off-center in a letterpress.
+        </p>
+      </div>
+    </div>
+  </section>
+
+
+  <hr class="divider">
+
+
+  <!-- ================================================================
+       DASHBOARD MOCKUP
+       ================================================================ -->
+  <section class="section">
+    <h2 class="section-title">Dashboard</h2>
+    <p class="section-subtitle">
+      A full mockup showing the linen-textured sidebar and paper-like kanban cards.
+    </p>
+
+    <div class="dashboard-frame">
+      <div class="dashboard-layout">
+        <!-- Sidebar -->
+        <aside class="dashboard-sidebar">
+          <div class="sidebar-brand">DevGlide</div>
+          <div class="sidebar-section-label">Navigation</div>
+          <div class="sidebar-item active">
+            <span class="sidebar-icon">&#9635;</span> Kanban
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-icon">&#9655;</span> Shell
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-icon">&#9883;</span> Tests
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-icon">&#9998;</span> Vocabulary
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-icon">&#9834;</span> Voice
+          </div>
+          <div class="sidebar-section-label">System</div>
+          <div class="sidebar-item">
+            <span class="sidebar-icon">&#9881;</span> Settings
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-icon">&#9783;</span> Logs
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-icon">&#9993;</span> Chat
+          </div>
+        </aside>
+
+        <!-- Main content: Kanban board -->
+        <main class="dashboard-main">
+          <div class="dashboard-header">
+            <h3 class="dashboard-title">Terrain Design System</h3>
+            <div class="flex-gap-2">
+              <span class="badge badge-accent">Sprint 4</span>
+              <button class="btn btn-primary btn-sm">+ New Task</button>
+            </div>
+          </div>
+
+          <div class="kanban-board">
+            <!-- Todo -->
+            <div class="kanban-column">
+              <div class="kanban-col-header">
+                Todo <span class="kanban-count">3</span>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Define color tokens for Comfort mode</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge-ochre" style="font-size:9px;padding:1px 4px;">TASK</span>
+                  <span>HIGH</span>
+                </div>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Add paper grain SVG filter</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge-accent" style="font-size:9px;padding:1px 4px;">TASK</span>
+                  <span>MED</span>
+                </div>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Audit contrast ratios for WCAG AA</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge-error" style="font-size:9px;padding:1px 4px;">BUG</span>
+                  <span>HIGH</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- In Progress -->
+            <div class="kanban-column">
+              <div class="kanban-col-header">
+                In Progress <span class="kanban-count">2</span>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Implement mode toggle with CSS custom properties</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge-accent" style="font-size:9px;padding:1px 4px;">TASK</span>
+                  <span>URGENT</span>
+                </div>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Style organic border variants</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge-ochre" style="font-size:9px;padding:1px 4px;">TASK</span>
+                  <span>MED</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- In Review -->
+            <div class="kanban-column">
+              <div class="kanban-col-header">
+                In Review <span class="kanban-count">2</span>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Newsreader font integration</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge-accent" style="font-size:9px;padding:1px 4px;">TASK</span>
+                  <span>MED</span>
+                </div>
+              </div>
+              <div class="kanban-card">
+                <div class="kanban-card-title">Reading block drop cap styling</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge-ochre" style="font-size:9px;padding:1px 4px;">TASK</span>
+                  <span>LOW</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Done -->
+            <div class="kanban-column">
+              <div class="kanban-col-header">
+                Done <span class="kanban-count">2</span>
+              </div>
+              <div class="kanban-card" style="opacity:0.65;">
+                <div class="kanban-card-title">Set up CSS custom property architecture</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge-success" style="font-size:9px;padding:1px 4px;">DONE</span>
+                </div>
+              </div>
+              <div class="kanban-card" style="opacity:0.65;">
+                <div class="kanban-card-title">Choose typeface stack</div>
+                <div class="kanban-card-meta">
+                  <span class="badge badge-success" style="font-size:9px;padding:1px 4px;">DONE</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+  </section>
+
+
+  <hr class="divider">
+
+
+  <!-- ================================================================
+       READING BLOCK
+       ================================================================ -->
+  <section class="section">
+    <h2 class="section-title">Reading Surface</h2>
+    <p class="section-subtitle">
+      Long-form text on a warm paper card. Comfort mode makes this feel like an e-ink reader.
+    </p>
+
+    <div class="reading-block">
+      <h3 class="reading-title">On the Craft of Quiet Interfaces</h3>
+      <div class="reading-meta">A brief meditation on restraint in design &mdash; April 2026</div>
+      <div class="reading-body">
+        <p>There is a particular kind of software that does not announce itself. It does not
+        glow or pulse or demand your attention with badges and banners. It simply sits on your
+        screen like a well-bound book sits on a shelf: present, patient, ready when you are.
+        Terrain is an attempt to build that kind of software aesthetic.</p>
+
+        <p>The choice of warm parchment over clinical white is not merely decorative. Cool-toned
+        interfaces emit significant blue light, which disrupts circadian rhythms during late-night
+        coding sessions. By shifting the entire palette toward amber and sepia, we reduce eye strain
+        without sacrificing legibility. In Comfort mode, this principle is taken to its conclusion:
+        every color collapses to a narrow band of warm browns and creams, mimicking the contrast
+        profile of an e-ink display.</p>
+
+        <p>The paper grain is another deliberate choice. Screens are unnaturally smooth, and that
+        smoothness can feel sterile after hours of staring. A subtle noise texture, applied as an
+        SVG filter across every surface, breaks the digital perfection just enough to feel tactile.
+        Your brain reads these micro-variations as material: this is paper, this is linen, this is
+        a card you could pick up and turn over in your hands.</p>
+
+        <p>Perhaps the most counterintuitive decision is the organic imperfection of borders. In
+        a world where every CSS framework ships with 4px border-radius and uniform 1px borders,
+        Terrain deliberately makes its edges uneven. Asymmetric radii. Multi-stop box-shadows that
+        vary weight per side. The effect is subtle but cumulative: surfaces feel hand-crafted rather
+        than machine-stamped. Like a letterpress card with slightly uneven edges, or a Japanese
+        ceramic bowl with an intentional irregularity that makes it more beautiful, not less.</p>
+
+        <p>The serif typeface for display text, Newsreader, was chosen because it carries the
+        authority of print without the stuffiness of Times New Roman. Its generous x-height and
+        slightly tight spacing make it feel purposeful on screen, as if every heading were a
+        carefully composed headline in a broadsheet newspaper. Paired with Source Sans for body
+        text and JetBrains Mono for code, the stack covers every surface of a developer tool
+        without any typeface feeling out of place.</p>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ================================================================
+       BLOCKQUOTE & CODE SAMPLE
+       ================================================================ -->
+  <section class="section">
+    <h2 class="section-title">Miscellaneous</h2>
+    <p class="section-subtitle">Blockquotes, inline code, and additional typographic elements.</p>
+
+    <blockquote>
+      &ldquo;The details are not the details. They make the design.&rdquo;
+      <br><span style="font-size:var(--text-sm);color:var(--color-text-muted);font-style:normal">&mdash; Charles Eames</span>
+    </blockquote>
+
+    <p class="mt-6">
+      Terrain uses CSS custom properties like <code>--color-bg-base</code> and
+      <code>--color-accent</code> so the entire theme can switch modes by changing the
+      <code>data-mode</code> attribute on the root element. The transition is instant in
+      Comfort mode (all transitions are disabled) and gently animated in Rich mode.
+    </p>
+
+    <pre class="mt-4"><code>// Switching modes programmatically
+document.documentElement.setAttribute('data-mode', 'comfort');
+
+// The entire palette shifts via CSS custom properties:
+// [data-mode="comfort"] {
+//   --color-bg-base:     #f5eed8;
+//   --color-accent:      #7a6a52;  /* olive green becomes warm brown */
+//   --color-text-primary: #4a4035;  /* reduced contrast */
+// }</code></pre>
+  </section>
+
+
+  <!-- ================================================================
+       FOOTER
+       ================================================================ -->
+  <footer class="page-footer">
+    <div class="footer-brand">Terrain</div>
+    <p class="footer-text">
+      An e-ink inspired design system for DevGlide &mdash; warm, tactile, organic.
+    </p>
+  </footer>
+
+</div><!-- .page-wrapper -->
+
+
+<!-- ================================================================
+     JAVASCRIPT — Mode Toggle
+     ================================================================ -->
+<script>
+function setMode(mode) {
+  document.documentElement.setAttribute('data-mode', mode);
+
+  // Update toggle button states
+  document.querySelectorAll('.mode-toggle-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-mode-select') === mode);
+  });
+
+  // Persist preference
+  try { localStorage.setItem('terrain-mode', mode); } catch(e) {}
+}
+
+// Restore saved preference
+(function() {
+  try {
+    const saved = localStorage.getItem('terrain-mode');
+    if (saved === 'rich' || saved === 'comfort') {
+      setMode(saved);
+    }
+  } catch(e) {}
+})();
+</script>
+
+</body>
+</html>

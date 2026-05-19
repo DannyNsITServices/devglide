@@ -3,14 +3,5 @@
   "version": "0.1.0",
   "type": "module",
   "description": "In-browser IDE for viewing and editing monorepo files",
-  "main": "server.js",
-  "scripts": {
-    "dev": "node --watch server.js",
-    "start": "node server.js",
-    "lint": "eslint ."
-  },
-  "private": true,
-  "dependencies": {
-    "express": "^5.2.1"
-  }
+  "private": true
 }

@@ -1,0 +1,56 @@
+{
+  "id": "workflow-verify-ui-flow",
+  "type": "workflow",
+  "name": "verify-ui-flow-with-devglide-test-and-devglide-log",
+  "goal": "Verify a UI flow end-to-end using browser test scenarios and log review. This is the standard verification loop for confirming that an app feature works correctly.",
+  "toolsInvolved": ["devglide-test", "devglide-log"],
+  "preflight": [
+    "Confirm the target app and its expected URL (check project config or ask the user).",
+    "Confirm the app's dev server is running. If not, start it via devglide-shell.",
+    "Confirm a browser page is open on the app with devtools.js loaded.",
+    "Confirm the browser session is active by checking devglide-log for recent session entries."
+  ],
+  "stepSequence": [
+    "Identify the UI flow to verify (e.g. 'create a club', 'submit a form', 'navigate to settings').",
+    "Check if a saved test scenario already exists via test_list_saved. Reuse if available.",
+    "If no saved scenario exists, create a realistic scenario describing the user flow in natural language. Use click-based navigation, realistic data, and targeted assertions.",
+    "Run the scenario via test_run_saved or test_run_scenario.",
+    "Wait briefly (2-5 seconds) then check the result via test_get_result.",
+    "If test_get_result returns 'no result found', the browser has not consumed the scenario yet. Verify the browser is open and devtools.js is loaded. Retry test_get_result after a few seconds.",
+    "Read browser logs via log_read immediately after the run — filter for errors first.",
+    "Separate expected noise from true failures. Expected noise includes: map tile 404s, font/style loading warnings, React development warnings.",
+    "If the scenario failed: examine the failed step, correlate with log entries at that timestamp, and diagnose the root cause.",
+    "If the scenario passed but logs show runtime errors: treat as a failure. The error may be in async code not covered by scenario assertions.",
+    "Fix the identified issue in the application code.",
+    "Re-run the scenario and re-check logs. Repeat until the scenario passes AND logs are clean of unexpected errors.",
+    "Report the verification result: pass/fail, what was tested, any fixes applied, and any known non-blocking warnings."
+  ],
+  "successCriteria": [
+    "The test scenario passes — all steps complete without assertion failures.",
+    "Browser logs contain no unexpected errors after the run.",
+    "Any app-specific expected noise is identified and excluded from failure assessment.",
+    "The verification result is reported clearly."
+  ],
+  "failureBranches": [
+    "If devtools.js is not loaded: guide the user to add the script tag to their app's development HTML.",
+    "If the dev server is not running: start it via shell_run_command.",
+    "If 'no result found' persists after multiple retries: check that the browser tab is active and not on a different page.",
+    "If a selector fails: inspect the page structure, consider adding data-testid attributes for unstable elements.",
+    "If a controlled input does not update: use the appropriate input simulation technique for the framework (React needs InputEvent dispatch).",
+    "If logs show errors unrelated to the test flow: note them as pre-existing issues and focus on the target flow."
+  ],
+  "expectedOutputs": [
+    "test_get_result with status 'passed' or 'failed' and step details.",
+    "log_read output showing browser console entries during and after the test run.",
+    "A clear verification report."
+  ],
+  "expectedNoise": [
+    "Map tile 404s when no local tileserver is running.",
+    "Font or stylesheet loading warnings from CDN dependencies.",
+    "React development-mode warnings (e.g. key props, deprecated lifecycle methods).",
+    "Service worker registration messages."
+  ],
+  "tags": ["verification", "testing", "ui", "workflow", "devglide-test", "devglide-log"],
+  "createdAt": "2026-03-24T00:00:00.000Z",
+  "updatedAt": "2026-03-24T00:00:00.000Z"
+}

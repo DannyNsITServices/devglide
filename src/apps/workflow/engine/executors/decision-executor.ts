@@ -1,6 +1,10 @@
 import type { ExecutorFunction, ExecutorResult, NodeConfig, ExecutionContext, SSEEmitter, DecisionConfig } from '../../types.js';
 import { evaluate } from '../expression-evaluator.js';
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 /**
  * Decision executor evaluates conditions and sets __decision_port.
  * The graph-runner's handleDecision() reads __decision_port to route edges —
@@ -82,6 +86,6 @@ export const decisionExecutor: ExecutorFunction = async (
       variables: { __decision_port: selectedPort },
     };
   } catch (err) {
-    return { status: 'failed', error: (err as Error).message };
+    return { status: 'failed', error: errorMessage(err) };
   }
 };

@@ -1,0 +1,1770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevGlide RPG Interface</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Almendra:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   RESET & BASE
+   ═══════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-dark: #1a1510;
+  --bg-panel: #231e16;
+  --bg-inset: #15110c;
+  --bg-slot: #0f0c08;
+  --gold: #c8a84e;
+  --gold-bright: #e8c95e;
+  --gold-dim: #8a7234;
+  --parchment: #e8dcc0;
+  --parchment-dim: #b8a888;
+  --red-hp: #cc3333;
+  --red-bright: #ff4444;
+  --blue-mana: #3366cc;
+  --blue-bright: #4488ee;
+  --green: #33aa55;
+  --purple: #9944cc;
+  --orange-legendary: #ff8800;
+  --rarity-common: #cccccc;
+  --rarity-uncommon: #44cc66;
+  --rarity-rare: #4488ff;
+  --rarity-epic: #aa55ff;
+  --rarity-legendary: #ff8800;
+  --font-display: 'MedievalSharp', cursive;
+  --font-body: 'Almendra', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+html { font-size: 14px; }
+
+body {
+  font-family: var(--font-body);
+  color: var(--parchment);
+  background: var(--bg-dark);
+  min-height: 100vh;
+  overflow-x: hidden;
+  /* Worn leather texture via CSS noise */
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(60, 45, 20, 0.4) 0%, transparent 70%),
+    radial-gradient(ellipse at 80% 30%, rgba(50, 35, 15, 0.3) 0%, transparent 60%),
+    radial-gradient(ellipse at 50% 80%, rgba(40, 30, 10, 0.35) 0%, transparent 65%),
+    repeating-conic-gradient(rgba(200,168,78,0.015) 0% 25%, transparent 0% 50%);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 4px 4px;
+}
+
+/* Subtle animated grain overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LAYOUT
+   ═══════════════════════════════════════════════════════════════ */
+.dashboard {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  grid-template-rows: 1fr auto;
+  gap: 0;
+  min-height: 100vh;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.sidebar {
+  grid-row: 1 / 3;
+  padding: 20px 16px;
+  background: linear-gradient(180deg, rgba(35,30,22,0.95) 0%, rgba(26,21,16,0.98) 100%);
+  border-right: 2px solid var(--gold-dim);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  max-height: 100vh;
+  position: sticky;
+  top: 0;
+}
+
+.main-area {
+  padding: 20px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.bottom-bar {
+  padding: 12px 24px;
+  background: var(--bg-panel);
+  border-top: 2px solid var(--gold-dim);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ORNATE PANEL — reusable gold-bordered container
+   ═══════════════════════════════════════════════════════════════ */
+.panel {
+  position: relative;
+  background: var(--bg-panel);
+  border: 2px solid var(--gold-dim);
+  padding: 16px;
+  box-shadow:
+    inset 0 0 30px rgba(0,0,0,0.3),
+    0 2px 8px rgba(0,0,0,0.4);
+}
+
+/* Double-line border effect */
+.panel::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(200,168,78,0.25);
+  pointer-events: none;
+}
+
+/* Corner flourishes — L-shaped ornaments with diamond */
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Top-left corner */
+  background:
+    /* TL horizontal */ linear-gradient(to right, var(--gold) 0%, var(--gold) 100%) no-repeat 6px 6px / 18px 2px,
+    /* TL vertical */   linear-gradient(to bottom, var(--gold) 0%, var(--gold) 100%) no-repeat 6px 6px / 2px 18px,
+    /* TL diamond */    linear-gradient(45deg, transparent 30%, var(--gold) 30%, var(--gold) 70%, transparent 70%) no-repeat 2px 2px / 6px 6px,
+    /* TR horizontal */ linear-gradient(to left, var(--gold) 0%, var(--gold) 100%) no-repeat calc(100% - 6px) 6px / 18px 2px,
+    /* TR vertical */   linear-gradient(to bottom, var(--gold) 0%, var(--gold) 100%) no-repeat calc(100% - 8px) 6px / 2px 18px,
+    /* TR diamond */    linear-gradient(45deg, transparent 30%, var(--gold) 30%, var(--gold) 70%, transparent 70%) no-repeat calc(100% - 8px) 2px / 6px 6px,
+    /* BL horizontal */ linear-gradient(to right, var(--gold) 0%, var(--gold) 100%) no-repeat 6px calc(100% - 8px) / 18px 2px,
+    /* BL vertical */   linear-gradient(to top, var(--gold) 0%, var(--gold) 100%) no-repeat 6px calc(100% - 24px) / 2px 18px,
+    /* BL diamond */    linear-gradient(45deg, transparent 30%, var(--gold) 30%, var(--gold) 70%, transparent 70%) no-repeat 2px calc(100% - 8px) / 6px 6px,
+    /* BR horizontal */ linear-gradient(to left, var(--gold) 0%, var(--gold) 100%) no-repeat calc(100% - 6px) calc(100% - 8px) / 18px 2px,
+    /* BR vertical */   linear-gradient(to top, var(--gold) 0%, var(--gold) 100%) no-repeat calc(100% - 8px) calc(100% - 24px) / 2px 18px,
+    /* BR diamond */    linear-gradient(45deg, transparent 30%, var(--gold) 30%, var(--gold) 70%, transparent 70%) no-repeat calc(100% - 8px) calc(100% - 8px) / 6px 6px;
+}
+
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 12px;
+  text-shadow: 0 0 10px rgba(200,168,78,0.3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-title .icon {
+  font-size: 1.1em;
+  opacity: 0.8;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CHARACTER PORTRAIT
+   ═══════════════════════════════════════════════════════════════ */
+.portrait-frame {
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 12px;
+  position: relative;
+  border: 3px solid var(--gold);
+  box-shadow:
+    0 0 0 1px var(--bg-dark),
+    0 0 0 3px var(--gold-dim),
+    inset 0 0 20px rgba(0,0,0,0.6),
+    0 0 20px rgba(200,168,78,0.2);
+}
+
+.portrait-frame .avatar {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #2a2318 0%, #1e1a12 50%, #2a2318 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  color: var(--gold);
+  text-shadow: 0 0 20px rgba(200,168,78,0.5);
+}
+
+.char-info {
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.char-name {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  color: var(--gold-bright);
+  text-shadow: 0 0 12px rgba(200,168,78,0.4);
+}
+
+.char-class {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--parchment-dim);
+  font-style: italic;
+}
+
+.char-level {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--gold);
+  background: var(--bg-inset);
+  display: inline-block;
+  padding: 2px 10px;
+  border: 1px solid var(--gold-dim);
+  margin-top: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HP / MANA / XP BARS
+   ═══════════════════════════════════════════════════════════════ */
+.stat-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bar-label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  width: 28px;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.bar-label.hp { color: var(--red-hp); }
+.bar-label.mp { color: var(--blue-mana); }
+.bar-label.xp { color: var(--gold); }
+
+.bar-track {
+  flex: 1;
+  height: 18px;
+  background: var(--bg-inset);
+  border: 1px solid rgba(200,168,78,0.2);
+  border-radius: 9px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 8px;
+  position: relative;
+  transition: width 0.8s ease;
+}
+
+/* Sheen / gloss effect */
+.bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 4px;
+  right: 4px;
+  height: 40%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.3), transparent);
+  border-radius: 8px 8px 0 0;
+}
+
+.bar-fill.hp {
+  background: linear-gradient(to bottom, #ee4444, var(--red-hp) 50%, #992222);
+  box-shadow: 0 0 8px rgba(204,51,51,0.5);
+}
+
+.bar-fill.mp {
+  background: linear-gradient(to bottom, #5588ee, var(--blue-mana) 50%, #224488);
+  box-shadow: 0 0 8px rgba(51,102,204,0.5);
+}
+
+.bar-fill.xp {
+  background: linear-gradient(to bottom, var(--gold-bright), var(--gold) 50%, var(--gold-dim));
+  box-shadow: 0 0 8px rgba(200,168,78,0.5);
+}
+
+.bar-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  z-index: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   STAT BLOCK — STR/DEX/INT etc.
+   ═══════════════════════════════════════════════════════════════ */
+.stat-block {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--bg-inset);
+  border: 1px solid rgba(200,168,78,0.15);
+}
+
+.stat-icon {
+  font-size: 1rem;
+  width: 20px;
+  text-align: center;
+}
+
+.stat-name {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  color: var(--parchment-dim);
+  flex: 1;
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.stat-item.full-width {
+  grid-column: 1 / -1;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GOLD COUNTER
+   ═══════════════════════════════════════════════════════════════ */
+.gold-counter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  background: var(--bg-inset);
+  border: 1px solid var(--gold-dim);
+}
+
+.gold-coin {
+  width: 28px;
+  height: 28px;
+  background: radial-gradient(circle at 40% 35%, var(--gold-bright), var(--gold), var(--gold-dim));
+  border-radius: 50%;
+  border: 2px solid var(--gold-dim);
+  box-shadow:
+    inset -2px -2px 4px rgba(0,0,0,0.3),
+    0 0 10px rgba(200,168,78,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  color: var(--bg-dark);
+  font-weight: 700;
+}
+
+.gold-amount {
+  font-family: var(--font-mono);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--gold-bright);
+  text-shadow: 0 0 8px rgba(200,168,78,0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   EQUIPMENT SLOTS
+   ═══════════════════════════════════════════════════════════════ */
+.equipment-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.equip-slot {
+  aspect-ratio: 1;
+  background: var(--bg-inset);
+  border: 1px solid rgba(200,168,78,0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
+}
+
+.equip-slot:hover {
+  border-color: var(--gold);
+  box-shadow:
+    inset 0 2px 6px rgba(0,0,0,0.4),
+    0 0 10px rgba(200,168,78,0.2);
+}
+
+.equip-slot .slot-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.equip-slot .slot-label {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  color: var(--parchment-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.equip-slot.equipped {
+  border-color: var(--gold-dim);
+  background: linear-gradient(135deg, rgba(200,168,78,0.08) 0%, var(--bg-inset) 100%);
+}
+
+.equip-slot.rarity-rare .slot-icon { color: var(--rarity-rare); }
+.equip-slot.rarity-epic .slot-icon { color: var(--rarity-epic); }
+.equip-slot.rarity-legendary .slot-icon { color: var(--rarity-legendary); }
+.equip-slot.rarity-uncommon .slot-icon { color: var(--rarity-uncommon); }
+.equip-slot.rarity-common .slot-icon { color: var(--rarity-common); }
+
+/* ═══════════════════════════════════════════════════════════════
+   DEVELOPER STATS BAR (top of main area)
+   ═══════════════════════════════════════════════════════════════ */
+.dev-stats-bar {
+  display: flex;
+  gap: 20px;
+  align-items: stretch;
+}
+
+.dev-stats-bar .stat-bars {
+  flex: 1;
+}
+
+.dev-stats-bar .mini-stats {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.mini-stat {
+  text-align: center;
+  padding: 6px 12px;
+  background: var(--bg-inset);
+  border: 1px solid rgba(200,168,78,0.15);
+}
+
+.mini-stat .ms-val {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--gold-bright);
+}
+
+.mini-stat .ms-label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--parchment-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   QUEST LOG — Kanban
+   ═══════════════════════════════════════════════════════════════ */
+.quest-log {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  flex: 1;
+}
+
+.quest-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quest-col-header {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  padding: 8px 12px;
+  background: var(--bg-inset);
+  border: 1px solid var(--gold-dim);
+  text-align: center;
+  text-shadow: 0 0 8px rgba(200,168,78,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.quest-col-header .count {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  background: var(--gold-dim);
+  color: var(--bg-dark);
+  padding: 0 6px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.quest-card {
+  padding: 12px;
+  background: var(--bg-inset);
+  border: 1px solid rgba(200,168,78,0.15);
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.quest-card:hover {
+  border-color: var(--gold);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3), 0 0 8px rgba(200,168,78,0.1);
+}
+
+.quest-card .quest-title {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+
+.quest-card .quest-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quest-difficulty {
+  font-size: 0.8rem;
+  color: var(--gold);
+  letter-spacing: 1px;
+}
+
+.quest-xp {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--gold-bright);
+  background: rgba(200,168,78,0.1);
+  padding: 1px 6px;
+  border: 1px solid rgba(200,168,78,0.2);
+}
+
+.quest-giver {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: var(--parchment-dim);
+  font-style: italic;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.quest-category {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.cat-ui { background: rgba(51,170,85,0.15); color: var(--rarity-uncommon); border: 1px solid rgba(51,170,85,0.3); }
+.cat-api { background: rgba(68,136,255,0.15); color: var(--rarity-rare); border: 1px solid rgba(68,136,255,0.3); }
+.cat-devops { background: rgba(170,85,255,0.15); color: var(--rarity-epic); border: 1px solid rgba(170,85,255,0.3); }
+.cat-perf { background: rgba(255,136,0,0.15); color: var(--rarity-legendary); border: 1px solid rgba(255,136,0,0.3); }
+.cat-test { background: rgba(204,204,204,0.1); color: var(--rarity-common); border: 1px solid rgba(204,204,204,0.2); }
+.cat-bug { background: rgba(204,51,51,0.15); color: var(--red-bright); border: 1px solid rgba(204,51,51,0.3); }
+
+/* Rarity stripe on left edge */
+.quest-card.rarity-common { border-left: 3px solid var(--rarity-common); }
+.quest-card.rarity-uncommon { border-left: 3px solid var(--rarity-uncommon); }
+.quest-card.rarity-rare { border-left: 3px solid var(--rarity-rare); }
+.quest-card.rarity-epic { border-left: 3px solid var(--rarity-epic); }
+.quest-card.rarity-legendary {
+  border-left: 3px solid var(--rarity-legendary);
+  box-shadow: 0 0 12px rgba(255,136,0,0.1);
+}
+
+/* Completed quests */
+.quest-card.completed {
+  opacity: 0.65;
+}
+.quest-card.completed .quest-title {
+  text-decoration: line-through;
+  text-decoration-color: var(--gold-dim);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   INVENTORY GRID
+   ═══════════════════════════════════════════════════════════════ */
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 48px);
+  gap: 4px;
+}
+
+.inv-slot {
+  width: 48px;
+  height: 48px;
+  background: var(--bg-slot);
+  border: 1px solid rgba(200,168,78,0.12);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: default;
+  transition: all 0.15s;
+}
+
+.inv-slot:hover {
+  border-color: rgba(200,168,78,0.4);
+}
+
+.inv-slot.has-item {
+  cursor: pointer;
+}
+
+.inv-slot.has-item:hover {
+  border-color: var(--gold);
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.5),
+    0 0 8px rgba(200,168,78,0.2);
+}
+
+.inv-item {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  position: relative;
+}
+
+/* Rarity glow on items */
+.inv-item.rarity-common { background: rgba(204,204,204,0.12); border: 1px solid rgba(204,204,204,0.3); }
+.inv-item.rarity-uncommon { background: rgba(68,204,102,0.12); border: 1px solid rgba(68,204,102,0.3); box-shadow: 0 0 6px rgba(68,204,102,0.2); }
+.inv-item.rarity-rare { background: rgba(68,136,255,0.12); border: 1px solid rgba(68,136,255,0.3); box-shadow: 0 0 8px rgba(68,136,255,0.2); }
+.inv-item.rarity-epic { background: rgba(170,85,255,0.12); border: 1px solid rgba(170,85,255,0.3); box-shadow: 0 0 10px rgba(170,85,255,0.25); }
+.inv-item.rarity-legendary {
+  background: rgba(255,136,0,0.12);
+  border: 1px solid rgba(255,136,0,0.4);
+  box-shadow: 0 0 12px rgba(255,136,0,0.3);
+  animation: legendary-pulse 2s ease-in-out infinite;
+}
+
+@keyframes legendary-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,136,0,0.2); }
+  50% { box-shadow: 0 0 16px rgba(255,136,0,0.5); }
+}
+
+/* Stack count */
+.inv-item .stack {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0,0,0,0.7);
+  padding: 0 3px;
+  border-radius: 2px;
+  line-height: 1.3;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SKILL TREE
+   ═══════════════════════════════════════════════════════════════ */
+.skill-tree {
+  position: relative;
+  padding: 20px 10px;
+}
+
+.skill-tree svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.skill-nodes {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+}
+
+.skill-row {
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+}
+
+.skill-node {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.3s;
+  border: 2px solid;
+}
+
+.skill-node .skill-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.skill-node .skill-label {
+  font-family: var(--font-mono);
+  font-size: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 1px;
+  max-width: 50px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Unlocked nodes */
+.skill-node.unlocked {
+  background: radial-gradient(circle at 40% 35%, rgba(200,168,78,0.25) 0%, var(--bg-panel) 70%);
+  border-color: var(--gold);
+  color: var(--gold-bright);
+  box-shadow: 0 0 12px rgba(200,168,78,0.3);
+}
+
+.skill-node.unlocked:hover {
+  box-shadow: 0 0 20px rgba(200,168,78,0.5);
+  transform: scale(1.1);
+}
+
+/* Locked nodes */
+.skill-node.locked {
+  background: var(--bg-inset);
+  border-color: rgba(100,80,50,0.3);
+  color: rgba(100,80,50,0.5);
+  opacity: 0.5;
+}
+
+/* Max-level nodes */
+.skill-node.maxed {
+  background: radial-gradient(circle at 40% 35%, rgba(255,136,0,0.3) 0%, var(--bg-panel) 70%);
+  border-color: var(--rarity-legendary);
+  color: var(--rarity-legendary);
+  box-shadow: 0 0 16px rgba(255,136,0,0.3);
+  animation: skill-glow 3s ease-in-out infinite;
+}
+
+@keyframes skill-glow {
+  0%, 100% { box-shadow: 0 0 12px rgba(255,136,0,0.2); }
+  50% { box-shadow: 0 0 24px rgba(255,136,0,0.5); }
+}
+
+/* Skill tree connecting lines */
+.tree-line {
+  stroke-width: 2;
+  fill: none;
+}
+
+.tree-line.active {
+  stroke: var(--gold);
+  opacity: 0.6;
+  filter: drop-shadow(0 0 3px rgba(200,168,78,0.3));
+}
+
+.tree-line.inactive {
+  stroke: rgba(100,80,50,0.25);
+  stroke-dasharray: 4 3;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TOOLTIP SYSTEM
+   ═══════════════════════════════════════════════════════════════ */
+.rpg-tooltip {
+  position: fixed;
+  z-index: 10000;
+  background: #1a1510;
+  border: 2px solid var(--gold);
+  padding: 12px 14px;
+  max-width: 280px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.8),
+    0 4px 16px rgba(0,0,0,0.6),
+    inset 0 0 20px rgba(0,0,0,0.3),
+    0 0 12px rgba(200,168,78,0.15);
+}
+
+.rpg-tooltip.visible {
+  opacity: 1;
+}
+
+/* Corner flourishes on tooltip */
+.rpg-tooltip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to right, var(--gold) 0%, var(--gold) 100%) no-repeat 4px 4px / 12px 1.5px,
+    linear-gradient(to bottom, var(--gold) 0%, var(--gold) 100%) no-repeat 4px 4px / 1.5px 12px,
+    linear-gradient(to left, var(--gold) 0%, var(--gold) 100%) no-repeat calc(100% - 4px) 4px / 12px 1.5px,
+    linear-gradient(to bottom, var(--gold) 0%, var(--gold) 100%) no-repeat calc(100% - 5.5px) 4px / 1.5px 12px,
+    linear-gradient(to right, var(--gold) 0%, var(--gold) 100%) no-repeat 4px calc(100% - 5.5px) / 12px 1.5px,
+    linear-gradient(to top, var(--gold) 0%, var(--gold) 100%) no-repeat 4px calc(100% - 16px) / 1.5px 12px,
+    linear-gradient(to left, var(--gold) 0%, var(--gold) 100%) no-repeat calc(100% - 4px) calc(100% - 5.5px) / 12px 1.5px,
+    linear-gradient(to top, var(--gold) 0%, var(--gold) 100%) no-repeat calc(100% - 5.5px) calc(100% - 16px) / 1.5px 12px;
+}
+
+.rpg-tooltip::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 1px solid rgba(200,168,78,0.15);
+  pointer-events: none;
+}
+
+.tt-name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+
+.tt-name.rarity-common { color: var(--rarity-common); }
+.tt-name.rarity-uncommon { color: var(--rarity-uncommon); }
+.tt-name.rarity-rare { color: var(--rarity-rare); }
+.tt-name.rarity-epic { color: var(--rarity-epic); }
+.tt-name.rarity-legendary { color: var(--rarity-legendary); text-shadow: 0 0 8px rgba(255,136,0,0.4); }
+
+.tt-type {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--parchment-dim);
+  margin-bottom: 6px;
+}
+
+.tt-divider {
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--gold-dim), transparent);
+  margin: 6px 0;
+}
+
+.tt-desc {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  color: var(--parchment);
+  line-height: 1.4;
+  font-style: italic;
+}
+
+.tt-stats {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.tt-stats .tt-stat {
+  color: var(--green);
+}
+
+.tt-flavor {
+  margin-top: 6px;
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  color: var(--gold-dim);
+  font-style: italic;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   QUEST COMPLETE NOTIFICATION
+   ═══════════════════════════════════════════════════════════════ */
+.quest-complete-banner {
+  position: fixed;
+  top: -100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10001;
+  background: linear-gradient(135deg, #2a2010 0%, #1a1510 50%, #2a2010 100%);
+  border: 2px solid var(--gold);
+  padding: 16px 40px;
+  text-align: center;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.8),
+    0 8px 32px rgba(0,0,0,0.6),
+    0 0 40px rgba(200,168,78,0.3);
+  transition: top 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.quest-complete-banner.show {
+  top: 30px;
+}
+
+.quest-complete-banner .qc-title {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  color: var(--gold-bright);
+  text-shadow: 0 0 20px rgba(200,168,78,0.6);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+.quest-complete-banner .qc-quest {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--parchment);
+  margin-top: 4px;
+}
+
+.quest-complete-banner .qc-reward {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--gold);
+  margin-top: 8px;
+}
+
+/* Sparkle particles */
+.sparkle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: var(--gold-bright);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: sparkle-fly 1s ease-out forwards;
+}
+
+@keyframes sparkle-fly {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--sx), var(--sy)) scale(0); }
+}
+
+/* Banner flourishes */
+.quest-complete-banner::before,
+.quest-complete-banner::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+
+.quest-complete-banner::before {
+  inset: 0;
+  background:
+    linear-gradient(to right, var(--gold) 0%, var(--gold) 100%) no-repeat 6px 6px / 20px 2px,
+    linear-gradient(to bottom, var(--gold) 0%, var(--gold) 100%) no-repeat 6px 6px / 2px 20px,
+    linear-gradient(45deg, transparent 30%, var(--gold) 30%, var(--gold) 70%, transparent 70%) no-repeat 2px 2px / 6px 6px,
+    linear-gradient(to left, var(--gold) 0%, var(--gold) 100%) no-repeat calc(100% - 6px) 6px / 20px 2px,
+    linear-gradient(to bottom, var(--gold) 0%, var(--gold) 100%) no-repeat calc(100% - 8px) 6px / 2px 20px,
+    linear-gradient(45deg, transparent 30%, var(--gold) 30%, var(--gold) 70%, transparent 70%) no-repeat calc(100% - 8px) 2px / 6px 6px,
+    linear-gradient(to right, var(--gold) 0%, var(--gold) 100%) no-repeat 6px calc(100% - 8px) / 20px 2px,
+    linear-gradient(to top, var(--gold) 0%, var(--gold) 100%) no-repeat 6px calc(100% - 26px) / 2px 20px,
+    linear-gradient(45deg, transparent 30%, var(--gold) 30%, var(--gold) 70%, transparent 70%) no-repeat 2px calc(100% - 8px) / 6px 6px,
+    linear-gradient(to left, var(--gold) 0%, var(--gold) 100%) no-repeat calc(100% - 6px) calc(100% - 8px) / 20px 2px,
+    linear-gradient(to top, var(--gold) 0%, var(--gold) 100%) no-repeat calc(100% - 8px) calc(100% - 26px) / 2px 20px,
+    linear-gradient(45deg, transparent 30%, var(--gold) 30%, var(--gold) 70%, transparent 70%) no-repeat calc(100% - 8px) calc(100% - 8px) / 6px 6px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   XP BOTTOM BAR
+   ═══════════════════════════════════════════════════════════════ */
+.xp-bottom {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.xp-bottom .xp-label {
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  color: var(--gold);
+  letter-spacing: 2px;
+  white-space: nowrap;
+}
+
+.xp-bottom .bar-track {
+  height: 22px;
+  flex: 1;
+}
+
+.xp-bottom .xp-text {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--parchment-dim);
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SCROLLBAR
+   ═══════════════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-dark); }
+::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+/* ═══════════════════════════════════════════════════════════════
+   SECTIONS IN MAIN AREA
+   ═══════════════════════════════════════════════════════════════ */
+.section-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DEMO TRIGGER BUTTON
+   ═══════════════════════════════════════════════════════════════ */
+.btn-quest-complete {
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--gold-bright);
+  background: linear-gradient(135deg, rgba(200,168,78,0.15) 0%, rgba(200,168,78,0.05) 100%);
+  border: 1px solid var(--gold-dim);
+  padding: 8px 20px;
+  cursor: pointer;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  transition: all 0.2s;
+}
+
+.btn-quest-complete:hover {
+  background: linear-gradient(135deg, rgba(200,168,78,0.25) 0%, rgba(200,168,78,0.1) 100%);
+  border-color: var(--gold);
+  box-shadow: 0 0 16px rgba(200,168,78,0.2);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 1100px) {
+  .dashboard {
+    grid-template-columns: 260px 1fr;
+  }
+  .quest-log {
+    grid-template-columns: 1fr;
+  }
+  .inventory-grid {
+    grid-template-columns: repeat(6, 48px);
+  }
+}
+
+@media (max-width: 800px) {
+  .dashboard {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    position: static;
+    max-height: none;
+    border-right: none;
+    border-bottom: 2px solid var(--gold-dim);
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     TOOLTIP (global, positioned by JS)
+     ═══════════════════════════════════════════════════════════════ -->
+<div id="tooltip" class="rpg-tooltip">
+  <div id="tt-content"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     QUEST COMPLETE BANNER
+     ═══════════════════════════════════════════════════════════════ -->
+<div id="quest-banner" class="quest-complete-banner">
+  <div class="qc-title">Quest Complete!</div>
+  <div class="qc-quest" id="qc-quest-name">Implement Dark Mode</div>
+  <div class="qc-reward" id="qc-reward">+350 XP &nbsp; +120 Gold</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     DASHBOARD LAYOUT
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="dashboard">
+
+  <!-- ─── SIDEBAR: Character Panel ─── -->
+  <aside class="sidebar">
+
+    <!-- Portrait -->
+    <div class="panel" style="text-align:center; padding:20px 16px;">
+      <div class="portrait-frame">
+        <div class="avatar">&#x1F9D9;</div>
+      </div>
+      <div class="char-info">
+        <div class="char-name">DevGlider</div>
+        <div class="char-class">Full-Stack Mage</div>
+        <div class="char-level">Lv. 42</div>
+      </div>
+    </div>
+
+    <!-- HP / MP / XP Bars -->
+    <div class="panel">
+      <div class="panel-title"><span class="icon">&#x2764;</span> Vitals</div>
+      <div class="stat-bars">
+        <div class="bar-row">
+          <span class="bar-label hp">HP</span>
+          <div class="bar-track">
+            <div class="bar-fill hp" style="width:78%"></div>
+            <div class="bar-text">780 / 1,000</div>
+          </div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label mp">MP</span>
+          <div class="bar-track">
+            <div class="bar-fill mp" style="width:45%"></div>
+            <div class="bar-text">225 / 500</div>
+          </div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label xp">XP</span>
+          <div class="bar-track">
+            <div class="bar-fill xp" style="width:62%"></div>
+            <div class="bar-text">6,200 / 10,000</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stat Block -->
+    <div class="panel">
+      <div class="panel-title"><span class="icon">&#x1F4CA;</span> Attributes</div>
+      <div class="stat-block">
+        <div class="stat-item" data-tooltip="backend" data-tt-name="Backend" data-tt-rarity="rare" data-tt-type="Core Attribute" data-tt-desc="Server-side mastery. Node.js, databases, APIs." data-tt-stat="+18 API throughput">
+          <span class="stat-icon">&#x2699;</span>
+          <span class="stat-name">Backend</span>
+          <span class="stat-value">18</span>
+        </div>
+        <div class="stat-item" data-tooltip="frontend" data-tt-name="Frontend" data-tt-rarity="epic" data-tt-type="Core Attribute" data-tt-desc="UI wizardry. React, CSS, design systems." data-tt-stat="+21 pixel precision">
+          <span class="stat-icon">&#x1F3A8;</span>
+          <span class="stat-name">Frontend</span>
+          <span class="stat-value">21</span>
+        </div>
+        <div class="stat-item" data-tooltip="devops" data-tt-name="DevOps" data-tt-rarity="uncommon" data-tt-type="Core Attribute" data-tt-desc="Infrastructure sorcery. CI/CD, Docker, cloud." data-tt-stat="+14 deploy speed">
+          <span class="stat-icon">&#x1F680;</span>
+          <span class="stat-name">DevOps</span>
+          <span class="stat-value">14</span>
+        </div>
+        <div class="stat-item" data-tooltip="testing" data-tt-name="Testing" data-tt-rarity="uncommon" data-tt-type="Core Attribute" data-tt-desc="Quality assurance arts. Unit, E2E, coverage." data-tt-stat="+12 bug detection">
+          <span class="stat-icon">&#x1F41B;</span>
+          <span class="stat-name">Testing</span>
+          <span class="stat-value">12</span>
+        </div>
+        <div class="stat-item full-width" data-tooltip="design" data-tt-name="Design" data-tt-rarity="rare" data-tt-type="Core Attribute" data-tt-desc="Visual enchantment. Layout, typography, color." data-tt-stat="+16 user satisfaction">
+          <span class="stat-icon">&#x2728;</span>
+          <span class="stat-name">Design</span>
+          <span class="stat-value">16</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gold Counter -->
+    <div class="panel">
+      <div class="gold-counter">
+        <div class="gold-coin">G</div>
+        <span class="gold-amount" id="gold-display">12,450</span>
+      </div>
+    </div>
+
+    <!-- Equipment Slots -->
+    <div class="panel">
+      <div class="panel-title"><span class="icon">&#x1F6E1;</span> Equipment</div>
+      <div class="equipment-grid">
+        <div class="equip-slot equipped rarity-epic" data-tooltip="equip" data-tt-name="Helmet of Focus" data-tt-rarity="epic" data-tt-type="Head Armor" data-tt-desc="Blocks distractions. +3 concentration." data-tt-stat="+3 Focus, -20% notification noise" data-tt-flavor="&quot;Noise-cancelling for the mind.&quot;">
+          <span class="slot-icon">&#x1F451;</span>
+          <span class="slot-label">Head</span>
+        </div>
+        <div class="equip-slot equipped rarity-legendary" data-tooltip="equip" data-tt-name="Cloak of Version Control" data-tt-rarity="legendary" data-tt-type="Chest Armor" data-tt-desc="Never lose your work. Auto-saves state." data-tt-stat="+5 Safety, Git mastery" data-tt-flavor="&quot;git revert saved my life.&quot;">
+          <span class="slot-icon">&#x1F9E5;</span>
+          <span class="slot-label">Chest</span>
+        </div>
+        <div class="equip-slot equipped rarity-rare" data-tooltip="equip" data-tt-name="TypeScript Wand" data-tt-rarity="rare" data-tt-type="Main Hand Weapon" data-tt-desc="Casts typed spells with precision." data-tt-stat="+4 Type Safety, +2 Intellisense" data-tt-flavor="&quot;any? Never heard of it.&quot;">
+          <span class="slot-icon">&#x1FA84;</span>
+          <span class="slot-label">Weapon</span>
+        </div>
+        <div class="equip-slot equipped rarity-rare" data-tooltip="equip" data-tt-name="Shield of Tests" data-tt-rarity="rare" data-tt-type="Off Hand" data-tt-desc="Deflects regressions with 90% coverage." data-tt-stat="+3 Defense, +90% coverage" data-tt-flavor="&quot;Tests pass. Ship it.&quot;">
+          <span class="slot-icon">&#x1F6E1;</span>
+          <span class="slot-label">Shield</span>
+        </div>
+        <div class="equip-slot equipped rarity-uncommon" data-tooltip="equip" data-tt-name="Boots of Hot Reload" data-tt-rarity="uncommon" data-tt-type="Feet" data-tt-desc="Changes apply instantly. No restart needed." data-tt-stat="+2 Speed, instant reload" data-tt-flavor="&quot;Save. See. Ship.&quot;">
+          <span class="slot-icon">&#x1F462;</span>
+          <span class="slot-label">Feet</span>
+        </div>
+        <div class="equip-slot" data-tooltip="equip" data-tt-name="Empty Slot" data-tt-rarity="common" data-tt-type="Accessory" data-tt-desc="No accessory equipped. Find one in your quests!">
+          <span class="slot-icon" style="opacity:0.3">&#x1F48D;</span>
+          <span class="slot-label">Ring</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Demo Button -->
+    <button class="btn-quest-complete" onclick="showQuestComplete()">
+      &#x2694; Complete Quest
+    </button>
+
+  </aside>
+
+  <!-- ─── MAIN AREA ─── -->
+  <main class="main-area">
+
+    <!-- Developer Stats Bar -->
+    <div class="panel">
+      <div class="panel-title"><span class="icon">&#x1F4C8;</span> Developer Stats</div>
+      <div class="dev-stats-bar">
+        <div class="stat-bars">
+          <div class="bar-row">
+            <span class="bar-label hp">HP</span>
+            <div class="bar-track">
+              <div class="bar-fill hp" style="width:78%"></div>
+              <div class="bar-text">Stamina: 780 / 1,000</div>
+            </div>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label mp">MP</span>
+            <div class="bar-track">
+              <div class="bar-fill mp" style="width:45%"></div>
+              <div class="bar-text">Focus: 225 / 500</div>
+            </div>
+          </div>
+        </div>
+        <div class="mini-stats">
+          <div class="mini-stat">
+            <div class="ms-val">42</div>
+            <div class="ms-label">Level</div>
+          </div>
+          <div class="mini-stat">
+            <div class="ms-val">156</div>
+            <div class="ms-label">Quests</div>
+          </div>
+          <div class="mini-stat">
+            <div class="ms-val">23</div>
+            <div class="ms-label">Streak</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quest Log (Kanban) -->
+    <div class="panel" style="flex:1;">
+      <div class="panel-title"><span class="icon">&#x1F4DC;</span> Quest Log</div>
+      <div class="quest-log">
+
+        <!-- Active Quests -->
+        <div class="quest-column">
+          <div class="quest-col-header">
+            &#x2694; Active Quests <span class="count">4</span>
+          </div>
+          <div class="quest-card rarity-legendary" data-tooltip="quest" data-tt-name="Implement Real-Time Sync" data-tt-rarity="legendary" data-tt-type="Legendary Quest" data-tt-desc="Build WebSocket-based real-time collaboration for the kanban board. Multiple users, live cursors, conflict resolution." data-tt-stat="+500 XP, +200 Gold" data-tt-flavor="&quot;The ancient scrolls speak of cursors that move as one.&quot;">
+            <div class="quest-title" style="color:var(--rarity-legendary)">Implement Real-Time Sync</div>
+            <div class="quest-meta">
+              <span class="quest-difficulty">&#x2605;&#x2605;&#x2605;&#x2605;&#x2605;</span>
+              <span class="quest-xp">+500 XP</span>
+            </div>
+            <div class="quest-meta" style="margin-top:4px">
+              <span class="quest-category cat-api">API</span>
+            </div>
+            <div class="quest-giver">Quest giver: Architect Eldric</div>
+          </div>
+          <div class="quest-card rarity-epic" data-tooltip="quest" data-tt-name="Design Dark Mode Theme" data-tt-rarity="epic" data-tt-type="Epic Quest" data-tt-desc="Create a comprehensive dark mode with smooth transitions and respect for prefers-color-scheme." data-tt-stat="+350 XP, +120 Gold">
+            <div class="quest-title" style="color:var(--rarity-epic)">Design Dark Mode Theme</div>
+            <div class="quest-meta">
+              <span class="quest-difficulty">&#x2605;&#x2605;&#x2605;&#x2605;&#x2606;</span>
+              <span class="quest-xp">+350 XP</span>
+            </div>
+            <div class="quest-meta" style="margin-top:4px">
+              <span class="quest-category cat-ui">UI</span>
+            </div>
+            <div class="quest-giver">Quest giver: Elder Lumina</div>
+          </div>
+          <div class="quest-card rarity-rare" data-tooltip="quest" data-tt-name="Add Search Indexing" data-tt-rarity="rare" data-tt-type="Rare Quest" data-tt-desc="Implement full-text search across kanban items using SQLite FTS5." data-tt-stat="+250 XP, +80 Gold">
+            <div class="quest-title" style="color:var(--rarity-rare)">Add Search Indexing</div>
+            <div class="quest-meta">
+              <span class="quest-difficulty">&#x2605;&#x2605;&#x2605;&#x2606;&#x2606;</span>
+              <span class="quest-xp">+250 XP</span>
+            </div>
+            <div class="quest-meta" style="margin-top:4px">
+              <span class="quest-category cat-api">API</span>
+            </div>
+            <div class="quest-giver">Quest giver: Sage Queryus</div>
+          </div>
+          <div class="quest-card rarity-uncommon" data-tooltip="quest" data-tt-name="Fix Tooltip Overflow" data-tt-rarity="uncommon" data-tt-type="Bug Bounty" data-tt-desc="Tooltips clip outside viewport on small screens. Needs boundary detection." data-tt-stat="+100 XP, +30 Gold">
+            <div class="quest-title" style="color:var(--rarity-uncommon)">Fix Tooltip Overflow</div>
+            <div class="quest-meta">
+              <span class="quest-difficulty">&#x2605;&#x2605;&#x2606;&#x2606;&#x2606;</span>
+              <span class="quest-xp">+100 XP</span>
+            </div>
+            <div class="quest-meta" style="margin-top:4px">
+              <span class="quest-category cat-bug">BUG</span>
+            </div>
+            <div class="quest-giver">Quest giver: Scout Pixel</div>
+          </div>
+        </div>
+
+        <!-- In Progress -->
+        <div class="quest-column">
+          <div class="quest-col-header">
+            &#x1F525; In Progress <span class="count">3</span>
+          </div>
+          <div class="quest-card rarity-epic" data-tooltip="quest" data-tt-name="Build Skill Tree UI" data-tt-rarity="epic" data-tt-type="Epic Quest" data-tt-desc="Create an interactive skill tree visualization with node connections, unlock animations, and tooltip previews." data-tt-stat="+400 XP, +150 Gold" data-tt-flavor="&quot;The path branches, but the wise follow the golden nodes.&quot;">
+            <div class="quest-title" style="color:var(--rarity-epic)">Build Skill Tree UI</div>
+            <div class="quest-meta">
+              <span class="quest-difficulty">&#x2605;&#x2605;&#x2605;&#x2605;&#x2606;</span>
+              <span class="quest-xp">+400 XP</span>
+            </div>
+            <div class="quest-meta" style="margin-top:4px">
+              <span class="quest-category cat-ui">UI</span>
+            </div>
+            <div class="quest-giver">Quest giver: Master Renderon</div>
+          </div>
+          <div class="quest-card rarity-rare" data-tooltip="quest" data-tt-name="Optimize Bundle Size" data-tt-rarity="rare" data-tt-type="Rare Quest" data-tt-desc="Reduce JS bundle from 2.1MB to under 500KB with code splitting and tree shaking." data-tt-stat="+200 XP, +90 Gold">
+            <div class="quest-title" style="color:var(--rarity-rare)">Optimize Bundle Size</div>
+            <div class="quest-meta">
+              <span class="quest-difficulty">&#x2605;&#x2605;&#x2605;&#x2606;&#x2606;</span>
+              <span class="quest-xp">+200 XP</span>
+            </div>
+            <div class="quest-meta" style="margin-top:4px">
+              <span class="quest-category cat-perf">PERF</span>
+            </div>
+            <div class="quest-giver">Quest giver: Warden Vite</div>
+          </div>
+          <div class="quest-card rarity-uncommon" data-tooltip="quest" data-tt-name="Write E2E Test Suite" data-tt-rarity="uncommon" data-tt-type="Side Quest" data-tt-desc="Cover all critical user flows with Playwright tests." data-tt-stat="+150 XP, +50 Gold">
+            <div class="quest-title" style="color:var(--rarity-uncommon)">Write E2E Test Suite</div>
+            <div class="quest-meta">
+              <span class="quest-difficulty">&#x2605;&#x2605;&#x2606;&#x2606;&#x2606;</span>
+              <span class="quest-xp">+150 XP</span>
+            </div>
+            <div class="quest-meta" style="margin-top:4px">
+              <span class="quest-category cat-test">TEST</span>
+            </div>
+            <div class="quest-giver">Quest giver: Knight Testus</div>
+          </div>
+        </div>
+
+        <!-- Completed -->
+        <div class="quest-column">
+          <div class="quest-col-header">
+            &#x2705; Completed <span class="count">3</span>
+          </div>
+          <div class="quest-card rarity-rare completed" data-tooltip="quest" data-tt-name="Setup CI/CD Pipeline" data-tt-rarity="rare" data-tt-type="Completed Quest" data-tt-desc="GitHub Actions pipeline with lint, test, build, and deploy stages." data-tt-stat="Earned: 250 XP, 80 Gold">
+            <div class="quest-title" style="color:var(--rarity-rare)">Setup CI/CD Pipeline</div>
+            <div class="quest-meta">
+              <span class="quest-difficulty">&#x2605;&#x2605;&#x2605;&#x2606;&#x2606;</span>
+              <span class="quest-xp">+250 XP &#x2713;</span>
+            </div>
+            <div class="quest-meta" style="margin-top:4px">
+              <span class="quest-category cat-devops">DEVOPS</span>
+            </div>
+            <div class="quest-giver">Quest giver: Commander Deploy</div>
+          </div>
+          <div class="quest-card rarity-uncommon completed" data-tooltip="quest" data-tt-name="Add Error Boundaries" data-tt-rarity="uncommon" data-tt-type="Completed Quest" data-tt-desc="React error boundaries with graceful fallback UI." data-tt-stat="Earned: 120 XP, 40 Gold">
+            <div class="quest-title" style="color:var(--rarity-uncommon)">Add Error Boundaries</div>
+            <div class="quest-meta">
+              <span class="quest-difficulty">&#x2605;&#x2605;&#x2606;&#x2606;&#x2606;</span>
+              <span class="quest-xp">+120 XP &#x2713;</span>
+            </div>
+            <div class="quest-meta" style="margin-top:4px">
+              <span class="quest-category cat-ui">UI</span>
+            </div>
+            <div class="quest-giver">Quest giver: Healer Catchall</div>
+          </div>
+          <div class="quest-card rarity-common completed" data-tooltip="quest" data-tt-name="Update README" data-tt-rarity="common" data-tt-type="Completed Quest" data-tt-desc="Documentation refresh with setup guide and API reference." data-tt-stat="Earned: 50 XP, 15 Gold">
+            <div class="quest-title">Update README</div>
+            <div class="quest-meta">
+              <span class="quest-difficulty">&#x2605;&#x2606;&#x2606;&#x2606;&#x2606;</span>
+              <span class="quest-xp">+50 XP &#x2713;</span>
+            </div>
+            <div class="quest-meta" style="margin-top:4px">
+              <span class="quest-category cat-test">DOCS</span>
+            </div>
+            <div class="quest-giver">Quest giver: Scribe Markdown</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Inventory + Skill Tree row -->
+    <div class="section-row">
+
+      <!-- Inventory -->
+      <div class="panel">
+        <div class="panel-title"><span class="icon">&#x1F392;</span> Inventory</div>
+        <div class="inventory-grid">
+          <!-- Row 1 -->
+          <div class="inv-slot has-item" data-tooltip="item" data-tt-name="Potion of Caffeine" data-tt-rarity="common" data-tt-type="Consumable" data-tt-desc="Restores 50 Focus. Tastes like burnt hopes and cream." data-tt-stat="+50 Focus" data-tt-flavor="&quot;One more cup won't hurt.&quot;">
+            <div class="inv-item rarity-common">&#x2615;<span class="stack">x5</span></div>
+          </div>
+          <div class="inv-slot has-item" data-tooltip="item" data-tt-name="Scroll of Stack Overflow" data-tt-rarity="uncommon" data-tt-type="Consumable" data-tt-desc="Instantly solves one stuck problem. 80% accurate." data-tt-stat="+80% problem solve chance" data-tt-flavor="&quot;Marked as duplicate.&quot;">
+            <div class="inv-item rarity-uncommon">&#x1F4DC;<span class="stack">x3</span></div>
+          </div>
+          <div class="inv-slot has-item" data-tooltip="item" data-tt-name="Gem of Clean Code" data-tt-rarity="rare" data-tt-type="Enhancement" data-tt-desc="Automatically refactors spaghetti into elegant patterns." data-tt-stat="+15 Code Quality">
+            <div class="inv-item rarity-rare">&#x1F48E;</div>
+          </div>
+          <div class="inv-slot has-item" data-tooltip="item" data-tt-name="Debugger's Monocle" data-tt-rarity="epic" data-tt-type="Tool" data-tt-desc="See through any bug. Reveals hidden state mutations." data-tt-stat="+20 Debug Power, X-ray state" data-tt-flavor="&quot;The bug cannot hide from those who truly see.&quot;">
+            <div class="inv-item rarity-epic">&#x1F50D;</div>
+          </div>
+          <div class="inv-slot has-item" data-tooltip="item" data-tt-name="Shard of Productivity" data-tt-rarity="legendary" data-tt-type="Artifact" data-tt-desc="Time bends around the holder. Doubles output for 1 hour." data-tt-stat="+100% Output for 1hr" data-tt-flavor="&quot;Forged in the fires of a midnight deadline.&quot;">
+            <div class="inv-item rarity-legendary">&#x1F525;</div>
+          </div>
+          <div class="inv-slot has-item" data-tooltip="item" data-tt-name="Docker Container" data-tt-rarity="rare" data-tt-type="Tool" data-tt-desc="Portable environment. Works on your machine AND theirs." data-tt-stat="+10 Portability">
+            <div class="inv-item rarity-rare">&#x1F4E6;</div>
+          </div>
+          <div class="inv-slot has-item" data-tooltip="item" data-tt-name="SSH Key" data-tt-rarity="uncommon" data-tt-type="Key Item" data-tt-desc="Grants access to remote servers. Keep it secret." data-tt-stat="Access: All servers">
+            <div class="inv-item rarity-uncommon">&#x1F511;</div>
+          </div>
+          <div class="inv-slot has-item" data-tooltip="item" data-tt-name="Rubber Duck" data-tt-rarity="common" data-tt-type="Companion" data-tt-desc="Explain your problem to it. Somehow, you'll find the answer." data-tt-stat="+5 Wisdom" data-tt-flavor="&quot;Quack.&quot;">
+            <div class="inv-item rarity-common">&#x1F986;</div>
+          </div>
+          <!-- Row 2 -->
+          <div class="inv-slot has-item" data-tooltip="item" data-tt-name="Elixir of Merge Conflict" data-tt-rarity="uncommon" data-tt-type="Consumable" data-tt-desc="Resolves one git merge conflict automatically." data-tt-stat="Auto-resolve 1 conflict">
+            <div class="inv-item rarity-uncommon">&#x1F9EA;<span class="stack">x2</span></div>
+          </div>
+          <div class="inv-slot has-item" data-tooltip="item" data-tt-name="Linting Charm" data-tt-rarity="common" data-tt-type="Enchantment" data-tt-desc="Automatically fixes style issues on save." data-tt-stat="+5 Code Style">
+            <div class="inv-item rarity-common">&#x2728;</div>
+          </div>
+          <div class="inv-slot"></div>
+          <div class="inv-slot"></div>
+          <div class="inv-slot has-item" data-tooltip="item" data-tt-name="API Rate Limiter" data-tt-rarity="rare" data-tt-type="Shield" data-tt-desc="Protects your endpoints from DDoS attacks." data-tt-stat="+8 Defense, Rate limit 1000/min">
+            <div class="inv-item rarity-rare">&#x1F6E1;</div>
+          </div>
+          <div class="inv-slot"></div>
+          <div class="inv-slot"></div>
+          <div class="inv-slot"></div>
+          <!-- Row 3 -->
+          <div class="inv-slot"></div>
+          <div class="inv-slot"></div>
+          <div class="inv-slot"></div>
+          <div class="inv-slot"></div>
+          <div class="inv-slot"></div>
+          <div class="inv-slot"></div>
+          <div class="inv-slot"></div>
+          <div class="inv-slot"></div>
+        </div>
+      </div>
+
+      <!-- Skill Tree -->
+      <div class="panel">
+        <div class="panel-title"><span class="icon">&#x1F333;</span> Skill Tree</div>
+        <div class="skill-tree" id="skill-tree">
+          <svg id="tree-svg"></svg>
+          <div class="skill-nodes">
+            <!-- Tier 1 (root) -->
+            <div class="skill-row">
+              <div class="skill-node maxed" id="sk-core" data-tooltip="skill" data-tt-name="Core Mastery" data-tt-rarity="legendary" data-tt-type="Tier 1 Skill (MAX)" data-tt-desc="Foundation of all development. Unlocks advanced skill branches." data-tt-stat="Level 5/5 (MAX)">
+                <span class="skill-icon">&#x2B50;</span>
+                <span class="skill-label">Core</span>
+              </div>
+            </div>
+            <!-- Tier 2 -->
+            <div class="skill-row">
+              <div class="skill-node unlocked" id="sk-kanban" data-tooltip="skill" data-tt-name="Kanban Mastery" data-tt-rarity="epic" data-tt-type="Tier 2 Skill" data-tt-desc="Advanced task management. Swimlanes, WIP limits, burndown charts." data-tt-stat="Level 4/5">
+                <span class="skill-icon">&#x1F4CB;</span>
+                <span class="skill-label">Kanban</span>
+              </div>
+              <div class="skill-node unlocked" id="sk-shell" data-tooltip="skill" data-tt-name="Shell Wizardry" data-tt-rarity="rare" data-tt-type="Tier 2 Skill" data-tt-desc="Terminal mastery. Multi-pane, scripting, process management." data-tt-stat="Level 3/5">
+                <span class="skill-icon">&#x1F4BB;</span>
+                <span class="skill-label">Shell</span>
+              </div>
+              <div class="skill-node unlocked" id="sk-voice" data-tooltip="skill" data-tt-name="Voice Command" data-tt-rarity="rare" data-tt-type="Tier 2 Skill" data-tt-desc="Speech-to-text, voice control, audio transcription." data-tt-stat="Level 3/5">
+                <span class="skill-icon">&#x1F3A4;</span>
+                <span class="skill-label">Voice</span>
+              </div>
+            </div>
+            <!-- Tier 3 -->
+            <div class="skill-row">
+              <div class="skill-node unlocked" id="sk-workflow" data-tooltip="skill" data-tt-name="Workflow Architect" data-tt-rarity="uncommon" data-tt-type="Tier 3 Skill" data-tt-desc="Build and chain automated workflows. DAG composition." data-tt-stat="Level 2/5">
+                <span class="skill-icon">&#x1F504;</span>
+                <span class="skill-label">Workflow</span>
+              </div>
+              <div class="skill-node unlocked" id="sk-test" data-tooltip="skill" data-tt-name="Test Oracle" data-tt-rarity="uncommon" data-tt-type="Tier 3 Skill" data-tt-desc="AI-driven browser testing. Natural language test scenarios." data-tt-stat="Level 2/5">
+                <span class="skill-icon">&#x1F9EA;</span>
+                <span class="skill-label">Testing</span>
+              </div>
+              <div class="skill-node locked" id="sk-chat" data-tooltip="skill" data-tt-name="Multi-Agent Chat" data-tt-rarity="common" data-tt-type="Tier 3 Skill (LOCKED)" data-tt-desc="Coordinate multiple LLM agents in a shared chat room." data-tt-stat="Requires: Shell Wizardry Lv.4">
+                <span class="skill-icon">&#x1F4AC;</span>
+                <span class="skill-label">Chat</span>
+              </div>
+              <div class="skill-node locked" id="sk-docs" data-tooltip="skill" data-tt-name="Documentation Lore" data-tt-rarity="common" data-tt-type="Tier 3 Skill (LOCKED)" data-tt-desc="Master operational guides, troubleshooting, and project overrides." data-tt-stat="Requires: Workflow Architect Lv.3">
+                <span class="skill-icon">&#x1F4DA;</span>
+                <span class="skill-label">Docs</span>
+              </div>
+            </div>
+            <!-- Tier 4 -->
+            <div class="skill-row">
+              <div class="skill-node locked" id="sk-auto" data-tooltip="skill" data-tt-name="Full Automation" data-tt-rarity="common" data-tt-type="Tier 4 Skill (LOCKED)" data-tt-desc="The ultimate skill. All DevGlide tools working in perfect harmony." data-tt-stat="Requires: All Tier 3 skills at Lv.3" data-tt-flavor="&quot;The developer who automates everything... automates themselves.&quot;">
+                <span class="skill-icon">&#x1F916;</span>
+                <span class="skill-label">Automate</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ─── BOTTOM BAR: XP to next level ─── -->
+  <div class="bottom-bar">
+    <div class="xp-bottom">
+      <span class="xp-label">Level 42</span>
+      <div class="bar-track">
+        <div class="bar-fill xp" id="xp-bar-bottom" style="width:62%"></div>
+        <div class="bar-text">6,200 / 10,000 XP to Level 43</div>
+      </div>
+      <span class="xp-text">3,800 XP needed</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   TOOLTIP SYSTEM
+   ═══════════════════════════════════════════════════════════════ */
+const tooltip = document.getElementById('tooltip');
+const ttContent = document.getElementById('tt-content');
+let tooltipVisible = false;
+
+function buildTooltipHTML(el) {
+  const name = el.dataset.ttName || 'Unknown';
+  const rarity = el.dataset.ttRarity || 'common';
+  const type = el.dataset.ttType || '';
+  const desc = el.dataset.ttDesc || '';
+  const stat = el.dataset.ttStat || '';
+  const flavor = el.dataset.ttFlavor || '';
+
+  let html = `<div class="tt-name rarity-${rarity}">${name}</div>`;
+  if (type) html += `<div class="tt-type">${type}</div>`;
+  html += `<div class="tt-divider"></div>`;
+  if (desc) html += `<div class="tt-desc">${desc}</div>`;
+  if (stat) {
+    html += `<div class="tt-stats">`;
+    stat.split(',').forEach(s => {
+      html += `<div class="tt-stat">${s.trim()}</div>`;
+    });
+    html += `</div>`;
+  }
+  if (flavor) html += `<div class="tt-flavor">${flavor}</div>`;
+  return html;
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (!tooltipVisible) return;
+  const pad = 16;
+  let x = e.clientX + pad;
+  let y = e.clientY + pad;
+  const rect = tooltip.getBoundingClientRect();
+  if (x + rect.width > window.innerWidth - pad) {
+    x = e.clientX - rect.width - pad;
+  }
+  if (y + rect.height > window.innerHeight - pad) {
+    y = e.clientY - rect.height - pad;
+  }
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+});
+
+document.querySelectorAll('[data-tooltip]').forEach(el => {
+  el.addEventListener('mouseenter', (e) => {
+    ttContent.innerHTML = buildTooltipHTML(el);
+    tooltip.classList.add('visible');
+    tooltipVisible = true;
+    // Position immediately
+    const pad = 16;
+    tooltip.style.left = (e.clientX + pad) + 'px';
+    tooltip.style.top = (e.clientY + pad) + 'px';
+  });
+  el.addEventListener('mouseleave', () => {
+    tooltip.classList.remove('visible');
+    tooltipVisible = false;
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   SKILL TREE — draw connecting lines
+   ═══════════════════════════════════════════════════════════════ */
+function drawSkillTreeLines() {
+  const svg = document.getElementById('tree-svg');
+  const container = document.getElementById('skill-tree');
+  const containerRect = container.getBoundingClientRect();
+
+  // Clear existing lines
+  svg.innerHTML = '';
+
+  // Define connections: [fromId, toId]
+  const connections = [
+    ['sk-core', 'sk-kanban'],
+    ['sk-core', 'sk-shell'],
+    ['sk-core', 'sk-voice'],
+    ['sk-kanban', 'sk-workflow'],
+    ['sk-shell', 'sk-test'],
+    ['sk-shell', 'sk-chat'],
+    ['sk-voice', 'sk-chat'],
+    ['sk-voice', 'sk-docs'],
+    ['sk-kanban', 'sk-test'],
+    ['sk-workflow', 'sk-auto'],
+    ['sk-test', 'sk-auto'],
+    ['sk-chat', 'sk-auto'],
+    ['sk-docs', 'sk-auto'],
+  ];
+
+  connections.forEach(([fromId, toId]) => {
+    const from = document.getElementById(fromId);
+    const to = document.getElementById(toId);
+    if (!from || !to) return;
+
+    const fromRect = from.getBoundingClientRect();
+    const toRect = to.getBoundingClientRect();
+
+    const x1 = fromRect.left + fromRect.width / 2 - containerRect.left;
+    const y1 = fromRect.top + fromRect.height / 2 - containerRect.top;
+    const x2 = toRect.left + toRect.width / 2 - containerRect.left;
+    const y2 = toRect.top + toRect.height / 2 - containerRect.top;
+
+    const fromUnlocked = from.classList.contains('unlocked') || from.classList.contains('maxed');
+    const toUnlocked = to.classList.contains('unlocked') || to.classList.contains('maxed');
+    const active = fromUnlocked && toUnlocked;
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1);
+    line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2);
+    line.setAttribute('y2', y2);
+    line.classList.add('tree-line', active ? 'active' : 'inactive');
+    svg.appendChild(line);
+  });
+}
+
+// Draw lines after layout
+requestAnimationFrame(() => {
+  requestAnimationFrame(drawSkillTreeLines);
+});
+window.addEventListener('resize', drawSkillTreeLines);
+
+/* ═══════════════════════════════════════════════════════════════
+   QUEST COMPLETE NOTIFICATION
+   ═══════════════════════════════════════════════════════════════ */
+const questNames = [
+  { name: 'Implement Dark Mode', xp: 350, gold: 120 },
+  { name: 'Fix Memory Leak', xp: 200, gold: 80 },
+  { name: 'Add Keyboard Shortcuts', xp: 150, gold: 50 },
+  { name: 'Optimize Database Queries', xp: 300, gold: 100 },
+  { name: 'Setup Monitoring', xp: 250, gold: 90 },
+];
+let questIdx = 0;
+
+function showQuestComplete() {
+  const banner = document.getElementById('quest-banner');
+  const quest = questNames[questIdx % questNames.length];
+  questIdx++;
+
+  document.getElementById('qc-quest-name').textContent = quest.name;
+  document.getElementById('qc-reward').textContent = `+${quest.xp} XP   +${quest.gold} Gold`;
+
+  // Sparkle burst
+  for (let i = 0; i < 20; i++) {
+    const sparkle = document.createElement('div');
+    sparkle.className = 'sparkle';
+    const angle = (Math.PI * 2 * i) / 20;
+    const dist = 60 + Math.random() * 80;
+    sparkle.style.setProperty('--sx', Math.cos(angle) * dist + 'px');
+    sparkle.style.setProperty('--sy', Math.sin(angle) * dist + 'px');
+    sparkle.style.left = '50%';
+    sparkle.style.top = '50%';
+    sparkle.style.animationDelay = (Math.random() * 0.3) + 's';
+    banner.appendChild(sparkle);
+    setTimeout(() => sparkle.remove(), 1500);
+  }
+
+  banner.classList.add('show');
+
+  // Update gold counter
+  const goldEl = document.getElementById('gold-display');
+  let currentGold = parseInt(goldEl.textContent.replace(/,/g, ''));
+  currentGold += quest.gold;
+  goldEl.textContent = currentGold.toLocaleString();
+
+  // Animate XP bar slightly
+  const xpBar = document.getElementById('xp-bar-bottom');
+  let currentWidth = parseFloat(xpBar.style.width);
+  let newWidth = Math.min(currentWidth + (quest.xp / 10000) * 100, 100);
+  xpBar.style.width = newWidth + '%';
+
+  setTimeout(() => {
+    banner.classList.remove('show');
+  }, 3000);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AMBIENT ANIMATIONS — subtle bar pulses
+   ═══════════════════════════════════════════════════════════════ */
+function animateBars() {
+  document.querySelectorAll('.bar-fill.hp').forEach(bar => {
+    const base = 78;
+    const offset = Math.sin(Date.now() / 3000) * 0.5;
+    bar.style.width = (base + offset) + '%';
+  });
+  document.querySelectorAll('.bar-fill.mp').forEach(bar => {
+    const base = 45;
+    const offset = Math.sin(Date.now() / 4000 + 1) * 0.3;
+    bar.style.width = (base + offset) + '%';
+  });
+  requestAnimationFrame(animateBars);
+}
+animateBars();
+</script>
+
+</body>
+</html>

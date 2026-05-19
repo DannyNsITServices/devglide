@@ -1,0 +1,29 @@
+{
+  "id": "ts-no-result-found",
+  "type": "troubleshooting",
+  "toolName": "devglide-test",
+  "symptom": "test_get_result returns no result found",
+  "likelyCauses": [
+    "The browser page is not open or the tab is inactive.",
+    "devtools.js is not loaded in the page.",
+    "The browser is open on a different URL than the target app.",
+    "devtools.js polling was interrupted (page navigated away, tab crashed, or JavaScript error blocked polling).",
+    "The DevGlide server restarted after the scenario was submitted but before the browser consumed it."
+  ],
+  "howToDiagnose": [
+    "Check that a browser page is open on the target app URL.",
+    "Open the browser DevTools console and look for 'devglide' messages confirming devtools.js is active.",
+    "Check devglide-log for recent session entries — if there are none, devtools.js is not connected.",
+    "Verify the DevGlide server is running on the expected port (default 7000)."
+  ],
+  "howToFix": [
+    "Open the app in a browser if no page is open.",
+    "Add <script src=\"http://localhost:7000/devtools.js\"></script> to the app's development HTML if devtools.js is missing.",
+    "Refresh the browser page to restart the devtools.js polling loop.",
+    "Re-submit the scenario after confirming the browser is ready."
+  ],
+  "whenToRetry": "After confirming the browser page is open and devtools.js is loaded. Wait 2-5 seconds after the fix, then call test_get_result again.",
+  "tags": ["test", "no-result", "browser", "devtools"],
+  "createdAt": "2026-03-24T00:00:00.000Z",
+  "updatedAt": "2026-03-24T00:00:00.000Z"
+}

@@ -5,6 +5,10 @@ import { LogWriter } from '../../../../apps/log/src/services/log-writer.js';
 
 const writer = new LogWriter();
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 function resolveLogPath(projectPath: string | undefined, targetPath?: string): string {
   const base = projectPath ?? process.cwd();
   if (targetPath) return path.resolve(base, targetPath);
@@ -57,6 +61,6 @@ export const logExecutor: ExecutorFunction = async (
         return { status: 'failed', error: `Unknown log operation: ${(cfg as LogConfig).operation}` };
     }
   } catch (err) {
-    return { status: 'failed', error: (err as Error).message };
+    return { status: 'failed', error: errorMessage(err) };
   }
 };

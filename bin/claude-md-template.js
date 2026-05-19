@@ -1,7 +1,7 @@
 // Managed CLAUDE.md section for DevGlide onboarding instructions.
 // Installed by `devglide setup`, removed by `devglide teardown`.
 
-const VERSION = "0.4.0";
+const VERSION = "0.6.0";
 const BEGIN = `<!-- DEVGLIDE:BEGIN v${VERSION} -->`;
 const END = "<!-- DEVGLIDE:END -->";
 
@@ -94,10 +94,52 @@ Describe what to test in natural language and scenarios are generated automatica
   - Config: \`GET /config\` · \`GET /config/providers\` · \`PUT /config\` · \`POST /config/test\` · \`GET /config/check-ffmpeg\`
   - Stats: \`GET /config/stats\` · \`DELETE /config/stats\`
 
+### devglide-chat — Multi-LLM chat room
+Shared chat room where user and multiple LLM instances communicate via @mention addressing.
+Messages are delivered to LLMs via PTY injection when linked to a shell pane.
+- \`chat_join\` — register as a chat participant (requires explicit \`paneId\`)
+- \`chat_leave\` — leave the chat room
+- \`chat_send\` — send a message (delivery goes to recipients resolved from \`to\` plus body @mentions; use \`@all\` to broadcast; LLM messages with no recipients in either field are persisted but not PTY-delivered)
+- \`chat_read\` — read message history (supports \`limit\`, \`since\` filters)
+- \`chat_members\` — list active participants with pane link status
+- **Name assignment:** The server derives your chat alias from \`name\` + pane number (e.g. "claude-1" for name "claude" on pane 1). The \`name\` param is the stable identity base — use a consistent agent label, not the backend model. Always use the \`name\` returned by \`chat_join\`.
+- **Targeted PTY delivery:** Delivery recipients are resolved from the \`to\` param plus any body @mentions. Use \`@all\` as an explicit broadcast token. LLM messages with no recipients in either \`to\` or body @mentions are persisted in history but not PTY-delivered to any agent terminal.
+- **Rules of Engagement:** On \`chat_join\`, you receive a \`rules\` field (markdown) defining when to respond vs. stay silent. **Follow these rules exactly.** Default: reply if @mentioned, or on a global user request only after your claim has been explicitly confirmed by the other active LLM participants. Do not let multiple LLMs answer the same global request uncoordinated. Rules can be customized per project.
+- **\`submitKey\`:** Use \`"cr"\` (default) for all known clients including Claude Code and Codex. The submit key is sent after a short delay to avoid paste-burst detection in TUI frameworks. Only use \`"lf"\` if you have verified a specific client requires it.
+- **Pane collision:** If your \`paneId\` collides with another participant, the **existing session is preserved** and the newcomer receives a 409 error with \`code: "PANE_ALREADY_BOUND"\`. The newcomer must use a different pane or wait for the existing participant to leave.
+- **Pane linking:** A valid \`paneId\` is required to receive messages. Read \`DEVGLIDE_PANE_ID\` from your shell session and pass it explicitly to \`chat_join\` every time. The pane must also be live and routable by the shell backend or \`chat_join\` will fail. If the env var is unavailable, chat cannot be used from that session. If your pane closes, you are removed from chat.
+- **Session unification:** REST and MCP joins share the same session state. A REST join with an \`mcp-session-id\` header automatically binds to the MCP session. MCP tools (\`chat_send\`, \`pipe_submit\`, \`chat_leave\`) can also adopt a REST-joined participant by passing \`paneId\`.
+- **Limitations:** You cannot message yourself; participants are in-memory (rejoin after server restart); only same-project participants see each other.
+- **REST API** (base: \`/api/chat\`):
+  - Join: \`POST /join\` body \`{ name, model?, paneId, submitKey? }\`
+  - Leave: \`POST /leave\` body \`{ name }\`
+  - Send: \`POST /send\` body \`{ from, message, to? }\`
+  - Members: \`GET /members\`
+  - Messages: \`GET /messages?limit=&since=\`
+  - Status: \`GET /status\` · \`GET /status?name=\` · \`GET /status?paneId=\`
+  - Pipes: \`POST /pipes/:id/submit\` body \`{ from, content }\` · \`POST /pipes/:id/cancel\` (no body; cancels by pipe ID within active project)
+  - Invite: \`POST /invite\` body \`{ cli, mode?, cols?, rows? }\`
+  - Panes: \`GET /panes\`
+  - Rules: \`GET /rules\` | \`PUT /rules\` body \`{ rules }\` | \`DELETE /rules\`
+  - Clear: \`DELETE /messages\`
+
 ### devglide-log — Structured logging
 - \`log_write\` — write a structured log entry
 - \`log_read\` — read log entries
 - \`log_clear\`, \`log_clear_all\` — clear logs
+
+### devglide-documentation — Operational guidance for DevGlide tools
+Provides tool guides, workflows, examples, troubleshooting, and project overrides.
+Helps LLMs correctly use devglide-test + devglide-log for UI verification.
+- \`docs_list\` — browse available documentation (filter by type, tool name, tag)
+- \`docs_match\` — search documentation by keyword query (ranked results)
+- \`docs_get_tool_guide\` — get the full operational guide for a tool
+- \`docs_get_workflow\` — get a step-by-step workflow by name
+- \`docs_get_troubleshooting\` — find troubleshooting by tool + symptom
+- \`docs_context\` — get compiled markdown for a task query (best for context injection)
+- \`docs_add\`, \`docs_update\`, \`docs_remove\` — manage documentation entries
+- **When to use:** Before using devglide-test for verification, call \`docs_context\` with your task.
+  When a tool run fails with a known symptom, call \`docs_get_troubleshooting\` or \`docs_match\`.
 
 ## Common Patterns
 

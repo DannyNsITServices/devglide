@@ -1,11 +1,16 @@
 import path from "path";
 import { Router } from "express";
 import type { Request, Response, Router as RouterType } from "express";
+import { z } from "zod";
 import { getSessions } from "./log.js";
 import { getActiveProject } from "../../../../project-context.js";
 import { LOGS_DIR, projectDataDir } from "../../../../packages/paths.js";
 
 export const statusRouter: RouterType = Router();
+
+const statusQuerySchema = z.object({
+  projectPath: z.string().optional(),
+});
 
 /**
  * GET /api/status — Return active sessions.
@@ -19,8 +24,13 @@ export const statusRouter: RouterType = Router();
 statusRouter.get("/", (req: Request, res: Response) => {
   let sessions = getSessions();
 
+  const query = statusQuerySchema.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: query.error.issues[0]?.message ?? "Invalid input" });
+    return;
+  }
   const project = getActiveProject();
-  const projectPath = (req.query.projectPath as string | undefined) || project?.path || null;
+  const projectPath = query.data.projectPath || project?.path || null;
   if (projectPath) {
     const projectName = path.basename(projectPath);
     // Per-project log dir: ~/.devglide/projects/{id}/logs/

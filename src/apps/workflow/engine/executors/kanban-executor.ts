@@ -1,6 +1,10 @@
 import type { ExecutorFunction, ExecutorResult, NodeConfig, ExecutionContext, SSEEmitter, KanbanConfig } from '../../types.js';
-import type Database from 'better-sqlite3';
-import { getDb, generateId, nowIso, appendVersionedEntry } from '../../../../apps/kanban/src/db.js';
+import { getDb, nowIso, appendVersionedEntry } from '../../../../apps/kanban/src/db.js';
+import { createKanbanItem, resolveColumnId } from '../../../../apps/kanban/src/kanban-create-helper.js';
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 export const kanbanExecutor: ExecutorFunction = async (
   config: NodeConfig,
@@ -17,33 +21,17 @@ export const kanbanExecutor: ExecutorFunction = async (
           return { status: 'failed', error: 'featureId and title are required for create' };
         }
 
-        let columnId = cfg.columnName
-          ? resolveColumnId(db, cfg.featureId, cfg.columnName)
-          : null;
+        const result = createKanbanItem(db, {
+          title: cfg.title,
+          description: cfg.description,
+          featureId: cfg.featureId,
+          columnName: cfg.columnName,
+          priority: cfg.priority,
+          type: cfg.type,
+        });
 
-        if (!columnId) {
-          columnId = resolveColumnId(db, cfg.featureId, 'Backlog');
-        }
-
-        if (!columnId) {
-          return { status: 'failed', error: `Column not found` };
-        }
-
-        const maxOrder = db.prepare(
-          `SELECT MAX("order") AS maxOrd FROM "Issue" WHERE "columnId" = ?`
-        ).get(columnId) as { maxOrd: number | null } | undefined;
-
-        const order = (maxOrder?.maxOrd ?? -1) + 1;
-        const id = generateId();
-        const now = nowIso();
-
-        db.prepare(
-          `INSERT INTO "Issue" ("id", "title", "description", "type", "priority", "order", "labels", "projectId", "columnId", "updatedAt")
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        ).run(id, cfg.title, cfg.description || '', 'TASK', 'MEDIUM', order, '[]', cfg.featureId, columnId, now);
-
-        const issue = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(id);
-        return { status: 'passed', output: issue };
+        if (!result.ok) return { status: 'failed', error: result.error };
+        return { status: 'passed', output: result.item };
       }
 
       case 'move': {
@@ -142,13 +130,6 @@ export const kanbanExecutor: ExecutorFunction = async (
         return { status: 'failed', error: `Unknown kanban operation: ${(cfg as KanbanConfig).operation}` };
     }
   } catch (err) {
-    return { status: 'failed', error: (err as Error).message };
+    return { status: 'failed', error: errorMessage(err) };
   }
 };
-
-function resolveColumnId(db: Database.Database, featureId: string, columnName: string): string | null {
-  const col = db.prepare(
-    `SELECT "id" FROM "Column" WHERE "projectId" = ? AND "name" = ?`
-  ).get(featureId, columnName) as { id: string } | undefined;
-  return col?.id ?? null;
-}

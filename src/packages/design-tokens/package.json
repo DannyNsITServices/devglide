@@ -15,9 +15,7 @@
   },
   "files": [
     "dist/",
-    "demo/",
-    "tokens.json",
-    "STYLEGUIDE.md"
+    "tokens.json"
   ],
   "scripts": {
     "build": "node build.js"

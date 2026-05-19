@@ -1,0 +1,2058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevGlide PCB Design System</title>
+<link href="https://fonts.bunny.net/css?family=share-tech-mono:400" rel="stylesheet">
+<style>
+/* ============================================================
+   PCB CIRCUIT BOARD DESIGN SYSTEM — DevGlide
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* Board colors */
+  --pcb-green: #1a3a2a;
+  --pcb-dark: #0d2818;
+  --soldermask: #153525;
+  --fiberglass: #1e4232;
+
+  /* Copper & metal */
+  --copper: #c87533;
+  --copper-light: #daa06d;
+  --copper-dark: #8b4513;
+  --solder: #a8b0b8;
+  --solder-shine: #d4d8dc;
+  --tin: #7a8288;
+
+  /* Silkscreen */
+  --silk: #e8e8d0;
+  --silk-dim: #b0b098;
+
+  /* Indicators */
+  --led-green: #33ff33;
+  --led-red: #ff3030;
+  --led-amber: #ffaa00;
+  --led-blue: #3388ff;
+
+  /* Spacing */
+  --trace-width: 2px;
+  --trace-width-power: 4px;
+  --pin-size: 3px;
+  --via-size: 10px;
+  --pad-size: 14px;
+
+  /* Font */
+  --font: 'Share Tech Mono', 'Courier New', monospace;
+}
+
+html {
+  font-size: 14px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font);
+  color: var(--silk);
+  background-color: var(--pcb-green);
+  min-height: 100vh;
+  overflow-x: hidden;
+
+  /* Fiberglass woven texture */
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 8px,
+      rgba(255,255,255,0.012) 8px,
+      rgba(255,255,255,0.012) 9px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 8px,
+      rgba(255,255,255,0.012) 8px,
+      rgba(255,255,255,0.012) 9px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 14px,
+      rgba(0,0,0,0.03) 14px,
+      rgba(0,0,0,0.03) 15px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 14px,
+      rgba(0,0,0,0.03) 14px,
+      rgba(0,0,0,0.03) 15px
+    );
+}
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--pcb-dark); }
+::-webkit-scrollbar-thumb { background: var(--copper-dark); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--copper); }
+
+/* ============================================================
+   COPPER POUR — ground plane mesh
+   ============================================================ */
+.copper-pour {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.04;
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      var(--copper) 0px,
+      var(--copper) 1px,
+      transparent 1px,
+      transparent 20px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      var(--copper) 0px,
+      var(--copper) 1px,
+      transparent 1px,
+      transparent 20px
+    );
+}
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.pcb-layout {
+  display: flex;
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+/* ============================================================
+   SIDEBAR — Bill of Materials
+   ============================================================ */
+.bom-sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: var(--pcb-dark);
+  border-right: var(--trace-width-power) solid var(--copper);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.bom-sidebar::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--copper-light) 0px,
+    var(--copper-light) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+.bom-header {
+  padding: 20px 16px 14px;
+  border-bottom: var(--trace-width) solid var(--copper-dark);
+  position: relative;
+}
+
+.bom-header::before {
+  content: 'REF: BOM-001';
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-size: 0.65rem;
+  color: var(--silk-dim);
+  opacity: 0.6;
+}
+
+.bom-title {
+  font-size: 0.75rem;
+  color: var(--silk-dim);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.bom-logo {
+  font-size: 1.3rem;
+  color: var(--copper-light);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bom-logo .logo-icon {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--copper);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.bom-logo .logo-icon::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: var(--copper-light);
+  border-radius: 50%;
+}
+
+.bom-section-title {
+  font-size: 0.65rem;
+  color: var(--silk-dim);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 14px 16px 6px;
+  opacity: 0.7;
+}
+
+.bom-list {
+  list-style: none;
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.bom-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  border-left: 3px solid transparent;
+  position: relative;
+}
+
+.bom-item:hover {
+  background: rgba(200, 117, 51, 0.08);
+  border-left-color: var(--copper-dark);
+}
+
+.bom-item.active {
+  background: rgba(200, 117, 51, 0.14);
+  border-left-color: var(--copper);
+}
+
+.bom-item .designator {
+  font-size: 0.7rem;
+  color: var(--copper);
+  min-width: 28px;
+  font-weight: bold;
+}
+
+.bom-item .component-name {
+  font-size: 0.85rem;
+  color: var(--silk);
+  flex: 1;
+}
+
+.bom-item .led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.led-on-green {
+  background: var(--led-green);
+  box-shadow: 0 0 6px var(--led-green), 0 0 12px rgba(51, 255, 51, 0.3);
+}
+
+.led-on-red {
+  background: var(--led-red);
+  box-shadow: 0 0 6px var(--led-red), 0 0 12px rgba(255, 48, 48, 0.3);
+}
+
+.led-on-amber {
+  background: var(--led-amber);
+  box-shadow: 0 0 6px var(--led-amber), 0 0 12px rgba(255, 170, 0, 0.3);
+}
+
+.led-off {
+  background: #333;
+  border: 1px solid #444;
+}
+
+.bom-footer {
+  padding: 12px 16px;
+  border-top: var(--trace-width) solid var(--copper-dark);
+  font-size: 0.65rem;
+  color: var(--silk-dim);
+  opacity: 0.5;
+  text-align: center;
+}
+
+/* ============================================================
+   MAIN CONTENT
+   ============================================================ */
+.main-content {
+  flex: 1;
+  padding: 24px 32px;
+  overflow-y: auto;
+  max-height: 100vh;
+}
+
+/* ============================================================
+   PCB BOARD EDGE — page header
+   ============================================================ */
+.board-edge {
+  border: 2px solid var(--copper-dark);
+  border-radius: 8px;
+  padding: 24px 28px;
+  margin-bottom: 28px;
+  position: relative;
+  background: linear-gradient(135deg, rgba(200,117,51,0.03) 0%, transparent 60%);
+}
+
+/* Mounting holes */
+.board-edge::before,
+.board-edge::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--copper);
+  background: radial-gradient(circle at 40% 35%, var(--solder-shine) 0%, var(--tin) 40%, var(--pcb-dark) 70%);
+}
+.board-edge::before { top: 10px; left: 10px; }
+.board-edge::after { top: 10px; right: 10px; }
+
+.board-title {
+  font-size: 1.8rem;
+  color: var(--copper-light);
+  margin-bottom: 4px;
+  padding-left: 4px;
+}
+
+.board-subtitle {
+  font-size: 0.85rem;
+  color: var(--silk-dim);
+  padding-left: 4px;
+}
+
+.board-rev {
+  position: absolute;
+  bottom: 10px;
+  right: 16px;
+  font-size: 0.6rem;
+  color: var(--silk-dim);
+  opacity: 0.5;
+}
+
+.board-rev::before {
+  content: 'REV 2.4 | ';
+}
+
+/* ============================================================
+   SECTION HEADERS — silkscreen style
+   ============================================================ */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 32px 0 18px;
+  position: relative;
+}
+
+.section-header .ref-des {
+  font-size: 0.65rem;
+  color: var(--copper);
+  letter-spacing: 1px;
+  min-width: 40px;
+}
+
+.section-header h2 {
+  font-size: 1rem;
+  color: var(--silk);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-weight: normal;
+}
+
+.section-header::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: repeating-linear-gradient(
+    to right,
+    var(--copper-dark) 0px,
+    var(--copper-dark) 6px,
+    transparent 6px,
+    transparent 10px
+  );
+}
+
+/* ============================================================
+   IC CHIP CARD
+   ============================================================ */
+.ic-chip {
+  background: var(--pcb-dark);
+  border: 1.5px solid var(--silk-dim);
+  border-style: dashed;
+  border-radius: 4px;
+  padding: 16px 20px;
+  position: relative;
+  margin: 12px 0;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ic-chip:hover {
+  border-color: var(--silk);
+}
+
+.ic-chip.active {
+  border-color: var(--copper);
+  box-shadow: 0 0 16px rgba(200, 117, 51, 0.12);
+}
+
+/* Pin 1 notch */
+.ic-chip::before {
+  content: '';
+  position: absolute;
+  top: -1.5px;
+  left: 18px;
+  width: 12px;
+  height: 7px;
+  border-radius: 0 0 6px 6px;
+  border: 1.5px solid var(--silk-dim);
+  border-top: none;
+  background: var(--pcb-dark);
+}
+
+/* Pins on left side */
+.ic-chip::after {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 20px;
+  width: 8px;
+  height: calc(100% - 40px);
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--solder) 0px,
+    var(--solder) 3px,
+    transparent 3px,
+    transparent 10px
+  );
+}
+
+/* Pins on right side via wrapper */
+.ic-chip-pins-right {
+  position: absolute;
+  right: -8px;
+  top: 20px;
+  width: 8px;
+  height: calc(100% - 40px);
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--solder) 0px,
+    var(--solder) 3px,
+    transparent 3px,
+    transparent 10px
+  );
+  pointer-events: none;
+}
+
+.ic-chip .chip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.ic-chip .chip-designation {
+  font-size: 0.65rem;
+  color: var(--copper);
+  letter-spacing: 1px;
+}
+
+.ic-chip .chip-name {
+  font-size: 0.95rem;
+  color: var(--silk);
+}
+
+.ic-chip .chip-description {
+  font-size: 0.8rem;
+  color: var(--silk-dim);
+  line-height: 1.5;
+}
+
+.ic-chip .pin-count {
+  font-size: 0.6rem;
+  color: var(--tin);
+  position: absolute;
+  bottom: 6px;
+  right: 12px;
+}
+
+/* ============================================================
+   SOLDER PAD BUTTONS
+   ============================================================ */
+.solder-pad {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 20px;
+  background: radial-gradient(ellipse at 40% 30%, var(--solder-shine) 0%, var(--solder) 50%, var(--tin) 100%);
+  color: var(--pcb-dark);
+  font-family: var(--font);
+  font-size: 0.8rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.1s, box-shadow 0.2s;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.solder-pad:hover {
+  transform: scale(1.03);
+  box-shadow: 0 0 10px rgba(168, 176, 184, 0.25);
+}
+
+.solder-pad:active {
+  transform: scale(0.97);
+}
+
+.solder-pad.copper-pad {
+  background: radial-gradient(ellipse at 40% 30%, var(--copper-light) 0%, var(--copper) 50%, var(--copper-dark) 100%);
+  color: #fff;
+}
+
+.solder-pad.small {
+  padding: 5px 12px;
+  font-size: 0.7rem;
+}
+
+/* ============================================================
+   VIA HOLES
+   ============================================================ */
+.via {
+  display: inline-block;
+  width: var(--via-size);
+  height: var(--via-size);
+  border-radius: 50%;
+  border: 2px solid var(--copper);
+  background: radial-gradient(circle, var(--pcb-dark) 35%, var(--copper-dark) 70%, var(--copper) 100%);
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.via.small {
+  width: 7px;
+  height: 7px;
+  border-width: 1.5px;
+}
+
+.via.large {
+  width: 14px;
+  height: 14px;
+  border-width: 2.5px;
+}
+
+/* ============================================================
+   TEST POINTS
+   ============================================================ */
+.test-point {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  color: var(--silk-dim);
+}
+
+.test-point .tp-pad {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, var(--copper-light) 0%, var(--copper) 60%, var(--copper-dark) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.5rem;
+  color: var(--pcb-dark);
+  font-weight: bold;
+}
+
+.test-point.success .tp-pad {
+  background: radial-gradient(circle at 40% 35%, #66ff66 0%, #22aa22 60%, #116611 100%);
+  box-shadow: 0 0 6px rgba(51, 255, 51, 0.3);
+}
+
+.test-point.error .tp-pad {
+  background: radial-gradient(circle at 40% 35%, #ff6666 0%, #cc2222 60%, #881111 100%);
+  box-shadow: 0 0 6px rgba(255, 48, 48, 0.3);
+}
+
+/* ============================================================
+   SMD COMPONENTS (decorative)
+   ============================================================ */
+.smd-resistor {
+  display: inline-block;
+  width: 20px;
+  height: 8px;
+  background: #1a1a1a;
+  border-radius: 1px;
+  position: relative;
+  vertical-align: middle;
+}
+.smd-resistor::before, .smd-resistor::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--solder);
+  border-radius: 1px;
+}
+.smd-resistor::before { left: 0; }
+.smd-resistor::after { right: 0; }
+
+.smd-capacitor {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background: #8b7355;
+  border-radius: 1px;
+  position: relative;
+  vertical-align: middle;
+}
+.smd-capacitor::before, .smd-capacitor::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--solder);
+}
+.smd-capacitor::before { top: 0; }
+.smd-capacitor::after { bottom: 0; }
+
+/* ============================================================
+   LED INDICATORS
+   ============================================================ */
+.led-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+}
+
+.led-indicator .led-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.led-dot.green {
+  background: var(--led-green);
+  box-shadow: 0 0 6px var(--led-green), 0 0 14px rgba(51,255,51,0.25);
+  animation: led-pulse-green 2s ease-in-out infinite;
+}
+
+.led-dot.red {
+  background: var(--led-red);
+  box-shadow: 0 0 6px var(--led-red), 0 0 14px rgba(255,48,48,0.25);
+}
+
+.led-dot.amber {
+  background: var(--led-amber);
+  box-shadow: 0 0 6px var(--led-amber), 0 0 14px rgba(255,170,0,0.25);
+  animation: led-pulse-amber 1.5s ease-in-out infinite;
+}
+
+.led-dot.blue {
+  background: var(--led-blue);
+  box-shadow: 0 0 6px var(--led-blue), 0 0 14px rgba(51,136,255,0.25);
+}
+
+.led-dot.off {
+  background: #2a2a2a;
+  box-shadow: none;
+  border-color: #444;
+}
+
+@keyframes led-pulse-green {
+  0%, 100% { box-shadow: 0 0 6px var(--led-green), 0 0 14px rgba(51,255,51,0.25); }
+  50% { box-shadow: 0 0 8px var(--led-green), 0 0 20px rgba(51,255,51,0.4); }
+}
+
+@keyframes led-pulse-amber {
+  0%, 100% { box-shadow: 0 0 6px var(--led-amber), 0 0 14px rgba(255,170,0,0.25); }
+  50% { box-shadow: 0 0 8px var(--led-amber), 0 0 20px rgba(255,170,0,0.4); }
+}
+
+/* ============================================================
+   COPPER TRACES — connecting lines
+   ============================================================ */
+.trace-h {
+  height: var(--trace-width);
+  background: var(--copper);
+  position: relative;
+}
+
+.trace-v {
+  width: var(--trace-width);
+  background: var(--copper);
+}
+
+.trace-h.power {
+  height: var(--trace-width-power);
+}
+
+/* ============================================================
+   TRACE SVG OVERLAY
+   ============================================================ */
+.trace-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.trace-svg path, .trace-svg line {
+  fill: none;
+  stroke: var(--copper);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.trace-svg .power-trace {
+  stroke-width: 3;
+  stroke: var(--copper-light);
+}
+
+/* ============================================================
+   GRID LAYOUTS
+   ============================================================ */
+.component-grid {
+  display: grid;
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.component-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+.component-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.component-grid.cols-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+/* ============================================================
+   KANBAN BOARD
+   ============================================================ */
+.kanban-board {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  padding: 16px 0;
+  position: relative;
+}
+
+.kanban-column {
+  min-width: 220px;
+  flex: 1;
+  position: relative;
+}
+
+.kanban-column + .kanban-column {
+  border-left: var(--trace-width) solid var(--copper-dark);
+}
+
+.kanban-column-header {
+  padding: 10px 14px;
+  border-bottom: var(--trace-width) solid var(--copper);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.kanban-column-header .col-name {
+  font-size: 0.75rem;
+  color: var(--silk);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.kanban-column-header .col-count {
+  font-size: 0.65rem;
+  color: var(--copper);
+  background: rgba(200,117,51,0.15);
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.kanban-column-body {
+  padding: 4px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Kanban card as IC chip */
+.kanban-card {
+  background: var(--pcb-dark);
+  border: 1px dashed var(--silk-dim);
+  border-radius: 3px;
+  padding: 10px 12px 10px 16px;
+  position: relative;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.kanban-card:hover {
+  border-color: var(--copper);
+}
+
+.kanban-card.active-card {
+  border-color: var(--copper);
+  border-style: solid;
+  box-shadow: 0 0 12px rgba(200,117,51,0.15);
+}
+
+/* Card pin 1 dot */
+.kanban-card::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 5px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--silk-dim);
+}
+
+/* Card left pins */
+.kanban-card::after {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 14px;
+  width: 5px;
+  height: calc(100% - 20px);
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--solder) 0px,
+    var(--solder) 2px,
+    transparent 2px,
+    transparent 7px
+  );
+}
+
+.kanban-card .card-ref {
+  font-size: 0.6rem;
+  color: var(--copper);
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.kanban-card .card-title {
+  font-size: 0.8rem;
+  color: var(--silk);
+  margin-bottom: 6px;
+}
+
+.kanban-card .card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kanban-card .card-type {
+  font-size: 0.6rem;
+  padding: 1px 5px;
+  border-radius: 2px;
+  letter-spacing: 0.5px;
+}
+
+.card-type.task {
+  color: var(--led-blue);
+  border: 1px solid var(--led-blue);
+}
+
+.card-type.bug {
+  color: var(--led-red);
+  border: 1px solid var(--led-red);
+}
+
+.kanban-card .card-priority {
+  font-size: 0.55rem;
+  color: var(--silk-dim);
+}
+
+.kanban-card .card-led {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+/* ============================================================
+   COPPER TRACE CONNECTIONS — between kanban columns
+   ============================================================ */
+.kanban-trace-container {
+  position: relative;
+}
+
+.kanban-trace-container svg.kanban-traces {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ============================================================
+   COMPONENT SHOWCASE
+   ============================================================ */
+.showcase-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+
+.showcase-label {
+  font-size: 0.7rem;
+  color: var(--silk-dim);
+  min-width: 100px;
+  letter-spacing: 1px;
+}
+
+/* ============================================================
+   STATUS BAR
+   ============================================================ */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 16px;
+  background: rgba(13, 40, 24, 0.8);
+  border: 1px solid var(--copper-dark);
+  border-radius: 4px;
+  margin: 16px 0;
+}
+
+.status-bar .status-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--silk-dim);
+}
+
+/* ============================================================
+   TRACE NETWORK — decorative SVG connections
+   ============================================================ */
+.trace-network {
+  position: relative;
+  padding: 20px 0;
+}
+
+.trace-network svg {
+  width: 100%;
+  height: 80px;
+}
+
+/* ============================================================
+   INPUT / TEXT FIELD — pad style
+   ============================================================ */
+.pad-input {
+  background: var(--pcb-dark);
+  border: 1.5px solid var(--copper-dark);
+  border-radius: 3px;
+  padding: 8px 12px;
+  color: var(--silk);
+  font-family: var(--font);
+  font-size: 0.8rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.pad-input:focus {
+  border-color: var(--copper);
+  box-shadow: 0 0 8px rgba(200,117,51,0.15);
+}
+
+.pad-input::placeholder {
+  color: var(--silk-dim);
+  opacity: 0.4;
+}
+
+/* ============================================================
+   TABLES — Component listing style
+   ============================================================ */
+.pcb-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+}
+
+.pcb-table th {
+  font-size: 0.65rem;
+  color: var(--silk-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: var(--trace-width) solid var(--copper);
+}
+
+.pcb-table td {
+  font-size: 0.8rem;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(200,117,51,0.1);
+  color: var(--silk);
+}
+
+.pcb-table tr:hover td {
+  background: rgba(200,117,51,0.05);
+}
+
+/* ============================================================
+   DRILL CHART — via/hole legend
+   ============================================================ */
+.drill-chart {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  padding: 10px 0;
+  flex-wrap: wrap;
+}
+
+.drill-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7rem;
+  color: var(--silk-dim);
+}
+
+/* ============================================================
+   PROGRESS / SIGNAL TRACE BAR
+   ============================================================ */
+.signal-bar {
+  height: 6px;
+  background: var(--pcb-dark);
+  border: 1px solid var(--copper-dark);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+.signal-bar .signal-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s;
+}
+
+.signal-fill.copper { background: linear-gradient(90deg, var(--copper-dark), var(--copper-light)); }
+.signal-fill.green { background: linear-gradient(90deg, #116611, var(--led-green)); }
+.signal-fill.red { background: linear-gradient(90deg, #661111, var(--led-red)); }
+
+/* ============================================================
+   TOOLTIP (silkscreen note)
+   ============================================================ */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--pcb-dark);
+  border: 1px solid var(--copper);
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  color: var(--silk);
+  white-space: nowrap;
+  border-radius: 2px;
+  z-index: 100;
+}
+
+/* ============================================================
+   BADGE / CHIP (small label)
+   ============================================================ */
+.pcb-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 0.65rem;
+  border-radius: 2px;
+  border: 1px solid;
+  letter-spacing: 0.5px;
+}
+
+.pcb-badge.copper {
+  color: var(--copper-light);
+  border-color: var(--copper);
+  background: rgba(200,117,51,0.1);
+}
+
+.pcb-badge.success {
+  color: var(--led-green);
+  border-color: rgba(51,255,51,0.4);
+  background: rgba(51,255,51,0.05);
+}
+
+.pcb-badge.error {
+  color: var(--led-red);
+  border-color: rgba(255,48,48,0.4);
+  background: rgba(255,48,48,0.05);
+}
+
+.pcb-badge.info {
+  color: var(--led-blue);
+  border-color: rgba(51,136,255,0.4);
+  background: rgba(51,136,255,0.05);
+}
+
+/* ============================================================
+   OSCILLOSCOPE DISPLAY
+   ============================================================ */
+.oscilloscope {
+  background: #0a0a0a;
+  border: 2px solid var(--tin);
+  border-radius: 6px;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.oscilloscope::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(51,255,51,0.06) 19px, rgba(51,255,51,0.06) 20px),
+    repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(51,255,51,0.06) 19px, rgba(51,255,51,0.06) 20px);
+  pointer-events: none;
+}
+
+.oscilloscope .scope-label {
+  font-size: 0.6rem;
+  color: var(--led-green);
+  opacity: 0.6;
+  margin-bottom: 8px;
+}
+
+.oscilloscope svg {
+  width: 100%;
+  height: 60px;
+}
+
+.oscilloscope svg path {
+  fill: none;
+  stroke: var(--led-green);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 3px rgba(51,255,51,0.5));
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+@keyframes trace-flow {
+  0% { stroke-dashoffset: 20; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.trace-animated {
+  stroke-dasharray: 10 10;
+  animation: trace-flow 1s linear infinite;
+}
+
+@keyframes scope-scan {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ============================================================
+   SOLDER POINT BULLETS
+   ============================================================ */
+.solder-list {
+  list-style: none;
+  padding-left: 4px;
+}
+
+.solder-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 0.8rem;
+  color: var(--silk);
+  line-height: 1.5;
+}
+
+.solder-list li::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  min-width: 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--solder-shine) 0%, var(--solder) 50%, var(--tin) 100%);
+  margin-top: 4px;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 900px) {
+  .pcb-layout { flex-direction: column; }
+  .bom-sidebar {
+    width: 100%;
+    min-width: 100%;
+    max-height: 200px;
+    border-right: none;
+    border-bottom: var(--trace-width-power) solid var(--copper);
+  }
+  .bom-list { display: flex; flex-wrap: wrap; }
+  .bom-item { flex: 0 0 auto; }
+  .main-content { max-height: none; }
+  .component-grid.cols-3 { grid-template-columns: 1fr 1fr; }
+  .component-grid.cols-4 { grid-template-columns: 1fr 1fr; }
+  .kanban-board { flex-wrap: nowrap; }
+}
+</style>
+</head>
+<body>
+
+<!-- Copper pour ground plane -->
+<div class="copper-pour"></div>
+
+<div class="pcb-layout">
+
+  <!-- ============================================================
+       SIDEBAR — Bill of Materials
+       ============================================================ -->
+  <aside class="bom-sidebar">
+    <div class="bom-header">
+      <div class="bom-title">Bill of Materials</div>
+      <div class="bom-logo">
+        <span class="logo-icon"></span>
+        DevGlide
+      </div>
+    </div>
+
+    <div class="bom-section-title">Integrated Circuits</div>
+    <ul class="bom-list">
+      <li class="bom-item active" onclick="setActive(this)">
+        <span class="designator">U1</span>
+        <span class="component-name">Kanban</span>
+        <span class="led led-on-green"></span>
+      </li>
+      <li class="bom-item" onclick="setActive(this)">
+        <span class="designator">U2</span>
+        <span class="component-name">Shell</span>
+        <span class="led led-on-green"></span>
+      </li>
+      <li class="bom-item" onclick="setActive(this)">
+        <span class="designator">U3</span>
+        <span class="component-name">Test</span>
+        <span class="led led-on-amber"></span>
+      </li>
+      <li class="bom-item" onclick="setActive(this)">
+        <span class="designator">U4</span>
+        <span class="component-name">Workflow</span>
+        <span class="led led-on-green"></span>
+      </li>
+      <li class="bom-item" onclick="setActive(this)">
+        <span class="designator">U5</span>
+        <span class="component-name">Chat</span>
+        <span class="led led-on-green"></span>
+      </li>
+      <li class="bom-item" onclick="setActive(this)">
+        <span class="designator">U6</span>
+        <span class="component-name">Voice</span>
+        <span class="led led-off"></span>
+      </li>
+      <li class="bom-item" onclick="setActive(this)">
+        <span class="designator">U7</span>
+        <span class="component-name">Vocabulary</span>
+        <span class="led led-on-green"></span>
+      </li>
+      <li class="bom-item" onclick="setActive(this)">
+        <span class="designator">U8</span>
+        <span class="component-name">Prompts</span>
+        <span class="led led-on-green"></span>
+      </li>
+      <li class="bom-item" onclick="setActive(this)">
+        <span class="designator">U9</span>
+        <span class="component-name">Log</span>
+        <span class="led led-on-green"></span>
+      </li>
+      <li class="bom-item" onclick="setActive(this)">
+        <span class="designator">U10</span>
+        <span class="component-name">Documentation</span>
+        <span class="led led-on-green"></span>
+      </li>
+    </ul>
+
+    <div class="bom-section-title">Passives</div>
+    <ul class="bom-list">
+      <li class="bom-item">
+        <span class="designator">R1-R8</span>
+        <span class="component-name">Pull-ups 10k</span>
+      </li>
+      <li class="bom-item">
+        <span class="designator">C1-C4</span>
+        <span class="component-name">Decoup. 100nF</span>
+      </li>
+    </ul>
+
+    <div class="bom-footer">PCB Rev 2.4 &mdash; DevGlide v1.0</div>
+  </aside>
+
+  <!-- ============================================================
+       MAIN CONTENT
+       ============================================================ -->
+  <main class="main-content">
+
+    <!-- Board header -->
+    <div class="board-edge">
+      <div class="board-title">DevGlide PCB Design System</div>
+      <div class="board-subtitle">AI Workflow Toolkit &mdash; Circuit Board Interface Language</div>
+      <div class="board-rev">2026-04-03</div>
+    </div>
+
+    <!-- Status bar -->
+    <div class="status-bar">
+      <div class="status-item">
+        <span class="led-dot green" style="width:8px;height:8px;border-radius:50%;display:inline-block;"></span>
+        MCP Server Online
+      </div>
+      <div class="status-item">
+        <span class="via small"></span>
+        Port 7000
+      </div>
+      <div class="status-item">
+        <span class="smd-resistor"></span>
+        9 modules active
+      </div>
+      <div class="status-item">
+        <span class="smd-capacitor"></span>
+        <span class="test-point success"><span class="tp-pad">TP1</span> PASS</span>
+      </div>
+      <div class="status-item" style="margin-left:auto;">
+        <span class="test-point"><span class="tp-pad">TP2</span> 3.3V</span>
+      </div>
+      <div class="status-item">
+        <span class="test-point"><span class="tp-pad">TP3</span> GND</span>
+      </div>
+    </div>
+
+    <!-- Decorative trace network -->
+    <div class="trace-network">
+      <svg viewBox="0 0 900 80" preserveAspectRatio="none">
+        <!-- Power rail -->
+        <line x1="0" y1="10" x2="900" y2="10" stroke="var(--copper-light)" stroke-width="3" opacity="0.4"/>
+        <line x1="0" y1="70" x2="900" y2="70" stroke="var(--copper-light)" stroke-width="3" opacity="0.4"/>
+        <!-- Signal traces -->
+        <path d="M 50,10 L 50,30 L 150,30 L 150,50 L 250,50" stroke="var(--copper)" stroke-width="2" fill="none" class="trace-animated"/>
+        <path d="M 250,50 L 350,50 L 350,30 L 450,30 L 450,50 L 550,50" stroke="var(--copper)" stroke-width="2" fill="none" class="trace-animated" style="animation-delay:-0.3s"/>
+        <path d="M 550,50 L 650,50 L 650,30 L 750,30 L 750,10" stroke="var(--copper)" stroke-width="2" fill="none" class="trace-animated" style="animation-delay:-0.6s"/>
+        <!-- Vias -->
+        <circle cx="50" cy="10" r="5" fill="var(--pcb-dark)" stroke="var(--copper)" stroke-width="2"/>
+        <circle cx="250" cy="50" r="5" fill="var(--pcb-dark)" stroke="var(--copper)" stroke-width="2"/>
+        <circle cx="550" cy="50" r="5" fill="var(--pcb-dark)" stroke="var(--copper)" stroke-width="2"/>
+        <circle cx="750" cy="10" r="5" fill="var(--pcb-dark)" stroke="var(--copper)" stroke-width="2"/>
+        <!-- Ground plane hatching sample -->
+        <rect x="800" y="20" width="80" height="40" fill="none" stroke="var(--copper)" stroke-width="1" opacity="0.15" stroke-dasharray="3 3"/>
+      </svg>
+    </div>
+
+    <!-- ============================================================
+         SECTION: Component Showcase
+         ============================================================ -->
+    <div class="section-header">
+      <span class="ref-des">SEC.1</span>
+      <h2>Component Showcase</h2>
+    </div>
+
+    <!-- Buttons / Solder Pads -->
+    <div class="showcase-row">
+      <span class="showcase-label">SOLDER PADS</span>
+      <button class="solder-pad">Standard Pad</button>
+      <button class="solder-pad copper-pad">Copper Pad</button>
+      <button class="solder-pad small">Small Pad</button>
+      <button class="solder-pad small copper-pad">SM Copper</button>
+    </div>
+
+    <!-- LEDs -->
+    <div class="showcase-row">
+      <span class="showcase-label">LED STATUS</span>
+      <span class="led-indicator"><span class="led-dot green"></span> Online</span>
+      <span class="led-indicator"><span class="led-dot red"></span> Error</span>
+      <span class="led-indicator"><span class="led-dot amber"></span> Warning</span>
+      <span class="led-indicator"><span class="led-dot blue"></span> Info</span>
+      <span class="led-indicator"><span class="led-dot off"></span> Offline</span>
+    </div>
+
+    <!-- Vias -->
+    <div class="showcase-row">
+      <span class="showcase-label">VIA HOLES</span>
+      <span class="via small"></span>
+      <span class="via"></span>
+      <span class="via large"></span>
+      <span style="margin-left:12px;font-size:0.7rem;color:var(--silk-dim);">Plated through-hole vias, various drill sizes</span>
+    </div>
+
+    <!-- Test Points -->
+    <div class="showcase-row">
+      <span class="showcase-label">TEST POINTS</span>
+      <span class="test-point"><span class="tp-pad">TP1</span> Signal A</span>
+      <span class="test-point success"><span class="tp-pad">TP2</span> PASS</span>
+      <span class="test-point error"><span class="tp-pad">TP3</span> FAIL</span>
+    </div>
+
+    <!-- SMD Components -->
+    <div class="showcase-row">
+      <span class="showcase-label">SMD PARTS</span>
+      <span class="smd-resistor" data-tooltip="0402 10k Resistor"></span>
+      <span style="font-size:0.6rem;color:var(--silk-dim);">R1 10k</span>
+      <span class="smd-resistor"></span>
+      <span style="font-size:0.6rem;color:var(--silk-dim);">R2 4.7k</span>
+      <span class="smd-capacitor" data-tooltip="0402 100nF Capacitor"></span>
+      <span style="font-size:0.6rem;color:var(--silk-dim);">C1 100nF</span>
+      <span class="smd-capacitor"></span>
+      <span style="font-size:0.6rem;color:var(--silk-dim);">C2 10uF</span>
+    </div>
+
+    <!-- Badges -->
+    <div class="showcase-row">
+      <span class="showcase-label">BADGES</span>
+      <span class="pcb-badge copper">MCP v1.0</span>
+      <span class="pcb-badge success">CONNECTED</span>
+      <span class="pcb-badge error">FAULT</span>
+      <span class="pcb-badge info">STDIO</span>
+    </div>
+
+    <!-- Signal Bars / Progress -->
+    <div class="showcase-row" style="flex-direction:column;align-items:stretch;">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+        <span class="showcase-label">SIGNAL BARS</span>
+      </div>
+      <div style="display:grid;grid-template-columns:80px 1fr;gap:8px;align-items:center;">
+        <span style="font-size:0.7rem;color:var(--silk-dim);">CPU Load</span>
+        <div class="signal-bar"><div class="signal-fill copper" style="width:42%"></div></div>
+        <span style="font-size:0.7rem;color:var(--silk-dim);">Memory</span>
+        <div class="signal-bar"><div class="signal-fill green" style="width:67%"></div></div>
+        <span style="font-size:0.7rem;color:var(--silk-dim);">Errors</span>
+        <div class="signal-bar"><div class="signal-fill red" style="width:12%"></div></div>
+      </div>
+    </div>
+
+    <!-- Input Fields -->
+    <div class="showcase-row">
+      <span class="showcase-label">PAD INPUTS</span>
+      <input class="pad-input" type="text" placeholder="Enter command..." style="width:200px">
+      <input class="pad-input" type="text" value="devglide start" style="width:160px" readonly>
+    </div>
+
+    <!-- Drill Chart -->
+    <div class="showcase-row" style="flex-direction:column;align-items:flex-start;">
+      <span class="showcase-label">DRILL CHART</span>
+      <div class="drill-chart">
+        <span class="drill-entry"><span class="via small"></span> 0.3mm via</span>
+        <span class="drill-entry"><span class="via"></span> 0.5mm via</span>
+        <span class="drill-entry"><span class="via large"></span> 0.8mm via</span>
+        <span class="drill-entry">
+          <span style="display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid var(--copper);background:radial-gradient(circle,var(--pcb-dark) 40%,var(--solder) 80%,var(--copper) 100%)"></span>
+          1.0mm mounting
+        </span>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         SECTION: IC Chip Cards
+         ============================================================ -->
+    <div class="section-header">
+      <span class="ref-des">SEC.2</span>
+      <h2>IC Chip Components</h2>
+    </div>
+
+    <div class="component-grid cols-2">
+      <!-- IC Chip 1: Kanban -->
+      <div class="ic-chip active">
+        <div class="ic-chip-pins-right"></div>
+        <div class="chip-header">
+          <span class="chip-designation">IC7 &mdash; U1-KANBAN</span>
+          <span class="led-indicator"><span class="led-dot green"></span></span>
+        </div>
+        <div class="chip-name">Kanban Board Controller</div>
+        <div class="chip-description">
+          Task and feature management with six-column workflow.
+          Backlog, Todo, In Progress, In Review, Testing, Done.
+        </div>
+        <ul class="solder-list" style="margin-top:8px;">
+          <li>SQLite per-project storage</li>
+          <li>Work log + review history</li>
+          <li>File attachments support</li>
+        </ul>
+        <span class="pin-count">28-DIP</span>
+      </div>
+
+      <!-- IC Chip 2: Shell -->
+      <div class="ic-chip">
+        <div class="ic-chip-pins-right"></div>
+        <div class="chip-header">
+          <span class="chip-designation">IC8 &mdash; U2-SHELL</span>
+          <span class="led-indicator"><span class="led-dot green"></span></span>
+        </div>
+        <div class="chip-name">Terminal Pane Manager</div>
+        <div class="chip-description">
+          Run shell commands in managed PTY panes.
+          Scrollback capture and pane lifecycle management.
+        </div>
+        <ul class="solder-list" style="margin-top:8px;">
+          <li>In-memory pane sessions</li>
+          <li>Multi-pane orchestration</li>
+          <li>Chat integration via PTY injection</li>
+        </ul>
+        <span class="pin-count">16-SOIC</span>
+      </div>
+
+      <!-- IC Chip 3: Test -->
+      <div class="ic-chip">
+        <div class="ic-chip-pins-right"></div>
+        <div class="chip-header">
+          <span class="chip-designation">IC9 &mdash; U3-TEST</span>
+          <span class="led-indicator"><span class="led-dot amber"></span></span>
+        </div>
+        <div class="chip-name">Browser Test Automation</div>
+        <div class="chip-description">
+          AI-driven browser testing with natural language scenarios.
+          Describe what to test and scenarios are generated automatically.
+        </div>
+        <ul class="solder-list" style="margin-top:8px;">
+          <li>Natural language test specs</li>
+          <li>Saved scenario library</li>
+          <li>Async result polling</li>
+        </ul>
+        <span class="pin-count">20-QFP</span>
+      </div>
+
+      <!-- IC Chip 4: Chat -->
+      <div class="ic-chip">
+        <div class="ic-chip-pins-right"></div>
+        <div class="chip-header">
+          <span class="chip-designation">IC10 &mdash; U5-CHAT</span>
+          <span class="led-indicator"><span class="led-dot green"></span></span>
+        </div>
+        <div class="chip-name">Multi-LLM Chat Room</div>
+        <div class="chip-description">
+          Shared chat room for user and multiple LLM instances.
+          @mention addressing with PTY delivery and pipe I/O.
+        </div>
+        <ul class="solder-list" style="margin-top:8px;">
+          <li>Broadcast messaging via PTY</li>
+          <li>JSONL history persistence</li>
+          <li>Per-project rules of engagement</li>
+        </ul>
+        <span class="pin-count">32-QFN</span>
+      </div>
+    </div>
+
+    <!-- Trace connection between IC chips -->
+    <div class="trace-network" style="margin:4px 0 0;">
+      <svg viewBox="0 0 900 50" preserveAspectRatio="none">
+        <path d="M 100,25 L 200,25 L 220,10 L 350,10 L 370,25 L 500,25" stroke="var(--copper)" stroke-width="2" fill="none" class="trace-animated"/>
+        <path d="M 500,25 L 580,25 L 600,40 L 700,40 L 720,25 L 850,25" stroke="var(--copper)" stroke-width="2" fill="none" class="trace-animated" style="animation-delay:-0.5s"/>
+        <circle cx="100" cy="25" r="4" fill="var(--pcb-dark)" stroke="var(--copper)" stroke-width="2"/>
+        <circle cx="500" cy="25" r="4" fill="var(--pcb-dark)" stroke="var(--copper)" stroke-width="2"/>
+        <circle cx="850" cy="25" r="4" fill="var(--pcb-dark)" stroke="var(--copper)" stroke-width="2"/>
+        <!-- Component labels -->
+        <text x="100" y="8" font-family="var(--font)" font-size="8" fill="var(--silk-dim)" text-anchor="middle">U1</text>
+        <text x="500" y="8" font-family="var(--font)" font-size="8" fill="var(--silk-dim)" text-anchor="middle">BUS</text>
+        <text x="850" y="8" font-family="var(--font)" font-size="8" fill="var(--silk-dim)" text-anchor="middle">U5</text>
+      </svg>
+    </div>
+
+    <!-- ============================================================
+         SECTION: Kanban Dashboard Mockup
+         ============================================================ -->
+    <div class="section-header">
+      <span class="ref-des">SEC.3</span>
+      <h2>Kanban Dashboard</h2>
+    </div>
+
+    <div class="kanban-trace-container">
+      <!-- SVG trace overlay connecting columns -->
+      <svg class="kanban-traces" viewBox="0 0 1000 400" preserveAspectRatio="none" style="height:400px;">
+        <!-- Horizontal bus at top -->
+        <line x1="0" y1="8" x2="1000" y2="8" stroke="var(--copper)" stroke-width="2.5" opacity="0.35"/>
+        <!-- Vertical drops to each column header -->
+        <line x1="110" y1="8" x2="110" y2="38" stroke="var(--copper)" stroke-width="2" opacity="0.3"/>
+        <line x1="330" y1="8" x2="330" y2="38" stroke="var(--copper)" stroke-width="2" opacity="0.3"/>
+        <line x1="550" y1="8" x2="550" y2="38" stroke="var(--copper)" stroke-width="2" opacity="0.3"/>
+        <line x1="770" y1="8" x2="770" y2="38" stroke="var(--copper)" stroke-width="2" opacity="0.3"/>
+        <!-- Animated signal flow -->
+        <path d="M 110,38 L 110,100 L 220,100 L 220,38 L 330,38" stroke="var(--copper-light)" stroke-width="1.5" fill="none" class="trace-animated" opacity="0.5"/>
+        <path d="M 330,38 L 330,120 L 440,120 L 440,38 L 550,38" stroke="var(--copper-light)" stroke-width="1.5" fill="none" class="trace-animated" style="animation-delay:-0.4s" opacity="0.5"/>
+        <!-- Via at intersections -->
+        <circle cx="110" cy="8" r="4" fill="var(--pcb-dark)" stroke="var(--copper)" stroke-width="2"/>
+        <circle cx="330" cy="8" r="4" fill="var(--pcb-dark)" stroke="var(--copper)" stroke-width="2"/>
+        <circle cx="550" cy="8" r="4" fill="var(--pcb-dark)" stroke="var(--copper)" stroke-width="2"/>
+        <circle cx="770" cy="8" r="4" fill="var(--pcb-dark)" stroke="var(--copper)" stroke-width="2"/>
+      </svg>
+
+      <div class="kanban-board">
+        <!-- Column: Todo -->
+        <div class="kanban-column">
+          <div class="kanban-column-header">
+            <span class="col-name">Todo</span>
+            <span class="col-count">3</span>
+          </div>
+          <div class="kanban-column-body">
+            <div class="kanban-card">
+              <span class="card-led led-dot off" style="width:6px;height:6px;display:block;border-radius:50;position:absolute;top:6px;right:8px;"></span>
+              <div class="card-ref">IC7-001</div>
+              <div class="card-title">Add drag-and-drop reorder</div>
+              <div class="card-meta">
+                <span class="card-type task">TASK</span>
+                <span class="card-priority">MEDIUM</span>
+              </div>
+            </div>
+            <div class="kanban-card">
+              <div class="card-ref">IC7-002</div>
+              <div class="card-title">Export board to JSON</div>
+              <div class="card-meta">
+                <span class="card-type task">TASK</span>
+                <span class="card-priority">LOW</span>
+              </div>
+            </div>
+            <div class="kanban-card">
+              <div class="card-ref">IC9-003</div>
+              <div class="card-title">Fix flaky timeout in CI</div>
+              <div class="card-meta">
+                <span class="card-type bug">BUG</span>
+                <span class="card-priority">HIGH</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Column: In Progress -->
+        <div class="kanban-column">
+          <div class="kanban-column-header">
+            <span class="col-name">In Progress</span>
+            <span class="col-count">2</span>
+          </div>
+          <div class="kanban-column-body">
+            <div class="kanban-card active-card">
+              <span class="card-led" style="position:absolute;top:6px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--led-green);box-shadow:0 0 6px var(--led-green),0 0 12px rgba(51,255,51,0.3);"></span>
+              <div class="card-ref">IC10-004</div>
+              <div class="card-title">Pipe I/O message routing</div>
+              <div class="card-meta">
+                <span class="card-type task">TASK</span>
+                <span class="card-priority">URGENT</span>
+              </div>
+            </div>
+            <div class="kanban-card">
+              <span class="card-led" style="position:absolute;top:6px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--led-amber);box-shadow:0 0 4px var(--led-amber);"></span>
+              <div class="card-ref">IC8-005</div>
+              <div class="card-title">PTY resize handling</div>
+              <div class="card-meta">
+                <span class="card-type task">TASK</span>
+                <span class="card-priority">HIGH</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Column: In Review -->
+        <div class="kanban-column">
+          <div class="kanban-column-header">
+            <span class="col-name">In Review</span>
+            <span class="col-count">1</span>
+          </div>
+          <div class="kanban-column-body">
+            <div class="kanban-card">
+              <span class="card-led" style="position:absolute;top:6px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--led-blue);box-shadow:0 0 4px var(--led-blue);"></span>
+              <div class="card-ref">IC7-006</div>
+              <div class="card-title">Review history append-only</div>
+              <div class="card-meta">
+                <span class="card-type task">TASK</span>
+                <span class="card-priority">MEDIUM</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Column: Testing -->
+        <div class="kanban-column">
+          <div class="kanban-column-header">
+            <span class="col-name">Testing</span>
+            <span class="col-count">1</span>
+          </div>
+          <div class="kanban-column-body">
+            <div class="kanban-card">
+              <span class="card-led" style="position:absolute;top:6px;right:8px;width:6px;height:6px;border-radius:50%;background:var(--led-amber);box-shadow:0 0 4px var(--led-amber);animation:led-pulse-amber 1.5s ease-in-out infinite;"></span>
+              <div class="card-ref">IC9-007</div>
+              <div class="card-title">Scenario runner refactor</div>
+              <div class="card-meta">
+                <span class="card-type task">TASK</span>
+                <span class="card-priority">HIGH</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         SECTION: Oscilloscope / Activity Monitor
+         ============================================================ -->
+    <div class="section-header">
+      <span class="ref-des">SEC.4</span>
+      <h2>Signal Monitor</h2>
+    </div>
+
+    <div class="component-grid cols-2">
+      <div class="oscilloscope">
+        <div class="scope-label">CH1 &mdash; MCP MESSAGE THROUGHPUT</div>
+        <svg viewBox="0 0 400 60" preserveAspectRatio="none">
+          <path id="wave1" d="" stroke="var(--led-green)" stroke-width="1.5" fill="none"/>
+        </svg>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;">
+          <span style="font-size:0.6rem;color:var(--led-green);opacity:0.5;">1ms/div</span>
+          <span style="font-size:0.6rem;color:var(--led-green);opacity:0.5;">AUTO</span>
+        </div>
+      </div>
+
+      <div class="oscilloscope">
+        <div class="scope-label">CH2 &mdash; TOOL CALL LATENCY</div>
+        <svg viewBox="0 0 400 60" preserveAspectRatio="none">
+          <path id="wave2" d="" stroke="var(--led-amber)" stroke-width="1.5" fill="none" style="filter:drop-shadow(0 0 3px rgba(255,170,0,0.5))"/>
+        </svg>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;">
+          <span style="font-size:0.6rem;color:var(--led-amber);opacity:0.5;">5ms/div</span>
+          <span style="font-size:0.6rem;color:var(--led-amber);opacity:0.5;">TRIG</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         SECTION: Module Register Table
+         ============================================================ -->
+    <div class="section-header">
+      <span class="ref-des">SEC.5</span>
+      <h2>Module Register Map</h2>
+    </div>
+
+    <table class="pcb-table">
+      <thead>
+        <tr>
+          <th>Ref</th>
+          <th>Module</th>
+          <th>Package</th>
+          <th>Status</th>
+          <th>Scope</th>
+          <th>I/O Pins</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="color:var(--copper)">U1</td>
+          <td>Kanban</td>
+          <td>28-DIP</td>
+          <td><span class="pcb-badge success">ACTIVE</span></td>
+          <td>Per-project</td>
+          <td>8 tools</td>
+        </tr>
+        <tr>
+          <td style="color:var(--copper)">U2</td>
+          <td>Shell</td>
+          <td>16-SOIC</td>
+          <td><span class="pcb-badge success">ACTIVE</span></td>
+          <td>Per-project</td>
+          <td>5 tools</td>
+        </tr>
+        <tr>
+          <td style="color:var(--copper)">U3</td>
+          <td>Test</td>
+          <td>20-QFP</td>
+          <td><span class="pcb-badge copper">STANDBY</span></td>
+          <td>Per-project</td>
+          <td>6 tools</td>
+        </tr>
+        <tr>
+          <td style="color:var(--copper)">U4</td>
+          <td>Workflow</td>
+          <td>14-SOIC</td>
+          <td><span class="pcb-badge success">ACTIVE</span></td>
+          <td>Hybrid</td>
+          <td>5 tools</td>
+        </tr>
+        <tr>
+          <td style="color:var(--copper)">U5</td>
+          <td>Chat</td>
+          <td>32-QFN</td>
+          <td><span class="pcb-badge success">ACTIVE</span></td>
+          <td>Per-project</td>
+          <td>6 tools</td>
+        </tr>
+        <tr>
+          <td style="color:var(--copper)">U6</td>
+          <td>Voice</td>
+          <td>24-TQFP</td>
+          <td><span class="pcb-badge error">OFFLINE</span></td>
+          <td>Global</td>
+          <td>7 tools</td>
+        </tr>
+        <tr>
+          <td style="color:var(--copper)">U7</td>
+          <td>Vocabulary</td>
+          <td>8-SOIC</td>
+          <td><span class="pcb-badge success">ACTIVE</span></td>
+          <td>Hybrid</td>
+          <td>5 tools</td>
+        </tr>
+        <tr>
+          <td style="color:var(--copper)">U8</td>
+          <td>Prompts</td>
+          <td>8-SOIC</td>
+          <td><span class="pcb-badge success">ACTIVE</span></td>
+          <td>Hybrid</td>
+          <td>7 tools</td>
+        </tr>
+        <tr>
+          <td style="color:var(--copper)">U9</td>
+          <td>Log</td>
+          <td>8-DIP</td>
+          <td><span class="pcb-badge success">ACTIVE</span></td>
+          <td>Per-project</td>
+          <td>3 tools</td>
+        </tr>
+        <tr>
+          <td style="color:var(--copper)">U10</td>
+          <td>Documentation</td>
+          <td>20-QFP</td>
+          <td><span class="pcb-badge success">ACTIVE</span></td>
+          <td>Hybrid</td>
+          <td>8 tools</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- ============================================================
+         SECTION: Solder-list Features
+         ============================================================ -->
+    <div class="section-header">
+      <span class="ref-des">SEC.6</span>
+      <h2>Design System Features</h2>
+    </div>
+
+    <div class="component-grid cols-2">
+      <div>
+        <div style="font-size:0.7rem;color:var(--copper);letter-spacing:1px;margin-bottom:8px;">VISUAL PRIMITIVES</div>
+        <ul class="solder-list">
+          <li>PCB green board with fiberglass weave texture</li>
+          <li>Copper traces connecting UI elements</li>
+          <li>IC chip cards with edge pins and notch</li>
+          <li>Solder pad buttons with metallic gradient</li>
+          <li>Via holes as decorative connection points</li>
+          <li>Silkscreen white labels and designators</li>
+        </ul>
+      </div>
+      <div>
+        <div style="font-size:0.7rem;color:var(--copper);letter-spacing:1px;margin-bottom:8px;">INTERACTIVE ELEMENTS</div>
+        <ul class="solder-list">
+          <li>LED indicators with glow animations</li>
+          <li>Test points for status feedback</li>
+          <li>Signal bar progress indicators</li>
+          <li>Oscilloscope activity monitor</li>
+          <li>BOM sidebar navigation</li>
+          <li>Component reference table</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         SECTION: Color & Token Reference
+         ============================================================ -->
+    <div class="section-header">
+      <span class="ref-des">SEC.7</span>
+      <h2>Color Tokens</h2>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin:12px 0;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:24px;height:24px;background:var(--pcb-green);border:1px solid var(--silk-dim);border-radius:2px;flex-shrink:0;"></span>
+        <div>
+          <div style="font-size:0.75rem;color:var(--silk);">PCB Green</div>
+          <div style="font-size:0.6rem;color:var(--silk-dim);">#1a3a2a</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:24px;height:24px;background:var(--pcb-dark);border:1px solid var(--silk-dim);border-radius:2px;flex-shrink:0;"></span>
+        <div>
+          <div style="font-size:0.75rem;color:var(--silk);">Soldermask</div>
+          <div style="font-size:0.6rem;color:var(--silk-dim);">#0d2818</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:24px;height:24px;background:var(--copper);border:1px solid var(--silk-dim);border-radius:2px;flex-shrink:0;"></span>
+        <div>
+          <div style="font-size:0.75rem;color:var(--silk);">Copper</div>
+          <div style="font-size:0.6rem;color:var(--silk-dim);">#c87533</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:24px;height:24px;background:var(--copper-light);border:1px solid var(--silk-dim);border-radius:2px;flex-shrink:0;"></span>
+        <div>
+          <div style="font-size:0.75rem;color:var(--silk);">Copper Light</div>
+          <div style="font-size:0.6rem;color:var(--silk-dim);">#daa06d</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:24px;height:24px;background:var(--solder);border:1px solid var(--silk-dim);border-radius:2px;flex-shrink:0;"></span>
+        <div>
+          <div style="font-size:0.75rem;color:var(--silk);">Solder</div>
+          <div style="font-size:0.6rem;color:var(--silk-dim);">#a8b0b8</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:24px;height:24px;background:var(--silk);border:1px solid var(--silk-dim);border-radius:2px;flex-shrink:0;"></span>
+        <div>
+          <div style="font-size:0.75rem;color:var(--silk);">Silkscreen</div>
+          <div style="font-size:0.6rem;color:var(--silk-dim);">#e8e8d0</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:24px;height:24px;background:var(--led-green);border:1px solid var(--silk-dim);border-radius:2px;flex-shrink:0;"></span>
+        <div>
+          <div style="font-size:0.75rem;color:var(--silk);">LED Green</div>
+          <div style="font-size:0.6rem;color:var(--silk-dim);">#33ff33</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:24px;height:24px;background:var(--led-red);border:1px solid var(--silk-dim);border-radius:2px;flex-shrink:0;"></span>
+        <div>
+          <div style="font-size:0.75rem;color:var(--silk);">LED Red</div>
+          <div style="font-size:0.6rem;color:var(--silk-dim);">#ff3030</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:24px;height:24px;background:var(--led-amber);border:1px solid var(--silk-dim);border-radius:2px;flex-shrink:0;"></span>
+        <div>
+          <div style="font-size:0.75rem;color:var(--silk);">LED Amber</div>
+          <div style="font-size:0.6rem;color:var(--silk-dim);">#ffaa00</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="width:24px;height:24px;background:var(--led-blue);border:1px solid var(--silk-dim);border-radius:2px;flex-shrink:0;"></span>
+        <div>
+          <div style="font-size:0.75rem;color:var(--silk);">LED Blue</div>
+          <div style="font-size:0.6rem;color:var(--silk-dim);">#3388ff</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         FOOTER — Board edge marks
+         ============================================================ -->
+    <div style="margin-top:40px;padding:16px 0;border-top:1px solid var(--copper-dark);display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-size:0.6rem;color:var(--silk-dim);opacity:0.4;">
+        <span style="margin-right:16px;">DEVGLIDE-PCB-001</span>
+        <span style="margin-right:16px;">LAYER: F.Cu + F.SilkS</span>
+        <span>UNITS: mm</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span class="via small"></span>
+        <span class="via small"></span>
+        <span class="via small"></span>
+        <span style="font-size:0.6rem;color:var(--silk-dim);opacity:0.4;">FIDUCIAL MARKS</span>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ============================================================
+// Sidebar active state
+// ============================================================
+function setActive(el) {
+  document.querySelectorAll('.bom-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ============================================================
+// Oscilloscope waveform animation
+// ============================================================
+function generateWave(id, freq, amp, noise, phase) {
+  const svg = document.getElementById(id);
+  if (!svg) return;
+  const w = 400, h = 60, mid = h / 2;
+  let offset = 0;
+
+  function draw() {
+    offset += 0.06;
+    let d = `M 0,${mid}`;
+    for (let x = 0; x <= w; x += 2) {
+      const t = (x / w) * Math.PI * freq + offset + phase;
+      const y = mid + Math.sin(t) * amp + (Math.random() - 0.5) * noise;
+      d += ` L ${x},${Math.max(2, Math.min(h - 2, y))}`;
+    }
+    svg.setAttribute('d', d);
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+generateWave('wave1', 8, 18, 2, 0);
+generateWave('wave2', 5, 14, 4, 1.5);
+
+// ============================================================
+// LED blink simulation for sidebar
+// ============================================================
+const amberLeds = document.querySelectorAll('.led-on-amber');
+setInterval(() => {
+  amberLeds.forEach(led => {
+    led.style.opacity = led.style.opacity === '0.4' ? '1' : '0.4';
+  });
+}, 1200);
+</script>
+</body>
+</html>

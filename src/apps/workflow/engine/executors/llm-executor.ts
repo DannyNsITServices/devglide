@@ -3,6 +3,10 @@ import path from 'path';
 import OpenAI from 'openai';
 import type { ExecutorFunction, ExecutorResult, NodeConfig, ExecutionContext, SSEEmitter, LlmConfig } from '../../types.js';
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 export const llmExecutor: ExecutorFunction = async (
   config: NodeConfig,
   _context: ExecutionContext,
@@ -41,6 +45,6 @@ export const llmExecutor: ExecutorFunction = async (
     const content = response.choices[0]?.message?.content ?? '';
     return { status: 'passed', output: content };
   } catch (err) {
-    return { status: 'failed', error: (err as Error).message };
+    return { status: 'failed', error: errorMessage(err) };
   }
 };

@@ -8,6 +8,7 @@ import { mkdirSync, writeFileSync, readFileSync, unlinkSync, existsSync, openSyn
 import { homedir } from "os";
 
 import { getClaudeMdContent, injectSection, removeSection } from "./claude-md-template.js";
+import { removeDevglideSectionsFromToml } from "./codex-config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -92,7 +93,103 @@ const mcpServers = {
   workflow:   { cwd: "src/apps/workflow",   entry: "src/index.ts", runtime: "tsx" },
   vocabulary: { cwd: "src/apps/vocabulary", entry: "src/index.ts", runtime: "tsx" },
   prompts:    { cwd: "src/apps/prompts",    entry: "src/index.ts", runtime: "tsx" },
+  chat:          { cwd: "src/apps/chat",          entry: "src/index.ts", runtime: "tsx" },
+  documentation: { cwd: "src/apps/documentation", entry: "src/index.ts", runtime: "tsx" },
 };
+
+// --- Gemini CLI integration ---
+
+const geminiSettingsPath = resolve(homedir(), ".gemini", "settings.json");
+
+function detectGemini() {
+  return existsSync(resolve(homedir(), ".gemini"));
+}
+
+/**
+ * Read Gemini settings.json, add/replace all devglide-* MCP servers.
+ * Format: { mcpServers: { "devglide-kanban": { command, args } } }
+ */
+function writeGeminiMcpServers() {
+  let settings = {};
+  try { settings = JSON.parse(readFileSync(geminiSettingsPath, "utf8")); } catch {}
+  if (!settings.mcpServers) settings.mcpServers = {};
+
+  // Remove existing devglide entries
+  for (const key of Object.keys(settings.mcpServers)) {
+    if (key.startsWith("devglide-")) delete settings.mcpServers[key];
+  }
+
+  // Add current servers
+  for (const name of Object.keys(mcpServers)) {
+    const mcpName = `devglide-${name}`;
+    const bundle = resolve(root, `dist/mcp/${name}.mjs`);
+    if (existsSync(bundle)) {
+      settings.mcpServers[mcpName] = { command: process.execPath, args: [bundle, "--stdio"] };
+    } else {
+      const devglideBin = resolve(__dirname, "devglide.js");
+      settings.mcpServers[mcpName] = { command: process.execPath, args: [devglideBin, "mcp", name] };
+    }
+  }
+
+  mkdirSync(resolve(homedir(), ".gemini"), { recursive: true });
+  writeFileSync(geminiSettingsPath, JSON.stringify(settings, null, 2) + "\n");
+}
+
+/**
+ * Remove all devglide-* MCP servers from Gemini settings.json.
+ */
+function removeGeminiMcpServers() {
+  let settings = {};
+  try { settings = JSON.parse(readFileSync(geminiSettingsPath, "utf8")); } catch { return false; }
+  if (!settings.mcpServers) return false;
+
+  let changed = false;
+  for (const key of Object.keys(settings.mcpServers)) {
+    if (key.startsWith("devglide-")) {
+      delete settings.mcpServers[key];
+      changed = true;
+    }
+  }
+  if (changed) {
+    writeFileSync(geminiSettingsPath, JSON.stringify(settings, null, 2) + "\n");
+  }
+  return changed;
+}
+
+// --- Codex integration ---
+
+const codexConfigPath = resolve(homedir(), ".codex", "config.toml");
+
+function detectCodex() {
+  return existsSync(resolve(homedir(), ".codex"));
+}
+
+/**
+ * Build TOML [mcp_servers.devglide-*] sections for all servers.
+ * Prefers bundled .mjs files, falls back to devglide.js mcp launcher.
+ */
+function buildCodexMcpSections() {
+  const sections = [];
+  for (const name of Object.keys(mcpServers)) {
+    const mcpName = `devglide-${name}`;
+    const bundle = resolve(root, `dist/mcp/${name}.mjs`);
+    if (existsSync(bundle)) {
+      sections.push(
+        `[mcp_servers.${mcpName}]\n` +
+        `command = ${JSON.stringify(process.execPath)}\n` +
+        `args = [${JSON.stringify(bundle)}, "--stdio"]`
+      );
+    } else {
+      const devglideBin = resolve(__dirname, "devglide.js");
+      sections.push(
+        `[mcp_servers.${mcpName}]\n` +
+        `command = ${JSON.stringify(process.execPath)}\n` +
+        `args = [${JSON.stringify(devglideBin)}, "mcp", ${JSON.stringify(name)}]`
+      );
+    }
+  }
+  return sections.join('\n\n') + '\n';
+}
 
 function runMcpServer(name) {
   const server = mcpServers[name];
@@ -234,6 +331,12 @@ function runSetup() {
 
   console.log("  Registering MCP servers in Claude Code...\n");
 
+  // Remove legacy bare "devglide" HTTP server if present
+  try {
+    execSync("claude mcp remove devglide --scope user", { stdio: "pipe" });
+    console.log("  ✓ devglide (legacy) removed\n");
+  } catch { /* not registered — nothing to do */ }
+
   let failed = false;
   for (const name of Object.keys(mcpServers)) {
     const mcpName = `devglide-${name}`;
@@ -252,19 +355,20 @@ function runSetup() {
         // Register bundle directly — 1 process per server
         execSync(
           `claude mcp add --transport stdio ${mcpName} --scope user -- ${process.execPath} ${bundle} --stdio`,
-          { stdio: "inherit" }
+          { stdio: "pipe" }
         );
       } else {
         // Fallback: register via devglide.js mcp launcher
         const devglideBin = resolve(__dirname, "devglide.js");
         execSync(
           `claude mcp add --transport stdio ${mcpName} --scope user -- ${process.execPath} ${devglideBin} mcp ${name}`,
-          { stdio: "inherit" }
+          { stdio: "pipe" }
         );
       }
       console.log(`  ✓ ${mcpName} registered${useBundle ? " (bundled)" : " (tsx fallback)"}`);
-    } catch {
+    } catch (err) {
       console.error(`  ✗ ${mcpName} failed to register`);
+      if (err.stderr) console.error(err.stderr.toString().trimEnd());
       failed = true;
     }
   }
@@ -272,6 +376,39 @@ function runSetup() {
   if (failed) {
     console.error("\n  Some servers failed to register. Is Claude Code (CLI) installed?");
     process.exit(1);
+  }
+
+  // Register in Codex (if present)
+  if (detectCodex()) {
+    console.log("\n  Registering MCP servers in Codex...\n");
+    try {
+      let toml = "";
+      try { toml = readFileSync(codexConfigPath, "utf8"); } catch {}
+      toml = removeDevglideSectionsFromToml(toml);
+      const sections = buildCodexMcpSections();
+      toml = (toml.trimEnd() + '\n\n' + sections).replace(/^\n+/, '');
+      writeFileSync(codexConfigPath, toml);
+      for (const name of Object.keys(mcpServers)) {
+        const bundle = resolve(root, `dist/mcp/${name}.mjs`);
+        console.log(`  ✓ devglide-${name} registered in Codex${existsSync(bundle) ? " (bundled)" : " (tsx fallback)"}`);
+      }
+    } catch (err) {
+      console.error(`  ✗ Failed to update Codex config: ${err.message}`);
+    }
+  }
+
+  // Register in Gemini (if present) — direct settings.json mutation
+  if (detectGemini()) {
+    console.log("\n  Registering MCP servers in Gemini...\n");
+    try {
+      writeGeminiMcpServers();
+      for (const name of Object.keys(mcpServers)) {
+        const bundle = resolve(root, `dist/mcp/${name}.mjs`);
+        console.log(`  ✓ devglide-${name} registered in Gemini${existsSync(bundle) ? " (bundled)" : " (tsx fallback)"}`);
+      }
+    } catch (err) {
+      console.error(`  ✗ Failed to update Gemini settings: ${err.message}`);
+    }
   }
 
   // Install managed CLAUDE.md section
@@ -294,13 +431,33 @@ function runSetup() {
     console.log(`\n  ✓ DevGlide instructions already up to date in ${claudeMdPath}`);
   }
 
+  // Install managed GEMINI.md section (if Gemini detected)
+  if (detectGemini()) {
+    const geminiDir = resolve(homedir(), ".gemini");
+    const geminiMdPath = resolve(geminiDir, "GEMINI.md");
+    mkdirSync(geminiDir, { recursive: true });
+
+    let gemExisting = "";
+    try { gemExisting = readFileSync(geminiMdPath, "utf8"); } catch {}
+
+    const gemUpdated = injectSection(gemExisting, getClaudeMdContent());
+    if (gemUpdated !== gemExisting) {
+      writeFileSync(geminiMdPath, gemUpdated);
+      console.log(`  ✓ DevGlide instructions installed in ${geminiMdPath}`);
+    } else {
+      console.log(`  ✓ DevGlide instructions already up to date in ${geminiMdPath}`);
+    }
+  }
+
   console.log("\n  Setup complete!\n");
 }
 
 function runTeardown() {
   console.log("\n  Tearing down DevGlide...\n");
 
-  // Remove MCP server registrations
+  const validNames = new Set(Object.keys(mcpServers).map((n) => `devglide-${n}`));
+
+  // Remove known MCP server registrations
   for (const name of Object.keys(mcpServers)) {
     const mcpName = `devglide-${name}`;
     try {
@@ -309,6 +466,72 @@ function runTeardown() {
     } catch {
       console.log(`  - ${mcpName} was not registered`);
     }
+  }
+
+  // Remove any stale devglide or devglide-* servers not in the current map
+  try {
+    const out = execSync("claude mcp list --scope user", { stdio: "pipe", encoding: "utf8" });
+    const registered = out.match(/devglide(?:-[\w-]+)?/g) || [];
+    for (const name of registered) {
+      if (!validNames.has(name)) {
+        try {
+          execSync(`claude mcp remove ${name} --scope user`, { stdio: "pipe" });
+          console.log(`  ✓ ${name} removed (stale)`);
+        } catch { /* ignore */ }
+      }
+    }
+  } catch {
+    // claude mcp list not available — skip
+  }
+
+  // Clean Codex config
+  if (detectCodex()) {
+    try {
+      const toml = readFileSync(codexConfigPath, "utf8");
+      const cleaned = removeDevglideSectionsFromToml(toml);
+      if (cleaned.trimEnd() !== toml.trimEnd()) {
+        writeFileSync(codexConfigPath, cleaned);
+        console.log("  ✓ Removed devglide servers from Codex config");
+      } else {
+        console.log("  - No devglide servers found in Codex config");
+      }
+    } catch {
+      // config.toml doesn't exist or unreadable — skip
+    }
+  }
+
+  // Clean Gemini settings.json
+  if (detectGemini()) {
+    try {
+      if (removeGeminiMcpServers()) {
+        console.log("  ✓ Removed devglide servers from Gemini settings");
+      } else {
+        console.log("  - No devglide servers found in Gemini settings");
+      }
+    } catch {
+      // settings.json doesn't exist or unreadable
+    }
+  }
+
+  // Clean up legacy ~/.claude/.mcp.json devglide entries
+  const legacyMcpPath = resolve(homedir(), ".claude", ".mcp.json");
+  try {
+    const raw = readFileSync(legacyMcpPath, "utf8");
+    const data = JSON.parse(raw);
+    const servers = data.mcpServers || {};
+    let changed = false;
+    for (const name of Object.keys(servers)) {
+      if (name.startsWith("devglide-")) {
+        delete servers[name];
+        changed = true;
+      }
+    }
+    if (changed) {
+      writeFileSync(legacyMcpPath, JSON.stringify(data, null, 2) + "\n");
+      console.log(`  ✓ Cleaned stale entries from ${legacyMcpPath}`);
+    }
+  } catch {
+    // file doesn't exist or not parseable — fine
   }
 
   // Remove managed CLAUDE.md section
@@ -329,6 +552,28 @@ function runTeardown() {
     }
   } catch {
     console.log(`\n  - ${claudeMdPath} not found`);
+  }
+
+  // Remove managed GEMINI.md section
+  if (detectGemini()) {
+    const geminiMdPath = resolve(homedir(), ".gemini", "GEMINI.md");
+    try {
+      const gemExisting = readFileSync(geminiMdPath, "utf8");
+      const gemUpdated = removeSection(gemExisting);
+      if (gemUpdated !== gemExisting) {
+        if (gemUpdated.trim().length === 0) {
+          unlinkSync(geminiMdPath);
+          console.log(`  ✓ Removed ${geminiMdPath} (was empty)`);
+        } else {
+          writeFileSync(geminiMdPath, gemUpdated);
+          console.log(`  ✓ DevGlide instructions removed from ${geminiMdPath}`);
+        }
+      } else {
+        console.log(`  - No DevGlide instructions found in ${geminiMdPath}`);
+      }
+    } catch {
+      // GEMINI.md doesn't exist
+    }
   }
 
   console.log("\n  Teardown complete!\n");

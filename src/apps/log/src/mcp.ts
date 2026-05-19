@@ -1,25 +1,9 @@
 import { z } from "zod";
 import fs from "fs/promises";
-import path from "path";
 import { createDevglideMcpServer } from "../../../packages/mcp-utils/src/index.js";
 import { LogWriter } from "./services/log-writer.js";
 import { getTargetPaths } from "./routes/log.js";
-import { DEVGLIDE_DIR } from "../../../packages/paths.js";
-
-const LOG_ROOT = DEVGLIDE_DIR;
-const ALLOWED_EXTENSIONS = new Set(['.log', '.jsonl']);
-
-function safeLogPath(targetPath: string): string {
-  const resolved = path.resolve(LOG_ROOT, targetPath.replace(/^\/+/, ''));
-  if (!resolved.startsWith(LOG_ROOT + path.sep)) {
-    throw new Error('Path traversal denied');
-  }
-  const ext = path.extname(resolved).toLowerCase();
-  if (ext && !ALLOWED_EXTENSIONS.has(ext)) {
-    throw new Error('Invalid log file extension');
-  }
-  return resolved;
-}
+import { safeLogPath } from "./safe-log-path.js";
 
 const logWriter = new LogWriter();
 
@@ -37,7 +21,7 @@ export function createLogMcpServer() {
     "log_write",
     "Append a log entry to a JSONL file",
     {
-      targetPath: z.string().describe("Absolute path to the JSONL log file"),
+      targetPath: z.string().describe("Path relative to the DevGlide data directory (e.g. projects/{id}/logs/app.log)"),
       type: z.string().optional().describe("Log type (e.g. LOG, ERROR, WARN). Default: LOG"),
       message: z.string().optional().describe("Log message"),
       source: z.string().optional().describe("Source file"),
@@ -66,7 +50,7 @@ export function createLogMcpServer() {
     "log_clear",
     "Truncate a JSONL log file",
     {
-      targetPath: z.string().describe("Absolute path to the JSONL log file"),
+      targetPath: z.string().describe("Path relative to the DevGlide data directory (e.g. projects/{id}/logs/app.log)"),
     },
     async ({ targetPath }) => {
       const safePath = safeLogPath(targetPath);
@@ -96,7 +80,7 @@ export function createLogMcpServer() {
     "log_read",
     "Read recent log entries from a JSONL file",
     {
-      targetPath: z.string().describe("Absolute path to the JSONL log file"),
+      targetPath: z.string().describe("Path relative to the DevGlide data directory (e.g. projects/{id}/logs/app.log)"),
       lines: z.number().optional().describe("Number of recent lines to return (default: 50)"),
     },
     async ({ targetPath, lines }) => {

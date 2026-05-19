@@ -1,10 +1,9 @@
+/* ── Kanban — App-specific styles ────────────────────────────────────────────── */
+/* Common primitives (page root, header, scrollbar) are in shared-ui.css.      */
+
 .page-kanban {
-  font-family: var(--df-font-mono);
-  background: var(--df-color-bg-base);
-  color: var(--df-color-text-primary);
-  -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
   font-size: var(--df-font-size-sm);
+  min-height: 100vh;
   overflow: hidden;
   position: relative;
 }
@@ -12,28 +11,6 @@
 .page-kanban a {
   color: inherit;
   text-decoration: none;
-}
-
-/* ── App Header ──────────────────────────────────────────────────────────── */
-
-.page-kanban .app-header {
-  display: flex;
-  align-items: center;
-  gap: var(--df-space-2);
-  height: 38px;
-  padding: 0 var(--df-space-4);
-  background: var(--df-color-bg-surface);
-  border-bottom: 1px solid var(--df-color-border-default);
-  flex-shrink: 0;
-}
-
-.page-kanban .app-name {
-  font-size: var(--df-font-size-md);
-  font-weight: normal;
-  color: var(--df-color-accent-default);
-  font-family: var(--df-font-mono);
-  letter-spacing: var(--df-letter-spacing-wider);
-  text-transform: uppercase;
 }
 
 .page-kanban .board-edit-btn {
@@ -54,7 +31,7 @@
   background: var(--df-bg-hover);
 }
 
-.page-kanban .header-actions {
+.page-kanban .toolbar-actions {
   margin-left: auto;
   display: flex;
   align-items: center;

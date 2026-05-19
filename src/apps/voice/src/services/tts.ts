@@ -24,8 +24,8 @@ let _activeProcess: ChildProcess | null = null;
 let _tmpFile: string | null = null;
 /** Temp files created during chunked playback. */
 let _chunkFiles: string[] = [];
-/** Stop flag — set to true to abort chunked playback between chunks. */
-let _stopRequested = false;
+/** Session counter — incremented on each speak()/stop() call to cancel stale sessions. */
+let _sessionId = 0;
 
 /** Remove a file silently. */
 function safeUnlink(path: string | null): void {
@@ -41,34 +41,28 @@ function cleanupTempFiles(): void {
   _chunkFiles = [];
 }
 
-// Lazy-loaded msedge-tts
-let _MsEdgeTTS: any = null;
-let _OUTPUT_FORMAT: any = null;
+// ── msedge-tts types and lazy-loaded references ─────────────────────────────
 
-// ── Process-level safety net ─────────────────────────────────────────────────
-// Installed at module load time (not lazily) so the MCP process is protected
-// from the very first tick.  msedge-tts fires WebSocket errors as unhandled
-// rejections / uncaught exceptions that would otherwise crash the process and
-// drop the MCP stdio connection.  We absorb ALL errors here instead of
-// re-throwing, because a re-throw from uncaughtException kills the process
-// immediately.
+interface EdgeTtsFileResult { audioFilePath: string }
+interface EdgeTtsVoice { FriendlyName?: string; ShortName: string; Gender: string; Locale: string }
+interface EdgeTtsInstance {
+  setMetadata(voice: string, format: string): Promise<void>;
+  toFile(dir: string, text: string, opts: { rate: string; pitch: string }): Promise<EdgeTtsFileResult>;
+  getVoices(): Promise<EdgeTtsVoice[]>;
+}
 
-process.on("unhandledRejection", (reason: unknown) => {
-  const msg = reason instanceof Error ? reason.message : String(reason);
-  // Only log TTS-related errors to avoid noise
-  if (/msedge|tts|websocket|speech\.platform|Unexpected server|ECONNRESET|ENOTFOUND|audio/i.test(msg)) {
-    process.stderr.write(`[voice:tts] unhandled rejection: ${msg}\n`);
-  }
-  // Absorb all — never crash the MCP process
-});
+let _MsEdgeTTS: (new () => EdgeTtsInstance) | null = null;
+let _OUTPUT_FORMAT: Record<string, string> | null = null;
 
-process.on("uncaughtException", (err) => {
-  const msg = err instanceof Error ? err.message : String(err);
-  process.stderr.write(`[voice:tts] uncaught exception: ${msg}\n`);
-  // Absorb — do NOT re-throw.  Re-throwing from uncaughtException kills the
-  // process, which drops the MCP stdio connection.  The MCP transport has its
-  // own error handling; a stray WebSocket error should never take it down.
-});
+// ── TTS error handling ──────────────────────────────────────────────────────
+// msedge-tts may fire unhandled WebSocket rejections during connection teardown.
+// These appear as Node.js warnings (DEP0018) but do NOT crash the process
+// under default Node.js 18+ settings.  We deliberately avoid installing
+// process-level unhandledRejection/uncaughtException hooks because:
+//   1. They couple TTS to global process error semantics.
+//   2. They risk swallowing non-TTS errors via regex matching.
+//   3. All catchable TTS errors are already handled via try/catch in
+//      generateEdgeTts(), speak(), and listVoices().
 
 /** Detect WSL environment. */
 function isWSL(): boolean {
@@ -138,7 +132,6 @@ function isWslPulseAvailable(): boolean {
   const sock = "/mnt/wslg/PulseServer";
   if (!existsSync(sock)) return false;
   try {
-    const { spawnSync } = require("child_process") as typeof import("child_process");
     const r = spawnSync("node", ["-e", [
       'const c=require("net").createConnection({path:process.argv[1]});',
       'c.on("connect",()=>{c.destroy();process.exit(0)});',
@@ -189,7 +182,7 @@ function safeProc(proc: ChildProcess | null): ChildProcess | null {
 
 /** Stop any active TTS playback and clean up all temp files. */
 export function stop(): void {
-  _stopRequested = true;
+  _sessionId++;
   if (_activeProcess) {
     try {
       _activeProcess.kill();
@@ -215,18 +208,10 @@ function playMp3(mp3Path: string): ChildProcess | null {
     if (wsl) {
       // WSL → prefer native Linux player via WSLg PulseAudio, but only if PulseAudio is alive.
       // SDL_AUDIODRIVER=pulse is required — without it ffplay/SDL defaults to ALSA which doesn't exist in WSL.
-      const pulseAlive = isWslPulseAvailable();
-      if (pulseAlive) {
-        const pulseEnv = { ...process.env, PULSE_SERVER: "/mnt/wslg/PulseServer", SDL_AUDIODRIVER: "pulse" };
-        if (commandExists("mpv")) {
-          return safeProc(spawn("mpv", ["--no-video", "--ao=pulse", "--audio-buffer=1", mp3Path], { stdio: "ignore", env: pulseEnv }));
-        }
-        if (commandExists("ffplay")) {
-          return safeProc(spawn("ffplay", ["-nodisp", "-autoexit", mp3Path], { stdio: "ignore", env: pulseEnv }));
-        }
-      } else {
-        console.error("[voice:tts] WSLg PulseAudio not available, falling back to powershell.exe");
-      }
+      // Skip WSLg PulseAudio — the RDP sink is unreliable (disconnects
+      // silently, causing audio to vanish mid-playback). Go straight to
+      // PowerShell WPF MediaPlayer which routes through Windows audio.
+      console.error("[voice:tts] WSL: using powershell.exe WPF MediaPlayer (PulseAudio bypass)");
       // Fallback: powershell.exe + WPF MediaPlayer (more reliable than WMPlayer.OCX
       // which is broken on some Windows 11 builds — stuck in playState 9).
       const wslWinPath = execSync(`wslpath -w "${mp3Path}"`).toString().trim();
@@ -306,7 +291,7 @@ async function generateEdgeTts(
     }
 
     const tts = new _MsEdgeTTS();
-    await tts.setMetadata(voice, _OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+    await tts.setMetadata(voice, _OUTPUT_FORMAT!.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
 
     // Always write to native temp — playMp3() handles Windows path conversion
     const outDir = tmpdir();
@@ -319,8 +304,8 @@ async function generateEdgeTts(
       new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
     ]);
 
-    if (result && (result as any).audioFilePath && existsSync((result as any).audioFilePath)) {
-      return (result as any).audioFilePath;
+    if (result && result.audioFilePath && existsSync(result.audioFilePath)) {
+      return result.audioFilePath;
     }
     if (!result) console.error(`[voice:tts] msedge-tts timed out after ${timeoutMs / 1000}s`);
     return null;
@@ -494,6 +479,7 @@ async function speakChunked(
   voice: string,
   rate: string,
   pitch: string,
+  sessionId: number,
 ): Promise<boolean> {
   const sentences = splitSentences(text);
   if (sentences.length === 0) return false;
@@ -501,22 +487,31 @@ async function speakChunked(
   const chunks = groupChunks(sentences);
   if (chunks.length === 0) return false;
 
-  console.error(`[voice:tts] chunked: ${chunks.length} chunks from ${sentences.length} sentences`);
+  const cancelled = () => _sessionId !== sessionId;
 
-  // Resolved paths for each chunk — filled in as generation completes.
-  // generateEdgeTts writes to a random temp name, so we track what it returns.
-  const resolvedPaths: (string | null)[] = new Array(chunks.length).fill(null);
+  console.error(`[voice:tts] chunked: ${chunks.length} chunks from ${sentences.length} sentences (session ${sessionId})`);
+
+  // Generate with one retry on failure (cold WebSocket can flake on first call)
+  async function generateWithRetry(text: string): Promise<string | null> {
+    const result = await generateEdgeTts(text, voice, rate, pitch);
+    if (result || cancelled()) return result;
+    console.error("[voice:tts] generation failed, retrying once...");
+    return generateEdgeTts(text, voice, rate, pitch);
+  }
 
   // Generate first chunk before entering the pipeline loop
-  let gen0 = await generateEdgeTts(chunks[0], voice, rate, pitch);
-  if (!gen0 || _stopRequested) return false;
+  let gen0 = await generateWithRetry(chunks[0]);
+  if (!gen0 || cancelled()) return false;
   _chunkFiles.push(gen0);
   // Pad first chunk with silence so PulseAudio sink can wake up before speech
   gen0 = prependSilence(gen0);
+
+  // Resolved paths for each chunk — filled in as generation completes.
+  const resolvedPaths: (string | null)[] = new Array(chunks.length).fill(null);
   resolvedPaths[0] = gen0;
 
   for (let i = 0; i < chunks.length; i++) {
-    if (_stopRequested) return false;
+    if (cancelled()) return false;
 
     const currentPath = resolvedPaths[i];
     if (!currentPath || !existsSync(currentPath)) {
@@ -527,17 +522,21 @@ async function speakChunked(
     // Start generating next chunk in parallel while current one plays
     let nextGenPromise: Promise<string | null> | null = null;
     if (i + 1 < chunks.length) {
-      nextGenPromise = generateEdgeTts(chunks[i + 1], voice, rate, pitch);
+      nextGenPromise = generateWithRetry(chunks[i + 1]);
     }
 
-    // Play current chunk (blocking)
-    console.error(`[voice:tts] playing chunk ${i + 1}/${chunks.length}`);
+    // Play current chunk (blocking — waits for process exit)
+    console.error(`[voice:tts] playing chunk ${i + 1}/${chunks.length} (session ${sessionId})`);
     await playMp3Blocking(currentPath);
+
+    // If session changed while playing, abort immediately
+    if (cancelled()) return false;
 
     // Wait for next chunk to finish generating
     if (nextGenPromise) {
       const genResult = await nextGenPromise;
-      if (genResult && !_stopRequested) {
+      if (cancelled()) return false;
+      if (genResult) {
         resolvedPaths[i + 1] = genResult;
         _chunkFiles.push(genResult);
       }
@@ -558,9 +557,10 @@ export async function speak(text: string): Promise<void> {
     if (ttsConfig && !ttsConfig.enabled) return;
     if (!text?.trim()) return;
 
-    // Cancel previous speech and reset stop flag
+    // Cancel previous speech — increments _sessionId, kills active process
     stop();
-    _stopRequested = false;
+    const mySession = _sessionId;
+    const cancelled = () => _sessionId !== mySession;
 
     const voice = ttsConfig?.voice || "en-GB-RyanNeural";
     const edgeRate = ttsConfig?.edgeRate || "+5%";
@@ -569,14 +569,15 @@ export async function speak(text: string): Promise<void> {
 
     // Long text → chunked playback (generate + play in rolling pipeline)
     if (text.length > chunkThreshold) {
-      console.error(`[voice:tts] text length ${text.length} > threshold ${chunkThreshold}, using chunked playback`);
-      const ok = await speakChunked(text, voice, edgeRate, edgePitch);
-      if (ok || _stopRequested) {
+      console.error(`[voice:tts] text length ${text.length} > threshold ${chunkThreshold}, using chunked playback (session ${mySession})`);
+      const ok = await speakChunked(text, voice, edgeRate, edgePitch, mySession);
+      if (ok || cancelled()) {
         cleanupTempFiles();
         return;
       }
       // Chunked failed — fall through to single-shot, then platform fallback
       console.error("[voice:tts] chunked playback failed, trying single-shot");
+      if (cancelled()) return;
     }
 
     // Short text (or chunked fallback): generate and play in one shot
@@ -626,7 +627,7 @@ export async function listVoices(): Promise<
 
     const tts = new _MsEdgeTTS();
     const voices = await tts.getVoices();
-    return voices.map((v: any) => ({
+    return voices.map((v) => ({
       name: v.FriendlyName ?? v.ShortName,
       shortName: v.ShortName,
       gender: v.Gender,

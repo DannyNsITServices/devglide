@@ -43,6 +43,14 @@ export interface IssueRow {
   columnId: string;
   createdAt: string;
   updatedAt: string;
+  columnName?: string | null;
+  columnOrder?: number | null;
+  columnColor?: string | null;
+  featureName?: string | null;
+  featureDescription?: string | null;
+  featureColor?: string | null;
+  reviewCount?: number;
+  workLogCount?: number;
 }
 
 export interface VersionedEntryRow {
@@ -52,6 +60,25 @@ export interface VersionedEntryRow {
   version: number;
   content: string;
   createdAt: string;
+}
+
+export interface AttachmentRow {
+  id: string;
+  issueId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+}
+
+export interface CountRow {
+  count?: number;
+  cnt?: number;
+}
+
+export interface MaxOrderRow {
+  maxOrder?: number | null;
+  maxOrd?: number | null;
 }
 
 // ── Connection cache ─────────────────────────────────────────────────────────
@@ -65,9 +92,19 @@ export function generateId(): string {
   return createId();
 }
 
-/** Return the current time as an ISO-8601 string (for updatedAt) */
+/**
+ * Return a monotonically increasing ISO-8601 timestamp (for updatedAt).
+ * If two calls happen in the same millisecond, the second is bumped by 1ms
+ * so polling clients that compare updatedAt always see a change.
+ */
+let _lastTimestamp = 0;
 export function nowIso(): string {
-  return new Date().toISOString();
+  let now = Date.now();
+  if (now <= _lastTimestamp) {
+    now = _lastTimestamp + 1;
+  }
+  _lastTimestamp = now;
+  return new Date(now).toISOString();
 }
 
 // ── Database path helpers ────────────────────────────────────────────────────
@@ -165,6 +202,56 @@ CREATE INDEX IF NOT EXISTS "idx_column_projectId" ON "Column" ("projectId");
 CREATE INDEX IF NOT EXISTS "idx_attachment_issueId" ON "Attachment" ("issueId");
 CREATE INDEX IF NOT EXISTS "idx_versioned_issueId_type" ON "VersionedEntry" ("issueId", "type");
 `;
+
+// ── FTS5 ──────────────────────────────────────────────────────────────────────
+
+const FTS_DDL = `
+CREATE VIRTUAL TABLE IF NOT EXISTS "IssueFts" USING fts5(
+  "id" UNINDEXED,
+  "title",
+  "description",
+  "labels"
+);
+`;
+
+/** Ensure the FTS5 virtual table exists and is populated. */
+function ensureFts(db: Database.Database): void {
+  db.exec(FTS_DDL);
+
+  // Populate FTS from existing issues if empty
+  const ftsCount = db.prepare(`SELECT COUNT(*) AS cnt FROM "IssueFts"`).get() as { cnt: number };
+  if (ftsCount.cnt === 0) {
+    const issues = db.prepare(`SELECT "id", "title", "description", "labels" FROM "Issue"`).all() as Pick<IssueRow, 'id' | 'title' | 'description' | 'labels'>[];
+    const insert = db.prepare(`INSERT INTO "IssueFts" ("id", "title", "description", "labels") VALUES (?, ?, ?, ?)`);
+    const txn = db.transaction(() => {
+      for (const row of issues) {
+        insert.run(row.id, row.title, row.description ?? '', row.labels ?? '[]');
+      }
+    });
+    txn();
+    if (issues.length > 0) {
+      console.log(`[kanban] Populated FTS index with ${issues.length} issues`);
+    }
+  }
+}
+
+// ── FTS sync helpers ──────────────────────────────────────────────────────────
+
+/** Insert a new issue into the FTS index. */
+export function ftsInsert(db: Database.Database, id: string, title: string, description: string | null, labels: string): void {
+  db.prepare(`INSERT INTO "IssueFts" ("id", "title", "description", "labels") VALUES (?, ?, ?, ?)`).run(id, title, description ?? '', labels);
+}
+
+/** Update an existing issue in the FTS index (delete old row + re-insert). */
+export function ftsUpdate(db: Database.Database, id: string, title: string, description: string | null, labels: string): void {
+  db.prepare(`DELETE FROM "IssueFts" WHERE "id" = ?`).run(id);
+  db.prepare(`INSERT INTO "IssueFts" ("id", "title", "description", "labels") VALUES (?, ?, ?, ?)`).run(id, title, description ?? '', labels);
+}
+
+/** Remove an issue from the FTS index. */
+export function ftsDelete(db: Database.Database, id: string): void {
+  db.prepare(`DELETE FROM "IssueFts" WHERE "id" = ?`).run(id);
+}
 
 // ── Versioned entry helper ────────────────────────────────────────────────────
 
@@ -303,6 +390,7 @@ function ensureDb(projectId: string): void {
   db.exec(DDL);
   migrateReviewFeedback(db);
   migrateEscapeSequences(db);
+  ensureFts(db);
   db.close();
 }
 

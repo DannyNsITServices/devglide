@@ -1,6 +1,8 @@
 // ── Voice App — Page Module ──────────────────────────────────────────
 // ES module: mount(container, ctx), unmount(container), onProjectChange(project)
 
+import { escapeHtml, escapeAttr, timeAgo } from '/shared-assets/ui-utils.js';
+
 let _container = null;
 let _statsTimer = null;
 let _visibilityHandler = null;
@@ -436,22 +438,7 @@ function showToast(message, type = 'info') {
   }, 3200);
 }
 
-function timeAgo(dateStr) {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
-
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
+// timeAgo and escapeHtml imported from /shared-assets/ui-utils.js
 
 // ── Dependency checks ────────────────────────────────────────────────
 
@@ -506,7 +493,7 @@ function getSelectedProvider() {
 function populateProviderDropdown() {
   const select = $('#voice-provider-select');
   if (!select) return;
-  select.innerHTML = allProviders.map(p => `<option value="${p.id}">${p.displayName}</option>`).join('');
+  select.innerHTML = allProviders.map(p => `<option value="${escapeAttr(p.id)}">${escapeHtml(p.displayName)}</option>`).join('');
   select.value = currentProviderId;
 }
 
@@ -529,7 +516,7 @@ function updateFormForProvider(provider) {
   if (provider.models && provider.models.length > 0) {
     modelTextGroup.classList.add('hidden');
     modelSelectGroup.classList.remove('hidden');
-    modelSelect.innerHTML = provider.models.map(m => `<option value="${m}">${m}</option>`).join('');
+    modelSelect.innerHTML = provider.models.map(m => `<option value="${escapeAttr(m)}">${escapeHtml(m)}</option>`).join('');
     modelSelect.value = provider.currentModel ?? provider.defaultModel;
   } else {
     modelTextGroup.classList.remove('hidden');
@@ -713,7 +700,7 @@ async function fetchHistory() {
       return;
     }
     list.innerHTML = data.entries.map(e => `
-      <div class="history-entry" data-id="${e.id}">
+      <div class="history-entry" data-id="${escapeAttr(e.id)}">
         <div class="history-entry-header">
           <span class="history-meta">${escapeHtml(e.provider)} / ${escapeHtml(e.model)} \u00b7 ${timeAgo(e.timestamp)}</span>
           <span class="history-stats">${e.wordCount}w${e.wpm > 0 ? ` \u00b7 ${e.wpm} WPM` : ''}${e.duration ? ` \u00b7 ${e.duration.toFixed(1)}s` : ''}</span>

@@ -5,6 +5,11 @@
 // in the SPA shell (no iframe).
 
 import { escapeHtml } from '/shared-assets/ui-utils.js';
+import { createApi } from '/shared-ui/app-page.js';
+import { createHeader } from '/shared-ui/components/header.js';
+import { confirmModal } from '/shared-ui/components/modal.js';
+
+const api = createApi('coder');
 
 const MONACO_CDN = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2';
 
@@ -33,10 +38,7 @@ let _monacoReady = false;
 // ── HTML ─────────────────────────────────────────────────────────────
 
 const BODY_HTML = `
-  <div class="coder-toolbar">
-    <span class="app-name">Coder</span>
-    <span class="save-status"></span>
-  </div>
+  ${createHeader({ brand: 'Coder', meta: '<span class="save-status"></span>' })}
 
   <div class="coder-layout">
     <div class="coder-sidebar" aria-label="File explorer">
@@ -54,19 +56,6 @@ const BODY_HTML = `
         <div class="sub">Open a file from the explorer</div>
       </div>
       <div class="coder-status-bar"></div>
-    </div>
-  </div>
-
-  <div class="modal-overlay hidden" id="coder-confirm-dialog" role="dialog" aria-modal="true">
-    <div class="modal">
-      <div class="modal-header">
-        <h2 id="coder-confirm-title"></h2>
-        <p class="modal-desc" id="coder-confirm-msg"></p>
-      </div>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" data-action="confirm-cancel">Cancel</button>
-        <button class="btn btn-danger" data-action="confirm-ok">Close Anyway</button>
-      </div>
     </div>
   </div>
 `;
@@ -192,38 +181,6 @@ function updateTreeHeader() {
   if (header) header.textContent = _currentRoot ? _currentRoot.split('/').pop() : 'Explorer';
 }
 
-function coderConfirm(title, message) {
-  return new Promise(resolve => {
-    const overlay = _container?.querySelector('.modal-overlay');
-    if (!overlay) { resolve(false); return; }
-
-    const titleEl = overlay.querySelector('#coder-confirm-title');
-    const msgEl = overlay.querySelector('#coder-confirm-msg');
-    if (titleEl) titleEl.textContent = title;
-    if (msgEl) msgEl.textContent = message;
-
-    overlay.classList.remove('hidden');
-
-    const ac = new AbortController();
-    const close = (value) => {
-      overlay.classList.add('hidden');
-      ac.abort();
-      resolve(value);
-    };
-
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) close(false);
-    }, { signal: ac.signal });
-
-    overlay.querySelector('[data-action="confirm-cancel"]')?.addEventListener('click', () => close(false), { signal: ac.signal });
-    overlay.querySelector('[data-action="confirm-ok"]')?.addEventListener('click', () => close(true), { signal: ac.signal });
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') close(false);
-    }, { signal: ac.signal });
-  });
-}
-
 // ── File tree ───────────────────────────────────────────────────────
 
 async function fetchTree() {
@@ -233,9 +190,9 @@ async function fetchTree() {
   if (!tree) return;
   try {
     const url = _currentRoot
-      ? `/api/coder/tree?root=${encodeURIComponent(_currentRoot)}`
-      : '/api/coder/tree';
-    const res = await fetch(url);
+      ? `/tree?root=${encodeURIComponent(_currentRoot)}`
+      : '/tree';
+    const res = await api(url);
     const nodes = await res.json();
     if (gen !== _treeGen) return;
     tree.innerHTML = '';
@@ -295,7 +252,7 @@ async function openFile(path) {
   if (!_monacoReady || !_editor) return;
   try {
     const rootParam = _currentRoot ? `&root=${encodeURIComponent(_currentRoot)}` : '';
-    const res = await fetch(`/api/coder/file?path=${encodeURIComponent(path)}${rootParam}`);
+    const res = await api(`/file?path=${encodeURIComponent(path)}${rootParam}`);
     if (!res.ok) { setStatus((await res.json()).error, 'err'); return; }
     const { content } = await res.json();
     const model = monaco.editor.createModel(content, langFromPath(path));
@@ -341,7 +298,7 @@ async function closeTab(path) {
   if (!_container) return;
   const tab = _tabs.get(path);
   if (tab?.dirty) {
-    const ok = await coderConfirm('Unsaved Changes', `Unsaved changes in ${path.split('/').pop()}. Close anyway?`);
+    const ok = await confirmModal(_container, { title: 'Unsaved Changes', message: `Unsaved changes in ${path.split('/').pop()}. Close anyway?`, confirmLabel: 'Close Anyway', confirmCls: 'btn-danger' });
     if (!ok) return;
   }
   tab?.model?.dispose();
@@ -379,7 +336,7 @@ async function saveActive() {
   const content = tab.model.getValue();
   setStatus('Saving\u2026', '');
   try {
-    const res = await fetch('/api/coder/file', {
+    const res = await api('/file', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: _activeFile, content, root: _currentRoot }),
@@ -419,7 +376,7 @@ export async function mount(container, ctx) {
   _treeGen = 0;
 
   // 1. Scope the container
-  container.classList.add('page-coder');
+  container.classList.add('page-coder', 'app-page');
 
   // 2. Build HTML
   container.innerHTML = BODY_HTML;
@@ -506,7 +463,7 @@ export function unmount(container) {
   }
 
   // 5. Remove scope class & clear HTML
-  container.classList.remove('page-coder');
+  container.classList.remove('page-coder', 'app-page');
   container.innerHTML = '';
 
   // 6. Clear module references

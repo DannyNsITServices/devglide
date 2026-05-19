@@ -22,6 +22,7 @@ const APPS = [
   { id: 'workflow',   name: 'Workflow',   desc: 'Task automation',          ctx: 'project', icon: '\u2942' },
   { id: 'vocabulary', name: 'Vocabulary', desc: 'Domain terminology',     ctx: 'project', icon: '\u2338' },
   { id: 'prompts',    name: 'Prompts',    desc: 'Reusable prompt library', ctx: 'project', icon: '\u270E' },
+  { id: 'chat',       name: 'Chat',       desc: 'Multi-LLM chat room',    ctx: 'project', icon: '\u275D' },
   { id: 'documentation', name: 'Documentation', desc: 'Product docs & guides', ctx: 'tool', icon: '\u2630' },
   { id: 'voice',    name: 'Voice',     desc: 'Speech-to-text',           ctx: 'tool',    icon: '\u25C9' },
   { id: 'keymap',   name: 'Keymap',    desc: 'Keyboard shortcuts',       ctx: 'tool',    icon: '\u2328' },
@@ -56,6 +57,37 @@ function saveOrder(sectionEl) {
   const ctx = sectionEl.dataset.section;
   const ids = [...sectionEl.querySelectorAll('.service-item')].map(el => el.dataset.id);
   localStorage.setItem('dashboard:menuOrder:' + ctx, JSON.stringify(ids));
+}
+
+function appendTextElement(parent, tagName, className, text, title = null) {
+  const el = document.createElement(tagName);
+  if (className) el.className = className;
+  el.textContent = text;
+  if (title !== null) el.title = title;
+  parent.appendChild(el);
+  return el;
+}
+
+function buildDeleteConfirmation(item, name, onConfirm, onCancel) {
+  item.replaceChildren();
+
+  const confirm = document.createElement('div');
+  confirm.className = 'project-delete-confirm';
+  appendTextElement(confirm, 'span', '', `Delete ${name}?`);
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'project-modal-btn danger';
+  confirmBtn.textContent = 'Confirm';
+  confirmBtn.addEventListener('click', onConfirm);
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'project-modal-btn';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.addEventListener('click', onCancel);
+
+  confirm.appendChild(confirmBtn);
+  confirm.appendChild(cancelBtn);
+  item.appendChild(confirm);
 }
 
 // ── Sidebar disabled state ───────────────────────────────────────────────────
@@ -109,12 +141,10 @@ function buildSection(ctx, label) {
     item.className = 'service-item';
     item.dataset.id = app.id;
     item.draggable = true;
-    item.innerHTML = `
-      <span class="drag-handle" title="Drag to reorder">\u2807</span>
-      <span class="service-icon">${app.icon}</span>
-      <span class="service-name">${app.name}</span>
-      <span class="service-desc">${app.desc}</span>
-    `;
+    appendTextElement(item, 'span', 'drag-handle', '\u2807', 'Drag to reorder');
+    appendTextElement(item, 'span', 'service-icon', app.icon);
+    appendTextElement(item, 'span', 'service-name', app.name);
+    appendTextElement(item, 'span', 'service-desc', app.desc);
     item.addEventListener('click', () => {
       if (app.ctx === 'project' && !getActiveProject()) return;
       selectApp(app.id);
@@ -257,70 +287,7 @@ function buildProjectDropdown() {
   for (const p of projects) {
     const item = document.createElement('button');
     item.className = 'project-item' + (getActiveProject()?.id === p.id ? ' active' : '');
-    item.innerHTML = `
-      <div class="project-item-row">
-        <div class="project-item-info">
-          <span class="project-item-name">${p.name}</span>
-          <span class="project-item-path">${p.path}</span>
-        </div>
-        <div class="project-item-actions">
-          <button class="project-item-action edit" title="Edit project">\u270E</button>
-          <button class="project-item-action delete" title="Delete project">\u2715</button>
-        </div>
-      </div>`;
-
-    // Clicking the item activates the project
-    item.addEventListener('click', (e) => {
-      e.stopPropagation();
-      dashboardSocket.emit('project:activate', { id: p.id });
-      dropdown.classList.remove('open');
-    });
-
-    // Edit button
-    const editBtn = item.querySelector('.project-item-action.edit');
-    editBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      dropdown.classList.remove('open');
-      openProjectModal('edit', p);
-    });
-
-    // Delete button — inline confirmation
-    const deleteBtn = item.querySelector('.project-item-action.delete');
-    deleteBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      // Replace item content with confirmation
-      const originalHTML = item.innerHTML;
-      item.innerHTML = '';
-      const confirm = document.createElement('div');
-      confirm.className = 'project-delete-confirm';
-      confirm.innerHTML = `<span>Delete ${p.name}?</span>`;
-
-      const confirmBtn = document.createElement('button');
-      confirmBtn.className = 'project-modal-btn danger';
-      confirmBtn.textContent = 'Confirm';
-      confirmBtn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        dashboardSocket.emit('project:remove', { id: p.id }, (res) => {
-          if (!res.ok) showModalError(res.error);
-        });
-        dropdown.classList.remove('open');
-      });
-
-      const cancelBtn = document.createElement('button');
-      cancelBtn.className = 'project-modal-btn';
-      cancelBtn.textContent = 'Cancel';
-      cancelBtn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        item.innerHTML = originalHTML;
-        // Re-attach action listeners after restoring HTML
-        rebindItemActions(item, p, dropdown);
-      });
-
-      confirm.appendChild(confirmBtn);
-      confirm.appendChild(cancelBtn);
-      item.appendChild(confirm);
-    });
-
+    renderProjectItem(item, p, dropdown);
     dropdown.appendChild(item);
   }
 
@@ -337,50 +304,173 @@ function buildProjectDropdown() {
 
 /** Re-bind edit/delete listeners after restoring item HTML (e.g. after cancel delete) */
 function rebindItemActions(item, project, dropdown) {
-  const editBtn = item.querySelector('.project-item-action.edit');
-  const deleteBtn = item.querySelector('.project-item-action.delete');
-  if (editBtn) {
-    editBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      dropdown.classList.remove('open');
-      openProjectModal('edit', project);
-    });
-  }
-  if (deleteBtn) {
-    deleteBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      // Trigger inline delete confirmation by simulating the same flow
-      const originalHTML = item.innerHTML;
-      item.innerHTML = '';
-      const confirm = document.createElement('div');
-      confirm.className = 'project-delete-confirm';
-      confirm.innerHTML = `<span>Delete ${project.name}?</span>`;
+  renderProjectItem(item, project, dropdown);
+}
 
-      const confirmBtn = document.createElement('button');
-      confirmBtn.className = 'project-modal-btn danger';
-      confirmBtn.textContent = 'Confirm';
-      confirmBtn.addEventListener('click', (ev) => {
+function renderProjectItem(item, project, dropdown) {
+  item.replaceChildren();
+
+  const row = document.createElement('div');
+  row.className = 'project-item-row';
+
+  const info = document.createElement('div');
+  info.className = 'project-item-info';
+  appendTextElement(info, 'span', 'project-item-name', project.name);
+  appendTextElement(info, 'span', 'project-item-path', project.path);
+
+  const actions = document.createElement('div');
+  actions.className = 'project-item-actions';
+
+  const editBtn = document.createElement('button');
+  editBtn.className = 'project-item-action edit';
+  editBtn.title = 'Edit project';
+  editBtn.textContent = '\u270E';
+  editBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdown.classList.remove('open');
+    openProjectModal('edit', project);
+  });
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'project-item-action delete';
+  deleteBtn.title = 'Delete project';
+  deleteBtn.textContent = '\u2715';
+  deleteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    buildDeleteConfirmation(
+      item,
+      project.name,
+      (ev) => {
         ev.stopPropagation();
         dashboardSocket.emit('project:remove', { id: project.id }, (res) => {
           if (!res.ok) showModalError(res.error);
         });
         dropdown.classList.remove('open');
-      });
-
-      const cancelBtn = document.createElement('button');
-      cancelBtn.className = 'project-modal-btn';
-      cancelBtn.textContent = 'Cancel';
-      cancelBtn.addEventListener('click', (ev) => {
+      },
+      (ev) => {
         ev.stopPropagation();
-        item.innerHTML = originalHTML;
         rebindItemActions(item, project, dropdown);
-      });
+      },
+    );
+  });
 
-      confirm.appendChild(confirmBtn);
-      confirm.appendChild(cancelBtn);
-      item.appendChild(confirm);
-    });
-  }
+  actions.appendChild(editBtn);
+  actions.appendChild(deleteBtn);
+  row.appendChild(info);
+  row.appendChild(actions);
+  item.appendChild(row);
+
+  item.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dashboardSocket.emit('project:activate', { id: project.id });
+    dropdown.classList.remove('open');
+  });
+}
+
+function buildProjectModalStructure(modal, title, submitLabel, project) {
+  const titleEl = document.createElement('div');
+  titleEl.className = 'project-modal-title';
+  titleEl.textContent = title;
+
+  const nameField = document.createElement('div');
+  nameField.className = 'project-modal-field';
+  const nameLabel = document.createElement('label');
+  nameLabel.className = 'project-modal-label';
+  nameLabel.htmlFor = 'pm-name';
+  nameLabel.textContent = 'Name';
+  const nameInput = document.createElement('input');
+  nameInput.className = 'project-modal-input';
+  nameInput.id = 'pm-name';
+  nameInput.type = 'text';
+  nameInput.value = project?.name ?? '';
+  nameInput.autocomplete = 'off';
+  nameField.appendChild(nameLabel);
+  nameField.appendChild(nameInput);
+
+  const pathField = document.createElement('div');
+  pathField.className = 'project-modal-field';
+  const pathLabel = document.createElement('label');
+  pathLabel.className = 'project-modal-label';
+  pathLabel.htmlFor = 'pm-path';
+  pathLabel.textContent = 'Path';
+  const pathRow = document.createElement('div');
+  pathRow.className = 'project-modal-path-row';
+  const pathInput = document.createElement('input');
+  pathInput.className = 'project-modal-input';
+  pathInput.id = 'pm-path';
+  pathInput.type = 'text';
+  pathInput.value = project?.path ?? '';
+  pathInput.placeholder = '/absolute/path/to/project';
+  pathInput.autocomplete = 'off';
+  const browseBtn = document.createElement('button');
+  browseBtn.className = 'project-modal-btn';
+  browseBtn.id = 'pm-browse';
+  browseBtn.type = 'button';
+  browseBtn.title = 'Browse folders';
+  browseBtn.textContent = '\u2026';
+  pathRow.appendChild(pathInput);
+  pathRow.appendChild(browseBtn);
+
+  const folderPicker = document.createElement('div');
+  folderPicker.className = 'folder-picker hidden';
+  folderPicker.id = 'pm-folder-picker';
+  const pickerHeader = document.createElement('div');
+  pickerHeader.className = 'folder-picker-header';
+  const folderUpBtn = document.createElement('button');
+  folderUpBtn.className = 'folder-picker-up';
+  folderUpBtn.id = 'pm-folder-up';
+  folderUpBtn.title = 'Go up';
+  folderUpBtn.textContent = '\u2191';
+  const folderPath = document.createElement('span');
+  folderPath.className = 'folder-picker-path';
+  folderPath.id = 'pm-folder-path';
+  pickerHeader.appendChild(folderUpBtn);
+  pickerHeader.appendChild(folderPath);
+  const folderList = document.createElement('div');
+  folderList.className = 'folder-picker-list';
+  folderList.id = 'pm-folder-list';
+  const folderActions = document.createElement('div');
+  folderActions.className = 'folder-picker-actions';
+  const folderCancelBtn = document.createElement('button');
+  folderCancelBtn.className = 'project-modal-btn';
+  folderCancelBtn.id = 'pm-folder-cancel';
+  folderCancelBtn.textContent = 'Cancel';
+  const folderSelectBtn = document.createElement('button');
+  folderSelectBtn.className = 'project-modal-btn primary';
+  folderSelectBtn.id = 'pm-folder-select';
+  folderSelectBtn.textContent = 'Select';
+  folderActions.appendChild(folderCancelBtn);
+  folderActions.appendChild(folderSelectBtn);
+  folderPicker.appendChild(pickerHeader);
+  folderPicker.appendChild(folderList);
+  folderPicker.appendChild(folderActions);
+
+  pathField.appendChild(pathLabel);
+  pathField.appendChild(pathRow);
+  pathField.appendChild(folderPicker);
+
+  const errorEl = document.createElement('div');
+  errorEl.className = 'project-modal-error';
+  errorEl.id = 'pm-error';
+
+  const actions = document.createElement('div');
+  actions.className = 'project-modal-actions';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'project-modal-btn';
+  cancelBtn.id = 'pm-cancel';
+  cancelBtn.textContent = 'Cancel';
+  const submitBtn = document.createElement('button');
+  submitBtn.className = 'project-modal-btn primary';
+  submitBtn.id = 'pm-submit';
+  submitBtn.textContent = submitLabel;
+  actions.appendChild(cancelBtn);
+  actions.appendChild(submitBtn);
+
+  modal.appendChild(titleEl);
+  modal.appendChild(nameField);
+  modal.appendChild(pathField);
+  modal.appendChild(errorEl);
+  modal.appendChild(actions);
 }
 
 // ── Project modal ─────────────────────────────────────────────────────────────
@@ -398,36 +488,7 @@ function openProjectModal(mode, project) {
   const title = mode === 'edit' ? 'Edit Project' : 'Add Project';
   const submitLabel = mode === 'edit' ? 'Save' : 'Add';
 
-  modal.innerHTML = `
-    <div class="project-modal-title">${title}</div>
-    <div class="project-modal-field">
-      <label class="project-modal-label" for="pm-name">Name</label>
-      <input class="project-modal-input" id="pm-name" type="text" value="${mode === 'edit' && project ? project.name : ''}" autocomplete="off" />
-    </div>
-    <div class="project-modal-field">
-      <label class="project-modal-label" for="pm-path">Path</label>
-      <div class="project-modal-path-row">
-        <input class="project-modal-input" id="pm-path" type="text" value="${mode === 'edit' && project ? project.path : ''}" placeholder="/absolute/path/to/project" autocomplete="off" />
-        <button class="project-modal-btn" id="pm-browse" type="button" title="Browse folders">\u2026</button>
-      </div>
-      <div class="folder-picker hidden" id="pm-folder-picker">
-        <div class="folder-picker-header">
-          <button class="folder-picker-up" id="pm-folder-up" title="Go up">\u2191</button>
-          <span class="folder-picker-path" id="pm-folder-path"></span>
-        </div>
-        <div class="folder-picker-list" id="pm-folder-list"></div>
-        <div class="folder-picker-actions">
-          <button class="project-modal-btn" id="pm-folder-cancel">Cancel</button>
-          <button class="project-modal-btn primary" id="pm-folder-select">Select</button>
-        </div>
-      </div>
-    </div>
-    <div class="project-modal-error" id="pm-error"></div>
-    <div class="project-modal-actions">
-      <button class="project-modal-btn" id="pm-cancel">Cancel</button>
-      <button class="project-modal-btn primary" id="pm-submit">${submitLabel}</button>
-    </div>
-  `;
+  buildProjectModalStructure(modal, title, submitLabel, mode === 'edit' ? project : null);
 
   modalOverlay.appendChild(modal);
   document.body.appendChild(modalOverlay);
@@ -459,11 +520,16 @@ function openProjectModal(mode, project) {
       folderPath.title = data.path;
       folderList.innerHTML = '';
 
+      // Disable "go up" when at or above user home directory
+      const normPath = data.path.replace(/\\/g, '/').replace(/\/$/, '');
+      const normHome = (data.home || '').replace(/\\/g, '/').replace(/\/$/, '');
+      folderUpBtn.disabled = !normHome || normPath.length <= normHome.length;
+
       for (const name of data.dirs) {
         const item = document.createElement('button');
         item.className = 'folder-picker-item';
         item.textContent = name;
-        item.addEventListener('click', () => loadFolder(data.path + '/' + name));
+        item.addEventListener('click', () => loadFolder(data.path.replace(/[/\\]?$/, '/') + name));
         folderList.appendChild(item);
       }
 
@@ -486,7 +552,7 @@ function openProjectModal(mode, project) {
   });
 
   folderUpBtn.addEventListener('click', () => {
-    const parent = browseCurrentPath.replace(/\/[^/]+$/, '') || '/';
+    const parent = browseCurrentPath.replace(/[/\\][^/\\]+$/, '') || browseCurrentPath;
     loadFolder(parent);
   });
 
@@ -495,7 +561,7 @@ function openProjectModal(mode, project) {
     folderPicker.classList.add('hidden');
     // Auto-fill name from folder basename if empty
     if (!nameInput.value.trim()) {
-      const basename = browseCurrentPath.split('/').filter(Boolean).pop();
+      const basename = browseCurrentPath.split(/[/\\]/).filter(Boolean).pop();
       if (basename) nameInput.value = basename;
     }
   });
@@ -660,6 +726,26 @@ function showVoiceError(message) {
   }, 4000);
 }
 
+let mobileVoiceErrorTimer = null;
+function showMobileVoiceError(message) {
+  let toast = document.getElementById('mobile-voice-error-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'mobile-voice-error-toast';
+    toast.className = 'mobile-voice-error-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.remove('hidden');
+  toast.getBoundingClientRect();
+  toast.classList.add('visible');
+  clearTimeout(mobileVoiceErrorTimer);
+  mobileVoiceErrorTimer = setTimeout(() => {
+    toast.classList.remove('visible');
+    toast.addEventListener('transitionend', () => toast.classList.add('hidden'), { once: true });
+  }, 5000);
+}
+
 if (typeof VoiceWidget !== 'undefined') {
   voiceWidget = VoiceWidget.create({
     voiceUrl: window.location.origin,
@@ -674,6 +760,22 @@ if (typeof VoiceWidget !== 'undefined') {
 
   const voiceMountEl = document.getElementById('voice-widget-mount');
   if (voiceMountEl) voiceWidget.mount(voiceMountEl);
+
+  // Mobile topbar — separate instance so the full widget state machine is independent
+  const voiceMountMobileEl = document.getElementById('voice-widget-mount-mobile');
+  if (voiceMountMobileEl) {
+    VoiceWidget.create({
+      voiceUrl: window.location.origin,
+      onResult(text) {
+        document.dispatchEvent(new CustomEvent('voice:result', { detail: { text } }));
+      },
+      onError(err) {
+        // On mobile the sidebar (and its #voice-error-popup) is hidden — show a
+        // toast anchored to the mobile topbar instead.
+        showMobileVoiceError(err.message || 'Voice error');
+      },
+    }).mount(voiceMountMobileEl);
+  }
 
   // Handle Ctrl+Alt+Shift hold-to-speak when the shell has focus
   let voiceKeyActive = false;
@@ -788,12 +890,15 @@ function openProjectSwitcher() {
       closeProjectSwitcher();
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
+      e.stopPropagation();
       updateSelection(selectedIdx + 1);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
+      e.stopPropagation();
       updateSelection(selectedIdx - 1);
     } else if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
       if (projects.length > 0) {
         dashboardSocket.emit('project:activate', { id: projects[selectedIdx].id });
       }

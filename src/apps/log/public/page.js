@@ -2,6 +2,7 @@
 
 import { escapeHtml, timeAgo } from '/shared-assets/ui-utils.js';
 
+// Log keeps a custom header because the brand is clickable (data-action="show-sessions").
 const HTML = `
   <header>
     <div class="brand" data-action="show-sessions">Log</div>

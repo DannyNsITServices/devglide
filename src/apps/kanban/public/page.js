@@ -4,7 +4,10 @@
 // This replaces the iframe-based page module with a fully native implementation.
 // All DOM queries are scoped to `_root` (the container).
 
-import { escapeHtml, escapeAttr, normalizeEscapes } from '/shared-assets/ui-utils.js';
+import { escapeHtml, escapeAttr, normalizeEscapes, sanitizeHtml } from '/shared-assets/ui-utils.js';
+import { createHeader } from '/shared-ui/components/header.js';
+import { showToast as suiToast, clearToasts } from '/shared-ui/components/toast.js';
+import { confirmModal } from '/shared-ui/components/modal.js';
 
 let _root = null;
 let _projectId = null;
@@ -56,20 +59,9 @@ function apiFetch(url, options = {}) {
   return fetch(url, { ...options, headers });
 }
 
-let _toastTimer = null;
 function showToast(msg, type = 'error') {
   if (!_root) return;
-  let toast = _root.querySelector('.toast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.className = 'toast';
-    _root.appendChild(toast);
-  }
-  toast.textContent = msg;
-  toast.dataset.type = type;
-  toast.classList.add('visible');
-  clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => toast.classList.remove('visible'), 4000);
+  suiToast(_root, msg, type);
 }
 
 // ── Scoped query helpers ─────────────────────────────────────────────────────
@@ -84,6 +76,7 @@ const FEATURE_COLORS = [
   '#f59e0b', '#22c55e', '#06b6d4', '#3b82f6',
 ];
 
+// Canonical values: src/packages/shared-types/src/index.ts (KANBAN_PRIORITIES)
 const PRIORITY_LABELS = { LOW: 'Low', MEDIUM: 'Medium', HIGH: 'High', URGENT: 'Urgent' };
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -95,6 +88,7 @@ let boardPollTimer = null;
 let isDragging = false;
 let isDialogOpen = false;
 let searchQuery = '';
+let featureSearchQuery = '';
 let sortableInstances = [];
 let selectedColor = FEATURE_COLORS[0];
 let deleteTargetFeature = null;
@@ -128,22 +122,57 @@ function renderFeatureList() {
       <span class="sync-dot"></span>
       Board updated
     </div>
-    <header class="app-header">
-      <span class="app-name">Kanban</span>
-      <div class="header-actions">
-        <span class="sync-badge hidden" data-sync="list-sync">
-          <span class="sync-dot"></span> Updated
-        </span>
-        <button class="btn btn-primary" data-action="new-feature">+ New Feature</button>
+    ${createHeader({
+      brand: 'Kanban',
+      meta: '<span class="sync-badge hidden" data-sync="list-sync"><span class="sync-dot"></span> Updated</span>',
+      actions: '<button class="btn btn-primary" data-action="new-feature">+ New Feature</button>',
+    })}
+    <div class="board-search" role="search">
+      <div class="search-bar">
+        <input type="text" class="search-input" data-field="feature-search-input" placeholder="Search features...  ( / )" value="${escapeAttr(featureSearchQuery)}" autocomplete="off">
+        <button class="search-clear ${featureSearchQuery ? '' : 'hidden'}" data-action="feature-search-clear" aria-label="Clear search">&times;</button>
       </div>
-    </header>
+    </div>
     <main class="features-container"></main>
     ${_getDialogHTML()}
   `;
 
   $('[data-action="new-feature"]')?.addEventListener('click', openNewFeatureDialog);
+  initFeatureSearch();
   _bindModalOverlays();
   renderFeatures();
+}
+
+function initFeatureSearch() {
+  const input = $('[data-field="feature-search-input"]');
+  const clear = $('[data-action="feature-search-clear"]');
+  if (!input) return;
+
+  input.addEventListener('input', () => {
+    featureSearchQuery = input.value;
+    clear?.classList.toggle('hidden', !featureSearchQuery);
+    renderFeatures();
+  });
+
+  clear?.addEventListener('click', () => {
+    featureSearchQuery = '';
+    input.value = '';
+    clear.classList.add('hidden');
+    input.focus();
+    renderFeatures();
+  });
+}
+
+function getFilteredFeatures() {
+  let filtered = features;
+  const q = featureSearchQuery.toLowerCase().trim();
+  if (q) {
+    filtered = filtered.filter(f =>
+      f.name.toLowerCase().includes(q) ||
+      (f.description || '').toLowerCase().includes(q)
+    );
+  }
+  return filtered;
 }
 
 function renderFeatures() {
@@ -164,10 +193,26 @@ function renderFeatures() {
     return;
   }
 
+  const filtered = getFilteredFeatures();
+  const countLabel = featureSearchQuery
+    ? `${filtered.length} of ${features.length} feature${features.length !== 1 ? 's' : ''}`
+    : `${features.length} feature${features.length !== 1 ? 's' : ''}`;
+
+  if (filtered.length === 0) {
+    main.innerHTML = `
+      <h1 class="section-title">${escapeHtml(countLabel)}</h1>
+      <div class="empty-state">
+        <div class="empty-icon" style="font-size:48px;opacity:0.15">\u{1F50D}</div>
+        <p class="empty-text">No matching features</p>
+      </div>
+    `;
+    return;
+  }
+
   main.innerHTML = `
-    <h1 class="section-title">Features</h1>
+    <h1 class="section-title">${escapeHtml(countLabel)}</h1>
     <div class="features-grid">
-      ${features.map(f => `
+      ${filtered.map(f => `
         <a href="#/features/${f.id}" class="feature-card" data-id="${f.id}">
           <div class="feature-card-top">
             <div class="feature-card-icon" style="background-color: ${f.color}30">
@@ -315,63 +360,19 @@ function _bindNewFeatureDialog() {
 
 // ── Delete Feature Dialog ────────────────────────────────────────────────────
 
-function openDeleteFeatureDialog(feature) {
-  deleteTargetFeature = feature;
-  const dialog = $('.modal-overlay[data-dialog="delete-feature"]');
-  if (!dialog) return;
-  const msg = dialog.querySelector('[data-field="delete-feature-msg"]');
-  let text = `Are you sure you want to delete <strong>${escapeHtml(feature.name)}</strong>?`;
+async function openDeleteFeatureDialog(feature) {
+  let message = `Are you sure you want to delete <strong>${escapeHtml(feature.name)}</strong>?`;
   if (feature._count.issues > 0) {
-    text += ` This will permanently remove ${feature._count.issues} item${feature._count.issues !== 1 ? 's' : ''}.`;
+    message += ` This will permanently remove ${feature._count.issues} item${feature._count.issues !== 1 ? 's' : ''}.`;
   }
-  msg.innerHTML = text;
-  dialog.classList.remove('hidden');
+  const ok = await confirmModal(_root, { title: 'Delete Feature', message, confirmLabel: 'Delete', confirmCls: 'btn-danger' });
+  if (!ok) return;
+  await apiFetch(`/api/kanban/features/${feature.id}`, { method: 'DELETE' });
+  features = features.filter(f => f.id !== feature.id);
+  renderFeatures();
 }
 
-function _bindDeleteFeatureDialog() {
-  const dialog = $('.modal-overlay[data-dialog="delete-feature"]');
-  if (!dialog) return;
-
-  dialog.querySelector('[data-action="df-cancel"]')?.addEventListener('click', () => {
-    dialog.classList.add('hidden');
-    deleteTargetFeature = null;
-  });
-
-  dialog.querySelector('[data-action="df-confirm"]')?.addEventListener('click', async () => {
-    if (!deleteTargetFeature) return;
-    await apiFetch(`/api/kanban/features/${deleteTargetFeature.id}`, { method: 'DELETE' });
-    features = features.filter(f => f.id !== deleteTargetFeature.id);
-    renderFeatures();
-    dialog.classList.add('hidden');
-    deleteTargetFeature = null;
-  });
-}
-
-function _bindDeleteIssueDialog() {
-  const dialog = $('.modal-overlay[data-dialog="delete-issue"]');
-  if (!dialog) return;
-
-  dialog.querySelector('[data-action="di-cancel"]')?.addEventListener('click', () => {
-    dialog.classList.add('hidden');
-    $('.modal-overlay[data-dialog="issue"]')?.classList.remove('hidden');
-  });
-
-  dialog.querySelector('[data-action="di-confirm"]')?.addEventListener('click', async () => {
-    const s = dialogState;
-    if (!s.issue) return;
-    dialog.classList.add('hidden');
-    await apiFetch(`/api/kanban/issues/${s.issue.id}`, { method: 'DELETE' });
-    s.onDelete(s.issue.id);
-    closeDialog();
-  });
-
-  dialog.addEventListener('click', (e) => {
-    if (e.target === dialog) {
-      dialog.classList.add('hidden');
-      $('.modal-overlay[data-dialog="issue"]')?.classList.remove('hidden');
-    }
-  });
-}
+// Delete issue dialog replaced by confirmModal() — no binding needed
 
 // ── Edit Feature Dialog ──────────────────────────────────────────────────────
 
@@ -472,8 +473,6 @@ function _bindModalOverlays() {
   });
 
   _bindNewFeatureDialog();
-  _bindDeleteFeatureDialog();
-  _bindDeleteIssueDialog();
   _bindEditFeatureDialog();
 }
 
@@ -508,15 +507,11 @@ function renderBoardUI() {
       <span class="sync-dot"></span>
       Board updated
     </div>
-    <header class="app-header">
+    <header>
       <a href="#/" class="back-btn" title="Back to features">&larr;</a>
-      <span class="app-name">${escapeHtml(f.name)}</span>
-      <button class="board-edit-btn" data-action="edit-board-feature" title="Edit feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button>
-      <div class="header-actions">
-        <span class="sync-badge hidden" data-sync="board-sync">
-          <span class="sync-dot"></span> Updated
-        </span>
-      </div>
+      <div class="brand">${escapeHtml(f.name)}</div>
+      <div class="header-meta"><button class="board-edit-btn" data-action="edit-board-feature" title="Edit feature"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg></button></div>
+      <div class="toolbar-actions"><span class="sync-badge hidden" data-sync="board-sync"><span class="sync-dot"></span> Updated</span></div>
     </header>
     <div class="board-search" role="search">
       <div class="search-bar">
@@ -626,9 +621,11 @@ function initSearch() {
 }
 
 function _handleSearchKeydown(e) {
-  const input = $('[data-field="search-input"]');
+  // Support both board search and feature-list search inputs
+  const input = $('[data-field="search-input"]') || $('[data-field="feature-search-input"]');
   if (!input) return;
 
+  const isFeatureList = input.dataset.field === 'feature-search-input';
   const action = typeof KeymapRegistry !== 'undefined' ? KeymapRegistry.resolve(e) : null;
   const isFocusSearch = action === 'kanban:focus-search' || (!action && e.key === '/');
   const isClearSearch = action === 'kanban:clear-search' || (!action && e.key === 'Escape');
@@ -641,11 +638,17 @@ function _handleSearchKeydown(e) {
     input.focus();
   }
   if (isClearSearch && document.activeElement === input) {
-    searchQuery = '';
     input.value = '';
-    $('[data-action="search-clear"]')?.classList.add('hidden');
     input.blur();
-    rerenderColumns();
+    if (isFeatureList) {
+      featureSearchQuery = '';
+      $('[data-action="feature-search-clear"]')?.classList.add('hidden');
+      renderFeatures();
+    } else {
+      searchQuery = '';
+      $('[data-action="search-clear"]')?.classList.add('hidden');
+      rerenderColumns();
+    }
   }
 }
 
@@ -914,7 +917,7 @@ function renderDialog() {
           <textarea data-field="dlg-desc" rows="8" placeholder="Add a description... (Markdown supported)">${escapeHtml(s.description)}</textarea>
         </div>
         <div data-region="dlg-desc-preview" class="markdown-preview ${!s.previewMode ? 'hidden' : ''}">
-          ${s.description ? marked.parse(normalizeEscapes(s.description)) : '<span class="text-muted">Nothing to preview</span>'}
+          ${s.description ? sanitizeHtml(marked.parse(normalizeEscapes(s.description))) : '<span class="text-muted">Nothing to preview</span>'}
         </div>
       </div>
 
@@ -1101,7 +1104,7 @@ function bindDialogEvents() {
         writeDiv?.classList.add('hidden');
         previewDiv?.classList.remove('hidden');
         if (previewDiv) {
-          previewDiv.innerHTML = s.description ? marked.parse(normalizeEscapes(s.description)) : '<span class="text-muted">Nothing to preview</span>';
+          previewDiv.innerHTML = s.description ? sanitizeHtml(marked.parse(normalizeEscapes(s.description))) : '<span class="text-muted">Nothing to preview</span>';
         }
       } else {
         writeDiv?.classList.remove('hidden');
@@ -1214,15 +1217,15 @@ function bindDialogEvents() {
   // Cancel
   $('[data-action="dlg-cancel"]')?.addEventListener('click', closeDialog);
 
-  // Delete — show styled confirmation dialog
-  $('[data-action="dlg-delete"]')?.addEventListener('click', () => {
+  // Delete — show shared confirmation modal
+  $('[data-action="dlg-delete"]')?.addEventListener('click', async () => {
     if (!s.issue) return;
-    const dialog = $('.modal-overlay[data-dialog="delete-issue"]');
-    if (!dialog) return;
-    const msg = dialog.querySelector('[data-field="delete-issue-msg"]');
-    if (msg) msg.innerHTML = `Are you sure you want to delete <strong>${escapeHtml(s.issue.title)}</strong>? This action cannot be undone.`;
     $('.modal-overlay[data-dialog="issue"]')?.classList.add('hidden');
-    dialog.classList.remove('hidden');
+    const ok = await confirmModal(_root, { title: 'Delete Item', message: `Are you sure you want to delete <strong>${escapeHtml(s.issue.title)}</strong>? This action cannot be undone.`, confirmLabel: 'Delete', confirmCls: 'btn-danger' });
+    if (!ok) { $('.modal-overlay[data-dialog="issue"]')?.classList.remove('hidden'); return; }
+    await apiFetch(`/api/kanban/issues/${s.issue.id}`, { method: 'DELETE' });
+    s.onDelete(s.issue.id);
+    closeDialog();
   });
 
   // Close on overlay click
@@ -1396,7 +1399,7 @@ function renderVersionedEntries() {
           <span class="badge badge-secondary">v${e.version}</span>
           <span class="versioned-entry-date">${formatEntryDate(e.createdAt)}</span>
         </div>
-        <div class="versioned-entry-content markdown-preview">${marked.parse(normalizeEscapes(e.content))}</div>
+        <div class="versioned-entry-content markdown-preview">${sanitizeHtml(marked.parse(normalizeEscapes(e.content)))}</div>
       </div>
     `).join('');
   };
@@ -1437,33 +1440,7 @@ function _getDialogHTML() {
       </div>
     </div>
 
-    <!-- Delete Feature Confirmation Dialog -->
-    <div class="modal-overlay hidden" data-dialog="delete-feature" role="dialog" aria-modal="true">
-      <div class="modal">
-        <div class="modal-header">
-          <h2>Delete Feature</h2>
-          <p class="modal-desc" data-field="delete-feature-msg"></p>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-secondary" data-action="df-cancel">Cancel</button>
-          <button class="btn btn-danger" data-action="df-confirm">Delete</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Delete Issue Confirmation Dialog -->
-    <div class="modal-overlay hidden" data-dialog="delete-issue" role="dialog" aria-modal="true">
-      <div class="modal">
-        <div class="modal-header">
-          <h2>Delete Item</h2>
-          <p class="modal-desc" data-field="delete-issue-msg"></p>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-secondary" data-action="di-cancel">Cancel</button>
-          <button class="btn btn-danger" data-action="di-confirm">Delete</button>
-        </div>
-      </div>
-    </div>
+    <!-- Delete confirmation dialogs use shared-ui confirmModal() -->
 
     <!-- Edit Feature Dialog -->
     <div class="modal-overlay hidden" data-dialog="edit-feature" role="dialog" aria-modal="true">
@@ -1586,13 +1563,25 @@ export async function mount(container, ctx) {
   // 3. Load vendor libraries (SortableJS + marked.js)
   await loadVendors();
 
-  // 4. Configure marked to escape raw HTML
+  // 4. Configure marked to escape raw HTML and neutralize dangerous URLs
   if (typeof marked !== 'undefined' && marked.use) {
+    const dangerousUrlRe = /^\s*(javascript|vbscript|data)\s*:/i;
     marked.use({
       breaks: true,
       renderer: {
         html({ text }) {
           return escapeHtml(text);
+        },
+        link({ href, title, tokens }) {
+          const text = this.parser.parseInline(tokens);
+          if (dangerousUrlRe.test(href)) return text;
+          const titleAttr = title ? ` title="${escapeAttr(title)}"` : '';
+          return `<a href="${escapeAttr(href)}"${titleAttr}>${text}</a>`;
+        },
+        image({ href, title, text }) {
+          if (dangerousUrlRe.test(href)) return escapeHtml(text);
+          const titleAttr = title ? ` title="${escapeAttr(title)}"` : '';
+          return `<img src="${escapeAttr(href)}" alt="${escapeAttr(text)}"${titleAttr}>`;
         },
       },
     });
@@ -1681,6 +1670,8 @@ export function unmount(container) {
   dialogState = null;
   deleteTargetFeature = null;
   editTargetFeature = null;
+  featureSearchQuery = '';
+
 }
 
 export function onProjectChange(project) {
@@ -1695,6 +1686,8 @@ export function onProjectChange(project) {
   features = [];
   boardFeature = null;
   searchQuery = '';
+  featureSearchQuery = '';
+
   dialogState = null;
   deleteTargetFeature = null;
   editTargetFeature = null;

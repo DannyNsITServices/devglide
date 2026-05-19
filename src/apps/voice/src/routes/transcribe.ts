@@ -4,6 +4,7 @@ import { configStore } from "../services/config-store.js";
 import { stats } from "../services/stats.js";
 import { mimeFromFilename } from "../utils/mime.js";
 import { transcribe } from "../transcribe.js";
+import { errorMessage } from "../../../../packages/error-middleware.js";
 
 export const transcribeRouter: Router = Router();
 
@@ -87,7 +88,7 @@ export async function handleTranscribe(req: Request, res: Response) {
     stats.recordError();
     res
       .status(500)
-      .json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      .json({ ok: false, error: errorMessage(err) });
   }
 }
 

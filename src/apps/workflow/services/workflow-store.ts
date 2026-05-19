@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { z } from 'zod';
-import type { Workflow } from '../types.js';
+import type { NodeConfig, Workflow } from '../types.js';
 import { getActiveProject } from '../../../project-context.js';
 import { WORKFLOWS_DIR, INSTRUCTIONS_DIR, PROJECTS_DIR, projectDataDir } from '../../../packages/paths.js';
 import { JsonFileStore } from '../../../packages/json-file-store.js';
@@ -51,6 +51,17 @@ interface WorkflowSummary {
   global?: boolean;
 }
 
+function readConfigString(config: NodeConfig, key: string): string | undefined {
+  const value = Reflect.get(config, key);
+  return typeof value === 'string' ? value : undefined;
+}
+
+function readInstructionFields(config: NodeConfig): { instructions?: string; instructionFile?: string } {
+  const instructions = readConfigString(config, 'instructions');
+  const instructionFile = readConfigString(config, 'instructionFile');
+  return { instructions, instructionFile };
+}
+
 /**
  * Per-project and global workflow storage.
  * One JSON file per workflow for git-friendly diffs.
@@ -76,6 +87,10 @@ export class WorkflowStore extends JsonFileStore<Workflow> {
         console.warn(`[workflow-store] Invalid workflow file ${filePath}: ${result.error.issues[0]?.message}`);
         return null;
       }
+      // Zod schema uses Record<string, unknown> for config (validates structure),
+      // while Workflow uses the NodeConfig discriminated union. Deliberate cast
+      // at the schema validation boundary — the schema ensures all required
+      // fields exist, the cast bridges the config type gap.
       return result.data as unknown as Workflow;
     } catch {
       return null;
@@ -282,12 +297,16 @@ export class WorkflowStore extends JsonFileStore<Workflow> {
 
     for (const node of w.nodes) {
       parts.push(node.label);
-      const config = node.config as any;
-      if (config.triggerType) parts.push(config.triggerType);
-      if (config.gitEvent) parts.push(config.gitEvent);
-      if (config.operation) parts.push(config.operation);
-      if (config.instructions) parts.push(config.instructions);
-      if (config.command) parts.push(config.command);
+      const triggerType = readConfigString(node.config, 'triggerType');
+      const gitEvent = readConfigString(node.config, 'gitEvent');
+      const operation = readConfigString(node.config, 'operation');
+      const instructions = readConfigString(node.config, 'instructions');
+      const command = readConfigString(node.config, 'command');
+      if (triggerType) parts.push(triggerType);
+      if (gitEvent) parts.push(gitEvent);
+      if (operation) parts.push(operation);
+      if (instructions) parts.push(instructions);
+      if (command) parts.push(command);
     }
 
     return parts.join(' ').toLowerCase();
@@ -392,12 +411,12 @@ export class WorkflowStore extends JsonFileStore<Workflow> {
     for (const nodeId of ordered) {
       const node = nodeMap.get(nodeId);
       if (!node) continue;
-      const config = node.config as any;
+      const { instructions, instructionFile } = readInstructionFields(node.config);
       steps.push({
         stepNumber: stepNumber++,
         label: node.label,
-        instructions: config.instructions,
-        instructionFile: config.instructionFile,
+        instructions,
+        instructionFile,
       });
     }
 

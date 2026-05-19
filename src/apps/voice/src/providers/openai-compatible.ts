@@ -4,14 +4,46 @@ import type {
   TranscribeOptions,
   TranscriptionResult,
 } from "./types.js";
+import type OpenAI from "openai";
 
 // Cached OpenAI constructor and client instances keyed by config signature
-let _OpenAI: any = null;
-const _clientCache = new Map<string, any>();
+type OpenAIConstructor = typeof OpenAI;
+type OpenAILikeClient = InstanceType<OpenAIConstructor>;
+
+function isOpenAIConstructor(value: unknown): value is OpenAIConstructor {
+  return typeof value === "function";
+}
+
+async function loadOpenAIConstructor(): Promise<OpenAIConstructor> {
+  const mod = await import("openai");
+  if (!isOpenAIConstructor(mod.default)) {
+    throw new Error("The installed openai package does not expose the expected default constructor");
+  }
+  return mod.default;
+}
+
+let _OpenAI: OpenAIConstructor | null = null;
+const _clientCache = new Map<string, OpenAILikeClient>();
 const CLIENT_CACHE_MAX = 8;
 
 function getClientCacheKey(apiKey: string, baseURL?: string): string {
   return `${apiKey}::${baseURL || ""}`;
+}
+
+function readOptionalString(value: unknown, key: string): string | undefined {
+  if (value != null && typeof value === "object" && key in value) {
+    const field = Reflect.get(value, key);
+    return typeof field === "string" ? field : undefined;
+  }
+  return undefined;
+}
+
+function readOptionalNumber(value: unknown, key: string): number | undefined {
+  if (value != null && typeof value === "object" && key in value) {
+    const field = Reflect.get(value, key);
+    return typeof field === "number" ? field : undefined;
+  }
+  return undefined;
 }
 
 export class OpenAICompatibleProvider implements TranscriptionProvider {
@@ -33,7 +65,7 @@ export class OpenAICompatibleProvider implements TranscriptionProvider {
   ): Promise<TranscriptionResult> {
     if (!_OpenAI) {
       try {
-        _OpenAI = (await import("openai")).default;
+        _OpenAI = await loadOpenAIConstructor();
       } catch {
         throw new Error(
           "@devglide/voice server transcription requires the 'openai' package. Install it with: pnpm add openai"
@@ -45,11 +77,11 @@ export class OpenAICompatibleProvider implements TranscriptionProvider {
     const cacheKey = getClientCacheKey(apiKey, this.config.baseURL);
     let client = _clientCache.get(cacheKey);
     if (!client) {
-      const clientOptions: Record<string, unknown> = { apiKey };
+      const clientOptions: ConstructorParameters<OpenAIConstructor>[0] = { apiKey };
       if (this.config.baseURL) {
         clientOptions.baseURL = this.config.baseURL;
       }
-      client = new _OpenAI(clientOptions);
+      client = new _OpenAI!(clientOptions);
       if (_clientCache.size >= CLIENT_CACHE_MAX) {
         const oldestKey = _clientCache.keys().next().value!;
         _clientCache.delete(oldestKey);
@@ -81,8 +113,8 @@ export class OpenAICompatibleProvider implements TranscriptionProvider {
 
     return {
       text: response.text,
-      language: response.language,
-      duration: response.duration,
+      language: readOptionalString(response, "language"),
+      duration: readOptionalNumber(response, "duration"),
     };
   }
 

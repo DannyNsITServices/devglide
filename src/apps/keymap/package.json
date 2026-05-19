@@ -3,14 +3,5 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Keyboard shortcut configuration for Devglide",
-  "main": "server.js",
-  "bin": {
-    "devglide-keymap": "./server.js"
-  },
-  "scripts": {
-    "lint": "eslint ."
-  },
-  "dependencies": {
-    "express": "^5.2.1"
-  }
+  "private": true
 }

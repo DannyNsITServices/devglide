@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="en" data-phosphor="green">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Retro CRT Terminal — DevGlide Design System</title>
+
+<!-- Fonts -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/vt323@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@latest/latin-400-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@latest/latin-500-normal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@latest/latin-700-normal.css">
+
+<style>
+/* ============================================================
+   CSS CUSTOM PROPERTIES — Phosphor color modes
+   ============================================================ */
+
+:root,
+[data-phosphor="green"] {
+  --phosphor: #33ff33;
+  --phosphor-dim: #1a9f1a;
+  --phosphor-bright: #66ff66;
+  --phosphor-glow: rgba(51, 255, 51, 0.35);
+  --phosphor-glow-soft: rgba(51, 255, 51, 0.08);
+  --phosphor-glow-medium: rgba(51, 255, 51, 0.15);
+  --phosphor-scanline: rgba(51, 255, 51, 0.03);
+  --phosphor-bg-tint: rgba(51, 255, 51, 0.02);
+}
+
+[data-phosphor="amber"] {
+  --phosphor: #ffb000;
+  --phosphor-dim: #a07000;
+  --phosphor-bright: #ffc940;
+  --phosphor-glow: rgba(255, 176, 0, 0.35);
+  --phosphor-glow-soft: rgba(255, 176, 0, 0.08);
+  --phosphor-glow-medium: rgba(255, 176, 0, 0.15);
+  --phosphor-scanline: rgba(255, 176, 0, 0.03);
+  --phosphor-bg-tint: rgba(255, 176, 0, 0.02);
+}
+
+[data-phosphor="white"] {
+  --phosphor: #d4d4d4;
+  --phosphor-dim: #808080;
+  --phosphor-bright: #f0f0f0;
+  --phosphor-glow: rgba(212, 212, 212, 0.30);
+  --phosphor-glow-soft: rgba(212, 212, 212, 0.06);
+  --phosphor-glow-medium: rgba(212, 212, 212, 0.12);
+  --phosphor-scanline: rgba(212, 212, 212, 0.03);
+  --phosphor-bg-tint: rgba(212, 212, 212, 0.015);
+}
+
+/* ============================================================
+   GLOBAL RESET & BASE
+   ============================================================ */
+
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #0a0a0a;
+  color: var(--phosphor);
+  font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  overflow-x: hidden;
+}
+
+/* ============================================================
+   CRT MONITOR FRAME
+   ============================================================ */
+
+.crt-monitor {
+  width: 100%;
+  max-width: 1100px;
+  background: linear-gradient(145deg, #2a2a2a 0%, #1a1a1a 40%, #151515 100%);
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow:
+    0 0 0 2px #333,
+    0 0 0 4px #1a1a1a,
+    0 8px 60px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  position: relative;
+}
+
+.crt-monitor::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 4px;
+  background: #333;
+  border-radius: 2px;
+}
+
+.monitor-brand {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'VT323', monospace;
+  font-size: 14px;
+  color: #444;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.monitor-led {
+  position: absolute;
+  bottom: 12px;
+  right: 32px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--phosphor-dim);
+  box-shadow: 0 0 6px var(--phosphor-glow);
+  animation: led-blink 3s ease-in-out infinite;
+}
+
+@keyframes led-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ============================================================
+   CRT SCREEN (glass area)
+   ============================================================ */
+
+.crt-screen {
+  background: #0a0a0a;
+  border-radius: 12px;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 80px rgba(0, 0, 0, 0.6),
+    inset 0 0 20px rgba(0, 0, 0, 0.4),
+    0 0 12px var(--phosphor-glow-soft);
+  /* Subtle barrel distortion via perspective */
+  transform: perspective(1200px) rotateX(0.5deg);
+}
+
+/* Scan-line overlay */
+.crt-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2px,
+    var(--phosphor-scanline) 2px,
+    var(--phosphor-scanline) 3px
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Screen flicker */
+.crt-screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--phosphor-bg-tint);
+  pointer-events: none;
+  z-index: 9;
+  animation: crt-flicker 0.15s infinite alternate;
+}
+
+@keyframes crt-flicker {
+  0% { opacity: 0.97; }
+  50% { opacity: 1; }
+  100% { opacity: 0.985; }
+}
+
+/* Vignette / glass curvature */
+.crt-vignette {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  z-index: 11;
+}
+
+/* Screen reflection (glass highlight) */
+.crt-reflection {
+  position: absolute;
+  top: -10%;
+  left: -10%;
+  width: 60%;
+  height: 60%;
+  background: radial-gradient(
+    ellipse at 30% 30%,
+    rgba(255, 255, 255, 0.015) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 12;
+}
+
+.screen-content {
+  padding: 32px;
+  position: relative;
+  z-index: 5;
+  min-height: 600px;
+}
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+
+.font-display {
+  font-family: 'VT323', monospace;
+}
+
+.font-body {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+h1, h2, h3 {
+  font-family: 'VT323', monospace;
+  font-weight: 400;
+  text-shadow: 0 0 8px var(--phosphor-glow), 0 0 20px var(--phosphor-glow-soft);
+  position: relative;
+  display: inline-block;
+}
+
+h1 { font-size: 48px; line-height: 1.2; letter-spacing: 2px; }
+h2 { font-size: 32px; line-height: 1.3; letter-spacing: 1px; }
+h3 { font-size: 24px; line-height: 1.4; }
+
+/* Blinking block cursor after headings */
+.cursor {
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  background: var(--phosphor);
+  margin-left: 4px;
+  vertical-align: text-bottom;
+  animation: blink-cursor 1s step-end infinite;
+}
+
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+p, li, td, th, label, span, a {
+  text-shadow: 0 0 4px var(--phosphor-glow-soft);
+}
+
+a {
+  color: var(--phosphor-bright);
+  text-decoration: none;
+  border-bottom: 1px solid var(--phosphor-dim);
+}
+a:hover {
+  text-shadow: 0 0 12px var(--phosphor-glow);
+}
+
+code {
+  background: rgba(255,255,255,0.03);
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 13px;
+}
+
+/* ============================================================
+   ASCII-BORDERED PANELS
+   ============================================================ */
+
+.panel {
+  border: 1px solid var(--phosphor-dim);
+  border-radius: 0;
+  margin: 20px 0;
+  position: relative;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.panel-header {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--phosphor-dim);
+  font-family: 'VT323', monospace;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panel-body {
+  padding: 16px;
+}
+
+/* Box-drawing styled borders */
+.panel-box {
+  position: relative;
+  margin: 20px 0;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.panel-box::before {
+  content: attr(data-title);
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  font-family: 'VT323', monospace;
+  font-size: 16px;
+  white-space: pre;
+  line-height: 1;
+  color: var(--phosphor-dim);
+  pointer-events: none;
+}
+
+/* ============================================================
+   STATUS LEDs
+   ============================================================ */
+
+.led {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.led-on {
+  background: var(--phosphor);
+  box-shadow: 0 0 6px var(--phosphor-glow), 0 0 12px var(--phosphor-glow-soft);
+}
+
+.led-off {
+  background: #333;
+  box-shadow: none;
+}
+
+.led-blink {
+  background: var(--phosphor);
+  box-shadow: 0 0 6px var(--phosphor-glow);
+  animation: led-blink 1.5s ease-in-out infinite;
+}
+
+.led-error {
+  background: #ff3333;
+  box-shadow: 0 0 6px rgba(255, 51, 51, 0.5);
+  animation: led-blink 0.8s ease-in-out infinite;
+}
+
+.led-warning {
+  background: #ffb000;
+  box-shadow: 0 0 6px rgba(255, 176, 0, 0.5);
+  animation: led-blink 2s ease-in-out infinite;
+}
+
+/* ============================================================
+   PHOSPHOR MODE TOGGLE
+   ============================================================ */
+
+.phosphor-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--phosphor-dim);
+  border-radius: 0;
+  overflow: hidden;
+  font-family: 'VT323', monospace;
+  font-size: 18px;
+}
+
+.phosphor-toggle button {
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--phosphor-dim);
+  color: var(--phosphor-dim);
+  padding: 6px 16px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  transition: all 0.2s;
+}
+
+.phosphor-toggle button:last-child {
+  border-right: none;
+}
+
+.phosphor-toggle button:hover {
+  background: var(--phosphor-glow-soft);
+  color: var(--phosphor);
+}
+
+.phosphor-toggle button.active {
+  background: var(--phosphor-glow-medium);
+  color: var(--phosphor);
+  text-shadow: 0 0 8px var(--phosphor-glow);
+}
+
+/* ============================================================
+   BOOT SEQUENCE
+   ============================================================ */
+
+.boot-line {
+  font-family: 'VT323', monospace;
+  font-size: 20px;
+  line-height: 1.6;
+  opacity: 0;
+  white-space: pre;
+}
+
+.boot-line.visible {
+  opacity: 1;
+}
+
+.boot-line .typed {
+  display: inline;
+}
+
+#boot-sequence {
+  min-height: 280px;
+}
+
+#main-content {
+  display: none;
+}
+
+#main-content.visible {
+  display: block;
+  animation: fade-in 0.8s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ============================================================
+   COLOR PALETTE
+   ============================================================ */
+
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.swatch {
+  border: 1px solid var(--phosphor-dim);
+  padding: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.swatch-color {
+  height: 48px;
+  display: flex;
+  align-items: flex-end;
+  padding: 4px 8px;
+}
+
+.swatch-info {
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.swatch-name {
+  font-family: 'VT323', monospace;
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.swatch-hex {
+  color: var(--phosphor-dim);
+  font-size: 11px;
+}
+
+/* ============================================================
+   TYPOGRAPHY SPECIMEN
+   ============================================================ */
+
+.type-specimen {
+  margin: 16px 0;
+}
+
+.type-row {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+.type-label {
+  flex: 0 0 120px;
+  color: var(--phosphor-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ============================================================
+   BBS-STYLE SIDEBAR MENU
+   ============================================================ */
+
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 0;
+  margin: 20px 0;
+  border: 1px solid var(--phosphor-dim);
+  min-height: 340px;
+}
+
+.bbs-sidebar {
+  border-right: 1px solid var(--phosphor-dim);
+  padding: 12px 0;
+  font-family: 'VT323', monospace;
+  font-size: 20px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.bbs-sidebar-title {
+  padding: 4px 16px 12px;
+  font-size: 22px;
+  border-bottom: 1px solid var(--phosphor-dim);
+  margin-bottom: 8px;
+  text-shadow: 0 0 8px var(--phosphor-glow);
+  white-space: pre;
+}
+
+.bbs-menu-item {
+  padding: 4px 16px;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  transition: background 0.15s;
+}
+
+.bbs-menu-item:hover {
+  background: var(--phosphor-glow-soft);
+}
+
+.bbs-menu-item.active {
+  background: var(--phosphor-glow-medium);
+  text-shadow: 0 0 8px var(--phosphor-glow);
+}
+
+.bbs-menu-num {
+  color: var(--phosphor-bright);
+  flex: 0 0 24px;
+}
+
+.bbs-menu-label {
+  color: var(--phosphor);
+}
+
+.bbs-menu-divider {
+  border-top: 1px solid var(--phosphor-dim);
+  margin: 6px 0;
+  opacity: 0.4;
+}
+
+.dashboard-main {
+  padding: 16px;
+}
+
+/* ============================================================
+   KANBAN TEXT-MODE TABLE
+   ============================================================ */
+
+.kanban-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'VT323', monospace;
+  font-size: 18px;
+}
+
+.kanban-table th,
+.kanban-table td {
+  border: 1px solid var(--phosphor-dim);
+  padding: 6px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.kanban-table th {
+  background: var(--phosphor-glow-soft);
+  text-shadow: 0 0 6px var(--phosphor-glow-soft);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.kanban-table td {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.kanban-tag {
+  display: inline-block;
+  border: 1px solid var(--phosphor-dim);
+  padding: 0 6px;
+  font-size: 14px;
+  margin: 2px 2px 2px 0;
+}
+
+.kanban-priority {
+  font-size: 14px;
+  padding: 0 6px;
+  border: 1px solid;
+}
+.kanban-priority.high {
+  color: #ff3333;
+  border-color: #ff3333;
+}
+.kanban-priority.medium {
+  color: #ffb000;
+  border-color: #ffb000;
+}
+.kanban-priority.low {
+  color: var(--phosphor-dim);
+  border-color: var(--phosphor-dim);
+}
+
+/* ============================================================
+   COMPONENTS
+   ============================================================ */
+
+/* Button */
+.crt-btn {
+  font-family: 'VT323', monospace;
+  font-size: 20px;
+  background: transparent;
+  color: var(--phosphor);
+  border: 1px solid var(--phosphor-dim);
+  padding: 6px 20px;
+  cursor: pointer;
+  text-shadow: 0 0 4px var(--phosphor-glow-soft);
+  transition: all 0.15s;
+  position: relative;
+}
+
+.crt-btn:hover {
+  background: var(--phosphor-glow-soft);
+  text-shadow: 0 0 8px var(--phosphor-glow);
+  border-color: var(--phosphor);
+}
+
+.crt-btn:active {
+  background: var(--phosphor-glow-medium);
+}
+
+.crt-btn-primary {
+  background: var(--phosphor-glow-medium);
+  border-color: var(--phosphor);
+}
+
+/* Input */
+.crt-input {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--phosphor);
+  border: 1px solid var(--phosphor-dim);
+  padding: 8px 12px;
+  outline: none;
+  width: 100%;
+  caret-color: var(--phosphor);
+}
+
+.crt-input:focus {
+  border-color: var(--phosphor);
+  box-shadow: 0 0 8px var(--phosphor-glow-soft);
+}
+
+.crt-input::placeholder {
+  color: var(--phosphor-dim);
+  opacity: 0.5;
+}
+
+/* Progress bar */
+.crt-progress {
+  border: 1px solid var(--phosphor-dim);
+  height: 16px;
+  background: rgba(0, 0, 0, 0.3);
+  position: relative;
+  font-family: 'VT323', monospace;
+  font-size: 14px;
+}
+
+.crt-progress-fill {
+  height: 100%;
+  background: var(--phosphor-glow-medium);
+  border-right: 2px solid var(--phosphor);
+  transition: width 0.3s;
+  position: relative;
+}
+
+.crt-progress-fill::after {
+  content: attr(data-label);
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--phosphor);
+  white-space: nowrap;
+}
+
+/* Blockquote / log output */
+.crt-log {
+  border-left: 2px solid var(--phosphor-dim);
+  padding: 8px 16px;
+  margin: 12px 0;
+  background: rgba(0, 0, 0, 0.2);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--phosphor-dim);
+}
+
+.crt-log .log-time {
+  color: var(--phosphor-dim);
+  opacity: 0.6;
+}
+
+.crt-log .log-level-info { color: var(--phosphor); }
+.crt-log .log-level-warn { color: #ffb000; }
+.crt-log .log-level-error { color: #ff3333; }
+
+/* Separator */
+.crt-hr {
+  border: none;
+  border-top: 1px solid var(--phosphor-dim);
+  margin: 28px 0;
+  opacity: 0.4;
+}
+
+/* ============================================================
+   SECTIONS
+   ============================================================ */
+
+.section {
+  margin-bottom: 40px;
+}
+
+.section-intro {
+  color: var(--phosphor-dim);
+  margin: 12px 0 20px;
+  font-size: 13px;
+  max-width: 680px;
+  line-height: 1.7;
+}
+
+/* Utility */
+.flex { display: flex; }
+.flex-wrap { flex-wrap: wrap; }
+.gap-8 { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+.gap-20 { gap: 20px; }
+.mt-12 { margin-top: 12px; }
+.mt-20 { margin-top: 20px; }
+.mb-8 { margin-bottom: 8px; }
+.mb-12 { margin-bottom: 12px; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.text-dim { color: var(--phosphor-dim); }
+.text-bright { color: var(--phosphor-bright); }
+
+/* ============================================================
+   STATUS BAR
+   ============================================================ */
+
+.status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  border: 1px solid var(--phosphor-dim);
+  font-family: 'VT323', monospace;
+  font-size: 18px;
+  margin: 20px 0;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.status-bar-group {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ============================================================
+   ASCII ART
+   ============================================================ */
+
+.ascii-art {
+  font-family: 'VT323', monospace;
+  font-size: 16px;
+  line-height: 1.15;
+  white-space: pre;
+  color: var(--phosphor-dim);
+  text-shadow: 0 0 4px var(--phosphor-glow-soft);
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .crt-monitor { padding: 16px; border-radius: 16px; }
+  .screen-content { padding: 20px 16px; }
+  h1 { font-size: 36px; }
+  h2 { font-size: 26px; }
+  .dashboard-layout { grid-template-columns: 1fr; }
+  .bbs-sidebar { border-right: none; border-bottom: 1px solid var(--phosphor-dim); }
+  .palette-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  .kanban-table { font-size: 14px; }
+  .kanban-table th, .kanban-table td { padding: 4px 6px; }
+}
+</style>
+</head>
+<body>
+
+<div class="crt-monitor">
+  <div class="crt-screen">
+    <div class="crt-vignette"></div>
+    <div class="crt-reflection"></div>
+    <div class="screen-content">
+
+      <!-- ============================================
+           BOOT SEQUENCE
+           ============================================ -->
+      <div id="boot-sequence">
+        <div class="boot-line" data-text="DEVGLIDE BIOS v4.2.0" data-delay="0"></div>
+        <div class="boot-line" data-text="Copyright (c) 2026 DevGlide Systems Inc." data-delay="600"></div>
+        <div class="boot-line" data-text=" " data-delay="900"></div>
+        <div class="boot-line" data-text="Memory Test: 640K OK" data-delay="1200"></div>
+        <div class="boot-line" data-text="Detecting MCP Servers......... 8 found" data-delay="1800"></div>
+        <div class="boot-line" data-text="  [OK] devglide-kanban" data-delay="2200"></div>
+        <div class="boot-line" data-text="  [OK] devglide-shell" data-delay="2400"></div>
+        <div class="boot-line" data-text="  [OK] devglide-workflow" data-delay="2600"></div>
+        <div class="boot-line" data-text="  [OK] devglide-voice" data-delay="2800"></div>
+        <div class="boot-line" data-text="  [OK] devglide-test" data-delay="3000"></div>
+        <div class="boot-line" data-text="  [OK] devglide-chat" data-delay="3200"></div>
+        <div class="boot-line" data-text="  [OK] devglide-vocabulary" data-delay="3400"></div>
+        <div class="boot-line" data-text="  [OK] devglide-prompts" data-delay="3600"></div>
+        <div class="boot-line" data-text=" " data-delay="3800"></div>
+        <div class="boot-line" data-text="Initializing phosphor display... done" data-delay="4000"></div>
+        <div class="boot-line" data-text="Loading DevGlide Dashboard v7.0.0..." data-delay="4500"></div>
+        <div class="boot-line" data-text=" " data-delay="5000"></div>
+        <div class="boot-line" data-text="READY." data-delay="5200"></div>
+      </div>
+
+      <!-- ============================================
+           MAIN CONTENT (hidden until boot completes)
+           ============================================ -->
+      <div id="main-content">
+
+        <!-- HEADER -->
+        <div class="flex justify-between items-center flex-wrap gap-16">
+          <div>
+            <h1>DEVGLIDE<span class="cursor"></span></h1>
+            <p class="text-dim" style="font-family:'VT323',monospace; font-size:20px; margin-top:4px;">
+              Retro CRT Terminal &mdash; Design System
+            </p>
+          </div>
+          <div class="phosphor-toggle">
+            <button class="active" onclick="setPhosphor('green')" data-mode="green">Green</button>
+            <button onclick="setPhosphor('amber')" data-mode="amber">Amber</button>
+            <button onclick="setPhosphor('white')" data-mode="white">White</button>
+          </div>
+        </div>
+
+        <hr class="crt-hr">
+
+        <!-- ==========================================
+             SECTION: Color Palette
+             ========================================== -->
+        <div class="section">
+          <h2>Color Palette<span class="cursor"></span></h2>
+          <p class="section-intro">
+            Phosphor-driven palette. The primary color shifts with the toggle above.
+            Background stays deep black. UI chrome uses dim phosphor for borders, bright for emphasis.
+          </p>
+
+          <div class="palette-grid">
+            <div class="swatch">
+              <div class="swatch-color" style="background:#0a0a0a;"></div>
+              <div class="swatch-info">
+                <div class="swatch-name">Background</div>
+                <div class="swatch-hex">#0a0a0a</div>
+              </div>
+            </div>
+            <div class="swatch">
+              <div class="swatch-color" id="swatch-phosphor" style="background:var(--phosphor);"></div>
+              <div class="swatch-info">
+                <div class="swatch-name">Phosphor</div>
+                <div class="swatch-hex" id="swatch-phosphor-hex">#33ff33</div>
+              </div>
+            </div>
+            <div class="swatch">
+              <div class="swatch-color" id="swatch-dim" style="background:var(--phosphor-dim);"></div>
+              <div class="swatch-info">
+                <div class="swatch-name">Phosphor Dim</div>
+                <div class="swatch-hex" id="swatch-dim-hex">#1a9f1a</div>
+              </div>
+            </div>
+            <div class="swatch">
+              <div class="swatch-color" id="swatch-bright" style="background:var(--phosphor-bright);"></div>
+              <div class="swatch-info">
+                <div class="swatch-name">Phosphor Bright</div>
+                <div class="swatch-hex" id="swatch-bright-hex">#66ff66</div>
+              </div>
+            </div>
+            <div class="swatch">
+              <div class="swatch-color" style="background:#ff3333;"></div>
+              <div class="swatch-info">
+                <div class="swatch-name">Error</div>
+                <div class="swatch-hex">#ff3333</div>
+              </div>
+            </div>
+            <div class="swatch">
+              <div class="swatch-color" style="background:#ffb000;"></div>
+              <div class="swatch-info">
+                <div class="swatch-name">Warning</div>
+                <div class="swatch-hex">#ffb000</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <hr class="crt-hr">
+
+        <!-- ==========================================
+             SECTION: Typography
+             ========================================== -->
+        <div class="section">
+          <h2>Typography<span class="cursor"></span></h2>
+          <p class="section-intro">
+            VT323 for display text and headings (pixel terminal aesthetic).
+            JetBrains Mono for body, code, and data. Both loaded from fontsource CDN.
+          </p>
+
+          <div class="type-specimen">
+            <div class="type-row">
+              <span class="type-label font-body">H1 / 48px</span>
+              <span class="font-display" style="font-size:48px;">System Online</span>
+            </div>
+            <div class="type-row">
+              <span class="type-label font-body">H2 / 32px</span>
+              <span class="font-display" style="font-size:32px;">Module Loaded</span>
+            </div>
+            <div class="type-row">
+              <span class="type-label font-body">H3 / 24px</span>
+              <span class="font-display" style="font-size:24px;">Process Running</span>
+            </div>
+            <div class="type-row">
+              <span class="type-label font-body">Body / 14px</span>
+              <span class="font-body" style="font-size:14px;">The quick brown fox jumps over the lazy dog. 0123456789</span>
+            </div>
+            <div class="type-row">
+              <span class="type-label font-body">Code / 13px</span>
+              <span class="font-body" style="font-size:13px;"><code>const server = createMcpServer({ name: 'devglide' });</code></span>
+            </div>
+            <div class="type-row">
+              <span class="type-label font-body">Small / 11px</span>
+              <span class="font-body" style="font-size:11px; color:var(--phosphor-dim);">STATUS: OPERATIONAL &middot; UPTIME: 47d 12h 33m</span>
+            </div>
+          </div>
+        </div>
+
+        <hr class="crt-hr">
+
+        <!-- ==========================================
+             SECTION: Status LEDs & Indicators
+             ========================================== -->
+        <div class="section">
+          <h2>Status Indicators<span class="cursor"></span></h2>
+          <p class="section-intro">
+            Front-panel LED indicators for system status. Blinking, steady, off, and alert states.
+          </p>
+
+          <div class="status-bar">
+            <div class="status-bar-group">
+              <div class="status-item"><span class="led led-on"></span> MCP</div>
+              <div class="status-item"><span class="led led-on"></span> Shell</div>
+              <div class="status-item"><span class="led led-blink"></span> Sync</div>
+              <div class="status-item"><span class="led led-warning"></span> Queue</div>
+              <div class="status-item"><span class="led led-error"></span> Disk</div>
+              <div class="status-item"><span class="led led-off"></span> GPU</div>
+            </div>
+            <div class="status-bar-group">
+              <span class="text-dim" style="font-size:16px;">PORT :7000</span>
+            </div>
+          </div>
+
+          <div class="flex gap-20 flex-wrap mt-12">
+            <div class="flex items-center gap-8"><span class="led led-on"></span><span style="font-size:12px;">Active</span></div>
+            <div class="flex items-center gap-8"><span class="led led-blink"></span><span style="font-size:12px;">Syncing</span></div>
+            <div class="flex items-center gap-8"><span class="led led-warning"></span><span style="font-size:12px;">Warning</span></div>
+            <div class="flex items-center gap-8"><span class="led led-error"></span><span style="font-size:12px;">Error</span></div>
+            <div class="flex items-center gap-8"><span class="led led-off"></span><span style="font-size:12px;">Offline</span></div>
+          </div>
+        </div>
+
+        <hr class="crt-hr">
+
+        <!-- ==========================================
+             SECTION: ASCII-Bordered Components
+             ========================================== -->
+        <div class="section">
+          <h2>Components<span class="cursor"></span></h2>
+          <p class="section-intro">
+            Panels with single-line borders, buttons, inputs, and progress indicators.
+            All styled to match the terminal aesthetic.
+          </p>
+
+          <!-- Buttons -->
+          <h3 class="mb-8">Buttons</h3>
+          <div class="flex gap-12 flex-wrap mt-12 mb-12">
+            <button class="crt-btn">[F1] Help</button>
+            <button class="crt-btn">[F2] Save</button>
+            <button class="crt-btn crt-btn-primary">[F5] Run</button>
+            <button class="crt-btn">[F10] Quit</button>
+          </div>
+
+          <!-- Inputs -->
+          <h3 class="mb-8 mt-20">Input Fields</h3>
+          <div style="max-width:480px;" class="mt-12">
+            <div class="mb-12">
+              <label class="text-dim mb-8" style="display:block; font-size:12px; margin-bottom:6px;">COMMAND PROMPT</label>
+              <input class="crt-input" type="text" placeholder="devglide> _" spellcheck="false">
+            </div>
+            <div class="mb-12">
+              <label class="text-dim mb-8" style="display:block; font-size:12px; margin-bottom:6px;">SEARCH</label>
+              <input class="crt-input" type="text" placeholder="grep -r 'pattern' ." spellcheck="false">
+            </div>
+          </div>
+
+          <!-- Progress bars -->
+          <h3 class="mb-8 mt-20">Progress</h3>
+          <div style="max-width:480px;" class="mt-12">
+            <div class="mb-12">
+              <div style="font-size:12px; margin-bottom:4px;" class="text-dim">BUILD PROGRESS</div>
+              <div class="crt-progress">
+                <div class="crt-progress-fill" style="width:72%;" data-label="72%"></div>
+              </div>
+            </div>
+            <div class="mb-12">
+              <div style="font-size:12px; margin-bottom:4px;" class="text-dim">TEST COVERAGE</div>
+              <div class="crt-progress">
+                <div class="crt-progress-fill" style="width:94%;" data-label="94%"></div>
+              </div>
+            </div>
+            <div class="mb-12">
+              <div style="font-size:12px; margin-bottom:4px;" class="text-dim">DISK USAGE</div>
+              <div class="crt-progress">
+                <div class="crt-progress-fill" style="width:87%; border-right-color:#ff3333; background:rgba(255,51,51,0.15);" data-label="87%"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Panel -->
+          <h3 class="mb-8 mt-20">Panels</h3>
+          <div class="panel mt-12">
+            <div class="panel-header">
+              <span class="led led-on"></span>
+              System Log
+            </div>
+            <div class="panel-body">
+              <div class="crt-log">
+                <div><span class="log-time">[14:32:07]</span> <span class="log-level-info">INFO</span>  MCP server started on :7000</div>
+                <div><span class="log-time">[14:32:08]</span> <span class="log-level-info">INFO</span>  Loaded 8 MCP tool servers</div>
+                <div><span class="log-time">[14:32:09]</span> <span class="log-level-warn">WARN</span>  Voice: no local whisper model found, using remote</div>
+                <div><span class="log-time">[14:32:09]</span> <span class="log-level-info">INFO</span>  Project "devglide" mounted (id: a3f2c1)</div>
+                <div><span class="log-time">[14:33:15]</span> <span class="log-level-error">ERR!</span>  Shell pane 3 exited with code 1</div>
+                <div><span class="log-time">[14:33:16]</span> <span class="log-level-info">INFO</span>  Shell pane 3 auto-restarted</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel mt-12">
+            <div class="panel-header">
+              <span class="led led-blink"></span>
+              Active Processes
+            </div>
+            <div class="panel-body" style="font-family:'VT323',monospace; font-size:18px; line-height:1.6;">
+<pre style="margin:0; color:var(--phosphor-dim);">PID   PANE  CMD                   CPU   MEM    STATUS
+----  ----  --------------------  ----  -----  --------
+1204  #1    pnpm dev              2.1%  148MB  <span style="color:var(--phosphor);">RUNNING</span>
+1892  #2    vitest --watch        0.4%   92MB  <span style="color:var(--phosphor);">RUNNING</span>
+2103  #3    tsc --noEmit --watch  1.8%  204MB  <span style="color:var(--phosphor);">RUNNING</span>
+3341  #4    playwright test       8.2%  312MB  <span style="color:#ffb000;">BUSY</span></pre>
+            </div>
+          </div>
+        </div>
+
+        <hr class="crt-hr">
+
+        <!-- ==========================================
+             SECTION: Dashboard Mockup
+             ========================================== -->
+        <div class="section">
+          <h2>Dashboard Mockup<span class="cursor"></span></h2>
+          <p class="section-intro">
+            BBS-style numbered menu in the sidebar. Kanban board rendered as a text-mode table.
+          </p>
+
+          <div class="dashboard-layout">
+            <div class="bbs-sidebar">
+              <div class="bbs-sidebar-title"> DEVGLIDE v7.0</div>
+              <div class="bbs-menu-item active">
+                <span class="bbs-menu-num">1.</span>
+                <span class="bbs-menu-label">Kanban Board</span>
+              </div>
+              <div class="bbs-menu-item">
+                <span class="bbs-menu-num">2.</span>
+                <span class="bbs-menu-label">Shell Panes</span>
+              </div>
+              <div class="bbs-menu-item">
+                <span class="bbs-menu-num">3.</span>
+                <span class="bbs-menu-label">Test Runner</span>
+              </div>
+              <div class="bbs-menu-item">
+                <span class="bbs-menu-num">4.</span>
+                <span class="bbs-menu-label">Workflows</span>
+              </div>
+              <div class="bbs-menu-divider"></div>
+              <div class="bbs-menu-item">
+                <span class="bbs-menu-num">5.</span>
+                <span class="bbs-menu-label">Chat Room</span>
+              </div>
+              <div class="bbs-menu-item">
+                <span class="bbs-menu-num">6.</span>
+                <span class="bbs-menu-label">Voice</span>
+              </div>
+              <div class="bbs-menu-item">
+                <span class="bbs-menu-num">7.</span>
+                <span class="bbs-menu-label">Vocabulary</span>
+              </div>
+              <div class="bbs-menu-item">
+                <span class="bbs-menu-num">8.</span>
+                <span class="bbs-menu-label">Prompts</span>
+              </div>
+              <div class="bbs-menu-divider"></div>
+              <div class="bbs-menu-item">
+                <span class="bbs-menu-num">9.</span>
+                <span class="bbs-menu-label">Logs</span>
+              </div>
+              <div class="bbs-menu-item">
+                <span class="bbs-menu-num">0.</span>
+                <span class="bbs-menu-label">Settings</span>
+              </div>
+            </div>
+            <div class="dashboard-main">
+              <div class="flex justify-between items-center mb-12">
+                <h3 style="display:inline;">Feature: MCP Tool Servers</h3>
+                <span class="text-dim" style="font-size:12px;">5 items &middot; 2 in progress</span>
+              </div>
+              <table class="kanban-table">
+                <thead>
+                  <tr>
+                    <th style="width:30%;">TODO</th>
+                    <th style="width:35%;">IN PROGRESS</th>
+                    <th style="width:35%;">IN REVIEW</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <div class="mb-8">Add rate limiting</div>
+                      <span class="kanban-tag">api</span>
+                      <span class="kanban-priority low">LOW</span>
+                    </td>
+                    <td>
+                      <div class="mb-8">
+                        <span class="led led-blink" style="width:6px;height:6px;"></span>
+                        Chat PTY injection
+                      </div>
+                      <span class="kanban-tag">chat</span>
+                      <span class="kanban-priority high">HIGH</span>
+                      <div style="font-size:12px; color:var(--phosphor-dim); margin-top:6px;">
+                        Assigned: claude-1
+                      </div>
+                    </td>
+                    <td>
+                      <div class="mb-8">Voice cleanup mode</div>
+                      <span class="kanban-tag">voice</span>
+                      <span class="kanban-priority medium">MED</span>
+                      <div style="font-size:12px; color:var(--phosphor-dim); margin-top:6px;">
+                        Review: v2 &middot; 3 comments
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div class="mb-8">Workflow DAG viz</div>
+                      <span class="kanban-tag">workflow</span>
+                      <span class="kanban-priority medium">MED</span>
+                    </td>
+                    <td>
+                      <div class="mb-8">
+                        <span class="led led-blink" style="width:6px;height:6px;"></span>
+                        Docs seed content
+                      </div>
+                      <span class="kanban-tag">docs</span>
+                      <span class="kanban-priority medium">MED</span>
+                      <div style="font-size:12px; color:var(--phosphor-dim); margin-top:6px;">
+                        Assigned: claude-2
+                      </div>
+                    </td>
+                    <td style="color:var(--phosphor-dim); font-size:16px; vertical-align:middle; text-align:center;">
+                      &mdash;
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <hr class="crt-hr">
+
+        <!-- ==========================================
+             SECTION: ASCII Art Logo
+             ========================================== -->
+        <div class="section">
+          <h2>Terminal Branding<span class="cursor"></span></h2>
+          <p class="section-intro">
+            ASCII art header for splash screens and terminal MOTD.
+          </p>
+
+          <div class="panel">
+            <div class="panel-body" style="text-align:center;">
+              <div class="ascii-art" style="display:inline-block; text-align:left;">
+ ____            ____  _ _     _
+|  _ \  _____  _/ ___|| (_) __| | ___
+| | | |/ _ \ \/ / |  _| | |/ _` |/ _ \
+| |_| |  __/>  <| |_| | | | (_| |  __/
+|____/ \___/_/\_\\____|_|_|\__,_|\___|
+
+   AI Workflow Toolkit for Developers
+  ====================================
+  MCP Servers: 8  |  Port: 7000
+  Status: OPERATIONAL  |  Uptime: 47d
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <hr class="crt-hr">
+
+        <!-- ==========================================
+             SECTION: Flicker & Scan Demo
+             ========================================== -->
+        <div class="section">
+          <h2>CRT Effects Reference<span class="cursor"></span></h2>
+          <p class="section-intro">
+            The scan lines, screen flicker, vignette, and barrel distortion are always active.
+            Below is a reference of the layered effects composing the CRT look.
+          </p>
+
+          <div class="panel">
+            <div class="panel-header">
+              <span class="led led-on"></span>
+              Effect Stack
+            </div>
+            <div class="panel-body" style="font-family:'VT323',monospace; font-size:18px; line-height:2;">
+<pre style="margin:0;">Layer  Effect              Method
+-----  ------------------  ----------------------------------
+  1    Deep black bg       background: #0a0a0a
+  2    Phosphor text       color + text-shadow glow/bloom
+  3    Scan lines          repeating-linear-gradient (3px)
+  4    Screen flicker      CSS animation (opacity oscillation)
+  5    Barrel distortion   perspective(1200px) rotateX(0.5deg)
+  6    Glass vignette      inset box-shadow (120px spread)
+  7    Reflection          radial-gradient overlay
+  8    Monitor frame       dark gray container + inner shadow
+  9    Block cursor        background + step-end blink anim</pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <hr class="crt-hr">
+        <div class="flex justify-between items-center flex-wrap gap-12" style="font-size:12px; color:var(--phosphor-dim);">
+          <span>DEVGLIDE RETRO CRT TERMINAL &mdash; DESIGN SYSTEM REFERENCE</span>
+          <span>2026 &middot; ALL INLINE CSS/JS &middot; NO DEPENDENCIES</span>
+        </div>
+
+      </div><!-- /main-content -->
+
+    </div><!-- /screen-content -->
+  </div><!-- /crt-screen -->
+
+  <div class="monitor-brand">DevGlide</div>
+  <div class="monitor-led"></div>
+</div><!-- /crt-monitor -->
+
+
+<!-- ============================================================
+     JAVASCRIPT — Boot sequence + Phosphor toggle
+     ============================================================ -->
+<script>
+(function() {
+  'use strict';
+
+  // --------------------------------------------------
+  // Phosphor color toggle
+  // --------------------------------------------------
+  const PHOSPHOR_COLORS = {
+    green:  { main: '#33ff33', dim: '#1a9f1a', bright: '#66ff66' },
+    amber:  { main: '#ffb000', dim: '#a07000', bright: '#ffc940' },
+    white:  { main: '#d4d4d4', dim: '#808080', bright: '#f0f0f0' },
+  };
+
+  window.setPhosphor = function(mode) {
+    document.documentElement.setAttribute('data-phosphor', mode);
+
+    // Update toggle buttons
+    document.querySelectorAll('.phosphor-toggle button').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
+    });
+
+    // Update swatch hex labels
+    var colors = PHOSPHOR_COLORS[mode];
+    if (colors) {
+      var elHex = document.getElementById('swatch-phosphor-hex');
+      var elDim = document.getElementById('swatch-dim-hex');
+      var elBright = document.getElementById('swatch-bright-hex');
+      if (elHex) elHex.textContent = colors.main;
+      if (elDim) elDim.textContent = colors.dim;
+      if (elBright) elBright.textContent = colors.bright;
+    }
+  };
+
+  // --------------------------------------------------
+  // Boot sequence — character-by-character typing
+  // --------------------------------------------------
+  var bootLines = document.querySelectorAll('.boot-line');
+  var bootContainer = document.getElementById('boot-sequence');
+  var mainContent = document.getElementById('main-content');
+
+  function typeText(element, text, callback) {
+    element.classList.add('visible');
+    var span = document.createElement('span');
+    span.className = 'typed';
+    element.appendChild(span);
+
+    var i = 0;
+    var speed = 18; // ms per character
+
+    function typeChar() {
+      if (i < text.length) {
+        // Batch 1-3 chars for faster feel on long lines
+        var batch = Math.min(text.length - i, text.length > 30 ? 2 : 1);
+        span.textContent += text.substring(i, i + batch);
+        i += batch;
+        setTimeout(typeChar, speed);
+      } else {
+        if (callback) callback();
+      }
+    }
+    typeChar();
+  }
+
+  function runBootSequence() {
+    var lineIndex = 0;
+
+    function processLine() {
+      if (lineIndex >= bootLines.length) {
+        // Boot complete — show main content
+        setTimeout(function() {
+          bootContainer.style.display = 'none';
+          mainContent.classList.add('visible');
+        }, 600);
+        return;
+      }
+
+      var line = bootLines[lineIndex];
+      var text = line.getAttribute('data-text');
+      var delay = parseInt(line.getAttribute('data-delay'), 10) || 0;
+
+      // Calculate actual delay (relative to previous line)
+      var prevDelay = lineIndex > 0
+        ? parseInt(bootLines[lineIndex - 1].getAttribute('data-delay'), 10) || 0
+        : 0;
+      var relativeDelay = Math.max(0, delay - prevDelay);
+
+      setTimeout(function() {
+        typeText(line, text, function() {
+          lineIndex++;
+          processLine();
+        });
+      }, lineIndex === 0 ? delay : relativeDelay);
+    }
+
+    processLine();
+  }
+
+  // --------------------------------------------------
+  // Skip boot on click / key
+  // --------------------------------------------------
+  var bootSkipped = false;
+
+  function skipBoot() {
+    if (bootSkipped) return;
+    bootSkipped = true;
+
+    // Immediately show all boot text
+    bootLines.forEach(function(line) {
+      line.classList.add('visible');
+      var text = line.getAttribute('data-text');
+      if (!line.querySelector('.typed')) {
+        var span = document.createElement('span');
+        span.className = 'typed';
+        span.textContent = text;
+        line.appendChild(span);
+      } else {
+        line.querySelector('.typed').textContent = text;
+      }
+    });
+
+    // Short pause then show main
+    setTimeout(function() {
+      bootContainer.style.display = 'none';
+      mainContent.classList.add('visible');
+    }, 200);
+  }
+
+  document.addEventListener('click', function() {
+    if (mainContent.classList.contains('visible')) return;
+    skipBoot();
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (mainContent.classList.contains('visible')) return;
+    if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') {
+      skipBoot();
+    }
+  });
+
+  // --------------------------------------------------
+  // BBS sidebar click handling
+  // --------------------------------------------------
+  document.querySelectorAll('.bbs-menu-item').forEach(function(item) {
+    item.addEventListener('click', function() {
+      document.querySelectorAll('.bbs-menu-item').forEach(function(el) {
+        el.classList.remove('active');
+      });
+      item.classList.add('active');
+    });
+  });
+
+  // --------------------------------------------------
+  // Start boot
+  // --------------------------------------------------
+  runBootSequence();
+
+})();
+</script>
+
+</body>
+</html>

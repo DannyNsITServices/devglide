@@ -1,0 +1,2143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Midnight Ink - DevGlide Design System</title>
+
+<!-- Fonts -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/literata:ital,opsz,wght@0,7..72,200..900;1,7..72,200..900/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/source-sans-3:ital,wght@0,200..900;1,200..900/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono:wght@400;500;600/index.css">
+
+<style>
+/* ============================================================
+   MIDNIGHT INK DESIGN SYSTEM
+   "Ink on dark paper" — warm, calm, zero eye-strain
+   ============================================================ */
+
+:root {
+  /* --- Backgrounds --- */
+  --bg-base: #141416;
+  --bg-surface: #1b1b1f;
+  --bg-raised: #222226;
+  --bg-elevated: #2a2a2e;
+  --bg-input: #19191d;
+
+  /* --- Text --- */
+  --text-primary: #c8c2b8;       /* ~9:1 contrast against base */
+  --text-secondary: #8a8478;     /* ~4.5:1 contrast (WCAG AA) */
+  --text-muted: #5e5850;         /* ~2.7:1 — decorative only */
+  --text-heading: #d4cec4;       /* slightly brighter for headings */
+
+  /* --- Accent --- */
+  --accent: #c89050;             /* warm amber, zero blue light */
+  --accent-hover: #d8a060;
+  --accent-muted: rgba(200, 144, 80, 0.15);
+  --accent-subtle: rgba(200, 144, 80, 0.08);
+
+  /* --- Secondary accent --- */
+  --sage: #6a8860;
+  --sage-hover: #7a9870;
+  --sage-muted: rgba(106, 136, 96, 0.15);
+
+  /* --- Status (desaturated) --- */
+  --success: #6a9868;
+  --error: #b86860;
+  --warning: #c89050;
+  --info: #7088a0;
+
+  --success-bg: rgba(106, 152, 104, 0.10);
+  --error-bg: rgba(184, 104, 96, 0.10);
+  --warning-bg: rgba(200, 144, 80, 0.10);
+  --info-bg: rgba(112, 136, 160, 0.10);
+
+  /* --- Borders --- */
+  --border-subtle: rgba(200, 190, 170, 0.06);
+  --border-default: rgba(200, 190, 170, 0.10);
+  --border-emphasis: rgba(200, 190, 170, 0.14);
+  --border-accent: rgba(200, 144, 80, 0.25);
+
+  /* --- Shadows --- */
+  --shadow-sm: 0 1px 2px rgba(10, 10, 10, 0.3);
+  --shadow-md: 0 2px 8px rgba(10, 10, 10, 0.4);
+  --shadow-lg: 0 4px 16px rgba(10, 10, 10, 0.5);
+
+  /* --- Typography --- */
+  --font-display: 'Literata', Georgia, 'Times New Roman', serif;
+  --font-body: 'Source Sans 3', 'Source Sans Pro', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* --- Spacing --- */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+  --space-3xl: 64px;
+
+  /* --- Radii --- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  /* --- Brightness adjustment --- */
+  --brightness-factor: 1;
+
+  /* --- Red-shift overlay --- */
+  --redshift-amount: 0;
+
+  /* --- Transitions --- */
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow: 350ms ease;
+}
+
+/* ---- Reset & Base ---- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.65;
+  letter-spacing: 0.01em;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  min-height: 100vh;
+  filter: brightness(var(--brightness-factor));
+}
+
+/* Red-shift overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(180, 100, 30, var(--redshift-amount));
+  pointer-events: none;
+  z-index: 10000;
+  transition: background var(--transition-slow);
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(200, 190, 170, 0.12); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(200, 190, 170, 0.20); }
+
+/* ---- Typography ---- */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  color: var(--text-heading);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+h1 { font-size: 2.25rem; font-weight: 400; }
+h2 { font-size: 1.625rem; font-weight: 450; margin-bottom: var(--space-md); }
+h3 { font-size: 1.25rem; font-weight: 500; margin-bottom: var(--space-sm); }
+h4 { font-size: 1.0625rem; font-weight: 500; }
+
+p { margin-bottom: 1em; color: var(--text-primary); }
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(200, 144, 80, 0.3);
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+a:hover { color: var(--accent-hover); border-color: var(--accent-hover); }
+
+code, kbd, pre {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+
+code {
+  background: var(--bg-raised);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  border: 1px solid var(--border-subtle);
+}
+
+pre {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  overflow-x: auto;
+  line-height: 1.55;
+}
+pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+}
+
+kbd {
+  display: inline-block;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-default);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  font-size: 0.75em;
+  color: var(--text-secondary);
+}
+
+blockquote {
+  border-left: 3px solid var(--accent-muted);
+  padding: var(--space-sm) var(--space-md);
+  margin: var(--space-md) 0;
+  color: var(--text-secondary);
+  font-style: italic;
+  background: var(--accent-subtle);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+hr {
+  border: none;
+  height: 1px;
+  background: var(--border-subtle);
+  margin: var(--space-xl) 0;
+}
+
+/* ---- Layout ---- */
+.page-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-2xl) var(--space-lg);
+}
+
+.section {
+  margin-bottom: var(--space-3xl);
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.section-title .section-number {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.05em;
+}
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-lg); }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-md); }
+
+@media (max-width: 900px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .dashboard-layout { grid-template-columns: 1fr !important; }
+}
+
+/* ---- Hero ---- */
+.hero {
+  text-align: center;
+  padding: var(--space-3xl) 0;
+  margin-bottom: var(--space-2xl);
+}
+.hero-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border: 1px solid rgba(200, 144, 80, 0.15);
+  padding: 4px 14px;
+  border-radius: 100px;
+  margin-bottom: var(--space-lg);
+}
+.hero h1 {
+  font-size: 3rem;
+  font-weight: 350;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-md);
+  line-height: 1.15;
+}
+.hero h1 em {
+  font-style: normal;
+  color: var(--accent);
+}
+.hero-subtitle {
+  font-size: 1.125rem;
+  color: var(--text-secondary);
+  max-width: 600px;
+  margin: 0 auto;
+  line-height: 1.7;
+}
+
+/* ---- Card ---- */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+}
+.card-raised {
+  background: var(--bg-raised);
+}
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-md);
+}
+.card-header h3 { margin-bottom: 0; }
+
+/* ---- Color Palette ---- */
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-md);
+}
+.swatch {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+}
+.swatch-color {
+  height: 64px;
+  display: flex;
+  align-items: flex-end;
+  padding: var(--space-sm);
+}
+.swatch-info {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-surface);
+}
+.swatch-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+.swatch-hex {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+}
+.swatch-contrast {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ---- Readability Stats ---- */
+.stats-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+}
+.stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.stat-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.stat-name {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  padding: 2px 10px;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+}
+.stat-aaa {
+  color: var(--success);
+  background: var(--success-bg);
+}
+.stat-aa {
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+.stat-sub {
+  color: var(--text-muted);
+  background: rgba(94, 88, 80, 0.12);
+}
+
+/* ---- Controls (brightness / redshift) ---- */
+.controls-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-2xl);
+}
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.control-label {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.control-value {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--accent);
+  min-width: 42px;
+  text-align: center;
+}
+
+/* Range slider */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 140px;
+  height: 4px;
+  background: var(--bg-raised);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-base);
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-base);
+  cursor: pointer;
+}
+
+/* Toggle switch */
+.toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+}
+.toggle {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  background: var(--bg-raised);
+  border-radius: 11px;
+  border: 1px solid var(--border-default);
+  transition: background var(--transition-normal), border-color var(--transition-normal);
+  cursor: pointer;
+}
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  transition: transform var(--transition-normal), background var(--transition-normal);
+}
+.toggle.active {
+  background: var(--accent-muted);
+  border-color: var(--accent);
+}
+.toggle.active::after {
+  transform: translateX(18px);
+  background: var(--accent);
+}
+
+/* ---- Buttons ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.btn:active { transform: scale(0.98); }
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg-base);
+  border-color: var(--accent);
+}
+.btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border-emphasis);
+}
+.btn-secondary:hover { border-color: var(--text-secondary); background: var(--bg-raised); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  padding: 8px 12px;
+}
+.btn-ghost:hover { color: var(--text-primary); background: var(--bg-raised); }
+
+.btn-accent-soft {
+  background: var(--accent-muted);
+  color: var(--accent);
+  border-color: transparent;
+}
+.btn-accent-soft:hover { background: rgba(200, 144, 80, 0.22); }
+
+.btn-sage {
+  background: var(--sage-muted);
+  color: var(--sage);
+  border-color: transparent;
+}
+.btn-sage:hover { background: rgba(106, 136, 96, 0.22); }
+
+.btn-danger {
+  background: var(--error-bg);
+  color: var(--error);
+  border-color: transparent;
+}
+.btn-danger:hover { background: rgba(184, 104, 96, 0.18); }
+
+.btn-sm { font-size: 0.75rem; padding: 5px 10px; }
+.btn-lg { font-size: 0.9375rem; padding: 11px 22px; }
+
+.btn-group { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+
+/* ---- Inputs ---- */
+.input-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--space-md);
+}
+.input-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.input-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+input[type="text"],
+input[type="email"],
+input[type="password"],
+textarea,
+select {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+}
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-muted);
+}
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
+}
+textarea { resize: vertical; min-height: 80px; }
+
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' fill='none' stroke='%238a8478' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+  cursor: pointer;
+}
+
+/* ---- Badges ---- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 100px;
+  letter-spacing: 0.02em;
+}
+.badge-default {
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+}
+.badge-accent {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+.badge-sage {
+  background: var(--sage-muted);
+  color: var(--sage);
+}
+.badge-success {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.badge-error {
+  background: var(--error-bg);
+  color: var(--error);
+}
+.badge-warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+.badge-info {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+/* ---- Toasts ---- */
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  border-left: 3px solid;
+  font-size: 0.8125rem;
+  margin-bottom: var(--space-sm);
+}
+.toast-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.625rem;
+  font-weight: 700;
+}
+.toast-success {
+  background: var(--success-bg);
+  border-color: var(--success);
+  color: var(--text-primary);
+}
+.toast-success .toast-icon { background: rgba(106, 152, 104, 0.25); color: var(--success); }
+.toast-error {
+  background: var(--error-bg);
+  border-color: var(--error);
+  color: var(--text-primary);
+}
+.toast-error .toast-icon { background: rgba(184, 104, 96, 0.25); color: var(--error); }
+.toast-warning {
+  background: var(--warning-bg);
+  border-color: var(--warning);
+  color: var(--text-primary);
+}
+.toast-warning .toast-icon { background: var(--accent-muted); color: var(--warning); }
+.toast-info {
+  background: var(--info-bg);
+  border-color: var(--info);
+  color: var(--text-primary);
+}
+.toast-info .toast-icon { background: rgba(112, 136, 160, 0.25); color: var(--info); }
+
+/* ---- Tables ---- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+td {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg-raised); }
+
+/* ---- Dashboard Mockup ---- */
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  min-height: 520px;
+  background: var(--bg-base);
+}
+
+/* Sidebar */
+.sidebar {
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  padding: var(--space-lg) 0;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar-logo {
+  padding: 0 var(--space-lg);
+  margin-bottom: var(--space-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.sidebar-logo-mark {
+  width: 28px;
+  height: 28px;
+  background: var(--accent-muted);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.sidebar-logo-text {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-heading);
+}
+
+.sidebar-section {
+  margin-bottom: var(--space-md);
+}
+.sidebar-section-title {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  padding: 0 var(--space-lg);
+  margin-bottom: var(--space-xs);
+}
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 7px var(--space-lg);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-left: 2px solid transparent;
+}
+.sidebar-item:hover {
+  color: var(--text-primary);
+  background: var(--bg-raised);
+}
+.sidebar-item.active {
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border-left-color: var(--accent);
+}
+.sidebar-item-icon {
+  width: 16px;
+  text-align: center;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+.sidebar-item.active .sidebar-item-icon { opacity: 1; }
+.sidebar-footer {
+  margin-top: auto;
+  padding: var(--space-md) var(--space-lg);
+  border-top: 1px solid var(--border-subtle);
+}
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.sidebar-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-muted);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+.sidebar-user-info {
+  flex: 1;
+  min-width: 0;
+}
+.sidebar-user-name {
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-user-role {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+}
+
+/* Main content area */
+.dashboard-main {
+  padding: var(--space-lg);
+  overflow: auto;
+}
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-lg);
+}
+.dashboard-header h2 { margin-bottom: 0; }
+
+/* Kanban */
+.kanban-board {
+  display: flex;
+  gap: var(--space-md);
+  overflow-x: auto;
+  padding-bottom: var(--space-sm);
+}
+.kanban-column {
+  flex: 0 0 200px;
+  min-width: 200px;
+}
+.kanban-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+  padding: 0 var(--space-xs);
+}
+.kanban-column-title {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.kanban-column-count {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--text-muted);
+  background: var(--bg-raised);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+}
+.kanban-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-sm);
+  cursor: default;
+  transition: border-color var(--transition-fast);
+}
+.kanban-card:hover {
+  border-color: var(--border-emphasis);
+}
+.kanban-card-title {
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+.kanban-card-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+.kanban-card-id {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--text-muted);
+}
+
+/* ---- Reading Block ---- */
+.reading-block {
+  max-width: 680px;
+  margin: 0 auto;
+}
+.reading-block h2 {
+  font-size: 1.75rem;
+  margin-bottom: var(--space-md);
+  font-weight: 400;
+}
+.reading-block p {
+  font-size: 1rem;
+  line-height: 1.75;
+  margin-bottom: 1.25em;
+}
+.reading-block .dropcap::first-letter {
+  font-family: var(--font-display);
+  float: left;
+  font-size: 3.5em;
+  line-height: 0.8;
+  padding-right: 8px;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* ---- Specimen ---- */
+.specimen-row {
+  margin-bottom: var(--space-lg);
+}
+.specimen-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  margin-bottom: var(--space-xs);
+  letter-spacing: 0.04em;
+}
+.specimen-display {
+  font-family: var(--font-display);
+}
+.specimen-body {
+  font-family: var(--font-body);
+}
+.specimen-mono {
+  font-family: var(--font-mono);
+}
+
+/* ---- Utility ---- */
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted { color: var(--text-muted); }
+.text-accent { color: var(--accent); }
+.text-sage { color: var(--sage); }
+.text-success { color: var(--success); }
+.text-error { color: var(--error); }
+.text-warning { color: var(--warning); }
+.text-info { color: var(--info); }
+
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-sm { gap: var(--space-sm); }
+.gap-md { gap: var(--space-md); }
+.gap-lg { gap: var(--space-lg); }
+.mt-md { margin-top: var(--space-md); }
+.mt-lg { margin-top: var(--space-lg); }
+.mb-md { margin-bottom: var(--space-md); }
+.mb-lg { margin-bottom: var(--space-lg); }
+
+/* ---- Progress bar ---- */
+.progress-bar {
+  height: 4px;
+  background: var(--bg-raised);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width var(--transition-slow);
+}
+
+/* ---- Tag list ---- */
+.tag-list { display: flex; gap: var(--space-xs); flex-wrap: wrap; }
+
+/* ---- Separator label ---- */
+.sep-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: var(--space-xl) 0 var(--space-lg);
+}
+.sep-label::before, .sep-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+/* ---- Syntax highlighting (minimal) ---- */
+.hl-keyword { color: var(--accent); }
+.hl-string { color: var(--sage); }
+.hl-comment { color: var(--text-muted); font-style: italic; }
+.hl-number { color: #a08870; }
+.hl-function { color: var(--text-heading); }
+.hl-type { color: var(--info); }
+</style>
+</head>
+
+<body>
+
+<div class="page-wrapper">
+
+  <!-- ===== HERO ===== -->
+  <header class="hero">
+    <div class="hero-badge">DevGlide Design System</div>
+    <h1>Midnight <em>Ink</em></h1>
+    <p class="hero-subtitle">
+      Optimized for dark rooms and long night sessions. Ultra-comfortable dark theme with warm amber accents, scientifically chosen contrast ratios, and zero blue-light glare. Ink on dark paper.
+    </p>
+  </header>
+
+  <!-- ===== CONTROLS ===== -->
+  <div class="controls-bar" id="controls">
+    <div class="control-group">
+      <span class="control-label">Brightness</span>
+      <input type="range" id="brightnessSlider" min="0.8" max="1.2" step="0.01" value="1.0">
+      <span class="control-value" id="brightnessValue">1.00</span>
+    </div>
+    <div class="control-group">
+      <span class="control-label">Red-shift</span>
+      <div class="toggle" id="redshiftToggle"></div>
+      <span class="control-value" id="redshiftValue">Off</span>
+    </div>
+    <div style="margin-left: auto;">
+      <span style="font-family: var(--font-mono); font-size: 0.6875rem; color: var(--text-muted);">
+        WCAG AAA target &middot; 7:1 &ndash; 11:1 body text
+      </span>
+    </div>
+  </div>
+
+
+  <!-- ===== 01 COLOR PALETTE ===== -->
+  <section class="section" id="palette">
+    <div class="section-title">
+      <span class="section-number">01</span>
+      <h2>Color Palette</h2>
+    </div>
+
+    <h3 style="margin-bottom: var(--space-md);">Backgrounds</h3>
+    <div class="swatch-grid mb-lg">
+      <div class="swatch">
+        <div class="swatch-color" style="background: #141416;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Base</div>
+          <div class="swatch-hex">#141416</div>
+          <div class="swatch-contrast">Foundation layer</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #1b1b1f;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Surface</div>
+          <div class="swatch-hex">#1b1b1f</div>
+          <div class="swatch-contrast">Card / panel</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #222226;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Raised</div>
+          <div class="swatch-hex">#222226</div>
+          <div class="swatch-contrast">Elevated surface</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #2a2a2e;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Elevated</div>
+          <div class="swatch-hex">#2a2a2e</div>
+          <div class="swatch-contrast">Dropdown / tooltip</div>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin-bottom: var(--space-md);">Text Levels</h3>
+    <div class="swatch-grid mb-lg">
+      <div class="swatch">
+        <div class="swatch-color" style="background: #d4cec4;">
+          <span style="color: #141416; font-size: 0.75rem; font-weight: 500;">Heading</span>
+        </div>
+        <div class="swatch-info">
+          <div class="swatch-name">Heading</div>
+          <div class="swatch-hex">#d4cec4</div>
+          <div class="swatch-contrast">10.2:1 vs base &middot; AAA</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #c8c2b8;">
+          <span style="color: #141416; font-size: 0.75rem; font-weight: 500;">Primary</span>
+        </div>
+        <div class="swatch-info">
+          <div class="swatch-name">Primary</div>
+          <div class="swatch-hex">#c8c2b8</div>
+          <div class="swatch-contrast">9.1:1 vs base &middot; AAA</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #8a8478;">
+          <span style="color: #141416; font-size: 0.75rem; font-weight: 500;">Secondary</span>
+        </div>
+        <div class="swatch-info">
+          <div class="swatch-name">Secondary</div>
+          <div class="swatch-hex">#8a8478</div>
+          <div class="swatch-contrast">4.6:1 vs base &middot; AA</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #5e5850;">
+          <span style="color: #d4cec4; font-size: 0.75rem; font-weight: 500;">Muted</span>
+        </div>
+        <div class="swatch-info">
+          <div class="swatch-name">Muted</div>
+          <div class="swatch-hex">#5e5850</div>
+          <div class="swatch-contrast">2.7:1 vs base &middot; decorative</div>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin-bottom: var(--space-md);">Accents &amp; Status</h3>
+    <div class="swatch-grid">
+      <div class="swatch">
+        <div class="swatch-color" style="background: #c89050;">
+          <span style="color: #141416; font-size: 0.75rem; font-weight: 500;">Amber</span>
+        </div>
+        <div class="swatch-info">
+          <div class="swatch-name">Accent (Amber)</div>
+          <div class="swatch-hex">#c89050</div>
+          <div class="swatch-contrast">5.6:1 vs base &middot; AA</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #6a8860;">
+          <span style="color: #141416; font-size: 0.75rem; font-weight: 500;">Sage</span>
+        </div>
+        <div class="swatch-info">
+          <div class="swatch-name">Secondary (Sage)</div>
+          <div class="swatch-hex">#6a8860</div>
+          <div class="swatch-contrast">3.8:1 vs base &middot; UI only</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #6a9868;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Success</div>
+          <div class="swatch-hex">#6a9868</div>
+          <div class="swatch-contrast">4.0:1 vs base &middot; status</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #b86860;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Error</div>
+          <div class="swatch-hex">#b86860</div>
+          <div class="swatch-contrast">4.3:1 vs base &middot; status</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #c89050;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Warning</div>
+          <div class="swatch-hex">#c89050</div>
+          <div class="swatch-contrast">5.6:1 vs base &middot; status</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background: #7088a0;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Info</div>
+          <div class="swatch-hex">#7088a0</div>
+          <div class="swatch-contrast">4.2:1 vs base &middot; lowest sat.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== 02 READABILITY STATS ===== -->
+  <section class="section" id="readability">
+    <div class="section-title">
+      <span class="section-number">02</span>
+      <h2>Readability Stats</h2>
+    </div>
+    <p class="text-secondary" style="margin-bottom: var(--space-lg);">
+      Live contrast ratios computed against the base background <code>#141416</code>.
+      Body text targets the WCAG AAA sweet spot of 7:1 to 11:1 &mdash; high enough for clarity, low enough to avoid halation.
+    </p>
+
+    <div class="grid-2">
+      <div class="stats-panel">
+        <h4 style="margin-bottom: var(--space-md); color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em;">Text Levels</h4>
+        <div class="stat-row">
+          <div class="stat-label">
+            <span class="stat-dot" style="background: #d4cec4;"></span>
+            <span class="stat-name">Heading</span>
+          </div>
+          <span class="stat-value stat-aaa" id="cr-heading">10.2 : 1</span>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">
+            <span class="stat-dot" style="background: #c8c2b8;"></span>
+            <span class="stat-name">Primary body</span>
+          </div>
+          <span class="stat-value stat-aaa" id="cr-primary">9.1 : 1</span>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">
+            <span class="stat-dot" style="background: #8a8478;"></span>
+            <span class="stat-name">Secondary</span>
+          </div>
+          <span class="stat-value stat-aa" id="cr-secondary">4.6 : 1</span>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">
+            <span class="stat-dot" style="background: #5e5850;"></span>
+            <span class="stat-name">Muted</span>
+          </div>
+          <span class="stat-value stat-sub" id="cr-muted">2.7 : 1</span>
+        </div>
+      </div>
+
+      <div class="stats-panel">
+        <h4 style="margin-bottom: var(--space-md); color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em;">Accent &amp; Status</h4>
+        <div class="stat-row">
+          <div class="stat-label">
+            <span class="stat-dot" style="background: #c89050;"></span>
+            <span class="stat-name">Amber accent</span>
+          </div>
+          <span class="stat-value stat-aa" id="cr-accent">5.6 : 1</span>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">
+            <span class="stat-dot" style="background: #6a9868;"></span>
+            <span class="stat-name">Success</span>
+          </div>
+          <span class="stat-value stat-aa" id="cr-success">4.0 : 1</span>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">
+            <span class="stat-dot" style="background: #b86860;"></span>
+            <span class="stat-name">Error</span>
+          </div>
+          <span class="stat-value stat-aa" id="cr-error">4.3 : 1</span>
+        </div>
+        <div class="stat-row">
+          <div class="stat-label">
+            <span class="stat-dot" style="background: #7088a0;"></span>
+            <span class="stat-name">Info</span>
+          </div>
+          <span class="stat-value stat-aa" id="cr-info">4.2 : 1</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== 03 TYPOGRAPHY ===== -->
+  <section class="section" id="typography">
+    <div class="section-title">
+      <span class="section-number">03</span>
+      <h2>Typography Specimen</h2>
+    </div>
+
+    <div class="card mb-lg">
+      <div class="specimen-row">
+        <div class="specimen-label">DISPLAY &mdash; Literata &middot; 3rem / 350 weight</div>
+        <div class="specimen-display" style="font-size: 3rem; font-weight: 350; line-height: 1.15; letter-spacing: -0.02em; color: var(--text-heading);">
+          The quick brown fox
+        </div>
+      </div>
+      <div class="specimen-row">
+        <div class="specimen-label">H1 &mdash; Literata &middot; 2.25rem / 400 weight</div>
+        <h1 style="margin-bottom: 0;">Midnight Ink Typography</h1>
+      </div>
+      <div class="specimen-row">
+        <div class="specimen-label">H2 &mdash; Literata &middot; 1.625rem / 450 weight</div>
+        <h2 style="margin-bottom: 0;">Section Headings Are Warm</h2>
+      </div>
+      <div class="specimen-row">
+        <div class="specimen-label">H3 &mdash; Literata &middot; 1.25rem / 500 weight</div>
+        <h3 style="margin-bottom: 0;">Component Group Titles</h3>
+      </div>
+      <div class="specimen-row">
+        <div class="specimen-label">H4 &mdash; Literata &middot; 1.0625rem / 500 weight</div>
+        <h4>Card Headers and Labels</h4>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="specimen-row">
+          <div class="specimen-label">BODY &mdash; Source Sans 3 &middot; 1rem / 400 weight / 1.65 line-height</div>
+          <p class="specimen-body" style="margin-bottom: 0;">
+            Body text is set in Source Sans 3, a humanist sans-serif with warm proportions and excellent readability at small sizes. The generous line-height of 1.65 and positive letter-spacing of 0.01em ensure comfortable reading in low-light conditions. Weight 400 is the minimum for dark backgrounds.
+          </p>
+        </div>
+        <div class="specimen-row" style="margin-bottom: 0;">
+          <div class="specimen-label">SECONDARY &mdash; Source Sans 3 &middot; 0.875rem</div>
+          <p class="text-secondary" style="margin-bottom: 0; font-size: 0.875rem;">
+            Secondary text provides supporting information at reduced contrast, still meeting WCAG AA at 4.6:1. Used for metadata, timestamps, and supplementary descriptions.
+          </p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="specimen-row">
+          <div class="specimen-label">CODE &mdash; JetBrains Mono &middot; 0.8125rem / 500 weight</div>
+          <pre><code><span class="hl-keyword">const</span> <span class="hl-function">theme</span> = {
+  <span class="hl-string">name</span>: <span class="hl-string">'midnight-ink'</span>,
+  <span class="hl-string">base</span>: <span class="hl-string">'#141416'</span>,
+  <span class="hl-string">accent</span>: <span class="hl-string">'#c89050'</span>,
+  <span class="hl-string">contrast</span>: <span class="hl-number">9.1</span>, <span class="hl-comment">// WCAG AAA</span>
+};</code></pre>
+        </div>
+        <div class="specimen-row" style="margin-bottom: 0;">
+          <div class="specimen-label">MUTED TEXT &mdash; decorative use only</div>
+          <p class="text-muted" style="margin-bottom: 0;">
+            Muted text at 2.7:1 contrast is used sparingly for decorative labels, section numbers, and background annotations. Never for readable content.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="sep-label">Font Weights</div>
+    <div class="card">
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-md);">
+        <div>
+          <div class="specimen-label">200 Extra Light</div>
+          <span style="font-family: var(--font-display); font-size: 1.5rem; font-weight: 200; color: var(--text-heading);">Midnight</span>
+        </div>
+        <div>
+          <div class="specimen-label">300 Light</div>
+          <span style="font-family: var(--font-display); font-size: 1.5rem; font-weight: 300; color: var(--text-heading);">Midnight</span>
+        </div>
+        <div>
+          <div class="specimen-label">400 Regular</div>
+          <span style="font-family: var(--font-display); font-size: 1.5rem; font-weight: 400; color: var(--text-heading);">Midnight</span>
+        </div>
+        <div>
+          <div class="specimen-label">500 Medium</div>
+          <span style="font-family: var(--font-display); font-size: 1.5rem; font-weight: 500; color: var(--text-heading);">Midnight</span>
+        </div>
+        <div>
+          <div class="specimen-label">600 Semibold</div>
+          <span style="font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; color: var(--text-heading);">Midnight</span>
+        </div>
+        <div>
+          <div class="specimen-label">700 Bold</div>
+          <span style="font-family: var(--font-display); font-size: 1.5rem; font-weight: 700; color: var(--text-heading);">Midnight</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== 04 COMPONENTS ===== -->
+  <section class="section" id="components">
+    <div class="section-title">
+      <span class="section-number">04</span>
+      <h2>Components</h2>
+    </div>
+
+    <!-- Buttons -->
+    <h3>Buttons</h3>
+    <div class="card mb-lg">
+      <div class="specimen-label" style="margin-bottom: var(--space-md);">STANDARD SIZES</div>
+      <div class="btn-group mb-lg">
+        <button class="btn btn-primary">Primary</button>
+        <button class="btn btn-secondary">Secondary</button>
+        <button class="btn btn-ghost">Ghost</button>
+        <button class="btn btn-accent-soft">Accent Soft</button>
+        <button class="btn btn-sage">Sage</button>
+        <button class="btn btn-danger">Danger</button>
+      </div>
+      <div class="specimen-label" style="margin-bottom: var(--space-md);">SMALL</div>
+      <div class="btn-group mb-lg">
+        <button class="btn btn-sm btn-primary">Small Primary</button>
+        <button class="btn btn-sm btn-secondary">Small Secondary</button>
+        <button class="btn btn-sm btn-accent-soft">Small Soft</button>
+      </div>
+      <div class="specimen-label" style="margin-bottom: var(--space-md);">LARGE</div>
+      <div class="btn-group">
+        <button class="btn btn-lg btn-primary">Get Started</button>
+        <button class="btn btn-lg btn-secondary">Learn More</button>
+      </div>
+    </div>
+
+    <!-- Badges -->
+    <h3>Badges</h3>
+    <div class="card mb-lg">
+      <div class="tag-list">
+        <span class="badge badge-default">Default</span>
+        <span class="badge badge-accent">Amber</span>
+        <span class="badge badge-sage">Sage</span>
+        <span class="badge badge-success">Success</span>
+        <span class="badge badge-error">Error</span>
+        <span class="badge badge-warning">Warning</span>
+        <span class="badge badge-info">Info</span>
+        <span class="badge badge-accent">v2.4.1</span>
+        <span class="badge badge-default">TASK</span>
+        <span class="badge badge-error">BUG</span>
+        <span class="badge badge-warning">URGENT</span>
+        <span class="badge badge-sage">MCP</span>
+      </div>
+    </div>
+
+    <!-- Inputs -->
+    <h3>Form Inputs</h3>
+    <div class="card mb-lg">
+      <div class="grid-2">
+        <div>
+          <div class="input-field">
+            <label class="input-label">Project Name</label>
+            <input type="text" placeholder="e.g. devglide-kanban">
+          </div>
+          <div class="input-field">
+            <label class="input-label">API Key</label>
+            <input type="password" value="sk-xxxxxxxxxxxxxxxx">
+            <span class="input-hint">Stored securely in your local config</span>
+          </div>
+          <div class="input-field">
+            <label class="input-label">Provider</label>
+            <select>
+              <option>OpenAI</option>
+              <option>Groq</option>
+              <option>Local Whisper</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <div class="input-field">
+            <label class="input-label">Description</label>
+            <textarea placeholder="Describe your workflow..."></textarea>
+          </div>
+          <div class="input-field">
+            <label class="input-label">Search</label>
+            <input type="text" placeholder="Search tasks, features, logs...">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toasts -->
+    <h3>Toast Notifications</h3>
+    <div class="card mb-lg">
+      <div style="max-width: 480px;">
+        <div class="toast toast-success">
+          <div class="toast-icon">&#10003;</div>
+          <div>
+            <strong>Task moved to In Review</strong><br>
+            <span class="text-secondary" style="font-size: 0.75rem;">Shell integration tests &mdash; DG-142</span>
+          </div>
+        </div>
+        <div class="toast toast-error">
+          <div class="toast-icon">!</div>
+          <div>
+            <strong>Build failed</strong><br>
+            <span class="text-secondary" style="font-size: 0.75rem;">TypeScript error in src/apps/kanban/routes.ts:48</span>
+          </div>
+        </div>
+        <div class="toast toast-warning">
+          <div class="toast-icon">&#9888;</div>
+          <div>
+            <strong>Rate limit approaching</strong><br>
+            <span class="text-secondary" style="font-size: 0.75rem;">78/100 API calls used in the current window</span>
+          </div>
+        </div>
+        <div class="toast toast-info">
+          <div class="toast-icon">i</div>
+          <div>
+            <strong>Workflow matched</strong><br>
+            <span class="text-secondary" style="font-size: 0.75rem;">Using "code-review" workflow template</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <h3>Data Table</h3>
+    <div class="card mb-lg" style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Feature</th>
+            <th>Status</th>
+            <th>Priority</th>
+            <th>Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">DG-201</span></td>
+            <td>Voice transcription cleanup mode</td>
+            <td><span class="badge badge-sage">In Review</span></td>
+            <td><span class="badge badge-warning">HIGH</span></td>
+            <td class="text-secondary">2 hours ago</td>
+          </tr>
+          <tr>
+            <td><span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">DG-198</span></td>
+            <td>Kanban drag-and-drop reorder</td>
+            <td><span class="badge badge-accent">In Progress</span></td>
+            <td><span class="badge badge-default">MEDIUM</span></td>
+            <td class="text-secondary">5 hours ago</td>
+          </tr>
+          <tr>
+            <td><span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">DG-195</span></td>
+            <td>Chat multi-agent coordination</td>
+            <td><span class="badge badge-success">Testing</span></td>
+            <td><span class="badge badge-warning">HIGH</span></td>
+            <td class="text-secondary">1 day ago</td>
+          </tr>
+          <tr>
+            <td><span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">DG-190</span></td>
+            <td>Workflow DAG visual editor</td>
+            <td><span class="badge badge-default">Backlog</span></td>
+            <td><span class="badge badge-default">LOW</span></td>
+            <td class="text-secondary">3 days ago</td>
+          </tr>
+          <tr>
+            <td><span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">DG-187</span></td>
+            <td>MCP server bundle size regression</td>
+            <td><span class="badge badge-error">BUG</span></td>
+            <td><span class="badge badge-error">URGENT</span></td>
+            <td class="text-secondary">4 days ago</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Progress bars -->
+    <h3>Progress Bars</h3>
+    <div class="card mb-lg">
+      <div style="display: flex; flex-direction: column; gap: var(--space-md);">
+        <div>
+          <div class="flex justify-between mb-md" style="margin-bottom: 6px;">
+            <span style="font-size: 0.8125rem;">Sprint progress</span>
+            <span style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--accent);">72%</span>
+          </div>
+          <div class="progress-bar"><div class="progress-bar-fill" style="width: 72%; background: var(--accent);"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between mb-md" style="margin-bottom: 6px;">
+            <span style="font-size: 0.8125rem;">Test coverage</span>
+            <span style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--success);">88%</span>
+          </div>
+          <div class="progress-bar"><div class="progress-bar-fill" style="width: 88%; background: var(--success);"></div></div>
+        </div>
+        <div>
+          <div class="flex justify-between mb-md" style="margin-bottom: 6px;">
+            <span style="font-size: 0.8125rem;">API quota</span>
+            <span style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--error);">93%</span>
+          </div>
+          <div class="progress-bar"><div class="progress-bar-fill" style="width: 93%; background: var(--error);"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Code block -->
+    <h3>Code Block</h3>
+    <div class="card">
+      <pre><code><span class="hl-comment">// MCP tool handler for kanban operations</span>
+<span class="hl-keyword">export</span> <span class="hl-keyword">async</span> <span class="hl-keyword">function</span> <span class="hl-function">handleMoveItem</span>(
+  <span class="hl-function">id</span>: <span class="hl-type">string</span>,
+  <span class="hl-function">columnName</span>: <span class="hl-type">ColumnName</span>
+): <span class="hl-type">Promise</span>&lt;<span class="hl-type">KanbanItem</span>&gt; {
+  <span class="hl-keyword">const</span> item = <span class="hl-keyword">await</span> db.<span class="hl-function">getItem</span>(id);
+  <span class="hl-keyword">if</span> (!item) <span class="hl-keyword">throw</span> <span class="hl-keyword">new</span> <span class="hl-type">Error</span>(<span class="hl-string">`Item ${id} not found`</span>);
+
+  <span class="hl-comment">// Validate column transition</span>
+  <span class="hl-keyword">const</span> allowed = TRANSITIONS[item.column];
+  <span class="hl-keyword">if</span> (!allowed.<span class="hl-function">includes</span>(columnName)) {
+    <span class="hl-keyword">throw</span> <span class="hl-keyword">new</span> <span class="hl-type">Error</span>(
+      <span class="hl-string">`Cannot move from ${item.column} to ${columnName}`</span>
+    );
+  }
+
+  <span class="hl-keyword">return</span> db.<span class="hl-function">updateItem</span>(id, { column: columnName });
+}</code></pre>
+    </div>
+  </section>
+
+
+  <!-- ===== 05 DASHBOARD MOCKUP ===== -->
+  <section class="section" id="dashboard">
+    <div class="section-title">
+      <span class="section-number">05</span>
+      <h2>Dashboard Mockup</h2>
+    </div>
+
+    <div class="dashboard-layout">
+      <!-- Sidebar -->
+      <nav class="sidebar">
+        <div class="sidebar-logo">
+          <div class="sidebar-logo-mark">D</div>
+          <div class="sidebar-logo-text">DevGlide</div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">Core</div>
+          <div class="sidebar-item active">
+            <span class="sidebar-item-icon">&#9632;</span>
+            Kanban
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-item-icon">&#9654;</span>
+            Shell
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-item-icon">&#9733;</span>
+            Workflows
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">Tools</div>
+          <div class="sidebar-item">
+            <span class="sidebar-item-icon">&#9834;</span>
+            Voice
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-item-icon">&#10004;</span>
+            Tests
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-item-icon">&#9993;</span>
+            Chat
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-item-icon">&#128196;</span>
+            Prompts
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">System</div>
+          <div class="sidebar-item">
+            <span class="sidebar-item-icon">&#9783;</span>
+            Logs
+          </div>
+          <div class="sidebar-item">
+            <span class="sidebar-item-icon">&#9881;</span>
+            Settings
+          </div>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="sidebar-user">
+            <div class="sidebar-avatar">DK</div>
+            <div class="sidebar-user-info">
+              <div class="sidebar-user-name">Daniel K.</div>
+              <div class="sidebar-user-role">devglide</div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Main content -->
+      <div class="dashboard-main">
+        <div class="dashboard-header">
+          <div>
+            <h2 style="margin-bottom: 4px;">MCP Server Rewrite</h2>
+            <span class="text-secondary" style="font-size: 0.8125rem;">Feature &middot; 8 tasks &middot; 3 in progress</span>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-sm btn-accent-soft">+ Add Task</button>
+            <button class="btn btn-sm btn-ghost">Filter</button>
+          </div>
+        </div>
+
+        <div class="kanban-board">
+          <!-- Backlog -->
+          <div class="kanban-column">
+            <div class="kanban-column-header">
+              <span class="kanban-column-title">Backlog</span>
+              <span class="kanban-column-count">2</span>
+            </div>
+            <div class="kanban-card">
+              <div class="kanban-card-title">DAG visual editor prototype</div>
+              <div class="kanban-card-meta">
+                <span class="kanban-card-id">DG-190</span>
+                <span class="badge badge-default" style="font-size: 0.5625rem;">LOW</span>
+              </div>
+            </div>
+            <div class="kanban-card">
+              <div class="kanban-card-title">Vocabulary auto-suggest</div>
+              <div class="kanban-card-meta">
+                <span class="kanban-card-id">DG-191</span>
+                <span class="badge badge-default" style="font-size: 0.5625rem;">MEDIUM</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Todo -->
+          <div class="kanban-column">
+            <div class="kanban-column-header">
+              <span class="kanban-column-title">Todo</span>
+              <span class="kanban-column-count">1</span>
+            </div>
+            <div class="kanban-card">
+              <div class="kanban-card-title">Bundle size regression fix</div>
+              <div class="kanban-card-meta">
+                <span class="kanban-card-id">DG-187</span>
+                <span class="badge badge-error" style="font-size: 0.5625rem;">BUG</span>
+                <span class="badge badge-error" style="font-size: 0.5625rem;">URGENT</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- In Progress -->
+          <div class="kanban-column">
+            <div class="kanban-column-header">
+              <span class="kanban-column-title">In Progress</span>
+              <span class="kanban-column-count">3</span>
+            </div>
+            <div class="kanban-card" style="border-color: var(--border-accent);">
+              <div class="kanban-card-title">Kanban drag-and-drop</div>
+              <div class="kanban-card-meta">
+                <span class="kanban-card-id">DG-198</span>
+                <span class="badge badge-accent" style="font-size: 0.5625rem;">MEDIUM</span>
+              </div>
+            </div>
+            <div class="kanban-card" style="border-color: var(--border-accent);">
+              <div class="kanban-card-title">Shell pane resize events</div>
+              <div class="kanban-card-meta">
+                <span class="kanban-card-id">DG-199</span>
+                <span class="badge badge-accent" style="font-size: 0.5625rem;">HIGH</span>
+              </div>
+            </div>
+            <div class="kanban-card" style="border-color: var(--border-accent);">
+              <div class="kanban-card-title">Chat @mention parsing</div>
+              <div class="kanban-card-meta">
+                <span class="kanban-card-id">DG-200</span>
+                <span class="badge badge-accent" style="font-size: 0.5625rem;">MEDIUM</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- In Review -->
+          <div class="kanban-column">
+            <div class="kanban-column-header">
+              <span class="kanban-column-title">In Review</span>
+              <span class="kanban-column-count">1</span>
+            </div>
+            <div class="kanban-card">
+              <div class="kanban-card-title">Voice cleanup mode</div>
+              <div class="kanban-card-meta">
+                <span class="kanban-card-id">DG-201</span>
+                <span class="badge badge-sage" style="font-size: 0.5625rem;">HIGH</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Testing -->
+          <div class="kanban-column">
+            <div class="kanban-column-header">
+              <span class="kanban-column-title">Testing</span>
+              <span class="kanban-column-count">1</span>
+            </div>
+            <div class="kanban-card">
+              <div class="kanban-card-title">Multi-agent coordination</div>
+              <div class="kanban-card-meta">
+                <span class="kanban-card-id">DG-195</span>
+                <span class="badge badge-success" style="font-size: 0.5625rem;">HIGH</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== 06 LONG-FORM READING ===== -->
+  <section class="section" id="reading">
+    <div class="section-title">
+      <span class="section-number">06</span>
+      <h2>Extended Reading Comfort</h2>
+    </div>
+    <p class="text-secondary" style="margin-bottom: var(--space-lg);">
+      A long-form reading block to demonstrate the "ink on dark paper" experience. Settle in and read naturally.
+    </p>
+
+    <div class="reading-block">
+      <h2 style="font-family: var(--font-display); font-style: italic; color: var(--text-heading);">
+        On the Craft of Comfortable Darkness
+      </h2>
+      <p class="text-secondary" style="font-size: 0.875rem; margin-bottom: var(--space-lg);">
+        An essay on designing for the late hours &mdash; where comfort is not luxury, but necessity.
+      </p>
+
+      <p class="dropcap">
+        There is a particular quality to working late at night that every developer knows. The house is quiet. The monitor is the only light source. In these hours, the interface becomes your entire visual world, and every design choice either supports or undermines your ability to think clearly.
+      </p>
+
+      <p>
+        Most dark themes get it wrong. They reach for pure black backgrounds and bright white text, creating a digital chiaroscuro that fatigues the eyes within minutes. The problem is one of <em>contrast ratio extremity</em>. While WCAG guidelines specify a minimum of 4.5:1 for normal text, they say nothing about maximums. A ratio of 21:1 (pure white on pure black) is technically compliant but physiologically aggressive. The phenomenon is called <strong>halation</strong> &mdash; bright text appears to bleed into the dark background, creating a halo effect that forces the eye to constantly refocus.
+      </p>
+
+      <p>
+        The Midnight Ink system takes a different approach. We target the <em>sweet spot</em> between 7:1 and 11:1 for body text. This range provides clear, effortless readability without the visual harshness of maximum contrast. The background is a very dark warm gray (<code>#141416</code>) with a subtle warm undertone &mdash; not pure black, which would cause halation, but dark enough to minimize ambient light from the screen.
+      </p>
+
+      <blockquote>
+        "The best interface disappears. In a dark room, that means the text should feel like warm ink on handmade paper &mdash; present, legible, and utterly calm."
+      </blockquote>
+
+      <p>
+        Color temperature matters profoundly in low-light environments. Cool blue-white light suppresses melatonin production and stimulates alertness through the wrong mechanism &mdash; not the productive focus of engagement, but the jittery wakefulness of circadian disruption. Every color in this system has been chosen to minimize blue light emission. The primary accent is a warm amber (<code>#c89050</code>) with zero blue component. Even the informational blue (<code>#7088a0</code>) is the most desaturated color in the palette, tipped toward gray to reduce its chromatic energy.
+      </p>
+
+      <p>
+        Typography in dark mode requires its own set of rules. Thin font weights that look elegant on light backgrounds become nearly illegible on dark ones &mdash; the luminance of individual strokes drops below the threshold of comfortable perception. That is why Midnight Ink enforces a minimum weight of 400 for body text and uses generous line-height (1.65) and positive letter-spacing (0.01em). These values might feel excessive in a light theme, but in darkness they provide the breathing room that eyes need to track lines without strain.
+      </p>
+
+      <p>
+        The choice of typefaces reinforces this philosophy. Literata, the display face, was designed specifically for extended reading. Its high x-height and optical sizing adapt gracefully across the headline spectrum. Source Sans 3, the body face, is a humanist sans-serif &mdash; warmer and more legible at text sizes than geometric alternatives. JetBrains Mono handles code with comfortable spacing and clear character differentiation, crucial when parsing syntax at 2 AM.
+      </p>
+
+      <p>
+        Perhaps the most subtle element of the system is its border strategy. Borders are rendered at extremely low opacity &mdash; between 6% and 14% of a warm off-white. They provide just enough visual structure to separate panels and cards without introducing harsh lines that compete with content. The effect is architectural rather than graphic: you sense the structure of the layout without being distracted by it.
+      </p>
+
+      <p>
+        When you work with this system for an extended period, something remarkable happens: you stop noticing the interface entirely. There are no bright spots pulling your attention. No cool-toned elements triggering your alertness response. No razor-thin fonts straining your pattern recognition. Just your thoughts, your code, and the warm amber pulse of a system designed to get out of your way and let you work in peace. That is the promise of Midnight Ink &mdash; not a dark theme, but a reading environment as comfortable as a well-lit desk in a quiet library, translated faithfully into pixels.
+      </p>
+
+      <hr>
+
+      <p class="text-secondary" style="font-size: 0.8125rem; text-align: center;">
+        This reading block is set at 1rem / 1.75 line-height with a maximum width of 680px.<br>
+        Optimal reading measure: 65&ndash;75 characters per line.
+      </p>
+    </div>
+  </section>
+
+
+  <!-- ===== 07 BORDERS & ELEVATION ===== -->
+  <section class="section" id="elevation">
+    <div class="section-title">
+      <span class="section-number">07</span>
+      <h2>Borders &amp; Elevation</h2>
+    </div>
+
+    <div class="grid-3">
+      <div style="background: var(--bg-base); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: var(--space-lg);">
+        <div class="specimen-label" style="margin-bottom: var(--space-sm);">SUBTLE BORDER</div>
+        <p class="text-secondary" style="margin-bottom: 0; font-size: 0.8125rem;">
+          rgba(200, 190, 170, 0.06)<br>Barely visible, maximum restraint
+        </p>
+      </div>
+      <div style="background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--radius-lg); padding: var(--space-lg);">
+        <div class="specimen-label" style="margin-bottom: var(--space-sm);">DEFAULT BORDER</div>
+        <p class="text-secondary" style="margin-bottom: 0; font-size: 0.8125rem;">
+          rgba(200, 190, 170, 0.10)<br>Standard card/panel boundary
+        </p>
+      </div>
+      <div style="background: var(--bg-raised); border: 1px solid var(--border-emphasis); border-radius: var(--radius-lg); padding: var(--space-lg);">
+        <div class="specimen-label" style="margin-bottom: var(--space-sm);">EMPHASIS BORDER</div>
+        <p class="text-secondary" style="margin-bottom: 0; font-size: 0.8125rem;">
+          rgba(200, 190, 170, 0.14)<br>Interactive hover, focus states
+        </p>
+      </div>
+    </div>
+
+    <div class="sep-label">Surface Elevation Stack</div>
+
+    <div style="display: flex; gap: var(--space-md); flex-wrap: wrap;">
+      <div style="background: var(--bg-base); width: 160px; height: 100px; border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-subtle);">
+        <div style="text-align: center;">
+          <div class="specimen-label">BASE</div>
+          <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary);">#141416</div>
+        </div>
+      </div>
+      <div style="background: var(--bg-surface); width: 160px; height: 100px; border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-subtle);">
+        <div style="text-align: center;">
+          <div class="specimen-label">SURFACE</div>
+          <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary);">#1b1b1f</div>
+        </div>
+      </div>
+      <div style="background: var(--bg-raised); width: 160px; height: 100px; border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-subtle);">
+        <div style="text-align: center;">
+          <div class="specimen-label">RAISED</div>
+          <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary);">#222226</div>
+        </div>
+      </div>
+      <div style="background: var(--bg-elevated); width: 160px; height: 100px; border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-subtle);">
+        <div style="text-align: center;">
+          <div class="specimen-label">ELEVATED</div>
+          <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary);">#2a2a2e</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== 08 DESIGN TOKENS ===== -->
+  <section class="section" id="tokens">
+    <div class="section-title">
+      <span class="section-number">08</span>
+      <h2>Design Tokens</h2>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h4 style="margin-bottom: var(--space-md);">Spacing Scale</h4>
+        <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
+          <div class="flex items-center gap-sm">
+            <div style="width: 4px; height: 16px; background: var(--accent); border-radius: 1px;"></div>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); width: 40px;">xs</span>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">4px</span>
+          </div>
+          <div class="flex items-center gap-sm">
+            <div style="width: 8px; height: 16px; background: var(--accent); border-radius: 1px;"></div>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); width: 40px;">sm</span>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">8px</span>
+          </div>
+          <div class="flex items-center gap-sm">
+            <div style="width: 16px; height: 16px; background: var(--accent); border-radius: 1px;"></div>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); width: 40px;">md</span>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">16px</span>
+          </div>
+          <div class="flex items-center gap-sm">
+            <div style="width: 24px; height: 16px; background: var(--accent); border-radius: 1px;"></div>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); width: 40px;">lg</span>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">24px</span>
+          </div>
+          <div class="flex items-center gap-sm">
+            <div style="width: 32px; height: 16px; background: var(--accent); border-radius: 1px;"></div>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); width: 40px;">xl</span>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">32px</span>
+          </div>
+          <div class="flex items-center gap-sm">
+            <div style="width: 48px; height: 16px; background: var(--accent); border-radius: 1px;"></div>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); width: 40px;">2xl</span>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">48px</span>
+          </div>
+          <div class="flex items-center gap-sm">
+            <div style="width: 64px; height: 16px; background: var(--accent); border-radius: 1px;"></div>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); width: 40px;">3xl</span>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">64px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h4 style="margin-bottom: var(--space-md);">Border Radius</h4>
+        <div style="display: flex; gap: var(--space-lg); flex-wrap: wrap; margin-bottom: var(--space-lg);">
+          <div style="text-align: center;">
+            <div style="width: 48px; height: 48px; background: var(--bg-raised); border: 1px solid var(--border-default); border-radius: var(--radius-sm);"></div>
+            <div class="specimen-label" style="margin-top: 6px;">sm &middot; 4px</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="width: 48px; height: 48px; background: var(--bg-raised); border: 1px solid var(--border-default); border-radius: var(--radius-md);"></div>
+            <div class="specimen-label" style="margin-top: 6px;">md &middot; 6px</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="width: 48px; height: 48px; background: var(--bg-raised); border: 1px solid var(--border-default); border-radius: var(--radius-lg);"></div>
+            <div class="specimen-label" style="margin-top: 6px;">lg &middot; 10px</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="width: 48px; height: 48px; background: var(--bg-raised); border: 1px solid var(--border-default); border-radius: var(--radius-xl);"></div>
+            <div class="specimen-label" style="margin-top: 6px;">xl &middot; 14px</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="width: 48px; height: 48px; background: var(--bg-raised); border: 1px solid var(--border-default); border-radius: 50%;"></div>
+            <div class="specimen-label" style="margin-top: 6px;">full &middot; 50%</div>
+          </div>
+        </div>
+
+        <h4 style="margin-bottom: var(--space-md);">Transitions</h4>
+        <div style="display: flex; flex-direction: column; gap: var(--space-xs);">
+          <div class="flex items-center gap-sm">
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); width: 60px;">fast</span>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">120ms ease</span>
+          </div>
+          <div class="flex items-center gap-sm">
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); width: 60px;">normal</span>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">200ms ease</span>
+          </div>
+          <div class="flex items-center gap-sm">
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); width: 60px;">slow</span>
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">350ms ease</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ===== FOOTER ===== -->
+  <footer style="text-align: center; padding: var(--space-2xl) 0 var(--space-lg); border-top: 1px solid var(--border-subtle);">
+    <div class="hero-badge" style="margin-bottom: var(--space-md);">Midnight Ink</div>
+    <p class="text-secondary" style="font-size: 0.8125rem; margin-bottom: var(--space-xs);">
+      DevGlide Design System &mdash; Built for long night sessions
+    </p>
+    <p class="text-muted" style="font-size: 0.75rem; margin-bottom: 0;">
+      No pure black. No pure white. No eye strain. Just warm ink on dark paper.
+    </p>
+  </footer>
+
+</div>
+
+
+<script>
+// ============================================================
+// Contrast ratio calculator
+// ============================================================
+function hexToRgb(hex) {
+  const h = hex.replace('#', '');
+  return {
+    r: parseInt(h.substr(0, 2), 16),
+    g: parseInt(h.substr(2, 2), 16),
+    b: parseInt(h.substr(4, 2), 16)
+  };
+}
+
+function relativeLuminance(rgb) {
+  const [rs, gs, bs] = [rgb.r, rgb.g, rgb.b].map(c => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+}
+
+function contrastRatio(hex1, hex2) {
+  const l1 = relativeLuminance(hexToRgb(hex1));
+  const l2 = relativeLuminance(hexToRgb(hex2));
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+// Compute and display live contrast ratios
+const BASE = '#141416';
+const pairs = {
+  'cr-heading':   '#d4cec4',
+  'cr-primary':   '#c8c2b8',
+  'cr-secondary': '#8a8478',
+  'cr-muted':     '#5e5850',
+  'cr-accent':    '#c89050',
+  'cr-success':   '#6a9868',
+  'cr-error':     '#b86860',
+  'cr-info':      '#7088a0'
+};
+
+function updateContrastDisplay() {
+  for (const [id, fg] of Object.entries(pairs)) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const ratio = contrastRatio(fg, BASE);
+    el.textContent = ratio.toFixed(1) + ' : 1';
+
+    el.className = 'stat-value ';
+    if (ratio >= 7) el.className += 'stat-aaa';
+    else if (ratio >= 4.5) el.className += 'stat-aa';
+    else el.className += 'stat-sub';
+  }
+}
+
+updateContrastDisplay();
+
+// ============================================================
+// Brightness slider
+// ============================================================
+const brightnessSlider = document.getElementById('brightnessSlider');
+const brightnessValue = document.getElementById('brightnessValue');
+
+brightnessSlider.addEventListener('input', function() {
+  const val = parseFloat(this.value);
+  document.documentElement.style.setProperty('--brightness-factor', val);
+  brightnessValue.textContent = val.toFixed(2);
+});
+
+// ============================================================
+// Red-shift toggle
+// ============================================================
+const redshiftToggle = document.getElementById('redshiftToggle');
+const redshiftValue = document.getElementById('redshiftValue');
+let redshiftActive = false;
+
+redshiftToggle.addEventListener('click', function() {
+  redshiftActive = !redshiftActive;
+  this.classList.toggle('active', redshiftActive);
+  document.documentElement.style.setProperty(
+    '--redshift-amount',
+    redshiftActive ? '0.06' : '0'
+  );
+  redshiftValue.textContent = redshiftActive ? 'On' : 'Off';
+});
+</script>
+
+</body>
+</html>

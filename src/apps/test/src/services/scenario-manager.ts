@@ -226,7 +226,7 @@ export class ScenarioManager {
   getCommandsCatalog(): Record<string, unknown> {
     return {
       description:
-        "Console Trigger DSL — commands for browser UI automation via POST /api/trigger/scenarios",
+        "Console Trigger DSL — commands for browser UI automation via POST /api/test/trigger/scenarios",
       usage:
         "POST a JSON object with 'name' (string), optional 'description' (string), " +
         "optional 'target' (string), and 'steps' (array of command objects). Each step " +

@@ -371,9 +371,7 @@
     };
 
     eventSource.onerror = function () {
-      // EventSource automatically reconnects on error.
-      // Log only once per error event to avoid spam.
-      console.warn('[scenario-runner] SSE connection error — reconnecting...');
+      // EventSource automatically reconnects — no action needed.
     };
   }
 

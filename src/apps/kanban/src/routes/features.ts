@@ -1,38 +1,44 @@
 import { Router, Request, Response } from "express";
+import { z } from "zod";
 import { getDb, generateId, nowIso } from "../db.js";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
+import { getUploadsDir } from "./attachments.js";
+import { DEFAULT_COLUMNS } from "../mcp-helpers.js";
+import { asyncHandler, badRequest, notFound } from "../../../../packages/error-middleware.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsDir = path.join(__dirname, "..", "..", "uploads");
+type JsonRow = Record<string, unknown>;
+type FeatureIssueRow = JsonRow & { columnId: string };
+type FeatureColumnRow = JsonRow & { id: string };
+
+const createFeatureSchema = z.object({
+  name: z.string().min(1).max(500),
+  description: z.string().optional().nullable(),
+  color: z.string().optional(),
+});
+
+const updateFeatureSchema = createFeatureSchema.partial();
+
+const idParamSchema = z.object({
+  id: z.string().min(1),
+});
 
 export const featuresRouter: Router = Router();
 
-const DEFAULT_COLUMNS = [
-  { name: "Backlog", color: "#64748b", order: 0 },
-  { name: "Todo", color: "#3b82f6", order: 1 },
-  { name: "In Progress", color: "#f59e0b", order: 2 },
-  { name: "In Review", color: "#8b5cf6", order: 3 },
-  { name: "Testing", color: "#14b8a6", order: 4 },
-  { name: "Done", color: "#22c55e", order: 5 },
-];
-
-function mapColumn(row: any) {
+function mapColumn(row: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
   if (!row) return row;
   const { projectId, ...rest } = row;
   return { ...rest, featureId: projectId };
 }
 
-function mapIssue(row: any) {
+function mapIssue(row: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
   if (!row) return row;
   const { projectId, ...rest } = row;
   return { ...rest, featureId: projectId };
 }
 
 // GET /api/features
-featuresRouter.get("/", (req: Request, res: Response) => {
-  try {
+featuresRouter.get("/", asyncHandler(async (req: Request, res: Response) => {
     const db = getDb(req.projectId);
 
     const rows = db
@@ -44,7 +50,7 @@ featuresRouter.get("/", (req: Request, res: Response) => {
          FROM "Project" p
          ORDER BY p."name" COLLATE NOCASE ASC`
       )
-      .all() as any[];
+      .all() as { id: string; name: string; description: string | null; color: string; createdAt: string; updatedAt: string; issueCount: number }[];
 
     const features = rows.map((row) => {
       const { issueCount, ...rest } = row;
@@ -52,25 +58,16 @@ featuresRouter.get("/", (req: Request, res: Response) => {
     });
 
     res.json(features);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));
 
 // POST /api/features
-featuresRouter.post("/", (req: Request, res: Response) => {
-  try {
-    const { name, description, color } = req.body;
-
-    if (!name || typeof name !== "string" || !name.trim()) {
-      res.status(400).json({ error: "name is required" });
+featuresRouter.post("/", asyncHandler(async (req: Request, res: Response) => {
+    const parsed = createFeatureSchema.safeParse(req.body);
+    if (!parsed.success) {
+      badRequest(res, parsed.error.issues[0]?.message ?? "Invalid input");
       return;
     }
-
-    if (name.length > 500) {
-      res.status(400).json({ error: "name must be at most 500 characters" });
-      return;
-    }
+    const { name, description, color } = parsed.data;
 
     const db = getDb(req.projectId);
     const now = nowIso();
@@ -96,30 +93,28 @@ featuresRouter.post("/", (req: Request, res: Response) => {
     const feature = db.prepare(`SELECT * FROM "Project" WHERE "id" = ?`).get(featureId) as Record<string, unknown>;
     const columns = db
       .prepare(`SELECT * FROM "Column" WHERE "projectId" = ? ORDER BY "order" ASC`)
-      .all(featureId);
+      .all(featureId) as JsonRow[];
 
     res.status(201).json({ ...feature, columns: columns.map(mapColumn) });
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));
 
 // GET /api/features/:id
-featuresRouter.get("/:id", (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
+featuresRouter.get("/:id", asyncHandler(async (req: Request, res: Response) => {
+    const pp = idParamSchema.safeParse(req.params);
+    if (!pp.success) { badRequest(res, 'Invalid ID'); return; }
+    const { id } = pp.data;
     const db = getDb(req.projectId);
 
-    const feature = db.prepare(`SELECT * FROM "Project" WHERE "id" = ?`).get(id) as any;
+    const feature = db.prepare(`SELECT * FROM "Project" WHERE "id" = ?`).get(id) as Record<string, unknown> | undefined;
 
     if (!feature) {
-      res.status(404).json({ error: "Feature not found" });
+      notFound(res, "Feature not found");
       return;
     }
 
     const columns = db
       .prepare(`SELECT * FROM "Column" WHERE "projectId" = ? ORDER BY "order" ASC`)
-      .all(id) as any[];
+      .all(id) as FeatureColumnRow[];
 
     const issues = db
       .prepare(
@@ -128,13 +123,14 @@ featuresRouter.get("/:id", (req: Request, res: Response) => {
                 (SELECT COUNT(*) FROM "VersionedEntry" ve WHERE ve."issueId" = i."id" AND ve."type" = 'work_log') AS workLogCount
          FROM "Issue" i WHERE i."projectId" = ? ORDER BY i."order" ASC`
       )
-      .all(id) as any[];
+      .all(id) as FeatureIssueRow[];
 
     // Group issues by columnId
-    const issuesByColumn = new Map<string, any[]>();
+    const issuesByColumn = new Map<string, JsonRow[]>();
     for (const issue of issues) {
       const list = issuesByColumn.get(issue.columnId) ?? [];
-      list.push(mapIssue(issue));
+      const mappedIssue = mapIssue(issue);
+      if (mappedIssue) list.push(mappedIssue);
       issuesByColumn.set(issue.columnId, list);
     }
 
@@ -144,20 +140,24 @@ featuresRouter.get("/:id", (req: Request, res: Response) => {
     }));
 
     res.json({ ...feature, columns: mappedColumns });
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));
 
 // PATCH /api/features/:id
-featuresRouter.patch("/:id", (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
+featuresRouter.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
+    const parsed = updateFeatureSchema.safeParse(req.body);
+    if (!parsed.success) {
+      badRequest(res, parsed.error.issues[0]?.message ?? "Invalid input");
+      return;
+    }
+
+    const pp = idParamSchema.safeParse(req.params);
+    if (!pp.success) { badRequest(res, 'Invalid ID'); return; }
+    const { id } = pp.data;
     const db = getDb(req.projectId);
 
     const existing = db.prepare(`SELECT * FROM "Project" WHERE "id" = ?`).get(id);
     if (!existing) {
-      res.status(404).json({ error: "Feature not found" });
+      notFound(res, "Feature not found");
       return;
     }
 
@@ -168,17 +168,18 @@ featuresRouter.patch("/:id", (req: Request, res: Response) => {
     };
 
     const setClauses: string[] = [];
-    const params: any[] = [];
+    const params: (string | number | null)[] = [];
+    const data: Record<string, unknown> = parsed.data;
 
     for (const [key, col] of Object.entries(allowedFields)) {
-      if (req.body[key] !== undefined) {
+      if (data[key] !== undefined) {
         setClauses.push(`${col} = ?`);
-        params.push(req.body[key]);
+        params.push(data[key] as string | number | null);
       }
     }
 
     if (setClauses.length === 0) {
-      res.status(400).json({ error: "No valid fields to update" });
+      badRequest(res, "No valid fields to update");
       return;
     }
 
@@ -192,20 +193,18 @@ featuresRouter.patch("/:id", (req: Request, res: Response) => {
 
     const row = db.prepare(`SELECT * FROM "Project" WHERE "id" = ?`).get(id);
     res.json(row);
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));
 
 // DELETE /api/features/:id
-featuresRouter.delete("/:id", (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
+featuresRouter.delete("/:id", asyncHandler(async (req: Request, res: Response) => {
+    const pp = idParamSchema.safeParse(req.params);
+    if (!pp.success) { badRequest(res, 'Invalid ID'); return; }
+    const { id } = pp.data;
     const db = getDb(req.projectId);
 
     const existing = db.prepare(`SELECT * FROM "Project" WHERE "id" = ?`).get(id);
     if (!existing) {
-      res.status(404).json({ error: "Feature not found" });
+      notFound(res, "Feature not found");
       return;
     }
 
@@ -216,18 +215,15 @@ featuresRouter.delete("/:id", (req: Request, res: Response) => {
          JOIN "Issue" i ON a."issueId" = i."id"
          WHERE i."projectId" = ?`
       )
-      .all(id) as any[];
+      .all(id) as { id: string; filename: string }[];
 
     for (const att of attachments) {
       const ext = path.extname(att.filename);
-      const filePath = path.join(uploadsDir, `${att.id}${ext}`);
+      const filePath = path.join(getUploadsDir(req.projectId ?? 'default'), `${att.id}${ext}`);
       try { fs.unlinkSync(filePath); } catch {}
     }
 
     db.prepare(`DELETE FROM "Project" WHERE "id" = ?`).run(id);
 
     res.json({ success: true });
-  } catch (err: unknown) {
-    res.status(500).json({ error: (err instanceof Error ? err.message : String(err)) });
-  }
-});
+}));

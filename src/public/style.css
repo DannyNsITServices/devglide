@@ -25,11 +25,92 @@ html, body {
 }
 
 body {
-  font-family: var(--df-font-mono);
+  font-family: var(--df-font-ui);
   background: var(--df-color-bg-base);
   color: var(--df-color-text-primary);
   -webkit-font-smoothing: antialiased;
   font-size: var(--df-font-size-md);
+}
+
+/* ── Aurora ambient background ──────────────────────────────────────────── */
+
+.aurora {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(160px);
+  animation: aurora-drift linear infinite;
+  will-change: transform;
+}
+
+.aurora-blob:nth-child(1) {
+  width: 600px; height: 600px;
+  background: rgba(79, 163, 165, 0.018);
+  top: -10%; left: -5%;
+  animation-duration: 25s;
+}
+.aurora-blob:nth-child(2) {
+  width: 500px; height: 500px;
+  background: rgba(124, 143, 181, 0.012);
+  top: 20%; right: -10%;
+  animation-duration: 30s;
+  animation-delay: -8s;
+}
+.aurora-blob:nth-child(3) {
+  width: 450px; height: 450px;
+  background: rgba(201, 161, 90, 0.008);
+  bottom: -5%; left: 30%;
+  animation-duration: 22s;
+  animation-delay: -14s;
+}
+.aurora-blob:nth-child(4) {
+  width: 400px; height: 400px;
+  background: rgba(111, 168, 126, 0.007);
+  bottom: 30%; right: 20%;
+  animation-duration: 28s;
+  animation-delay: -5s;
+}
+
+@keyframes aurora-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(48px, -36px) scale(1.06); }
+  50% { transform: translate(-28px, 52px) scale(0.96); }
+  75% { transform: translate(34px, 24px) scale(1.03); }
+}
+
+/* ── Grid overlay ─────────────────────────────────────────────────────── */
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--df-color-border-strong) 24%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--df-color-border-strong) 24%, transparent) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Scan-line overlay ────────────────────────────────────────────────── */
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 3px,
+    rgba(0, 0, 0, 0.008) 3px, rgba(0, 0, 0, 0.008) 6px
+  );
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* ── Mobile top bar ──────────────────────────────────────────────────────── */
@@ -81,11 +162,67 @@ body {
   white-space: nowrap;
 }
 
+.mobile-voice {
+  position: absolute;
+  right: var(--df-space-4);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+}
+
+.mobile-voice-error-toast {
+  position: fixed;
+  top: calc(var(--topbar-height) + var(--df-space-2));
+  left: var(--df-space-4);
+  right: var(--df-space-4);
+  z-index: 200;
+  background: color-mix(in srgb, var(--df-color-bg-surface) 98%, transparent);
+  border: 1px solid color-mix(in srgb, var(--df-color-state-error) 40%, transparent);
+  border-radius: var(--df-radius-md);
+  color: var(--df-color-state-error);
+  font-size: var(--df-font-size-xs);
+  font-family: var(--df-font-mono);
+  padding: var(--df-space-2) var(--df-space-3);
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity var(--df-duration-base), transform var(--df-duration-base) var(--df-easing-spring);
+  pointer-events: none;
+}
+
+.mobile-voice-error-toast.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mobile-voice-error-toast.hidden {
+  display: none;
+}
+
+/* Compact icon-only variant inside the mobile topbar */
+.mobile-voice .vw-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0 0 3px;
+  gap: 0;
+  justify-content: center;
+}
+
+.mobile-voice .vw-label {
+  display: none !important;
+}
+
+.mobile-voice .vw-spinner {
+  position: absolute;
+}
+
 /* ── Layout ──────────────────────────────────────────────────────────────── */
 
 .layout {
   display: flex;
   height: 100vh;
+  position: relative;
+  z-index: 2;
 }
 
 /* ── Overlay ─────────────────────────────────────────────────────────────── */
@@ -142,8 +279,9 @@ body {
 }
 
 .brand-name {
+  font-family: var(--df-font-display);
   font-size: var(--df-font-size-sm);
-  font-weight: 400;
+  font-weight: 300;
   letter-spacing: var(--df-letter-spacing-wide);
   text-transform: uppercase;
   color: var(--df-color-text-primary);
@@ -201,11 +339,12 @@ body {
 }
 
 .service-item:hover {
-  background: color-mix(in srgb, var(--df-color-accent-default) 4%, transparent);
+  background: color-mix(in srgb, var(--df-color-accent-default) 6%, transparent);
+  border-left-color: color-mix(in srgb, var(--df-color-accent-default) 40%, transparent);
 }
 
 .service-item.active {
-  background: color-mix(in srgb, var(--df-color-accent-default) 7%, transparent);
+  background: color-mix(in srgb, var(--df-color-accent-default) 5%, transparent);
   border-left-color: var(--df-color-accent-default);
 }
 
@@ -309,17 +448,33 @@ body {
   overflow: auto;
 }
 
+.app-content > * {
+  animation: df-view-enter var(--df-duration-base) var(--df-easing-spring) both;
+}
+
 /* ── App loading state ───────────────────────────────────────────────────── */
 
 .app-loading {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--df-space-3);
   height: 100%;
   font-size: var(--df-font-size-sm);
   color: var(--df-color-text-muted);
   letter-spacing: var(--df-letter-spacing-wide);
   text-transform: uppercase;
+}
+
+.app-loading::before {
+  content: '';
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--df-color-border-default);
+  border-top-color: var(--df-color-accent-default);
+  border-radius: var(--df-radius-full);
+  animation: df-spin 0.6s linear infinite;
 }
 
 /* ── Focus rings (WCAG 2.2) ──────────────────────────────────────────────── */
@@ -331,10 +486,65 @@ a:focus-visible,
   outline-offset: var(--df-focus-ring-offset);
 }
 
+/* Keyboard-accessible drag reorder hint */
+.service-item:focus-visible {
+  outline: var(--df-focus-ring-width) solid var(--df-focus-ring-color);
+  outline-offset: calc(-1 * var(--df-focus-ring-width));
+  background: color-mix(in srgb, var(--df-color-accent-default) 6%, transparent);
+}
+
+/* Skip link for keyboard users */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: var(--df-space-4);
+  padding: var(--df-space-2) var(--df-space-4);
+  background: var(--df-color-accent-default);
+  color: var(--df-color-accent-contrast);
+  font-family: var(--df-font-mono);
+  font-size: var(--df-font-size-sm);
+  text-decoration: none;
+  z-index: 9999;
+  border-radius: 0 0 var(--df-radius-md) var(--df-radius-md);
+  transition: top var(--df-duration-fast);
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
 /* ── Utility ─────────────────────────────────────────────────────────────── */
 
 .hidden {
   display: none !important;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+
+.sidebar::-webkit-scrollbar,
+.service-nav::-webkit-scrollbar,
+.project-dropdown::-webkit-scrollbar { width: 4px; }
+
+.sidebar::-webkit-scrollbar-track,
+.service-nav::-webkit-scrollbar-track,
+.project-dropdown::-webkit-scrollbar-track { background: transparent; }
+
+.sidebar::-webkit-scrollbar-thumb,
+.service-nav::-webkit-scrollbar-thumb,
+.project-dropdown::-webkit-scrollbar-thumb {
+  background: var(--df-color-border-default);
+  border-radius: var(--df-radius-full);
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover,
+.service-nav::-webkit-scrollbar-thumb:hover,
+.project-dropdown::-webkit-scrollbar-thumb:hover {
+  background: var(--df-color-border-strong);
+}
+
+.service-nav {
+  scrollbar-width: thin;
+  scrollbar-color: var(--df-color-border-default) transparent;
 }
 
 /* ── Project bar ──────────────────────────────────────────────────────────── */
@@ -392,16 +602,14 @@ a:focus-visible,
   left: var(--df-space-3);
   right: var(--df-space-3);
   top: calc(100% + 4px);
-  background: color-mix(in srgb, var(--df-color-bg-overlay) 90%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--df-color-bg-overlay) 98%, transparent);
   border: 1px solid var(--df-color-border-default);
   border-radius: var(--df-radius-lg);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  z-index: 100;
-  max-height: 240px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  z-index: var(--df-z-index-overlay);
+  max-height: min(60vh, 360px);
+  overflow-x: hidden;
   overflow-y: auto;
-  overflow: hidden;
 }
 
 .project-dropdown.open {
@@ -432,7 +640,7 @@ a:focus-visible,
 }
 
 .project-item.active {
-  background: color-mix(in srgb, var(--df-color-accent-default) 20%, transparent);
+  background: color-mix(in srgb, var(--df-color-accent-default) 14%, transparent);
   border-left: 2px solid var(--df-color-accent-default);
 }
 
@@ -450,6 +658,31 @@ a:focus-visible,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.service-name,
+.project-name,
+.project-item-path {
+  position: relative;
+}
+
+.service-item[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  left: calc(100% + var(--df-space-2));
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--df-color-bg-overlay);
+  border: 1px solid var(--df-color-border-default);
+  border-radius: var(--df-radius-md);
+  padding: var(--df-space-1) var(--df-space-2);
+  font-size: var(--df-font-size-xs);
+  color: var(--df-color-text-primary);
+  white-space: nowrap;
+  z-index: var(--df-z-index-raised);
+  pointer-events: none;
+  animation: df-fade-in var(--df-duration-fast) ease both;
+  box-shadow: var(--df-shadow-md);
 }
 
 .project-add {
@@ -530,19 +763,19 @@ a:focus-visible,
 .project-modal-overlay {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, black 70%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  z-index: 1000;
+  background: color-mix(in srgb, black 82%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: var(--df-z-index-modal);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .project-modal {
-  background: color-mix(in srgb, var(--df-color-bg-surface) 90%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 97%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   border: 1px solid var(--df-color-border-default);
   border-radius: var(--df-radius-xl);
   width: 400px;
@@ -552,6 +785,7 @@ a:focus-visible,
 }
 
 .project-modal-title {
+  font-family: var(--df-font-display);
   font-size: var(--df-font-size-md);
   font-weight: 400;
   letter-spacing: var(--df-letter-spacing-wide);
@@ -639,7 +873,7 @@ a:focus-visible,
 
 .project-modal-btn.primary:hover {
   background: color-mix(in srgb, var(--df-color-accent-default) 22%, transparent);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--df-color-accent-default) 25%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--df-color-accent-default) 12%, transparent);
 }
 
 .project-modal-btn.danger {
@@ -649,7 +883,7 @@ a:focus-visible,
 
 .project-modal-btn.danger:hover {
   background: color-mix(in srgb, var(--df-color-state-error) 14%, transparent);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--df-color-state-error) 25%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--df-color-state-error) 12%, transparent);
 }
 
 /* ── Folder picker ──────────────────────────────────────────────────────── */
@@ -787,6 +1021,21 @@ a:focus-visible,
     transform: translateX(0);
   }
 
+  /* Better touch targets on mobile */
+  .service-item {
+    padding: var(--df-space-3) var(--df-space-3);
+    min-height: 44px;
+  }
+
+  .project-selector {
+    min-height: 44px;
+  }
+
+  .project-item {
+    min-height: 44px;
+    padding: var(--df-space-3);
+  }
+
   .sidebar-brand {
     display: none;
   }
@@ -804,9 +1053,7 @@ a:focus-visible,
   top: calc(100% + 6px);
   right: 0;
   width: calc(var(--sidebar-width) - var(--df-space-3) * 2);
-  background: color-mix(in srgb, var(--df-color-bg-surface) 90%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 98%, transparent);
   border: 1px solid color-mix(in srgb, var(--df-color-state-error) 40%, transparent);
   border-radius: var(--df-radius-md);
   color: var(--df-color-state-error);
@@ -869,9 +1116,7 @@ a:focus-visible,
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--df-color-bg-base) 70%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--df-color-bg-base) 88%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -882,16 +1127,14 @@ a:focus-visible,
 .modal-overlay.hidden { display: none; }
 
 .modal {
-  background: color-mix(in srgb, var(--df-color-bg-surface) 85%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 98%, transparent);
   border: 1px solid var(--df-color-border-default);
   border-radius: var(--df-radius-xl);
   padding: var(--df-space-6);
   max-width: 480px;
   width: 100%;
   position: relative;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4), 0 0 0 1px color-mix(in srgb, var(--df-color-border-strong) 30%, transparent);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.34), 0 0 0 1px color-mix(in srgb, var(--df-color-border-strong) 18%, transparent);
 }
 
 .modal-header {}
@@ -933,7 +1176,11 @@ a:focus-visible,
   border: 1px solid transparent;
   border-radius: var(--df-radius-lg);
   cursor: pointer;
-  transition: all var(--df-duration-fast) var(--df-easing-default);
+  transition:
+    background var(--df-duration-fast) var(--df-easing-default),
+    border-color var(--df-duration-fast) var(--df-easing-default),
+    color var(--df-duration-fast) var(--df-easing-default),
+    transform var(--df-duration-fast) var(--df-easing-default);
   white-space: nowrap;
 }
 
@@ -943,16 +1190,14 @@ a:focus-visible,
 }
 
 .btn-primary {
-  background: color-mix(in srgb, var(--df-color-accent-default) 14%, var(--df-color-bg-raised));
+  background: color-mix(in srgb, var(--df-color-accent-default) 12%, var(--df-color-bg-raised));
   color: var(--df-color-accent-default);
-  border-color: color-mix(in srgb, var(--df-color-accent-default) 35%, transparent);
+  border-color: color-mix(in srgb, var(--df-color-accent-default) 28%, transparent);
 }
 
 .btn-primary:not(:disabled):hover {
-  background: color-mix(in srgb, var(--df-color-accent-default) 22%, var(--df-color-bg-raised));
+  background: color-mix(in srgb, var(--df-color-accent-default) 16%, var(--df-color-bg-raised));
   border-color: var(--df-color-accent-default);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--df-color-accent-default) 25%, transparent);
-  transform: translateY(-1px);
 }
 
 .btn-primary:not(:disabled):active { transform: translateY(0); }
@@ -964,23 +1209,22 @@ a:focus-visible,
 }
 
 .btn-secondary:not(:disabled):hover {
-  border-color: var(--df-color-accent-default);
+  background: color-mix(in srgb, var(--df-color-accent-default) 5%, var(--df-color-bg-raised));
+  border-color: color-mix(in srgb, var(--df-color-accent-default) 36%, transparent);
   color: var(--df-color-accent-default);
-  transform: translateY(-1px);
 }
 
 .btn-secondary:not(:disabled):active { transform: translateY(0); }
 
 .btn-danger {
-  background: color-mix(in srgb, var(--df-color-state-error) 14%, var(--df-color-bg-raised));
+  background: color-mix(in srgb, var(--df-color-state-error) 12%, var(--df-color-bg-raised));
   color: var(--df-color-state-error);
-  border-color: color-mix(in srgb, var(--df-color-state-error) 35%, transparent);
+  border-color: color-mix(in srgb, var(--df-color-state-error) 28%, transparent);
 }
 
 .btn-danger:not(:disabled):hover {
-  background: color-mix(in srgb, var(--df-color-state-error) 22%, var(--df-color-bg-raised));
-  box-shadow: 0 0 20px color-mix(in srgb, var(--df-color-state-error) 25%, transparent);
-  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--df-color-state-error) 16%, var(--df-color-bg-raised));
+  border-color: var(--df-color-state-error);
 }
 
 .btn-danger:not(:disabled):active { transform: translateY(0); }
@@ -1000,7 +1244,7 @@ a:focus-visible,
 
 .btn-ghost:not(:disabled):hover {
   color: var(--df-color-accent-default);
-  background: color-mix(in srgb, var(--df-color-accent-default) 8%, transparent);
+  background: color-mix(in srgb, var(--df-color-accent-default) 6%, transparent);
 }
 
 .btn-icon {
@@ -1106,7 +1350,7 @@ a:focus-visible,
 .form-group select {
   cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23636e7b'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236f7b8c'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
   padding-right: var(--df-space-6);
@@ -1218,9 +1462,7 @@ a:focus-visible,
 
 .toast {
   padding: 10px 20px;
-  background: color-mix(in srgb, var(--df-color-bg-overlay) 85%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--df-color-bg-overlay) 98%, transparent);
   color: var(--df-color-text-primary);
   border: 1px solid var(--df-color-border-default);
   border-radius: 999px;
@@ -1249,9 +1491,7 @@ a:focus-visible,
 .project-switcher-overlay {
   position: fixed;
   inset: 0;
-  background: color-mix(in srgb, var(--df-color-bg-base) 60%, transparent);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: color-mix(in srgb, var(--df-color-bg-base) 84%, transparent);
   z-index: var(--df-z-index-modal, 1000);
   display: flex;
   align-items: flex-start;
@@ -1266,9 +1506,7 @@ a:focus-visible,
 }
 
 .project-switcher {
-  background: color-mix(in srgb, var(--df-color-bg-surface) 92%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--df-color-bg-surface) 98%, transparent);
   border: 1px solid var(--df-color-border-default);
   border-radius: var(--df-radius-xl);
   width: 420px;
@@ -1276,7 +1514,7 @@ a:focus-visible,
   max-height: 50vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px color-mix(in srgb, var(--df-color-border-strong) 30%, transparent);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32), 0 0 0 1px color-mix(in srgb, var(--df-color-border-strong) 18%, transparent);
   transform: translateY(-8px);
   transition: transform var(--df-duration-fast) var(--df-easing-spring);
 }

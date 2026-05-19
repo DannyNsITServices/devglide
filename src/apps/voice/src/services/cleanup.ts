@@ -2,10 +2,26 @@
  * AI text cleanup — transforms raw transcription into polished text via LLM.
  */
 
+import type OpenAI from "openai";
 import { configStore } from "./config-store.js";
 
-let _OpenAI: any = null;
-let _cleanupClient: any = null;
+type OpenAIConstructor = typeof OpenAI;
+type OpenAILikeClient = InstanceType<OpenAIConstructor>;
+
+function isOpenAIConstructor(value: unknown): value is OpenAIConstructor {
+  return typeof value === "function";
+}
+
+async function loadOpenAIConstructor(): Promise<OpenAIConstructor> {
+  const mod = await import("openai");
+  if (!isOpenAIConstructor(mod.default)) {
+    throw new Error("The installed openai package does not expose the expected default constructor");
+  }
+  return mod.default;
+}
+
+let _OpenAI: OpenAIConstructor | null = null;
+let _cleanupClient: OpenAILikeClient | null = null;
 let _lastClientKey = "";
 
 const SYSTEM_PROMPT = `You are a text cleanup assistant for developer voice input. Your job is to transform raw speech-to-text transcription into clean, professional text.
@@ -19,7 +35,7 @@ Rules:
 - If the input is a command or instruction, keep it concise and actionable
 - Return ONLY the cleaned text — no explanations or commentary`;
 
-function getClient(provider: string, apiKey?: string, baseURL?: string): any {
+function getClient(provider: string, apiKey?: string, baseURL?: string): OpenAILikeClient {
   const key = `${provider}::${apiKey ?? ""}::${baseURL ?? ""}`;
   if (_cleanupClient && _lastClientKey === key) return _cleanupClient;
 
@@ -27,7 +43,7 @@ function getClient(provider: string, apiKey?: string, baseURL?: string): any {
     throw new Error("OpenAI SDK not loaded");
   }
 
-  const opts: Record<string, unknown> = {
+  const opts: ConstructorParameters<OpenAIConstructor>[0] = {
     apiKey: apiKey || "not-needed",
   };
   if (baseURL) opts.baseURL = baseURL;
@@ -44,7 +60,7 @@ export async function cleanupText(rawText: string): Promise<string> {
   // Lazy-load OpenAI SDK
   if (!_OpenAI) {
     try {
-      _OpenAI = (await import("openai")).default;
+      _OpenAI = await loadOpenAIConstructor();
     } catch {
       throw new Error(
         "AI text cleanup requires the 'openai' package. Install it with: pnpm add openai"
