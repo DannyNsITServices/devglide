@@ -34,6 +34,11 @@ export function pickUnixShell(exists: (p: string) => boolean, shellEnv: string |
   return '/bin/sh';
 }
 
+/** True when a file mode has no execute bit set for any of user/group/other. */
+export function lacksExecuteBit(mode: number): boolean {
+  return (mode & 0o111) === 0;
+}
+
 export function safeEnv(extra: Record<string, string> = {}): Record<string, string> {
   if (process.platform === 'win32') {
     const env: Record<string, string> = {};

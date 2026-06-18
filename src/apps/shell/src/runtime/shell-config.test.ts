@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickUnixShell, withDefaultPath } from './shell-config.js';
+import { lacksExecuteBit, pickUnixShell, withDefaultPath } from './shell-config.js';
 
 describe('pickUnixShell', () => {
   it('returns $SHELL when it exists', () => {
@@ -42,5 +42,20 @@ describe('withDefaultPath', () => {
   it('preserves an existing PATH', () => {
     const env = withDefaultPath({ PATH: '/custom/bin' });
     expect(env.PATH).toBe('/custom/bin');
+  });
+});
+
+describe('lacksExecuteBit', () => {
+  it('is true when no execute bit is set (e.g. 0o644)', () => {
+    // Regression: a non-executable node-pty spawn-helper makes posix_spawn fail on macOS.
+    expect(lacksExecuteBit(0o644)).toBe(true);
+    expect(lacksExecuteBit(0o600)).toBe(true);
+  });
+
+  it('is false when any execute bit is set', () => {
+    expect(lacksExecuteBit(0o755)).toBe(false); // user+group+other
+    expect(lacksExecuteBit(0o744)).toBe(false); // user only
+    expect(lacksExecuteBit(0o711)).toBe(false);
+    expect(lacksExecuteBit(0o100)).toBe(false); // owner-exec only
   });
 });
