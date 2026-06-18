@@ -16,16 +16,32 @@ import { noteCursorReportRequests } from './cursor-report.js';
 let spawnHelperChecked = false;
 
 /**
+ * Candidate directories that may contain node-pty's `spawn-helper`, in the same order
+ * node-pty's loadNativeModule() searches for pty.node — the helper sits next to whichever
+ * binary actually loads. node-pty 1.1.0 ships prebuilds, so on macOS the helper is normally
+ * under prebuilds/<platform>-<arch>/, NOT build/Release.
+ */
+export function spawnHelperCandidateDirs(nodePtyRoot: string, platform: string, arch: string): string[] {
+  return [
+    path.join(nodePtyRoot, 'build', 'Release'),
+    path.join(nodePtyRoot, 'build', 'Debug'),
+    path.join(nodePtyRoot, 'prebuilds', `${platform}-${arch}`),
+  ];
+}
+
+/**
  * Ensure node-pty's `spawn-helper` is runnable on macOS.
  *
  * On macOS, node-pty's native code launches the shell via a small `spawn-helper`
  * binary using posix_spawn(), which requires that file to exist AND be executable.
- * The error surfaces (misleadingly) as "posix_spawnp failed." pnpm's content-addressable
- * store materialization — and downloaded prebuilds — can drop the execute bit or leave a
+ * The error surfaces (misleadingly) as "posix_spawnp failed." The prebuilt helper that
+ * ships with node-pty can lose its execute bit during pnpm store extraction or pick up a
  * macOS quarantine xattr, so a freshly installed tree throws on every pane/agent launch.
  * node-pty's own post-install does not chmod the helper, so we repair it here.
  *
- * Idempotent, darwin-only, best-effort — never throws (spawning must still proceed).
+ * Fixes every spawn-helper found across node-pty's candidate dirs (the one node-pty loads
+ * from may be in prebuilds/, not build/Release). Idempotent, darwin-only, best-effort —
+ * never throws (spawning must still proceed).
  */
 export function ensureSpawnHelperExecutable(): void {
   if (spawnHelperChecked) return;
@@ -34,28 +50,33 @@ export function ensureSpawnHelperExecutable(): void {
 
   try {
     const require_ = createRequire(import.meta.url);
-    const pkgJson = require_.resolve('node-pty/package.json');
-    const helper = path.join(path.dirname(pkgJson), 'build', 'Release', 'spawn-helper');
+    const root = path.dirname(require_.resolve('node-pty/package.json'));
+    const dirs = spawnHelperCandidateDirs(root, process.platform, process.arch);
 
-    if (!fs.existsSync(helper)) {
+    let found = false;
+    for (const dir of dirs) {
+      const helper = path.join(dir, 'spawn-helper');
+      if (!fs.existsSync(helper)) continue;
+      found = true;
+
+      if (lacksExecuteBit(fs.statSync(helper).mode)) {
+        fs.chmodSync(helper, 0o755);
+        console.error(`[shell] restored execute permission on node-pty spawn-helper: ${helper}`);
+      }
+      // Strip the macOS quarantine attribute if present; harmless when absent.
+      try {
+        execFileSync('xattr', ['-d', 'com.apple.quarantine', helper], { stdio: 'ignore' });
+      } catch {
+        // not quarantined, or xattr unavailable — nothing to do
+      }
+    }
+
+    if (!found) {
       console.error(
-        `[shell] node-pty spawn-helper is missing at ${helper}. ` +
-        `This usually means node-pty was not built for this platform/arch — ` +
-        `run "pnpm rebuild node-pty" (or reinstall) on this machine.`,
+        `[shell] node-pty spawn-helper not found under ${root} ` +
+        `(checked build/Release, build/Debug, prebuilds/${process.platform}-${process.arch}). ` +
+        `Rebuild node-pty from source: npm_config_build_from_source=true pnpm rebuild node-pty`,
       );
-      return;
-    }
-
-    if (lacksExecuteBit(fs.statSync(helper).mode)) {
-      fs.chmodSync(helper, 0o755);
-      console.error(`[shell] restored execute permission on node-pty spawn-helper: ${helper}`);
-    }
-
-    // Strip the macOS quarantine attribute if present; harmless when absent.
-    try {
-      execFileSync('xattr', ['-d', 'com.apple.quarantine', helper], { stdio: 'ignore' });
-    } catch {
-      // not quarantined, or xattr unavailable — nothing to do
     }
   } catch (err) {
     console.error('[shell] spawn-helper check failed:', (err as Error).message);
