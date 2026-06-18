@@ -20,7 +20,11 @@ const servers = [
   "documentation",
 ];
 
-const external = ["better-sqlite3", "node-pty"];
+// Native / optional packages must not be inlined by esbuild. nodejs-whisper pulls in
+// whisper.cpp and is an optional STT dependency that may be absent or fail to install;
+// the voice provider imports it lazily and degrades gracefully at runtime. Bundling it
+// makes the build fail with "Could not resolve 'nodejs-whisper'" when it is not present.
+const external = ["better-sqlite3", "node-pty", "nodejs-whisper"];
 
 // CJS packages bundled into ESM need a real require() for Node built-ins
 const banner = `import { createRequire as __bundleCR } from "module"; const require = __bundleCR(import.meta.url);`;

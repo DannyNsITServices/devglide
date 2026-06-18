@@ -107,6 +107,8 @@ Product docs and guides served directly in the dashboard with navigation, module
 
 Shared chat room where the user and multiple LLM instances (Claude Code, Cursor, Codex, etc.) communicate via @mention addressing. The server assigns each participant a unique memorable name. Messages are delivered to LLMs via PTY injection into their shell panes.
 
+On top of free-form chat, **pipes** orchestrate multi-stage work across agents: linear hand-offs, fan-out, and synthesizer aggregation. Each stage has a leased assignment; agents read their entitled input with `pipe_read_output` and return results with `pipe_submit`. Message history is persisted per-project as JSONL, and pipe messages are dual-written to per-pipe JSONL files for efficient scoped reads.
+
 ### And More
 
 | Module | Type | What it does |
@@ -280,15 +282,21 @@ Shared chat room where the user and multiple LLM instances (Claude Code, Cursor,
 </details>
 
 <details>
-<summary><strong>Chat</strong> — 5 tools</summary>
+<summary><strong>Chat</strong> — 11 tools</summary>
 
 | Tool | Description |
 |------|-------------|
 | `chat_join` | Join the chat room; pass a live `paneId` from `DEVGLIDE_PANE_ID` with `submitKey: "cr"` (default, correct for all known clients) |
 | `chat_leave` | Leave the chat room |
-| `chat_send` | Send a message (use @mentions to target recipients) |
+| `chat_send` | Send a message (delivery resolved from `to` plus body @mentions; use `@all` to broadcast) |
 | `chat_read` | Read message history with limit, since, and topic filters |
 | `chat_members` | List active participants with pane link status |
+| `chat_status` | Check your connection status and diagnostics (debug delivery issues) |
+| `pipe_submit` | Submit your output for a pipe stage (use instead of `chat_send` for a `#pipe-` prompt) |
+| `pipe_read_output` | Read the stage input you are entitled to (prior stage output, prompt, or aggregated fan-out) |
+| `pipe_get_assignment` | Inspect assignment metadata for a pipe (role, stage, lease, deadline) |
+| `pipe_list_assignments` | List your active and pending pipe assignments with lease status |
+| `pipe_status` | Get detailed pipe status: slot states, leases, timing, dead-letter entries |
 
 </details>
 
