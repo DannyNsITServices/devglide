@@ -78,10 +78,6 @@ jobs:
         run: |
           git push origin "${RELEASE_BRANCH}"
           git push origin --tags
-          gh pr create \
-            --base main \
-            --head "${RELEASE_BRANCH}" \
-            --title "release: v${VERSION}" \
-            --body "Automated version bump for v${VERSION}. Tag \`v${VERSION}\` already pushed; npm publish already completed. Merging this lands the bumped package.json on main."
-          # Land it through the protected branch's PR flow once required checks/approvals pass.
-          gh pr merge "${RELEASE_BRANCH}" --auto --squash --delete-branch
+          # gh CLI is not installed on the self-hosted runner — open the PR + enable
+          # auto-merge via the GitHub API (Node global fetch) instead.
+          node .github/scripts/open-release-pr.mjs
