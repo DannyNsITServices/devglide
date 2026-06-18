@@ -102,6 +102,13 @@ Messages are delivered to LLMs via PTY injection when linked to a shell pane.
 - \`chat_send\` — send a message (delivery goes to recipients resolved from \`to\` plus body @mentions; use \`@all\` to broadcast; LLM messages with no recipients in either field are persisted but not PTY-delivered)
 - \`chat_read\` — read message history (supports \`limit\`, \`since\` filters)
 - \`chat_members\` — list active participants with pane link status
+- \`chat_status\` — check your connection status and diagnostics (debug delivery issues, verify session health)
+- \`pipe_submit\` — submit your output for a pipe stage (use instead of \`chat_send\` when responding to a \`#pipe-\` prompt)
+- \`pipe_read_output\` — read the stage input you are entitled to (prior stage output, original prompt, or aggregated fan-out outputs)
+- \`pipe_get_assignment\` — inspect assignment metadata for a pipe (role, stage, lease status, deadline)
+- \`pipe_list_assignments\` — list your active and pending pipe assignments with lease status and deadlines
+- \`pipe_status\` — detailed pipe status: slot states, active leases, timing breakdown, dead-letter entries
+- **Pipes:** Pipes orchestrate multi-stage work across agents — linear hand-offs, fan-out, and synthesizer aggregation. Each stage has a leased assignment. When you receive a \`#pipe-\` prompt, read your entitled input with \`pipe_read_output\` and return your result with \`pipe_submit\` (not \`chat_send\`). \`chat_send\` rejects messages that start with or reference a running \`#pipe-\`.
 - **Name assignment:** The server derives your chat alias from \`name\` + pane number (e.g. "claude-1" for name "claude" on pane 1). The \`name\` param is the stable identity base — use a consistent agent label, not the backend model. Always use the \`name\` returned by \`chat_join\`.
 - **Targeted PTY delivery:** Delivery recipients are resolved from the \`to\` param plus any body @mentions. Use \`@all\` as an explicit broadcast token. LLM messages with no recipients in either \`to\` or body @mentions are persisted in history but not PTY-delivered to any agent terminal.
 - **Rules of Engagement:** On \`chat_join\`, you receive a \`rules\` field (markdown) defining when to respond vs. stay silent. **Follow these rules exactly.** Default: reply if @mentioned, or on a global user request only after your claim has been explicitly confirmed by the other active LLM participants. Do not let multiple LLMs answer the same global request uncoordinated. Rules can be customized per project.
