@@ -20,6 +20,7 @@ export async function runWorkflow(
   triggerPayload?: unknown,
   initialVariables?: Map<string, unknown>,
   services?: ExecutorServices,
+  cancelToken?: { cancelled: boolean },
 ): Promise<ExecutionContext> {
   const nodeMap = new Map<string, WorkflowNode>();
   for (const node of workflow.nodes) nodeMap.set(node.id, node);
@@ -77,16 +78,38 @@ export async function runWorkflow(
   const queue: string[] = startNodes.map((n) => n.id);
   const queueSet = new Set<string>(queue);
   const loopCounters = new Map<string, number>();
+  // Loop nodes waiting for their body to finish before the next iteration
+  const activeLoopBodies = new Map<string, Set<string>>();
   const requeueCounts = new Map<string, number>();
   const maxRequeues = workflow.nodes.length * 2;
 
-  while (queue.length > 0 && !context.cancelled) {
+  while ((queue.length > 0 || activeLoopBodies.size > 0) && !context.cancelled) {
+    // External cancellation (RunManager cancelRun/shutdown) is signalled via
+    // the shared cancel token — mirror it onto this run's context.
+    if (cancelToken?.cancelled) {
+      context.cancelled = true;
+      break;
+    }
+
+    // Re-enqueue loop nodes whose body has fully completed
+    for (const [loopId, bodyIds] of activeLoopBodies) {
+      if (isBodyComplete(bodyIds, incoming, nodeMap, context)) {
+        activeLoopBodies.delete(loopId);
+        if (!queueSet.has(loopId)) {
+          queue.push(loopId);
+          queueSet.add(loopId);
+        }
+      }
+    }
+    // Remaining loop bodies can never complete (e.g. a body node failed) — stop
+    if (queue.length === 0) break;
+
     const nodeId = queue.shift()!;
     queueSet.delete(nodeId);
     const node = nodeMap.get(nodeId);
     if (!node) continue;
 
-    if (!allPredecessorsComplete(nodeId, incoming, context)) {
+    if (!allPredecessorsComplete(nodeId, incoming, context, nodeMap)) {
       const count = (requeueCounts.get(nodeId) ?? 0) + 1;
       if (count > maxRequeues) {
         context.nodeStates.set(nodeId, {
@@ -141,9 +164,16 @@ export async function runWorkflow(
     context.variables.delete('__predecessor_ids');
 
     if (node.config.nodeType === 'decision') {
-      handleDecision(node, outgoing, context, queue, queueSet, emit);
+      if (result.status === 'failed') {
+        handleFailure(node, outgoing, context, queue, queueSet, emit);
+      } else {
+        handleDecision(node, outgoing, context, queue, queueSet, emit);
+      }
+      // Scope __decision_port to this decision — a stale value must never
+      // route a later (or failed) decision down the wrong branch.
+      context.variables.delete('__decision_port');
     } else if (node.config.nodeType === 'loop') {
-      handleLoop(node, outgoing, incoming, context, queue, queueSet, emit, nodeMap, loopCounters);
+      handleLoop(node, outgoing, incoming, context, queue, queueSet, emit, nodeMap, loopCounters, activeLoopBodies);
     } else if (result.status === 'failed') {
       handleFailure(node, outgoing, context, queue, queueSet, emit);
     } else {
@@ -163,14 +193,74 @@ function allPredecessorsComplete(
   nodeId: string,
   incoming: Map<string, WorkflowEdge[]>,
   context: ExecutionContext,
+  nodeMap: Map<string, WorkflowNode>,
 ): boolean {
   const edges = incoming.get(nodeId) ?? [];
   if (edges.length === 0) return true;
 
   return edges.every((edge) => {
     const state = context.nodeStates.get(edge.source);
-    return state && (state.status === 'passed' || state.status === 'failed');
+    if (state && (state.status === 'passed' || state.status === 'failed')) return true;
+    // Predecessors on an untaken decision branch will never run — treat them
+    // as complete so a node joining both branches doesn't stall forever.
+    return isNodeSkipped(edge.source, incoming, nodeMap, context, new Set());
   });
+}
+
+/** An edge out of a passed decision fires only for the selected port. */
+function isEdgeUntaken(
+  edge: WorkflowEdge,
+  nodeMap: Map<string, WorkflowNode>,
+  context: ExecutionContext,
+): boolean {
+  const srcNode = nodeMap.get(edge.source);
+  if (srcNode?.config.nodeType !== 'decision') return false;
+  const srcState = context.nodeStates.get(edge.source);
+  if (srcState?.status !== 'passed') return false;
+  // The decision executor stores the selected port in the node state output
+  return typeof srcState.output === 'string' && edge.sourcePort !== srcState.output;
+}
+
+/**
+ * A node is skipped when it can never run: it has no state and every incoming
+ * edge is either on an untaken decision branch or comes from a skipped node.
+ */
+function isNodeSkipped(
+  nodeId: string,
+  incoming: Map<string, WorkflowEdge[]>,
+  nodeMap: Map<string, WorkflowNode>,
+  context: ExecutionContext,
+  visiting: Set<string>,
+): boolean {
+  if (context.nodeStates.has(nodeId)) return false;
+  if (visiting.has(nodeId)) return false; // cycle — assume not skipped
+  visiting.add(nodeId);
+
+  const edges = incoming.get(nodeId) ?? [];
+  if (edges.length === 0) return false;
+
+  return edges.every((edge) => {
+    if (isEdgeUntaken(edge, nodeMap, context)) return true;
+    const state = context.nodeStates.get(edge.source);
+    if (state && (state.status === 'passed' || state.status === 'failed')) return false;
+    return isNodeSkipped(edge.source, incoming, nodeMap, context, visiting);
+  });
+}
+
+/** True when every body node has finished (or can never run this iteration). */
+function isBodyComplete(
+  bodyIds: Set<string>,
+  incoming: Map<string, WorkflowEdge[]>,
+  nodeMap: Map<string, WorkflowNode>,
+  context: ExecutionContext,
+): boolean {
+  for (const id of bodyIds) {
+    const state = context.nodeStates.get(id);
+    if (state && (state.status === 'passed' || state.status === 'failed')) continue;
+    if (isNodeSkipped(id, incoming, nodeMap, context, new Set())) continue;
+    return false;
+  }
+  return true;
 }
 
 function anyPredecessorFailed(
@@ -268,6 +358,7 @@ function handleLoop(
   emit: SSEEmitter,
   nodeMap: Map<string, WorkflowNode>,
   loopCounters: Map<string, number>,
+  activeLoopBodies: Map<string, Set<string>>,
 ): void {
   const config = node.config as LoopConfig;
   const maxIter = config.maxIterations ?? MAX_LOOP_ITERATIONS;
@@ -302,14 +393,22 @@ function handleLoop(
       }
     }
 
-    if (!queueSet.has(node.id)) {
-      queue.push(node.id);
-      queueSet.add(node.id);
+    if (bodyNodeIds.size === 0) {
+      // No body — re-evaluate the loop immediately
+      if (!queueSet.has(node.id)) {
+        queue.push(node.id);
+        queueSet.add(node.id);
+      }
+    } else {
+      // Wait for the whole body to complete before the next iteration —
+      // the main loop re-enqueues this node once every body node is done.
+      activeLoopBodies.set(node.id, bodyNodeIds);
     }
 
     context.nodeStates.delete(node.id);
   } else {
     context.loopContext = undefined;
+    activeLoopBodies.delete(node.id);
     for (const edge of doneEdges) {
       emit({ type: 'edge_traversed', edgeId: edge.id, source: edge.source, target: edge.target });
       if (!queueSet.has(edge.target)) {

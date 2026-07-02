@@ -124,20 +124,30 @@ export class DocumentationStore extends JsonFileStore<DocEntry> {
         existing = await this.get(input.id!);
       }
 
+      // Strip the transient routing-only `scope` field so it is never
+      // persisted — a stale persisted scope re-fed by docs_update would
+      // short-circuit scope resolution and write to the wrong dir.
+      const { scope: inputScope, ...fields } = input;
+
       const entry = {
-        ...input,
+        ...fields,
         id: input.id ?? lockKey,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
       } as DocEntry;
 
-      let scope = input.scope;
+      let scope = inputScope;
       if (!scope && isUpdate) {
         scope = await this.resolveExistingScope(input.id!);
       }
       scope = scope ?? (getActiveProject() ? 'project' : 'global');
 
-      await this.writeEntity(entry, scope, getActiveProject()?.id);
+      const activeProjectId = getActiveProject()?.id;
+      // Record the owning project on project-scoped entries so
+      // getCompiledContext can filter out other projects' overrides.
+      entry.projectId = scope === 'project' && activeProjectId ? activeProjectId : undefined;
+
+      await this.writeEntity(entry, scope, activeProjectId);
       return entry;
     });
   }
@@ -325,6 +335,8 @@ export class DocumentationStore extends JsonFileStore<DocEntry> {
    * regardless of which project is currently active.
    */
   private async listFullForProject(projectId: string): Promise<DocEntry[]> {
+    // Guard against path traversal via a crafted projectId
+    if (/[\\/]/.test(projectId) || projectId === '.' || projectId === '..') return [];
     const featureName = path.basename(this.baseDir);
     const projectDir = path.join(PROJECTS_DIR, projectId, featureName);
     return this.scanDirFull(projectDir);

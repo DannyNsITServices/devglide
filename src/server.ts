@@ -250,9 +250,6 @@ app.use('/api/documentation', documentationRouter);
 
 app.use('/', rateLimit(60, 60_000), shellRouter);  // /preview, /proxy
 
-// Final error handler — catches unhandled errors from all routes above
-app.use(errorHandler);
-
 // ---------------------------------------------------------------------------
 // MCP endpoints
 // ---------------------------------------------------------------------------
@@ -282,6 +279,11 @@ mountMcpHttp(app, createChatMcpServer, '/mcp/chat', {
 });
 
 mountShellMcp(app, '/mcp/shell');
+
+// Final error handler — catches unhandled errors from all routes and MCP
+// endpoints above.  Must be mounted last so async handler rejections funnel
+// through it instead of Express's default HTML 500 response.
+app.use(errorHandler);
 
 // ---------------------------------------------------------------------------
 // Socket.io namespaces

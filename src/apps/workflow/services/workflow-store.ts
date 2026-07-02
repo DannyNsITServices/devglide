@@ -101,8 +101,9 @@ export class WorkflowStore extends JsonFileStore<Workflow> {
     const seen = new Map<string, WorkflowSummary>();
     const scopeId = projectId ?? getActiveProject()?.id;
 
-    // Project-scoped workflows take precedence over global
-    const projectDir = this.getProjectDir();
+    // Project-scoped workflows take precedence over global.
+    // Honor an explicitly passed projectId — fall back to the active project.
+    const projectDir = scopeId ? this.getDirForProject(scopeId) : null;
     if (projectDir) {
       for (const s of await this.scanDir(projectDir, 'project')) {
         seen.set(s.id, s);
@@ -129,7 +130,8 @@ export class WorkflowStore extends JsonFileStore<Workflow> {
     const seen = new Map<string, Workflow>();
     const scopeId = projectId ?? getActiveProject()?.id;
 
-    const projectDir = this.getProjectDir();
+    // Honor an explicitly passed projectId — fall back to the active project.
+    const projectDir = scopeId ? this.getDirForProject(scopeId) : null;
     if (projectDir) {
       for (const w of await this.scanDirFull(projectDir)) {
         seen.set(w.id, w);

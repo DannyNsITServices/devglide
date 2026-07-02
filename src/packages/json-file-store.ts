@@ -112,9 +112,30 @@ export abstract class JsonFileStore<T extends BaseEntity> {
     await fs.mkdir(dir, { recursive: true });
   }
 
+  // ── ID validation ──────────────────────────────────────────────────────
+
+  /**
+   * Reject ids that could escape the store directory when joined into a
+   * file path (path traversal, e.g. `../../foo` or absolute paths).
+   */
+  protected assertSafeId(id: string): void {
+    if (
+      !id ||
+      id === '.' ||
+      id === '..' ||
+      id.includes('/') ||
+      id.includes('\\') ||
+      id.includes('\0') ||
+      id !== path.basename(id)
+    ) {
+      throw new Error(`Invalid entity id: ${JSON.stringify(id)}`);
+    }
+  }
+
   // ── Core CRUD ─────────────────────────────────────────────────────────
 
   async get(id: string): Promise<T | null> {
+    this.assertSafeId(id);
     const projectDir = this.getProjectDir();
     if (projectDir) {
       const entity = await this.readEntityFile(path.join(projectDir, `${id}.json`));
@@ -132,6 +153,7 @@ export abstract class JsonFileStore<T extends BaseEntity> {
   }
 
   async delete(id: string): Promise<boolean> {
+    this.assertSafeId(id);
     return this.withLock(id, async () => {
       const projectDir = this.getProjectDir();
       if (projectDir) {
@@ -177,6 +199,7 @@ export abstract class JsonFileStore<T extends BaseEntity> {
   // ── Scope resolution ──────────────────────────────────────────────────
 
   protected async resolveExistingScope(id: string): Promise<'project' | 'global' | undefined> {
+    this.assertSafeId(id);
     const projectDir = this.getProjectDir();
     if (projectDir) {
       try {
@@ -193,6 +216,7 @@ export abstract class JsonFileStore<T extends BaseEntity> {
 
   /** Determine target dir and write the entity JSON file. */
   protected async writeEntity(entity: T, scope: 'project' | 'global', projectId?: string): Promise<void> {
+    this.assertSafeId(entity.id);
     if (scope === 'project' && projectId) {
       await this.migrateProjectDir(projectId);
     }
@@ -208,6 +232,7 @@ export abstract class JsonFileStore<T extends BaseEntity> {
 
   /** Remove entity file from a specific scope (used when scope changes). */
   protected async removeFromScope(id: string, scope: 'project' | 'global', projectId?: string): Promise<void> {
+    this.assertSafeId(id);
     const dir = scope === 'project' && projectId
       ? this.getDirForProject(projectId)
       : this.getGlobalDir();

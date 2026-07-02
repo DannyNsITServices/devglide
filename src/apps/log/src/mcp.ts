@@ -67,7 +67,9 @@ export function createLogMcpServer() {
     {},
     async () => {
       const paths = getTargetPaths();
-      await Promise.all(paths.map((p) => logWriter.clear(p).catch(() => {})));
+      await Promise.all(paths.map(async (p) => {
+        try { await logWriter.clear(safeLogPath(p)); } catch { /* skip unsafe or failed paths */ }
+      }));
       return {
         content: [
           { type: "text" as const, text: `Cleared ${paths.length} log file(s): ${paths.join(", ") || "(none)"}` },

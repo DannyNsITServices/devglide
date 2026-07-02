@@ -6,7 +6,7 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-async function safePath(reqPath: string, root: string): Promise<string> {
+export async function safePath(reqPath: string, root: string): Promise<string> {
   const abs = path.resolve(root, reqPath.replace(/^\/+/, ''));
   if (!abs.startsWith(root + path.sep) && abs !== root) throw new Error('Path traversal denied');
 

@@ -326,10 +326,22 @@ issuesRouter.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
       type: '"type"',
     };
 
-    // Redirect reviewFeedback to versioned entry
     const { reviewFeedback, featureId: targetFeatureId, ...updateFields } = parsed.data;
-    if (reviewFeedback && reviewFeedback.trim()) {
-      appendVersionedEntry(db, id, "review", reviewFeedback.trim());
+
+    // Normalize labels to a JSON string (same as POST) — schema allows string | string[]
+    if (updateFields.labels !== undefined) {
+      const rawLabels = updateFields.labels;
+      const normalizedLabels = Array.isArray(rawLabels)
+        ? rawLabels
+        : (() => {
+            try {
+              const parsedLabels = JSON.parse(rawLabels);
+              return Array.isArray(parsedLabels) ? parsedLabels.map(String) : [rawLabels];
+            } catch {
+              return [rawLabels];
+            }
+          })();
+      (updateFields as Record<string, unknown>).labels = JSON.stringify(normalizedLabels);
     }
 
     // Handle cross-feature move: validate target feature and resolve column
@@ -368,6 +380,13 @@ issuesRouter.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
       const destColumnId = updateFields.columnId!;
       const maxOrder = db.prepare(`SELECT MAX("order") AS maxOrd FROM "Issue" WHERE "columnId" = ?`).get(destColumnId) as { maxOrd: number | null } | undefined;
       (updateFields as Record<string, unknown>).order = (maxOrder?.maxOrd ?? -1) + 1;
+    } else if (updateFields.columnId) {
+      // No feature change — still verify the column belongs to the item's feature
+      const col = db.prepare(`SELECT "projectId" FROM "Column" WHERE "id" = ?`).get(updateFields.columnId) as { projectId: string } | undefined;
+      if (!col || col.projectId !== (existing as IssueRow).projectId) {
+        badRequest(res, "Provided columnId does not belong to the item's feature.");
+        return;
+      }
     }
 
     const setClauses: string[] = [];
@@ -381,9 +400,22 @@ issuesRouter.patch("/:id", asyncHandler(async (req: Request, res: Response) => {
       }
     }
 
+    // Append review feedback only after all validation has passed —
+    // versioned entries are append-only and cannot be rolled back on a 400.
+    const trimmedReview = reviewFeedback?.trim();
     if (setClauses.length === 0) {
+      if (trimmedReview) {
+        appendVersionedEntry(db, id, "review", trimmedReview);
+        db.prepare(`UPDATE "Issue" SET "updatedAt" = ? WHERE "id" = ?`).run(nowIso(), id);
+        const row = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(id) as JsonRow | undefined;
+        res.json(mapIssue(row));
+        return;
+      }
       badRequest(res, "No valid fields to update");
       return;
+    }
+    if (trimmedReview) {
+      appendVersionedEntry(db, id, "review", trimmedReview);
     }
 
     // Always set updatedAt
@@ -504,7 +536,7 @@ issuesRouter.delete("/:id", asyncHandler(async (req: Request, res: Response) => 
     // Delete attachment files from disk
     for (const att of attachments) {
       const ext = path.extname(att.filename);
-      const filePath = path.join(getUploadsDir(req.projectId ?? 'default'), `${att.id}${ext}`);
+      const filePath = path.join(getUploadsDir(req.projectId), `${att.id}${ext}`);
       try {
         fs.unlinkSync(filePath);
       } catch {

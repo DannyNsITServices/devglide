@@ -62,9 +62,22 @@ export const PROVIDER_META: Record<string, ProviderMeta> = {
 };
 
 let cachedProvider: TranscriptionProvider | null = null;
+let cachedSignature: string | null = null;
 
 export function invalidateProvider(): void {
   cachedProvider = null;
+  cachedSignature = null;
+}
+
+/** Cheap signature of the settings that affect provider construction. */
+function providerSignature(name: string): string {
+  const settings = configStore.getProviderSettings(name);
+  return JSON.stringify([
+    name,
+    settings.apiKey ?? "",
+    settings.baseURL ?? "",
+    settings.model ?? "",
+  ]);
 }
 
 function buildConfig(providerName: string): ProviderConfig {
@@ -85,17 +98,44 @@ function buildConfig(providerName: string): ProviderConfig {
   };
 }
 
-export function getProvider(): TranscriptionProvider {
-  if (cachedProvider) return cachedProvider;
-  const name = configStore.get().provider;
+export interface ProviderOverrides {
+  apiKey?: string;
+  baseURL?: string;
+  model?: string;
+}
+
+/**
+ * Build a fresh provider instance for `name`, with optional setting overrides
+ * on top of the saved configuration (used by the config test endpoint).
+ */
+export function createProvider(
+  name: string,
+  overrides: ProviderOverrides = {}
+): TranscriptionProvider {
   if (name === "local") {
     const settings = configStore.getProviderSettings("local");
-    cachedProvider = new LocalWhisperProvider(
-      settings.model || PROVIDER_META.local.defaultModel
+    return new LocalWhisperProvider(
+      overrides.model || settings.model || PROVIDER_META.local.defaultModel
     );
-  } else {
-    cachedProvider = new OpenAICompatibleProvider(buildConfig(name));
   }
+  const config = buildConfig(name);
+  return new OpenAICompatibleProvider({
+    ...config,
+    apiKey: overrides.apiKey ?? config.apiKey,
+    baseURL: overrides.baseURL ?? config.baseURL,
+    model: overrides.model || config.model,
+  });
+}
+
+export function getProvider(): TranscriptionProvider {
+  // configStore.get() re-reads config.json, so config changes made by another
+  // process (e.g. the dashboard while this is a stdio MCP process) are
+  // detected via the signature and rebuild the cached provider.
+  const name = configStore.get().provider;
+  const signature = providerSignature(name);
+  if (cachedProvider && signature === cachedSignature) return cachedProvider;
+  cachedProvider = createProvider(name);
+  cachedSignature = signature;
   return cachedProvider;
 }
 

@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import type { ExecutorFunction, ExecutorResult, NodeConfig, ExecutionContext, SSEEmitter, LogConfig } from '../../types.js';
 import { LogWriter } from '../../../../apps/log/src/services/log-writer.js';
+import { safePath } from './file-executor.js';
 
 const writer = new LogWriter();
 
@@ -9,9 +10,10 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-function resolveLogPath(projectPath: string | undefined, targetPath?: string): string {
+async function resolveLogPath(projectPath: string | undefined, targetPath?: string): Promise<string> {
   const base = projectPath ?? process.cwd();
-  if (targetPath) return path.resolve(base, targetPath);
+  // Contain custom target paths within the project root (same guard as file-executor)
+  if (targetPath) return safePath(targetPath, base);
   return path.join(base, '.devglide', 'logs', 'workflow.jsonl');
 }
 
@@ -28,7 +30,7 @@ export const logExecutor: ExecutorFunction = async (
         if (!cfg.message) {
           return { status: 'failed', error: 'message is required for write' };
         }
-        const targetPath = resolveLogPath(_context.project?.path, cfg.targetPath);
+        const targetPath = await resolveLogPath(_context.project?.path, cfg.targetPath);
         await writer.append(targetPath, {
           type: cfg.type || 'WORKFLOW',
           ts: new Date().toISOString(),
@@ -39,7 +41,7 @@ export const logExecutor: ExecutorFunction = async (
       }
 
       case 'read': {
-        const targetPath = resolveLogPath(_context.project?.path, cfg.targetPath);
+        const targetPath = await resolveLogPath(_context.project?.path, cfg.targetPath);
         const lines = cfg.lines ?? 50;
         try {
           const content = await fs.readFile(targetPath, 'utf-8');
@@ -52,7 +54,7 @@ export const logExecutor: ExecutorFunction = async (
       }
 
       case 'clear': {
-        const targetPath = resolveLogPath(_context.project?.path, cfg.targetPath);
+        const targetPath = await resolveLogPath(_context.project?.path, cfg.targetPath);
         await writer.clear(targetPath);
         return { status: 'passed', output: `Cleared ${targetPath}` };
       }

@@ -154,19 +154,34 @@ async function tailLines(filePath: string, n: number): Promise<string[]> {
   try {
     let collected: string[] = [];
     let offset = size;
-    let trailing = "";
+    // Bytes of a line whose start lives in an earlier, not-yet-read chunk.
+    // Carried as bytes (not a string) so multi-byte chars split across
+    // chunk boundaries decode correctly.
+    let carry = Buffer.alloc(0);
 
     while (offset > 0 && collected.length < n) {
       const readSize = Math.min(chunkSize, offset);
       offset -= readSize;
       const buf = Buffer.alloc(readSize);
       await fh.read(buf, 0, readSize, offset);
-      const chunk = buf.toString("utf-8") + trailing;
-      const lines = chunk.split("\n").filter(Boolean);
-      collected = lines.concat(collected);
-      trailing = "";
+      let data = carry.length > 0 ? Buffer.concat([buf, carry]) : buf;
       // Double chunk size for next iteration if we still need more lines
       chunkSize = Math.min(chunkSize * 2, 1024 * 1024);
+
+      if (offset > 0) {
+        // The first line in this chunk may continue into the previous
+        // (earlier) chunk — carry it over instead of splitting it.
+        const nl = data.indexOf(0x0a);
+        if (nl === -1) {
+          carry = data;
+          continue;
+        }
+        carry = data.subarray(0, nl);
+        data = data.subarray(nl + 1);
+      }
+
+      const lines = data.toString("utf-8").split("\n").filter(Boolean);
+      collected = lines.concat(collected);
     }
 
     return collected.slice(-n);
@@ -251,7 +266,9 @@ logRouter.post("/", asyncHandler(async (req: Request, res: Response) => {
  */
 logRouter.delete("/all", asyncHandler(async (_req: Request, res: Response) => {
   const paths = getTargetPaths();
-  await Promise.all(paths.map((p) => logWriter.clear(p).catch(() => {})));
+  await Promise.all(paths.map(async (p) => {
+    try { await logWriter.clear(safeLogPath(p)); } catch { /* skip unsafe or failed paths */ }
+  }));
   resetSessionCounters();
   res.status(200).json({ cleared: paths.length });
 }));

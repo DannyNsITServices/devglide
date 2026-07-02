@@ -86,9 +86,11 @@ export function mountMcpHttp(
     const cutoff = Date.now() - SESSION_TTL_MS;
     for (const [id, session] of sessions) {
       if (session.lastAccessed < cutoff) {
+        // Delete from the map first so transport.close() -> onclose doesn't
+        // find the session and invoke onSessionClose a second time.
+        sessions.delete(id);
         options?.onSessionClose?.(session.server, id);
         session.transport.close?.();
-        sessions.delete(id);
       }
     }
   }, 5 * 60 * 1000);

@@ -1,4 +1,6 @@
 import { writeFileSync, readFileSync, unlinkSync, mkdirSync, existsSync, createWriteStream } from "fs";
+import { Readable } from "stream";
+import { pipeline } from "stream/promises";
 import { join, resolve, dirname } from "path";
 import { tmpdir } from "os";
 import { randomBytes, createHash } from "crypto";
@@ -192,22 +194,12 @@ async function downloadFile(url: string, dest: string): Promise<void> {
     throw new Error(`Download failed: ${res.status} ${res.statusText} — ${url}`);
   }
 
-  // Stream the response body into the file
-  const fileStream = createWriteStream(dest);
-  const reader = (res.body as ReadableStream<Uint8Array>).getReader();
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      fileStream.write(Buffer.from(value));
-    }
-  } finally {
-    fileStream.end();
-    await new Promise<void>((resolve, reject) => {
-      fileStream.on("finish", resolve);
-      fileStream.on("error", reject);
-    });
-  }
+  // Stream the response body into the file. pipeline() surfaces write-stream
+  // errors as a rejection instead of an unhandled 'error' event.
+  await pipeline(
+    Readable.fromWeb(res.body as import("stream/web").ReadableStream<Uint8Array>),
+    createWriteStream(dest)
+  );
 }
 
 /** Extract specific files from a zip archive using the `tar` command (available on Windows 10+). */
@@ -360,10 +352,16 @@ export class LocalWhisperProvider implements TranscriptionProvider {
     // Ensure whisper-cli binary is available (download prebuilt if possible)
     await ensureWhisperBinary();
 
-    // Write audio buffer to a temp file (nodejs-whisper needs a file path)
+    // Write audio buffer to a temp file (nodejs-whisper needs a file path).
+    // Sanitize the caller-supplied filename (strip path components, null bytes,
+    // and control characters) so it cannot traverse outside the temp directory.
+    const safeName = audio.name
+      .replace(/.*[/\\]/, "")           // strip path components
+      .replace(/[\x00-\x1f\x7f]/g, "")  // strip null bytes & control chars
+      || "audio";
     const tmpDir = join(tmpdir(), "devglide-voice");
     mkdirSync(tmpDir, { recursive: true });
-    const tmpFile = join(tmpDir, `${randomBytes(8).toString("hex")}-${audio.name}`);
+    const tmpFile = join(tmpDir, `${randomBytes(8).toString("hex")}-${safeName}`);
 
     try {
       const buffer = Buffer.from(await audio.arrayBuffer());

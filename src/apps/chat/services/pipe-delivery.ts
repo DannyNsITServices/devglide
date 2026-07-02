@@ -344,6 +344,26 @@ export function cancelDeliveriesForAssignee(assignee: string, projectId: string 
   }
 }
 
+/** Remove all delivery records (and timers) for the given pipes.
+ *  Called when terminal pipes are cleaned up so records don't accumulate
+ *  forever and exhausted deliveries for deleted pipes stop surfacing
+ *  in dead-letter queries. */
+export function removeDeliveriesForPipes(pipeIds: string[], projectId: string | null): void {
+  for (const pipeId of pipeIds) {
+    const prefix = `${projectId ?? '__none__'}:${pipeId}:`;
+    for (const key of deliveryRecords.keys()) {
+      if (key.startsWith(prefix)) {
+        deliveryRecords.delete(key);
+        const timer = renotifyTimers.get(key);
+        if (timer) {
+          clearTimeout(timer);
+          renotifyTimers.delete(key);
+        }
+      }
+    }
+  }
+}
+
 // ── Compact notification formatting ─────────────────────────────────────────
 
 export interface CompactNotification {

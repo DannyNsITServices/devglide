@@ -105,7 +105,10 @@ triggerRouter.post('/scenarios', (req: Request, res: Response) => {
   if (!data.target) data.target = getActiveProject()?.path;
   const saved = scenarioManager.submitScenario(data);
   if (saved.target) {
-    broadcaster.broadcast(scenarioManager.resolveTargetKey(saved.target), saved);
+    const delivered = broadcaster.broadcast(scenarioManager.resolveTargetKey(saved.target), saved);
+    // An SSE client already received the scenario — drop the queued copy so a
+    // later poll/reconnect doesn't execute it a second time
+    if (delivered) scenarioManager.markDispatched(saved.id);
   }
   res.status(201).json(saved);
 });
@@ -303,7 +306,10 @@ triggerRouter.post('/scenarios/saved/:id/run', async (req: Request, res: Respons
     target: scenario.target || getActiveProject()?.path || '',
   });
   if (queued.target) {
-    broadcaster.broadcast(scenarioManager.resolveTargetKey(queued.target), queued);
+    const delivered = broadcaster.broadcast(scenarioManager.resolveTargetKey(queued.target), queued);
+    // An SSE client already received the scenario — drop the queued copy so a
+    // later poll/reconnect doesn't execute it a second time
+    if (delivered) scenarioManager.markDispatched(queued.id);
   }
   res.status(201).json(queued);
 });
