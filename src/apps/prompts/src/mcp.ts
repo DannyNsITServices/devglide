@@ -3,6 +3,15 @@ import { z } from 'zod';
 import { PromptStore } from '../services/prompt-store.js';
 import { jsonResult, errorResult, createDevglideMcpServer } from '../../../packages/mcp-utils/src/index.js';
 
+/** Parse a JSON string expected to contain an array of strings. Returns null if invalid. */
+function parseStringArray(json: string): string[] | null {
+  try {
+    const parsed = JSON.parse(json);
+    if (Array.isArray(parsed) && parsed.every((v) => typeof v === 'string')) return parsed;
+  } catch { /* fall through */ }
+  return null;
+}
+
 export function createPromptsMcpServer(): McpServer {
   const server = createDevglideMcpServer(
     'devglide-prompts',
@@ -42,7 +51,9 @@ export function createPromptsMcpServer(): McpServer {
     async ({ category, tags, search }) => {
       let parsedTags: string[] | undefined;
       if (tags) {
-        try { parsedTags = JSON.parse(tags); } catch { return errorResult('Invalid JSON for tags'); }
+        const parsed = parseStringArray(tags);
+        if (!parsed) return errorResult('tags must be a JSON array of strings');
+        parsedTags = parsed;
       }
       const entries = await store.list({ category, tags: parsedTags, search });
       return jsonResult(entries);
@@ -104,7 +115,9 @@ export function createPromptsMcpServer(): McpServer {
     async ({ title, content, description, category, tags, model, temperature, rating, notes, scope }) => {
       let parsedTags: string[] = [];
       if (tags) {
-        try { parsedTags = JSON.parse(tags); } catch { return errorResult('Invalid JSON for tags'); }
+        const parsed = parseStringArray(tags);
+        if (!parsed) return errorResult('tags must be a JSON array of strings');
+        parsedTags = parsed;
       }
       const entry = await store.save({ title, content, description, category, tags: parsedTags, model, temperature, rating, notes, scope });
       return jsonResult(entry);
@@ -133,7 +146,9 @@ export function createPromptsMcpServer(): McpServer {
       if (tags === null) {
         parsedTags = [];
       } else if (tags) {
-        try { parsedTags = JSON.parse(tags); } catch { return errorResult('Invalid JSON for tags'); }
+        const parsed = parseStringArray(tags);
+        if (!parsed) return errorResult('tags must be a JSON array of strings');
+        parsedTags = parsed;
       }
 
       const updated = await store.update(id, { title, content, description, category, tags: parsedTags, model, temperature, rating, notes });

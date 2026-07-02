@@ -10,6 +10,9 @@ let allProviders = [];
 let currentProviderId = 'openai';
 let audioFile = null;
 
+// History pagination: number of entries currently rendered
+let _historyOffset = 0;
+
 // Recording state
 let _mediaRecorder = null;
 let _recordingChunks = [];
@@ -688,18 +691,8 @@ async function fetchStats() {
   }
 }
 
-async function fetchHistory() {
-  if (!_container) return;
-  try {
-    const res = await fetch('/api/voice/history?limit=10');
-    const data = await res.json();
-    const list = $('#history-list');
-    if (!list) return;
-    if (data.entries.length === 0) {
-      list.innerHTML = '<p class="empty-state">No transcriptions yet.</p>';
-      return;
-    }
-    list.innerHTML = data.entries.map(e => `
+function historyEntryHtml(e) {
+  return `
       <div class="history-entry" data-id="${escapeAttr(e.id)}">
         <div class="history-entry-header">
           <span class="history-meta">${escapeHtml(e.provider)} / ${escapeHtml(e.model)} \u00b7 ${timeAgo(e.timestamp)}</span>
@@ -709,10 +702,44 @@ async function fetchHistory() {
         ${e.cleanedText ? `<p class="history-cleaned">${escapeHtml(e.cleanedText.slice(0, 200))}${e.cleanedText.length > 200 ? '...' : ''}</p>` : ''}
         ${e.fillerWords.length > 0 ? `<div class="history-fillers">${e.fillerWords.slice(0, 3).map(f => `<span class="filler-tag filler-tag--sm">${escapeHtml(f.word)} ${f.count}</span>`).join('')}</div>` : ''}
       </div>
-    `).join('');
+    `;
+}
+
+async function fetchHistory() {
+  if (!_container) return;
+  try {
+    const res = await fetch('/api/voice/history?limit=10');
+    const data = await res.json();
+    const list = $('#history-list');
+    if (!list) return;
+    const moreBtn = $('#history-more');
+    if (data.entries.length === 0) {
+      list.innerHTML = '<p class="empty-state">No transcriptions yet.</p>';
+      _historyOffset = 0;
+      if (moreBtn) moreBtn.classList.add('hidden');
+      return;
+    }
+    list.innerHTML = data.entries.map(historyEntryHtml).join('');
+    _historyOffset = data.entries.length;
+
+    if (moreBtn) moreBtn.classList.toggle('hidden', data.total <= _historyOffset);
+  } catch {
+    // ignore
+  }
+}
+
+async function loadMoreHistory() {
+  if (!_container) return;
+  try {
+    const res = await fetch(`/api/voice/history?limit=10&offset=${_historyOffset}`);
+    const data = await res.json();
+    const list = $('#history-list');
+    if (!list) return;
+    list.insertAdjacentHTML('beforeend', data.entries.map(historyEntryHtml).join(''));
+    _historyOffset += data.entries.length;
 
     const moreBtn = $('#history-more');
-    if (moreBtn) moreBtn.classList.toggle('hidden', data.total <= 10);
+    if (moreBtn) moreBtn.classList.toggle('hidden', data.total <= _historyOffset);
   } catch {
     // ignore
   }
@@ -1271,6 +1298,12 @@ function wireEvents() {
     });
   }
 
+  // History "Load more" — append the next page of entries
+  const loadMoreBtn = $('#history-load-more');
+  if (loadMoreBtn) {
+    loadMoreBtn.addEventListener('click', loadMoreHistory);
+  }
+
   // Clear history
   const clearHistoryBtn = $('#clear-history-btn');
   if (clearHistoryBtn) {
@@ -1310,6 +1343,7 @@ export function mount(container, ctx) {
   allProviders = [];
   currentProviderId = 'openai';
   audioFile = null;
+  _historyOffset = 0;
   _mediaRecorder = null;
   _recordingChunks = [];
 

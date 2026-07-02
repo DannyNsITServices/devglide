@@ -29,7 +29,7 @@ let _container = null;
 let _editor = null;
 let _voiceHandler = null;
 let _currentRoot = null;
-let _tabs = new Map(); // path -> { model, dirty }
+let _tabs = new Map(); // path -> { model, dirty, root }
 let _activeFile = null;
 let _treeGen = 0;
 let _statusTimer = null;
@@ -101,6 +101,9 @@ function loadMonaco() {
     script.onerror = () => reject(new Error('Failed to load Monaco editor'));
     document.head.appendChild(script);
   });
+  // On failure, clear the cached promise so a later mount() retries the load
+  // instead of being stuck on a permanently rejected promise
+  _monacoLoadPromise.catch(() => { _monacoLoadPromise = null; });
   return _monacoLoadPromise;
 }
 
@@ -257,7 +260,9 @@ async function openFile(path) {
     const { content } = await res.json();
     const model = monaco.editor.createModel(content, langFromPath(path));
     model.onDidChangeContent(() => markDirty(path));
-    _tabs.set(path, { model, dirty: false });
+    // Pin the root the file was opened against so a later save can never
+    // write the tab's relative path into a different project's root
+    _tabs.set(path, { model, dirty: false, root: _currentRoot });
     addTab(path);
     activateTab(path);
   } catch (e) {
@@ -339,7 +344,8 @@ async function saveActive() {
     const res = await api('/file', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: _activeFile, content, root: _currentRoot }),
+      // Use the root the tab was opened against, not the current project root
+      body: JSON.stringify({ path: _activeFile, content, root: tab.root }),
     });
     if (!res.ok) throw new Error('Server error');
     tab.dirty = false;

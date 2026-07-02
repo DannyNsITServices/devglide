@@ -17,18 +17,33 @@ function parseCookie(cookieHeader?: string): Record<string, string> {
   if (!cookieHeader) return {};
   return Object.fromEntries(cookieHeader.split(';').map(c => {
     const [k, ...v] = c.trim().split('=');
-    return [k, decodeURIComponent(v.join('='))];
+    const raw = v.join('=');
+    try {
+      return [k, decodeURIComponent(raw)];
+    } catch {
+      // Malformed percent-encoding — fall back to the raw value
+      return [k, raw];
+    }
   }));
 }
 
 export const router: Router = Router();
 
+// Project IDs are used to build filesystem paths (kanban.db, uploads/) —
+// only allow safe identifier characters to prevent path traversal.
+const SAFE_PROJECT_ID_RE = /^[A-Za-z0-9_-]+$/;
+
 // Project context middleware
-router.use((req, _res, next) => {
+router.use((req, res, next) => {
   const fromHeader = req.headers['x-project-id'];
   const cookies = parseCookie(req.headers.cookie);
   const fromCookie = cookies['devglide-project-id'];
-  req.projectId = (typeof fromHeader === 'string' ? fromHeader : fromCookie) || undefined;
+  const projectId = (typeof fromHeader === 'string' ? fromHeader : fromCookie) || undefined;
+  if (projectId !== undefined && !SAFE_PROJECT_ID_RE.test(projectId)) {
+    res.status(400).json({ error: 'Invalid project id' });
+    return;
+  }
+  req.projectId = projectId;
   next();
 });
 

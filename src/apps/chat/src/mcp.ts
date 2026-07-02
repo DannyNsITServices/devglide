@@ -4,7 +4,7 @@ import { jsonResult, errorResult, createDevglideMcpServer } from '../../../packa
 import * as store from '../services/chat-store.js';
 import { getEffectiveRules } from '../services/chat-rules.js';
 
-const UNIFIED_BASE = `http://localhost:${process.env.PORT ?? 7000}`;
+const UNIFIED_BASE = `http://localhost:${process.env.DEVGLIDE_PORT ?? process.env.PORT ?? 7000}`;
 
 export interface ChatSessionEntry { name: string; projectId: string | null; paneId?: string | null }
 interface ChatMcpServerState {
@@ -485,7 +485,39 @@ export function createChatMcpServer(): McpServer {
     },
   );
 
-// ── pipe_status ──────────────────────────────────────────────────────  server.tool(    'pipe_status',    'Get detailed status of a pipe: slot states, active leases, timing breakdown, and dead-letter entries.',    {      pipeId: z.string().describe('The pipe ID'),      paneId: z.string().optional().describe('Optional pane ID to adopt session'),    },    async ({ pipeId, paneId }) => {      await tryAdoptSessionByPaneId(paneId);      const sessionEntry = getSessionEntry();      const pid = sessionEntry?.projectId ?? null;      const normalizedPipeId = pipeId.replace(/^#?pipe-/i, '');      const query = pid ? `?projectId=${encodeURIComponent(pid)}` : '';      const [statusRes, timingRes] = await Promise.all([        chatApi(`/pipes/${encodeURIComponent(normalizedPipeId)}/status${query}`).catch(() => null),        chatApi(`/pipes/${encodeURIComponent(normalizedPipeId)}/timing${query}`).catch(() => null),      ]);      if (!statusRes?.ok) {        const data = statusRes?.data as { error?: string } | undefined;        return errorResult(data?.error ?? `Pipe #${normalizedPipeId} not found`);      }      const result: Record<string, unknown> = { ...(statusRes.data as Record<string, unknown>) };      if (timingRes?.ok) {        const td = timingRes.data as Record<string, unknown>;        result.timing = { totalDurationMs: td.totalDurationMs, criticalPathMs: td.criticalPathMs, completedAt: td.completedAt, stages: td.stages };      }      return jsonResult(result);    },  );
+  // ── pipe_status ──────────────────────────────────────────────────────
+
+  server.tool(
+    'pipe_status',
+    'Get detailed status of a pipe: slot states, active leases, timing breakdown, and dead-letter entries.',
+    {
+      pipeId: z.string().describe('The pipe ID'),
+      paneId: z.string().optional().describe('Optional pane ID to adopt session'),
+    },
+    async ({ pipeId, paneId }) => {
+      await tryAdoptSessionByPaneId(paneId);
+      const sessionEntry = getSessionEntry();
+      const pid = sessionEntry?.projectId ?? null;
+      const normalizedPipeId = pipeId.replace(/^#?pipe-/i, '');
+      const query = pid ? `?projectId=${encodeURIComponent(pid)}` : '';
+      const [statusRes, timingRes] = await Promise.all([
+        chatApi(`/pipes/${encodeURIComponent(normalizedPipeId)}/status${query}`).catch(() => null),
+        chatApi(`/pipes/${encodeURIComponent(normalizedPipeId)}/timing${query}`).catch(() => null),
+      ]);
+      if (!statusRes?.ok) {
+        const data = statusRes?.data as { error?: string } | undefined;
+        return errorResult(data?.error ?? `Pipe #${normalizedPipeId} not found`);
+      }
+      const result: Record<string, unknown> = { ...(statusRes.data as Record<string, unknown>) };
+      if (timingRes?.ok) {
+        const td = timingRes.data as Record<string, unknown>;
+        result.timing = { totalDurationMs: td.totalDurationMs, criticalPathMs: td.criticalPathMs, completedAt: td.completedAt, stages: td.stages };
+      }
+      return jsonResult(result);
+    },
+  );
+
+
   // ── 6. chat_status ────────────────────────────────────────────────────
 
   server.tool(

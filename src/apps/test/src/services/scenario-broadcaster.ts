@@ -43,14 +43,18 @@ export class ScenarioBroadcaster {
     };
   }
 
-  /** Broadcast a scenario payload to all SSE clients for a target key. */
-  broadcast(key: string, scenario: unknown): void {
+  /**
+   * Broadcast a scenario payload to all SSE clients for a target key.
+   * Returns true if at least one connected client received the payload.
+   */
+  broadcast(key: string, scenario: unknown): boolean {
     const clients = this.clients.get(key);
-    if (!clients || clients.size === 0) return;
+    if (!clients || clients.size === 0) return false;
     const payload = `data: ${JSON.stringify(scenario)}\n\n`;
     for (const res of clients) {
       try { res.write(payload); } catch { /* cleaned up on close */ }
     }
+    return true;
   }
 
   shutdown(): void {

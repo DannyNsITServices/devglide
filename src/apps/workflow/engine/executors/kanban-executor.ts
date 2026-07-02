@@ -1,5 +1,5 @@
 import type { ExecutorFunction, ExecutorResult, NodeConfig, ExecutionContext, SSEEmitter, KanbanConfig } from '../../types.js';
-import { getDb, nowIso, appendVersionedEntry } from '../../../../apps/kanban/src/db.js';
+import { getDb, nowIso, appendVersionedEntry, ftsUpdate } from '../../../../apps/kanban/src/db.js';
 import { createKanbanItem, resolveColumnId } from '../../../../apps/kanban/src/kanban-create-helper.js';
 
 function errorMessage(err: unknown): string {
@@ -84,7 +84,11 @@ export const kanbanExecutor: ExecutorFunction = async (
 
         db.prepare(`UPDATE "Issue" SET ${sets.join(', ')} WHERE "id" = ?`).run(...params);
 
-        const updated = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(cfg.itemId);
+        const updated = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(cfg.itemId) as { title: string; description: string | null; labels: string } | undefined;
+        if (updated) {
+          // Keep the FTS index in sync — same as the REST and MCP update paths
+          ftsUpdate(db, cfg.itemId, updated.title, updated.description, updated.labels);
+        }
         return { status: 'passed', output: updated };
       }
 

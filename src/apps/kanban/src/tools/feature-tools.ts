@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import path from "path";
 import fs from "fs";
-import { getDb, generateId, nowIso, type ColumnRow, type IssueRow, type CountRow } from "../db.js";
+import { getDb, generateId, nowIso, ftsDelete, type ColumnRow, type IssueRow, type CountRow } from "../db.js";
 import { jsonResult, errorResult } from "../../../../packages/mcp-utils/src/index.js";
 import { DEFAULT_COLUMNS, mapColumnRow, mapIssueRow } from "../mcp-helpers.js";
 import { getUploadsDir } from "../routes/attachments.js";
@@ -131,10 +131,16 @@ export function registerFeatureTools(server: McpServer, projectId?: string | nul
            WHERE i."projectId" = ?`
         )
         .all(id) as { id: string; filename: string }[];
-      const uploadsDir = getUploadsDir(projectId ?? 'default');
+      const uploadsDir = getUploadsDir(projectId);
       for (const att of attachments) {
         const ext = path.extname(att.filename);
         try { fs.unlinkSync(path.join(uploadsDir, `${att.id}${ext}`)); } catch { /* ignore */ }
+      }
+
+      // Remove cascaded issues from the FTS index before deleting
+      const issueIds = db.prepare(`SELECT "id" FROM "Issue" WHERE "projectId" = ?`).all(id) as { id: string }[];
+      for (const issue of issueIds) {
+        ftsDelete(db, issue.id);
       }
 
       db.prepare(`DELETE FROM "Project" WHERE "id" = ?`).run(id);

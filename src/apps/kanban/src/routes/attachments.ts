@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
-import { getDb, generateId } from "../db.js";
+import { getDb, generateId, readActiveProjectId } from "../db.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -8,8 +8,14 @@ import fsp from "fs/promises";
 import { PROJECTS_DIR } from "../../../../packages/paths.js";
 import { asyncHandler, badRequest, notFound } from "../../../../packages/error-middleware.js";
 
-export function getUploadsDir(projectId: string): string {
-  return path.join(PROJECTS_DIR, projectId, 'uploads');
+/**
+ * Resolve the uploads directory for a project context.
+ * Uses the same fallback chain as getDb (active project, then "default")
+ * so files always land next to the database that records them.
+ */
+export function getUploadsDir(projectId?: string | null): string {
+  const id = projectId || readActiveProjectId() || "default";
+  return path.join(PROJECTS_DIR, id, 'uploads');
 }
 
 /**
@@ -82,7 +88,7 @@ attachmentsRouter.post("/", upload.single("file"), asyncHandler(async (req: Requ
     const safeFilename = sanitizeFilename(file.originalname);
     const ext = path.extname(safeFilename);
 
-    const uploadsDir = getUploadsDir(req.projectId ?? 'default');
+    const uploadsDir = getUploadsDir(req.projectId);
     await fsp.mkdir(uploadsDir, { recursive: true });
 
     const filePath = path.join(uploadsDir, `${id}${ext}`);
@@ -115,7 +121,7 @@ attachmentsRouter.get("/:id", asyncHandler(async (req: Request, res: Response) =
     }
 
     const ext = path.extname(row.filename);
-    const filePath = path.join(getUploadsDir(req.projectId ?? 'default'), `${id}${ext}`);
+    const filePath = path.join(getUploadsDir(req.projectId), `${id}${ext}`);
 
     if (!fs.existsSync(filePath)) {
       notFound(res, "Attachment file not found on disk");
@@ -154,7 +160,7 @@ attachmentsRouter.delete("/:id", asyncHandler(async (req: Request, res: Response
 
     // Delete file from disk (ignore errors)
     const ext = path.extname(row.filename);
-    const filePath = path.join(getUploadsDir(req.projectId ?? 'default'), `${id}${ext}`);
+    const filePath = path.join(getUploadsDir(req.projectId), `${id}${ext}`);
     try {
       fs.unlinkSync(filePath);
     } catch {

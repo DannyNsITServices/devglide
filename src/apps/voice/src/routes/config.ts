@@ -1,7 +1,7 @@
 import { Router, type Router as RouterType } from "express";
 import { z } from "zod";
 import {
-  getProvider,
+  createProvider,
   getProviderConfig,
   invalidateProvider,
   PROVIDER_META,
@@ -48,6 +48,13 @@ const updateConfigSchema = z.object({
 
 const speakBodySchema = z.object({
   text: z.string().min(1),
+});
+
+const testConfigSchema = z.object({
+  provider: z.string().optional(),
+  model: z.string().optional(),
+  apiKey: z.string().optional(),
+  baseURL: z.string().optional(),
 });
 
 configRouter.get("/", (_req, res) => {
@@ -148,9 +155,22 @@ configRouter.put("/", (req, res) => {
   res.json({ ok: true, provider: updated.name, model: updated.model, baseURL: updated.baseURL ?? null });
 });
 
-configRouter.post("/test", (_req, res) => {
+configRouter.post("/test", (req, res) => {
   try {
-    const provider = getProvider();
+    // Test the posted (possibly unsaved) form values, falling back to the
+    // saved configuration for any field that is not provided.
+    const parsed = testConfigSchema.safeParse(req.body ?? {});
+    const body = parsed.success ? parsed.data : {};
+    const name = body.provider ?? configStore.get().provider;
+    if (!PROVIDER_META[name]) {
+      res.json({ ok: false, reason: `Unknown provider "${name}"` });
+      return;
+    }
+    const provider = createProvider(name, {
+      apiKey: body.apiKey,
+      baseURL: body.baseURL,
+      model: body.model,
+    });
     if (!provider.isConfigured()) {
       res.json({ ok: false, reason: "Provider is not configured (missing API key or base URL)" });
       return;

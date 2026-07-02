@@ -114,16 +114,25 @@ export function parsePipeCommand(
   }
 
   const assignees: string[] = [];
+  let stoppedAtUnknown: string | null = null;
 
   while (true) {
     const match = remaining.match(/^@([\w-]+)(?=\s|:|$)/);
     if (!match) break;
 
     const name = match[1];
-    if (isKnownAssignee && !isKnownAssignee(name)) break;
+    if (isKnownAssignee && !isKnownAssignee(name)) {
+      stoppedAtUnknown = name;
+      break;
+    }
 
     assignees.push(name);
     remaining = remaining.slice(match[0].length).trimStart();
+  }
+
+  // If no valid assignees were parsed but user wrote @names, the first was unknown
+  if (stoppedAtUnknown && assignees.length === 0) {
+    return { error: `Unknown assignee @${stoppedAtUnknown}. All assignees must be connected LLM participants.` };
   }
 
   if (remaining.startsWith(':')) {

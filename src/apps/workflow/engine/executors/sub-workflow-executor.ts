@@ -1,6 +1,8 @@
 import type { ExecutorFunction, ExecutorResult, NodeConfig, ExecutionContext, SSEEmitter, SubWorkflowConfig, WorkflowEvent } from '../../types.js';
 import { runWorkflow } from '../graph-runner.js';
 
+const MAX_SUB_WORKFLOW_DEPTH = 10;
+
 export const subWorkflowExecutor: ExecutorFunction = async (
   config: NodeConfig,
   context: ExecutionContext,
@@ -17,12 +19,24 @@ export const subWorkflowExecutor: ExecutorFunction = async (
       return { status: 'failed', error: 'Workflow services not available — ensure workflow module is initialized' };
     }
 
+    // Guard against unbounded recursion (A→A or A→B→A) — track the chain of
+    // workflow ids through the run's variables (copied into every child).
+    const parentChain = (context.variables.get('__sub_workflow_chain') as string[] | undefined) ?? [];
+    const chain = [...parentChain, context.workflowId];
+    if (chain.includes(cfg.workflowId)) {
+      return { status: 'failed', error: `Sub-workflow cycle detected: ${[...chain, cfg.workflowId].join(' -> ')}` };
+    }
+    if (chain.length >= MAX_SUB_WORKFLOW_DEPTH) {
+      return { status: 'failed', error: `Maximum sub-workflow depth (${MAX_SUB_WORKFLOW_DEPTH}) exceeded` };
+    }
+
     const workflow = await context.services.workflow.getWorkflow(cfg.workflowId);
     if (!workflow) {
       return { status: 'failed', error: `Workflow ${cfg.workflowId} not found` };
     }
 
     const childVariables = new Map<string, unknown>(context.variables);
+    childVariables.set('__sub_workflow_chain', chain);
     if (cfg.inputMappings) {
       for (const [childKey, parentKey] of Object.entries(cfg.inputMappings)) {
         childVariables.set(childKey, context.variables.get(parentKey));
@@ -33,7 +47,8 @@ export const subWorkflowExecutor: ExecutorFunction = async (
       emit(event);
     };
 
-    const result = await runWorkflow(workflow, childEmit, undefined, childVariables, context.services);
+    // Pass the parent context as cancel token so cancellation propagates to sub-workflows
+    const result = await runWorkflow(workflow, childEmit, undefined, childVariables, context.services, context);
 
     const outputVars: Record<string, unknown> = {};
     if (cfg.outputMappings && result.variables) {

@@ -67,7 +67,9 @@ export class RunManager {
 
     const emitter = (event: WorkflowEvent) => this.emit(runId, event);
 
-    runWorkflow(workflow, emitter, triggerPayload, undefined, this.executorServices).then((ctx) => {
+    // Pass the record's context as cancel token — runWorkflow builds its own
+    // context, so cancelRun/shutdown flips are observed via this shared object.
+    runWorkflow(workflow, emitter, triggerPayload, undefined, this.executorServices, context).then((ctx) => {
       const rec = this.runs.get(runId);
       if (rec) {
         rec.status = ctx.status;

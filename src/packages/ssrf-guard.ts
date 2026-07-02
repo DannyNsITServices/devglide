@@ -50,8 +50,9 @@ function isPrivateIP(ip: string): boolean {
     const normalized = ip.toLowerCase();
     if (normalized === '::1') return true;                 // loopback
     if (normalized === '::') return true;                  // unspecified
-    if (normalized.startsWith('fe80:')) return true;       // link-local
-    if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true; // ULA
+    const firstHextet = parseInt(normalized.split(':')[0] || '0', 16);
+    if (firstHextet >= 0xfe80 && firstHextet <= 0xfebf) return true; // link-local fe80::/10
+    if (firstHextet >= 0xfc00 && firstHextet <= 0xfdff) return true; // ULA fc00::/7
     // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
     const v4match = normalized.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
     if (v4match) return isPrivateIP(v4match[1]);
@@ -189,7 +190,7 @@ export async function safeFetch(url: string, options: SafeFetchOptions = {}): Pr
     let fetchUrl = currentUrl;
     const mergedHeaders = new Headers(fetchOptions.headers);
 
-    let fetchRequestInit: RequestInit & { dispatcher?: unknown } = {
+    const fetchRequestInit: RequestInit & { dispatcher?: unknown } = {
       ...fetchOptions,
       headers: mergedHeaders,
       redirect: 'manual' as const,

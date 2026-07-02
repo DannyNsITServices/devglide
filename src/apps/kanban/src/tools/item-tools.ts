@@ -327,7 +327,7 @@ export function registerItemTools(server: McpServer, projectId?: string | null):
       const attachments = db
         .prepare(`SELECT "id", "filename" FROM "Attachment" WHERE "issueId" = ?`)
         .all(id) as { id: string; filename: string }[];
-      const uploadsDir = getUploadsDir(projectId ?? 'default');
+      const uploadsDir = getUploadsDir(projectId);
       for (const att of attachments) {
         const ext = path.extname(att.filename);
         try { fs.unlinkSync(path.join(uploadsDir, `${att.id}${ext}`)); } catch { /* ignore */ }
