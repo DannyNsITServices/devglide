@@ -1059,6 +1059,7 @@ export function cleanupStalePipes(projectId?: string | null, ttlMs?: number): nu
   const removed = pipeStore.cleanupTerminalPipes(pid, ttlMs);
   if (removed.length > 0) {
     removePipeFiles(removed, pid);
+    pipeDelivery.removeDeliveriesForPipes(removed, pid);
     console.log(`[pipe] Cleaned up ${removed.length} stale pipe(s): ${removed.join(', ')}`);
   }
   return removed.length;
@@ -1226,7 +1227,11 @@ function handleStageTimeout(
   if (!pipe || pipe.status !== 'running') return;
 
   if (policy === 'escalate') {
-    // Notify user, keep pipe running — user decides what to do
+    // Notify user, keep pipe running — user decides what to do.
+    // Clear the lease deadline so the assignee can still respond and the
+    // watchdog doesn't re-fire this escalation on every tick.
+    const lease = pipeStore.getActiveLease(assignee, projectId);
+    if (lease && lease.pipeId === pipeId) lease.deadline = null;
     const escalateMsg = appendMessage({
       from: 'system', to: null,
       body: `#pipe-${pipeId} Stage timeout: @${assignee} has not responded within the deadline ` +
@@ -1293,6 +1298,7 @@ function pipeWatchdogTick(): void {
       const removed = pipeStore.cleanupTerminalPipes(pid);
       if (removed.length > 0) {
         removePipeFiles(removed, pid);
+        pipeDelivery.removeDeliveriesForPipes(removed, pid);
       }
     }
   }
@@ -1300,17 +1306,26 @@ function pipeWatchdogTick(): void {
 
 /** Find a pipe by scanning all project stores. */
 function findPipeAcrossProjects(pipeId: string): import('./pipe-store.js').StoredPipe | undefined {
-  // Try active project first, then scan all
+  // Try active project first, then scan all tracked projects
   const pid = activeProjectId();
   const pipe = pipeStore.getPipe(pipeId, pid);
   if (pipe) return pipe;
+  for (const trackedPid of pipeStore.getTrackedProjectIds()) {
+    if (trackedPid === pid) continue;
+    const found = pipeStore.getPipe(pipeId, trackedPid);
+    if (found) return found;
+  }
   return undefined;
 }
 
-/** Find the projectId that owns a pipe by checking the active project. */
+/** Find the projectId that owns a pipe by scanning all project stores. */
 function findProjectForPipe(pipeId: string): string | null {
   const pid = activeProjectId();
   if (pipeStore.getPipe(pipeId, pid)) return pid;
+  for (const trackedPid of pipeStore.getTrackedProjectIds()) {
+    if (trackedPid === pid) continue;
+    if (pipeStore.getPipe(pipeId, trackedPid)) return trackedPid;
+  }
   return null;
 }
 

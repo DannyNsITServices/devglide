@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { z } from "zod";
-import { getDb, generateId, nowIso } from "../db.js";
+import { getDb, generateId, nowIso, ftsDelete } from "../db.js";
 import path from "path";
 import fs from "fs";
 import { getUploadsDir } from "./attachments.js";
@@ -219,8 +219,14 @@ featuresRouter.delete("/:id", asyncHandler(async (req: Request, res: Response) =
 
     for (const att of attachments) {
       const ext = path.extname(att.filename);
-      const filePath = path.join(getUploadsDir(req.projectId ?? 'default'), `${att.id}${ext}`);
+      const filePath = path.join(getUploadsDir(req.projectId), `${att.id}${ext}`);
       try { fs.unlinkSync(filePath); } catch {}
+    }
+
+    // Remove cascaded issues from the FTS index before deleting
+    const issueIds = db.prepare(`SELECT "id" FROM "Issue" WHERE "projectId" = ?`).all(id) as { id: string }[];
+    for (const issue of issueIds) {
+      ftsDelete(db, issue.id);
     }
 
     db.prepare(`DELETE FROM "Project" WHERE "id" = ?`).run(id);

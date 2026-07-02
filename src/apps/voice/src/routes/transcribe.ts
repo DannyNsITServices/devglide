@@ -9,10 +9,11 @@ import { errorMessage } from "../../../../packages/error-middleware.js";
 export const transcribeRouter: Router = Router();
 
 export async function handleTranscribe(req: Request, res: Response) {
-  const { audioBase64, filename, language, mode } = req.body as {
+  const { audioBase64, filename, language, prompt, mode } = req.body as {
     audioBase64?: string;
     filename?: string;
     language?: string;
+    prompt?: string;
     mode?: "raw" | "cleanup";
   };
 
@@ -79,6 +80,7 @@ export async function handleTranscribe(req: Request, res: Response) {
       language ?? (cfg.language !== "auto" ? cfg.language : undefined);
     const result = await transcribe(file, {
       language: lang,
+      ...(prompt ? { prompt } : {}),
       mode: mode ?? "raw",
     });
     const durationSec = (Date.now() - startTime) / 1000;

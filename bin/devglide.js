@@ -80,6 +80,30 @@ function tailLogs(name) {
   }
   const tail = spawn("tail", ["-f", "-n", "50", logFile], { stdio: "inherit" });
   process.on("SIGINT", () => { tail.kill(); process.exit(0); });
+  tail.on("error", (err) => {
+    if (err.code !== "ENOENT") {
+      console.error(`  Failed to tail logs: ${err.message}`);
+      process.exit(1);
+    }
+    // `tail` is not on PATH (typical on native Windows) — fall back gracefully.
+    if (process.platform === "win32") {
+      const ps = spawn(
+        "powershell",
+        ["-NoProfile", "-Command", `Get-Content -Path '${logFile}' -Tail 50 -Wait`],
+        { stdio: "inherit" }
+      );
+      ps.on("error", () => {
+        console.error("  Cannot tail logs: neither 'tail' nor PowerShell is available.");
+        console.error(`  Log file: ${logFile}`);
+        process.exit(1);
+      });
+      process.on("SIGINT", () => { ps.kill(); process.exit(0); });
+    } else {
+      console.error("  'tail' was not found on PATH.");
+      console.error(`  Log file: ${logFile}`);
+      process.exit(1);
+    }
+  });
 }
 
 // --- MCP launcher ---
@@ -111,7 +135,15 @@ function detectGemini() {
  */
 function writeGeminiMcpServers() {
   let settings = {};
-  try { settings = JSON.parse(readFileSync(geminiSettingsPath, "utf8")); } catch {}
+  // Distinguish "file missing" (start fresh) from "exists but unreadable/unparseable"
+  // (abort — never clobber the user's existing Gemini config on a transient error).
+  if (existsSync(geminiSettingsPath)) {
+    try {
+      settings = JSON.parse(readFileSync(geminiSettingsPath, "utf8"));
+    } catch (err) {
+      throw new Error(`Refusing to overwrite unreadable Gemini settings at ${geminiSettingsPath}: ${err.message}`);
+    }
+  }
   if (!settings.mcpServers) settings.mcpServers = {};
 
   // Remove existing devglide entries
@@ -226,7 +258,10 @@ function runMcpServer(name) {
       process.exit(1);
     }
 
-    const child = spawn(tsxBin, [entry, "--stdio"], {
+    // shell:true is needed on Windows to resolve the extensionless `.bin/tsx`
+    // launcher via the shell. Quote the executable and path args so absolute
+    // paths containing spaces are not split by the shell.
+    const child = spawn(`"${tsxBin}"`, [`"${entry}"`, "--stdio"], {
       cwd,
       stdio: "inherit",
       env: process.env,
@@ -259,7 +294,9 @@ function startServer(foreground = false) {
   }
 
   if (foreground) {
-    const child = spawn(tsxBin, ["src/server.ts"], {
+    // Quote tsxBin so a path with spaces survives shell:true (needed on Windows
+    // to resolve the extensionless `.bin/tsx` launcher).
+    const child = spawn(`"${tsxBin}"`, ["src/server.ts"], {
       cwd: root,
       stdio: "inherit",
       env: { ...process.env, PORT: String(SERVER_PORT) },
@@ -272,7 +309,8 @@ function startServer(foreground = false) {
   // Background daemon
   const logFile = resolve(logDir, "server.log");
   const out = openSync(logFile, "a");
-  const child = spawn(tsxBin, ["src/server.ts"], {
+  // Quote tsxBin so a path with spaces survives shell:true.
+  const child = spawn(`"${tsxBin}"`, ["src/server.ts"], {
     cwd: root,
     stdio: ["ignore", out, out],
     env: { ...process.env, PORT: String(SERVER_PORT) },
@@ -287,9 +325,12 @@ function startServer(foreground = false) {
 
 function killTree(pid, signal) {
   if (process.platform === 'win32') {
-    // On Windows, taskkill /T kills the entire process tree
-    const flag = signal === 'SIGKILL' ? '/F' : '/F';
-    spawnSync('taskkill', ['/T', '/F', '/PID', String(pid)], { stdio: 'ignore' });
+    // On Windows, taskkill /T kills the entire process tree. Only force-kill
+    // (/F) for SIGKILL; SIGTERM requests a graceful shutdown.
+    const taskkillArgs = signal === 'SIGKILL'
+      ? ['/F', '/T', '/PID', String(pid)]
+      : ['/T', '/PID', String(pid)];
+    spawnSync('taskkill', taskkillArgs, { stdio: 'ignore' });
   } else {
     // On Unix, negative PID kills the process group
     try { process.kill(-pid, signal); } catch {
@@ -298,18 +339,39 @@ function killTree(pid, signal) {
   }
 }
 
-function stopServer() {
+/** Poll until the process exits or the timeout elapses. Resolves true if gone. */
+function waitForExit(pid, timeoutMs) {
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const check = () => {
+      if (!isRunning(pid)) return resolve(true);
+      if (Date.now() - start >= timeoutMs) return resolve(false);
+      setTimeout(check, 100);
+    };
+    check();
+  });
+}
+
+async function stopServer() {
   const { running, pid } = getStatus("server");
   if (!running) {
     console.log("  server not running");
     return;
   }
   killTree(pid, "SIGTERM");
-  setTimeout(() => {
-    if (isRunning(pid)) killTree(pid, "SIGKILL");
-  }, 5000).unref();
-  removePid("server");
-  console.log(`  server stopped (was pid ${pid})`);
+  // Wait for graceful exit; escalate to SIGKILL if still alive. Only remove the
+  // PID file once the process is confirmed dead so a stale entry never lingers.
+  let exited = await waitForExit(pid, 5000);
+  if (!exited) {
+    killTree(pid, "SIGKILL");
+    exited = await waitForExit(pid, 2000);
+  }
+  if (exited) {
+    removePid("server");
+    console.log(`  server stopped (was pid ${pid})`);
+  } else {
+    console.error(`  server (pid ${pid}) did not exit; leaving PID file in place`);
+  }
 }
 
 // --- Setup ---
@@ -322,7 +384,7 @@ function runSetup() {
   if (existsSync(buildScript)) {
     console.log("  Building MCP bundles...\n");
     try {
-      execSync(`${process.execPath} ${buildScript}`, { cwd: root, stdio: "inherit" });
+      execSync(`"${process.execPath}" "${buildScript}"`, { cwd: root, stdio: "inherit" });
       console.log();
     } catch {
       console.error("  ✗ Bundle build failed — falling back to tsx registration\n");
@@ -354,14 +416,14 @@ function runSetup() {
       if (useBundle) {
         // Register bundle directly — 1 process per server
         execSync(
-          `claude mcp add --transport stdio ${mcpName} --scope user -- ${process.execPath} ${bundle} --stdio`,
+          `claude mcp add --transport stdio ${mcpName} --scope user -- "${process.execPath}" "${bundle}" --stdio`,
           { stdio: "pipe" }
         );
       } else {
         // Fallback: register via devglide.js mcp launcher
         const devglideBin = resolve(__dirname, "devglide.js");
         execSync(
-          `claude mcp add --transport stdio ${mcpName} --scope user -- ${process.execPath} ${devglideBin} mcp ${name}`,
+          `claude mcp add --transport stdio ${mcpName} --scope user -- "${process.execPath}" "${devglideBin}" mcp ${name}`,
           { stdio: "pipe" }
         );
       }
@@ -383,7 +445,15 @@ function runSetup() {
     console.log("\n  Registering MCP servers in Codex...\n");
     try {
       let toml = "";
-      try { toml = readFileSync(codexConfigPath, "utf8"); } catch {}
+      // Distinguish "file missing" (start fresh) from "exists but unreadable"
+      // (abort — never clobber the user's existing Codex config on a read error).
+      if (existsSync(codexConfigPath)) {
+        try {
+          toml = readFileSync(codexConfigPath, "utf8");
+        } catch (err) {
+          throw new Error(`Refusing to overwrite unreadable Codex config at ${codexConfigPath}: ${err.message}`);
+        }
+      }
       toml = removeDevglideSectionsFromToml(toml);
       const sections = buildCodexMcpSections();
       toml = (toml.trimEnd() + '\n\n' + sections).replace(/^\n+/, '');
@@ -623,9 +693,12 @@ switch (command) {
     break;
 
   case "restart":
-    stopServer();
-    // Brief wait for port to free
-    setTimeout(() => startServer(false), 1000);
+    // Wait for the old process to actually exit (and release the port) before
+    // starting the new one, otherwise startServer can hit EADDRINUSE.
+    (async () => {
+      await stopServer();
+      startServer(false);
+    })();
     break;
 
   case "status":

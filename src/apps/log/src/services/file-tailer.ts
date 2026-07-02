@@ -5,6 +5,8 @@ import crypto from "crypto";
 import { LogWriter } from "./log-writer.js";
 import { parseLine } from "./line-parser.js";
 import { recordSession, getTargetPaths } from "../routes/log.js";
+import { getActiveProject } from "../../../../project-context.js";
+import { LOGS_DIR, projectDataDir } from "../../../../packages/paths.js";
 import {
   INCLUDE_PATTERNS,
   IGNORED_GLOBS,
@@ -18,9 +20,12 @@ function fileSessionId(filePath: string): string {
   return `file-${hash}`;
 }
 
-function filetailTargetPath(projectPath: string, filePath: string): string {
+function filetailTargetPath(filetailDir: string, filePath: string): string {
   const basename = path.basename(filePath, ".log");
-  return path.join(projectPath, `${basename}.filetail.log`);
+  // Include a hash of the full source path so two tailed files with the
+  // same basename get distinct filetail outputs.
+  const hash = crypto.createHash("md5").update(filePath).digest("hex").slice(0, 8);
+  return path.join(filetailDir, `${basename}.${hash}.filetail.log`);
 }
 
 export class FileTailer {
@@ -30,11 +35,16 @@ export class FileTailer {
   private changeQueues = new Map<string, Promise<void>>();
   private logWriter = new LogWriter();
   private projectPath: string | null = null;
+  private filetailDir: string | null = null;
   private watchedCount = 0;
 
   async start(projectPath: string): Promise<void> {
     this.stop();
     this.projectPath = projectPath;
+    // Write filetail output inside ~/.devglide so /view and DELETE
+    // (which enforce safeLogPath containment) can access it.
+    const project = getActiveProject();
+    this.filetailDir = project ? projectDataDir(project.id, "logs") : LOGS_DIR;
 
     const globs = INCLUDE_PATTERNS.map((p) => path.join(projectPath, p));
 
@@ -69,6 +79,7 @@ export class FileTailer {
       console.log(`[file-tailer] Stopped watching ${this.projectPath}`);
     }
     this.projectPath = null;
+    this.filetailDir = null;
   }
 
   private async onAdd(filePath: string): Promise<void> {
@@ -101,7 +112,7 @@ export class FileTailer {
       this.watchedCount++;
 
       const sessionId = fileSessionId(filePath);
-      const targetPath = filetailTargetPath(this.projectPath!, filePath);
+      const targetPath = filetailTargetPath(this.filetailDir!, filePath);
       const basename = path.basename(filePath);
 
       const entry = {
@@ -151,16 +162,20 @@ export class FileTailer {
       const bytesToRead = currentSize - prevOffset;
       const buffer = Buffer.alloc(bytesToRead);
 
+      let bytesRead = 0;
       const fd = await fsp.open(filePath, "r");
       try {
-        await fd.read(buffer, 0, bytesToRead, prevOffset);
+        ({ bytesRead } = await fd.read(buffer, 0, bytesToRead, prevOffset));
       } finally {
         await fd.close();
       }
 
-      this.offsets.set(filePath, currentSize);
+      // Only advance by what was actually read — the file may have been
+      // truncated/rotated between stat and read.
+      this.offsets.set(filePath, prevOffset + bytesRead);
+      if (bytesRead === 0) return;
 
-      const chunk = buffer.toString("utf-8");
+      const chunk = buffer.toString("utf-8", 0, bytesRead);
       const partial = this.partials.get(filePath) || "";
       const combined = partial + chunk;
       const lines = combined.split("\n");
@@ -171,7 +186,7 @@ export class FileTailer {
       if (lines.length === 0) return;
 
       const sessionId = fileSessionId(filePath);
-      const targetPath = filetailTargetPath(this.projectPath!, filePath);
+      const targetPath = filetailTargetPath(this.filetailDir!, filePath);
 
       for (const line of lines) {
         if (!line.trim()) continue;

@@ -1096,6 +1096,11 @@ function waitForShellReady(paneId: string): Promise<ReadyOutcome> {
       });
       cleanups.push(() => probeDisposable.dispose());
 
+      // Bounded fallback: if the marker never echoes back (wedged pane), give
+      // up instead of waiting forever and leaking listeners.
+      const probeTimer = setTimeout(() => settle('closed'), SHELL_READY_TIMEOUT_MS);
+      cleanups.push(() => clearTimeout(probeTimer));
+
       entry.ptyProcess.write(`echo ${marker}\r`);
     }, SHELL_READY_TIMEOUT_MS);
     cleanups.push(() => clearTimeout(timer));
@@ -1203,10 +1208,12 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
   // This replaces the old `sleep 0.5` with proper readiness detection.
   // Invite panes are always fresh, so scanning full scrollback is safe.
   waitForShellReady(paneId).then((outcome) => {
-    if (outcome === 'closed') return; // pane died before shell was ready
+    if (outcome === 'closed') return; // pane died or never became ready
     const entry = globalPtys.get(paneId);
     if (!entry) return;
     entry.ptyProcess.write(`${inviteCmd}\r`);
+  }).catch((err) => {
+    console.error('[chat] waitForShellReady/inject failed:', err);
   });
 
   res.status(201).json({
@@ -1312,7 +1319,13 @@ export function initChat(nsp: Namespace): void {
         socket.emit('chat:error', { error });
         return;
       }
-      await registry.send('user', message, to, socketProjectId);
+      try {
+        await registry.send('user', message, to, socketProjectId);
+      } catch (err) {
+        // socket.io does not catch listener rejections — an uncaught reject
+        // here would surface as an unhandledRejection and can crash the server.
+        socket.emit('chat:error', { error: err instanceof Error ? err.message : String(err) });
+      }
     });
 
     // Handle clear from dashboard

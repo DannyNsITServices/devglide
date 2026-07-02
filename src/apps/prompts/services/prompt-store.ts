@@ -1,6 +1,8 @@
+import fs from 'fs/promises';
+import path from 'path';
 import type { Prompt, PromptSummary } from '../types.js';
 import { getActiveProject } from '../../../project-context.js';
-import { PROMPTS_DIR } from '../../../packages/paths.js';
+import { PROJECTS_DIR, PROMPTS_DIR } from '../../../packages/paths.js';
 import { JsonFileStore } from '../../../packages/json-file-store.js';
 
 /** Regex for {{varName}} placeholders — matches word chars, hyphens, and dots. */
@@ -49,7 +51,9 @@ export class PromptStore extends JsonFileStore<Prompt> {
       results = results.filter((p) => p.category === filter.category);
     }
     if (filter?.tags?.length) {
-      results = results.filter((p) => filter.tags!.every((t) => p.tags.includes(t)));
+      // Array.isArray guard: a legacy bad entry (tags persisted as a string)
+      // must not break listing.
+      results = results.filter((p) => Array.isArray(p.tags) && filter.tags!.every((t) => p.tags.includes(t)));
     }
     if (filter?.search) {
       const q = filter.search.toLowerCase();
@@ -57,7 +61,7 @@ export class PromptStore extends JsonFileStore<Prompt> {
         p.title.toLowerCase().includes(q) ||
         (p.description ?? '').toLowerCase().includes(q) ||
         (p.category ?? '').toLowerCase().includes(q) ||
-        p.tags.some((t) => t.toLowerCase().includes(q)),
+        (Array.isArray(p.tags) && p.tags.some((t) => t.toLowerCase().includes(q))),
       );
     }
 
@@ -95,14 +99,52 @@ export class PromptStore extends JsonFileStore<Prompt> {
       };
 
       let scope = input.scope;
+      let scopeProjectId = getActiveProject()?.id;
       if (!scope && isUpdate) {
-        scope = await this.resolveExistingScope(input.id!);
+        const located = await this.locateExisting(input.id!);
+        if (located) {
+          scope = located.scope;
+          scopeProjectId = located.projectId ?? scopeProjectId;
+        }
       }
       scope = scope ?? (getActiveProject() ? 'project' : 'global');
 
-      await this.writeEntity(prompt, scope, getActiveProject()?.id);
+      await this.writeEntity(prompt, scope, scopeProjectId);
       return prompt;
     });
+  }
+
+  /**
+   * Locate the scope (and owning project) an existing entity lives in.
+   * Unlike resolveExistingScope, this also searches all project dirs when
+   * no active project is set (stdio MCP mode) so updates write in place
+   * instead of creating a shadowed global duplicate.
+   */
+  private async locateExisting(id: string): Promise<{ scope: 'project' | 'global'; projectId?: string } | undefined> {
+    const scope = await this.resolveExistingScope(id);
+    if (scope) return { scope, projectId: scope === 'project' ? getActiveProject()?.id : undefined };
+
+    const featureName = path.basename(this.baseDir);
+    // New project dirs: ~/.devglide/projects/{projectId}/{feature}/
+    let projectIds: string[] = [];
+    try { projectIds = await fs.readdir(PROJECTS_DIR); } catch { /* none */ }
+    for (const projectId of projectIds) {
+      try {
+        await fs.access(path.join(PROJECTS_DIR, projectId, featureName, `${id}.json`));
+        return { scope: 'project', projectId };
+      } catch { /* keep looking */ }
+    }
+    // Legacy project dirs: baseDir/{projectId}/
+    let names: string[] = [];
+    try { names = await fs.readdir(this.baseDir); } catch { /* none */ }
+    for (const name of names) {
+      if (name.endsWith('.json')) continue;
+      try {
+        await fs.access(path.join(this.baseDir, name, `${id}.json`));
+        return { scope: 'project', projectId: name };
+      } catch { /* keep looking */ }
+    }
+    return undefined;
   }
 
   /**
@@ -124,8 +166,10 @@ export class PromptStore extends JsonFileStore<Prompt> {
       }
       merged.variables = detectVariables(merged.content);
 
-      const scope = await this.resolveExistingScope(id) ?? (getActiveProject() ? 'project' : 'global');
-      await this.writeEntity(merged, scope, getActiveProject()?.id);
+      const located = await this.locateExisting(id);
+      const scope = located?.scope ?? (getActiveProject() ? 'project' : 'global');
+      const scopeProjectId = located?.projectId ?? getActiveProject()?.id;
+      await this.writeEntity(merged, scope, scopeProjectId);
       return merged;
     });
   }

@@ -78,8 +78,12 @@ export class ScenarioStore {
   }
 
   private async getScenarios(dataFile: string): Promise<SavedScenario[]> {
-    await this.load(dataFile);
-    return this.cache.get(dataFile)!;
+    // Serve from the in-memory cache when available. Re-reading disk here
+    // would replace the cached array mid-mutation and lose concurrent
+    // updates that persist() has not flushed yet (lost-update race).
+    const cached = this.cache.get(dataFile);
+    if (cached) return cached;
+    return this.load(dataFile);
   }
 
   private persist(dataFile: string, scenarios: SavedScenario[]): Promise<void> {

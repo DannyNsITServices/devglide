@@ -293,12 +293,22 @@ router.post('/panes/:id/run', asyncHandler(async (req: Request, res: Response) =
   const POLL_MS = 100;
   const STABLE_THRESHOLD = 3;
 
+  // totalLen is NOT monotonic — pty-manager trims the scrollback buffer (and
+  // resets totalLen) once it grows past its limit. Track whether such a trim
+  // happened so we don't (a) terminate the quiescence poll early on the length
+  // drop, or (b) slice at a now-invalid offset when capturing output.
+  let trimmed = false;
   await new Promise<void>((resolve) => {
     let elapsed = 0;
     const interval = setInterval(() => {
       elapsed += POLL_MS;
       const currentLen = entry.totalLen;
       if (currentLen > lastLen) {
+        lastLen = currentLen;
+        stableCount = 0;
+      } else if (currentLen < lastLen) {
+        // Buffer was trimmed — the capture offset is no longer valid.
+        trimmed = true;
         lastLen = currentLen;
         stableCount = 0;
       } else {
@@ -312,7 +322,11 @@ router.post('/panes/:id/run', asyncHandler(async (req: Request, res: Response) =
   });
 
   const fullOutput = entry.chunks.join('');
-  let newOutput = fullOutput.slice(Math.min(beforeLen, fullOutput.length));
+  // If a trim occurred, beforeLen points into discarded data — fall back to the
+  // whole (post-trim) buffer, which is dominated by this command's output.
+  let newOutput = trimmed
+    ? fullOutput
+    : fullOutput.slice(Math.min(beforeLen, fullOutput.length));
 
   // Strip echoed command and ANSI escapes
   const lines = newOutput.split('\n');

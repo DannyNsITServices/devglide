@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { createDevglideMcpServer, jsonResult, errorResult } from '../../../packages/mcp-utils/src/index.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
-const UNIFIED_BASE = `http://localhost:${process.env.PORT ?? 7000}`;
+const UNIFIED_BASE = `http://localhost:${process.env.DEVGLIDE_PORT ?? process.env.PORT ?? 7000}`;
 
 /** Fetch helper that proxies to the unified server's shell REST API. */
 async function shellApi(

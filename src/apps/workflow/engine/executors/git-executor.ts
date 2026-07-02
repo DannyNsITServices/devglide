@@ -96,7 +96,7 @@ export const gitExecutor: ExecutorFunction = async (
         }
         const newBranch = safeBranch(cfg.branch);
         if (!newBranch) return { status: 'failed', error: 'Invalid branch name' };
-        result = await runGit(['checkout', '-b', '--', newBranch], cwd);
+        result = await runGit(['checkout', '-b', newBranch], cwd);
         break;
       }
 
@@ -106,7 +106,7 @@ export const gitExecutor: ExecutorFunction = async (
         }
         const target = safeBranch(cfg.branch);
         if (!target) return { status: 'failed', error: 'Invalid branch name' };
-        result = await runGit(['checkout', '--', target], cwd);
+        result = await runGit(['checkout', target], cwd);
         break;
       }
 

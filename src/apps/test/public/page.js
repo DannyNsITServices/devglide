@@ -186,6 +186,8 @@ async function runSaved(id) {
     await fetch('/api/test/trigger/scenarios/saved/' + encodeURIComponent(id) + '/run', {
       method: 'POST'
     });
+    // A new run started — un-suppress the results list so its result shows up
+    _resultsCleared = false;
     const card = _container.querySelector('.saved-card[data-id="' + id + '"]');
     if (card) {
       card.classList.add('just-triggered');

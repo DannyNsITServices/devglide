@@ -21,9 +21,9 @@ import { spawn, execSync, spawnSync, type ChildProcess } from "child_process";
 import { configStore } from "./config-store.js";
 
 let _activeProcess: ChildProcess | null = null;
-let _tmpFile: string | null = null;
-/** Temp files created during chunked playback. */
-let _chunkFiles: string[] = [];
+/** Temp files created during playback, tracked per session so a stale
+ *  session's cleanup can never delete the active session's files. */
+const _sessionFiles = new Map<number, string[]>();
 /** Session counter — incremented on each speak()/stop() call to cancel stale sessions. */
 let _sessionId = 0;
 
@@ -33,12 +33,24 @@ function safeUnlink(path: string | null): void {
   try { unlinkSync(path); } catch { /* already gone */ }
 }
 
-/** Clean up all temp files from TTS (including chunk files). */
+/** Track a temp file as belonging to a TTS session. */
+function trackTempFile(sessionId: number, path: string): void {
+  const files = _sessionFiles.get(sessionId);
+  if (files) files.push(path);
+  else _sessionFiles.set(sessionId, [path]);
+}
+
+/** Clean up the temp files belonging to a single TTS session. */
+function cleanupSessionFiles(sessionId: number): void {
+  const files = _sessionFiles.get(sessionId);
+  if (!files) return;
+  _sessionFiles.delete(sessionId);
+  for (const f of files) safeUnlink(f);
+}
+
+/** Clean up all temp files from TTS (all sessions). */
 function cleanupTempFiles(): void {
-  safeUnlink(_tmpFile);
-  _tmpFile = null;
-  for (const f of _chunkFiles) safeUnlink(f);
-  _chunkFiles = [];
+  for (const id of [..._sessionFiles.keys()]) cleanupSessionFiles(id);
 }
 
 // ── msedge-tts types and lazy-loaded references ─────────────────────────────
@@ -104,7 +116,7 @@ let _hasFfmpeg: boolean | null = null;
  * path if ffmpeg is unavailable or the operation fails.
  * The caller is responsible for cleaning up both the original and padded files.
  */
-function prependSilence(mp3Path: string, ms: number = LEAD_SILENCE_MS): string {
+function prependSilence(mp3Path: string, sessionId: number, ms: number = LEAD_SILENCE_MS): string {
   if (_hasFfmpeg === null) _hasFfmpeg = commandExists("ffmpeg");
   if (!_hasFfmpeg) return mp3Path;
 
@@ -117,7 +129,7 @@ function prependSilence(mp3Path: string, ms: number = LEAD_SILENCE_MS): string {
       padded,
     ], { stdio: "pipe", timeout: 10_000 });
     if (r.status === 0 && existsSync(padded)) {
-      _chunkFiles.push(padded);   // track for cleanup
+      trackTempFile(sessionId, padded);   // track for cleanup
       return padded;
     }
     console.error("[voice:tts] ffmpeg adelay failed:", r.stderr?.toString().slice(0, 200));
@@ -499,12 +511,14 @@ async function speakChunked(
     return generateEdgeTts(text, voice, rate, pitch);
   }
 
-  // Generate first chunk before entering the pipeline loop
+  // Generate first chunk before entering the pipeline loop.
+  // Track the file BEFORE the cancellation check so a cancelled session
+  // still has its generated file cleaned up.
   let gen0 = await generateWithRetry(chunks[0]);
+  if (gen0) trackTempFile(sessionId, gen0);
   if (!gen0 || cancelled()) return false;
-  _chunkFiles.push(gen0);
   // Pad first chunk with silence so PulseAudio sink can wake up before speech
-  gen0 = prependSilence(gen0);
+  gen0 = prependSilence(gen0, sessionId);
 
   // Resolved paths for each chunk — filled in as generation completes.
   const resolvedPaths: (string | null)[] = new Array(chunks.length).fill(null);
@@ -532,14 +546,15 @@ async function speakChunked(
     // If session changed while playing, abort immediately
     if (cancelled()) return false;
 
-    // Wait for next chunk to finish generating
+    // Wait for next chunk to finish generating — track the file before the
+    // cancellation check so it is never orphaned on a cancelled session
     if (nextGenPromise) {
       const genResult = await nextGenPromise;
-      if (cancelled()) return false;
       if (genResult) {
         resolvedPaths[i + 1] = genResult;
-        _chunkFiles.push(genResult);
+        trackTempFile(sessionId, genResult);
       }
+      if (cancelled()) return false;
     }
   }
 
@@ -572,7 +587,7 @@ export async function speak(text: string): Promise<void> {
       console.error(`[voice:tts] text length ${text.length} > threshold ${chunkThreshold}, using chunked playback (session ${mySession})`);
       const ok = await speakChunked(text, voice, edgeRate, edgePitch, mySession);
       if (ok || cancelled()) {
-        cleanupTempFiles();
+        cleanupSessionFiles(mySession);
         return;
       }
       // Chunked failed — fall through to single-shot, then platform fallback
@@ -585,22 +600,23 @@ export async function speak(text: string): Promise<void> {
     const mp3Path = await generateEdgeTts(text, voice, edgeRate, edgePitch);
     console.error(`[voice:tts] mp3Path=${mp3Path}`);
     if (mp3Path) {
-      _tmpFile = mp3Path;
+      trackTempFile(mySession, mp3Path);
       // Pad with silence so PulseAudio sink can wake up before speech
-      const playPath = prependSilence(mp3Path);
+      const playPath = prependSilence(mp3Path, mySession);
       _activeProcess = playMp3(playPath);
       console.error(`[voice:tts] playMp3 started, process=${_activeProcess?.pid ?? 'null'}`);
       if (_activeProcess) {
         _activeProcess.on("exit", (code) => {
           console.error(`[voice:tts] playback exited code=${code}`);
-          cleanupTempFiles();
+          cleanupSessionFiles(mySession);
           _activeProcess = null;
         });
-        // Safety: clean up after 2 minutes even if exit never fires
-        setTimeout(() => { cleanupTempFiles(); }, 120_000);
+        // Safety: clean up this session's files after 2 minutes even if exit
+        // never fires (no-op if they were already cleaned up)
+        setTimeout(() => { cleanupSessionFiles(mySession); }, 120_000);
       } else {
         // Playback didn't start — clean up immediately
-        cleanupTempFiles();
+        cleanupSessionFiles(mySession);
       }
       return;
     }

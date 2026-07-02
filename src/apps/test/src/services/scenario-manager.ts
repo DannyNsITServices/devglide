@@ -42,6 +42,9 @@ export class ScenarioManager {
   private scenarioTargets = new Map<string, string>();
   private results = new Map<string, ScenarioResult>();
   private knownTargets = new Set<string>();
+  /** Scenario id → dispatch timestamp for scenarios delivered to a browser
+   *  but still awaiting a result. Protects their target mapping from cleanup. */
+  private inFlight = new Map<string, number>();
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
   static getInstance(): ScenarioManager {
@@ -88,6 +91,7 @@ export class ScenarioManager {
     };
     this.results.set(id, entry);
     this.scenarioTargets.delete(id);
+    this.inFlight.delete(id);
     return entry;
   }
 
@@ -117,6 +121,7 @@ export class ScenarioManager {
     if (queue && queue.length > 0) {
       const scenario = queue.shift()!;
       if (queue.length === 0) this.scenariosByTarget.delete(key);
+      this.inFlight.set(scenario.id, Date.now());
       return scenario;
     }
 
@@ -127,11 +132,29 @@ export class ScenarioManager {
       if (fallbackQueue && fallbackQueue.length > 0) {
         const scenario = fallbackQueue.shift()!;
         if (fallbackQueue.length === 0) this.scenariosByTarget.delete(basename);
+        this.inFlight.set(scenario.id, Date.now());
         return scenario;
       }
     }
 
     return undefined;
+  }
+
+  /**
+   * Mark a scenario as already dispatched to a browser outside of
+   * dequeueScenario (e.g. delivered via SSE broadcast). Removes the queued
+   * copy so it is not delivered a second time on reconnect/poll, and records
+   * it as in-flight so its target mapping survives until a result arrives.
+   */
+  markDispatched(id: string): void {
+    for (const [key, queue] of this.scenariosByTarget) {
+      const idx = queue.findIndex((s) => s.id === id);
+      if (idx === -1) continue;
+      queue.splice(idx, 1);
+      if (queue.length === 0) this.scenariosByTarget.delete(key);
+      break;
+    }
+    this.inFlight.set(id, Date.now());
   }
 
   startCleanup(): void {
@@ -163,9 +186,17 @@ export class ScenarioManager {
         this.results.delete(id);
       }
     }
+    // Expire in-flight markers for scenarios dispatched too long ago
+    // (browser likely gone — result will never arrive)
+    for (const [id, dispatchedAt] of this.inFlight) {
+      if (dispatchedAt < cutoff) this.inFlight.delete(id);
+    }
     // Clean orphaned target mappings (scenario submitted but never completed)
     for (const id of this.scenarioTargets.keys()) {
       if (!this.results.has(id)) {
+        // Currently executing (dispatched, awaiting result) — keep the
+        // mapping so the eventual result still records its target
+        if (this.inFlight.has(id)) continue;
         // Check if scenario is still queued
         let found = false;
         for (const queue of this.scenariosByTarget.values()) {

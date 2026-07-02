@@ -3,6 +3,15 @@ import { z } from 'zod';
 import { VocabularyStore } from '../services/vocabulary-store.js';
 import { jsonResult, errorResult, createDevglideMcpServer } from '../../../packages/mcp-utils/src/index.js';
 
+/** Parse a JSON string expected to contain an array of strings. Returns null if invalid. */
+function parseStringArray(json: string): string[] | null {
+  try {
+    const parsed = JSON.parse(json);
+    if (Array.isArray(parsed) && parsed.every((v) => typeof v === 'string')) return parsed;
+  } catch { /* fall through */ }
+  return null;
+}
+
 export function createVocabularyMcpServer(): McpServer {
   const server = createDevglideMcpServer(
     'devglide-vocabulary',
@@ -77,12 +86,16 @@ export function createVocabularyMcpServer(): McpServer {
 
       let parsedAliases: string[] | undefined;
       if (aliases) {
-        try { parsedAliases = JSON.parse(aliases); } catch { return errorResult('Invalid JSON for aliases'); }
+        const parsed = parseStringArray(aliases);
+        if (!parsed) return errorResult('aliases must be a JSON array of strings');
+        parsedAliases = parsed;
       }
 
       let parsedTags: string[] = [];
       if (tags) {
-        try { parsedTags = JSON.parse(tags); } catch { return errorResult('Invalid JSON for tags'); }
+        const parsed = parseStringArray(tags);
+        if (!parsed) return errorResult('tags must be a JSON array of strings');
+        parsedTags = parsed;
       }
 
       const entry = await store.save({
@@ -116,12 +129,16 @@ export function createVocabularyMcpServer(): McpServer {
 
       let parsedAliases: string[] | undefined = existing.aliases;
       if (aliases) {
-        try { parsedAliases = JSON.parse(aliases); } catch { return errorResult('Invalid JSON for aliases'); }
+        const parsed = parseStringArray(aliases);
+        if (!parsed) return errorResult('aliases must be a JSON array of strings');
+        parsedAliases = parsed;
       }
 
       let parsedTags: string[] = existing.tags;
       if (tags) {
-        try { parsedTags = JSON.parse(tags); } catch { return errorResult('Invalid JSON for tags'); }
+        const parsed = parseStringArray(tags);
+        if (!parsed) return errorResult('tags must be a JSON array of strings');
+        parsedTags = parsed;
       }
 
       const updated = await store.save({
