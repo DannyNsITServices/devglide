@@ -346,11 +346,6 @@
   display: none !important;
 }
 
-/* Clip the last row — 17px ≈ 14px font × 1.2 line-height */
-.page-shell .alt-screen .xterm-screen {
-  clip-path: inset(0 0 17px 0);
-}
-
 /* ── Browser pane ─────────────────────────────────────────────────── */
 .page-shell .browser-nav {
   display: flex;
