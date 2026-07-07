@@ -264,7 +264,7 @@ if (existsSync(buildMcpPath)) {
     /(?:const|let|var)\s+servers\s*=\s*\[([\s\S]*?)\]/,
   );
   if (arrayMatch) {
-    for (const m of arrayMatch[1].matchAll(/["'](\w+)["']/g)) {
+    for (const m of arrayMatch[1].matchAll(/["']([\w-]+)["']/g)) {
       buildMcpApps.add(m[1]);
     }
   }
@@ -281,9 +281,10 @@ if (existsSync(devglidePath)) {
     /const\s+mcpServers\s*=\s*\{([\s\S]*?)\n\};/,
   );
   if (objMatch) {
-    // Match lines like "  kanban:" or "  voice:" (keys at first indent level)
-    for (const m of objMatch[1].matchAll(/^\s{2}(\w+)\s*:/gm)) {
-      cliMcpApps.add(m[1]);
+    // Match lines like "  kanban:" or quoted keys "  "hyphenated-name":" (keys at first indent level)
+    // Supports bare identifiers and quoted keys with hyphens.
+    for (const m of objMatch[1].matchAll(/^\s{2}(?:["']([\w-]+)["']|([\w-]+))\s*:/gm)) {
+      cliMcpApps.add(m[1] ?? m[2]);
     }
   }
 }

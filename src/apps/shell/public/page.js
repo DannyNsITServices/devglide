@@ -256,6 +256,16 @@ function modeLabel(mode) {
 }
 
 async function confirmAgentMode(llm, mode) {
+  // `dangerByDefault` LLMs (e.g. Pi) have no sandboxing or approval prompts at all,
+  // so we always confirm regardless of mode and use the danger styling + a stronger warning.
+  if (llm.dangerByDefault) {
+    return confirmModal(_container, {
+      title: `Launch ${llm.name}?`,
+      message: `<strong>${llm.name}</strong> runs without sandboxing or approval prompts. It will execute commands and edit files without asking. Continue?`,
+      confirmLabel: 'Launch',
+      confirmCls: 'btn-danger',
+    });
+  }
   if (mode !== 'auto-accept' && mode !== 'unrestricted') return true;
   const modeDesc = mode === 'auto-accept'
     ? 'This launches without approval prompts.'

@@ -20,9 +20,12 @@ const servers = [
   "documentation",
 ];
 
-// nodejs-whisper must stay external: it is CJS code referencing __dirname
-// (undefined in ESM bundle scope) and resolves its bundled whisper.cpp tree
-// relative to its own install location — inlining it breaks both.
+// Native / optional packages must not be inlined by esbuild. nodejs-whisper pulls in
+// whisper.cpp and is an optional STT dependency that may be absent or fail to install;
+// the voice provider imports it lazily and degrades gracefully at runtime. Bundling it
+// makes the build fail with "Could not resolve 'nodejs-whisper'" when it is not present —
+// and even when present, its CJS code references __dirname (undefined in ESM bundle
+// scope) and resolves its whisper.cpp tree relative to its own install location.
 const external = ["better-sqlite3", "node-pty", "nodejs-whisper"];
 
 // CJS packages bundled into ESM need a real require() for Node built-ins

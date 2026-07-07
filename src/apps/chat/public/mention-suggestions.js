@@ -31,3 +31,23 @@ export function getMentionMatches(members, query = '') {
 
   return shouldSuggestAll(query) ? ['all', ...matches] : matches;
 }
+
+/** Build the dashboard message header string for a chat message.
+ *  Renders `@sender` alone when there are no recipients, `@sender → @target`
+ *  for one recipient, `@sender → @t1, @t2` for multiple, and `@user → @all`
+ *  for a broadcast. Accepts the persisted `msg.to` value (a comma-separated
+ *  string from chat-registry, or `'all'` for broadcasts, or null/empty). */
+export function formatRecipientHeader(from, to) {
+  const senderRaw = from ?? '';
+  const senderTag = senderRaw.startsWith('@') ? senderRaw : `@${senderRaw}`;
+  if (to == null || to === '') return senderTag;
+  const targets = String(to)
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  if (targets.length === 0) return senderTag;
+  const targetTags = targets
+    .map(t => (t.startsWith('@') ? t : `@${t}`))
+    .join(', ');
+  return `${senderTag} \u2192 ${targetTags}`;
+}

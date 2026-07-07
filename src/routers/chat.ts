@@ -915,8 +915,14 @@ interface KnownLlm {
   cli: string;
   name: string;
   icon: string;
-  /** Permission modes this CLI supports, in display order. 'supervised' is always implicit. */
+  /** Permission modes this CLI supports, in display order. 'supervised' is always implicit unless `dangerByDefault` is set. */
   modes: PermissionMode[];
+  /**
+   * If true, this CLI runs without sandboxing/approval prompts by default. The launch UI must
+   * always show a confirmation, the supervised mode is rejected at the API layer, and the
+   * frontend should render a danger-styled warning.
+   */
+  dangerByDefault?: boolean;
   /** Build the shell command to launch this CLI with a bootstrap prompt and permission mode. */
   launchCmd: (prompt: string, mode?: PermissionMode, executable?: string) => string;
 }
@@ -931,6 +937,8 @@ const CLI_MODE_FLAGS: Record<string, Partial<Record<PermissionMode, string[]>>> 
   codex:   { 'auto-accept': ['--dangerously-bypass-approvals-and-sandbox'] },
   gemini:  {},
   cursor:  {},
+  // Pi runs without sandboxing or approval prompts by default — no flags needed.
+  pi:      {},
 };
 
 const KNOWN_LLMS: KnownLlm[] = [
@@ -960,6 +968,14 @@ const KNOWN_LLMS: KnownLlm[] = [
     modes: ['supervised'],
     launchCmd: (p, _mode, executable = 'cursor-agent') => `${shellEscape(executable)} chat ${shellEscape(p)}`,
   },
+  {
+    cli: 'pi', name: 'Pi', icon: '🟡',
+    // Pi has no sandboxing or approval prompts by default; only the auto button is exposed
+    // and the frontend renders a danger-styled confirmation. See `dangerByDefault`.
+    modes: ['auto-accept'],
+    dangerByDefault: true,
+    launchCmd: (p, _mode, executable = 'pi') => `${shellEscape(executable)} --model lmstudio/google/gemma-4-26b-a4b ${shellEscape(p)}`,
+  },
 ];
 
 /** Probe candidates for each CLI, in order. */
@@ -975,6 +991,7 @@ interface AvailableLlm {
   name: string;
   icon: string;
   modes: PermissionMode[];
+  dangerByDefault?: boolean;
 }
 
 function getCliProbeCandidates(cli: string): string[] {
@@ -994,11 +1011,22 @@ function resolveCliCommand(cli: string): string | null {
 }
 
 
-function buildChatJoinPrompt(cli: string, paneId: string, joinedName: string): string {
+const CHAT_HTTP_BASE = `http://localhost:${process.env.PORT ?? 7000}/api/chat`;
+
+function buildChatJoinPrompt(cli: string, paneId: string, joinedName: string, projectId: string | null): string {
+  const projectQuery = projectId ? `?projectId=${projectId}` : '';
+  const projectField = projectId ? `, projectId:"${projectId}"` : '';
   return `You are already registered in the DevGlide chat room via a REST fallback as "${joinedName}" on pane "${paneId}". `
     + 'Use the exact MCP server/tool name `devglide-chat` / `mcp__devglide-chat__chat_join` if it is available, '
     + `and call it with name="${cli}" and paneId="${paneId}" to unify this MCP session and read the rules of engagement. `
-    + 'If `mcp__devglide-chat__chat_join` is not available yet, stay on the existing REST-backed chat session for this pane. '
+    + 'If `mcp__devglide-chat__chat_join` is not available yet, stay on the existing REST-backed chat session for this pane and do not try to re-register. '
+    + `If the chat MCP tools still are not available, use the REST API at "${CHAT_HTTP_BASE}" instead: `
+    + `GET "${CHAT_HTTP_BASE}/rules${projectQuery}" to read the rules, `
+    + `GET "${CHAT_HTTP_BASE}/messages${projectQuery}" to read history, `
+    + `POST "${CHAT_HTTP_BASE}/send" with {from:"${joinedName}", message, to?${projectField}} to send chat messages as yourself, `
+    + `POST "${CHAT_HTTP_BASE}/leave" with {name:"${joinedName}"${projectField}} to leave, `
+    + `GET "${CHAT_HTTP_BASE}/pipes/:id/output${projectQuery}" with header X-Pane-Id: "${paneId}" to read pipe input, `
+    + `and POST "${CHAT_HTTP_BASE}/pipes/:id/submit" with {from:"${joinedName}", content${projectField}} for pipe stage output. `
     + `When the chat MCP tools appear, use \`chat_send(..., paneId="${paneId}")\`, \`chat_leave(paneId="${paneId}")\`, `
     + `or \`pipe_submit(..., paneId="${paneId}")\` to adopt that session. `
     + 'After you have the rules of engagement, follow them exactly.';
@@ -1011,7 +1039,9 @@ function detectAvailableLlms(rescan = false): AvailableLlm[] {
   const available: AvailableLlm[] = [];
   for (const llm of KNOWN_LLMS) {
     if (resolveCliCommand(llm.cli)) {
-      available.push({ cli: llm.cli, name: llm.name, icon: llm.icon, modes: llm.modes });
+      const entry: AvailableLlm = { cli: llm.cli, name: llm.name, icon: llm.icon, modes: llm.modes };
+      if (llm.dangerByDefault) entry.dangerByDefault = true;
+      available.push(entry);
     }
   }
   llmCache = { data: available, ts: Date.now() };
@@ -1135,8 +1165,14 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
     return badRequest(res, `Unknown LLM CLI: ${cli}`);
   }
 
-  // Validate the requested mode is supported by this CLI
-  if (mode !== 'supervised' && !llm.modes.includes(mode)) {
+  // Validate the requested mode is supported by this CLI.
+  // `supervised` is implicit for normal CLIs, but `dangerByDefault` LLMs (e.g. Pi) have no
+  // supervised mode at all — the API must reject it so callers cannot bypass the auto-only UI.
+  if (llm.dangerByDefault) {
+    if (!llm.modes.includes(mode)) {
+      return badRequest(res, `${llm.name} does not support "${mode}" mode. Supported: ${llm.modes.join(', ')}`);
+    }
+  } else if (mode !== 'supervised' && !llm.modes.includes(mode)) {
     return badRequest(res, `${llm.name} does not support "${mode}" mode. Supported: ${llm.modes.join(', ')}`);
   }
 
@@ -1203,7 +1239,7 @@ router.post('/invite', asyncHandler(async (req: Request, res: Response) => {
   // Pre-register the invited pane in chat so the room can address it even if
   // the client starts with `chat_join` missing from the deferred tool list.
   const fallbackParticipant = registry.join(cli, 'llm', paneId, cli, '\r', projectId, 'rest');
-  const bootstrap = buildChatJoinPrompt(cli, paneId, fallbackParticipant.name);
+  const bootstrap = buildChatJoinPrompt(cli, paneId, fallbackParticipant.name, fallbackParticipant.projectId ?? null);
   const inviteCmd = llm.launchCmd(bootstrap, mode, resolvedBin);
 
   // Wait for the shell to be ready, then inject the LLM launch command.
