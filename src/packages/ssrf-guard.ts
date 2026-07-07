@@ -53,9 +53,19 @@ function isPrivateIP(ip: string): boolean {
     const firstHextet = parseInt(normalized.split(':')[0] || '0', 16);
     if (firstHextet >= 0xfe80 && firstHextet <= 0xfebf) return true; // link-local fe80::/10
     if (firstHextet >= 0xfc00 && firstHextet <= 0xfdff) return true; // ULA fc00::/7
-    // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1)
+    // IPv4-mapped IPv6, dotted form (e.g. ::ffff:127.0.0.1)
     const v4match = normalized.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
     if (v4match) return isPrivateIP(v4match[1]);
+    // IPv4-mapped (hex form, e.g. ::ffff:7f00:1) and IPv4-compatible
+    // (e.g. ::7f00:1) — extract the low 32 bits and classify as IPv4.
+    // Some getaddrinfo implementations return the non-normalized hex form.
+    const hexMapped = normalized.match(/^::(?:ffff:)?([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+    if (hexMapped) {
+      const hi = parseInt(hexMapped[1], 16);
+      const lo = parseInt(hexMapped[2], 16);
+      const v4 = `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+      return isPrivateIP(v4);
+    }
     return false;
   }
 

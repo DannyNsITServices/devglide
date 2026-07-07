@@ -5,6 +5,7 @@ import { stats } from "../services/stats.js";
 import { mimeFromFilename } from "../utils/mime.js";
 import { transcribe } from "../transcribe.js";
 import { errorMessage } from "../../../../packages/error-middleware.js";
+import { isValidLanguage, validateAudioBase64 } from "../utils/validate.js";
 
 export const transcribeRouter: Router = Router();
 
@@ -22,33 +23,16 @@ export async function handleTranscribe(req: Request, res: Response) {
     return;
   }
 
-  // Reject payloads larger than 25MB of base64 (~18.75MB decoded)
-  if (audioBase64.length > 25 * 1024 * 1024) {
-    res.status(413).json({ error: "audioBase64 exceeds maximum size (25MB)" });
+  const b64Error = validateAudioBase64(audioBase64);
+  if (b64Error) {
+    res.status(b64Error.includes("maximum size") ? 413 : 400).json({ error: b64Error });
     return;
   }
 
-  // Validate base64: check length is valid and content uses only base64 chars.
-  // Use a chunked regex to avoid catastrophic backtracking on large strings.
-  const b64Len = audioBase64.length;
-  if (b64Len % 4 !== 0) {
-    res.status(400).json({ error: "audioBase64 is not valid base64" });
-    return;
-  }
-  const b64ChunkRe = /^[A-Za-z0-9+/]*$/;
-  const CHUNK = 64 * 1024; // validate in 64KB chunks
-  let b64Valid = true;
-  for (let off = 0; off < b64Len; off += CHUNK) {
-    const slice = audioBase64.slice(off, Math.min(off + CHUNK, b64Len));
-    // Allow trailing '=' only in the final chunk
-    if (off + CHUNK >= b64Len) {
-      if (!/^[A-Za-z0-9+/]*={0,2}$/.test(slice)) { b64Valid = false; break; }
-    } else {
-      if (!b64ChunkRe.test(slice)) { b64Valid = false; break; }
-    }
-  }
-  if (!b64Valid) {
-    res.status(400).json({ error: "audioBase64 is not valid base64" });
+  // The local whisper provider passes language into a shell command — reject
+  // anything that is not a plain BCP 47 tag before it reaches a provider.
+  if (language !== undefined && !isValidLanguage(language)) {
+    res.status(400).json({ error: `Invalid language value "${language}". Use BCP 47 code (e.g. "en", "en-US") or "auto".` });
     return;
   }
 

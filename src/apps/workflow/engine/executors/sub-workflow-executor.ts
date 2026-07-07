@@ -47,8 +47,11 @@ export const subWorkflowExecutor: ExecutorFunction = async (
       emit(event);
     };
 
-    // Pass the parent context as cancel token so cancellation propagates to sub-workflows
-    const result = await runWorkflow(workflow, childEmit, undefined, childVariables, context.services, context);
+    // Pass the run's ROOT cancel token — the parent's own `cancelled` flag is
+    // only mirrored at its loop head, which is suspended while this node
+    // awaits, so it never flips mid-sub-workflow. The root token is the one
+    // RunManager actually sets on cancel/shutdown.
+    const result = await runWorkflow(workflow, childEmit, undefined, childVariables, context.services, context.cancelToken ?? context);
 
     const outputVars: Record<string, unknown> = {};
     if (cfg.outputMappings && result.variables) {

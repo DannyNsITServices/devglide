@@ -50,7 +50,9 @@ const messagesQuerySchema = z.object({
 const pipeEventsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().optional(),
   since: z.string().optional(),
-  pipeId: z.string().optional(),
+  // The id is interpolated into a filesystem path by the store — allow only
+  // word chars and dashes (no separators, no dots → no traversal).
+  pipeId: z.string().regex(/^[\w-]+$/, 'Invalid pipeId').optional(),
 });
 
 // ── Zod schemas (join/leave/send) ────────────────────────────────────────────
@@ -1367,7 +1369,14 @@ export function initChat(nsp: Namespace): void {
     // Handle clear from dashboard
     socket.on('chat:clear', () => {
       const socketProjectId = typeof socket.data.chatProjectId === 'string' ? socket.data.chatProjectId : null;
-      registry.clearHistory(socketProjectId);
+      try {
+        registry.clearHistory(socketProjectId);
+      } catch (err) {
+        // clearHistory does sync fs work (unlink/write) — a throw (e.g.
+        // Windows EBUSY on a locked pipe file) must not escape the socket.io
+        // listener. Mirrors the chat:send guard above.
+        socket.emit('chat:error', { error: err instanceof Error ? err.message : String(err) });
+      }
     });
   });
 }

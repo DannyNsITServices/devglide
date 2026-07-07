@@ -55,9 +55,14 @@ export async function runWorkflow(
     status: 'running',
     startedAt: new Date().toISOString(),
     cancelled: false,
+    loopStack: [],
     project: projectSnapshot,
     services: services ?? {},
   };
+  // Carry the root cancel token so sub-workflow executors can hand it to
+  // their children — the parent's own `cancelled` flag is only mirrored at
+  // the loop head, which is suspended while a sub-workflow node runs.
+  context.cancelToken = cancelToken ?? { cancelled: false };
 
   for (const v of workflow.variables) {
     if (v.defaultValue !== undefined) {
@@ -132,7 +137,14 @@ export async function runWorkflow(
     const existingState = context.nodeStates.get(nodeId);
     if (existingState && (existingState.status === 'passed' || existingState.status === 'failed')) {
       if (node.type !== 'loop') {
-        enqueueSuccessors(node, outgoing, context, queue, queueSet, emit);
+        // A failed node must forward its ERROR edges, not its normal
+        // successors — otherwise a stall-failed join re-dequeued later fires
+        // its downstream branch in a run already reported as failed.
+        if (existingState.status === 'failed') {
+          handleFailure(node, outgoing, context, queue, queueSet, emit);
+        } else {
+          enqueueSuccessors(node, outgoing, context, queue, queueSet, emit);
+        }
         continue;
       }
     }
@@ -151,6 +163,16 @@ export async function runWorkflow(
       handleFailure(node, outgoing, context, queue, queueSet, emit);
       continue;
     }
+
+    // The node is actually executing — its waiting is over, so its stall
+    // budget resets (a legitimately-waiting join otherwise burns budget once
+    // per interleaved node execution and false-positives near loops).
+    requeueCounts.delete(nodeId);
+
+    // Resolve {{loop.*}} against the innermost active loop whose body
+    // contains this node — a single shared slot is clobbered by
+    // nested/parallel loops.
+    context.loopContext = loopContextForNode(nodeId, context);
 
     // Provide predecessor IDs so decision executor can find actual predecessors
     if (node.config.nodeType === 'decision') {
@@ -173,7 +195,7 @@ export async function runWorkflow(
       // route a later (or failed) decision down the wrong branch.
       context.variables.delete('__decision_port');
     } else if (node.config.nodeType === 'loop') {
-      handleLoop(node, outgoing, incoming, context, queue, queueSet, emit, nodeMap, loopCounters, activeLoopBodies);
+      handleLoop(node, outgoing, incoming, context, queue, queueSet, emit, nodeMap, loopCounters, activeLoopBodies, requeueCounts);
     } else if (result.status === 'failed') {
       handleFailure(node, outgoing, context, queue, queueSet, emit);
     } else {
@@ -207,18 +229,43 @@ function allPredecessorsComplete(
   });
 }
 
-/** An edge out of a passed decision fires only for the selected port. */
+/**
+ * An edge that can no longer fire, given its source's terminal state:
+ * decision edges for unselected ports, conditional edges whose condition is
+ * false, and error edges out of a node that passed. Nodes reachable only
+ * through such edges count as skipped so joins do not stall forever.
+ */
 function isEdgeUntaken(
   edge: WorkflowEdge,
   nodeMap: Map<string, WorkflowNode>,
   context: ExecutionContext,
 ): boolean {
+  const srcState = context.nodeStates.get(edge.source);
+  const srcTerminal = srcState && (srcState.status === 'passed' || srcState.status === 'failed');
+
+  // Error edges fire only on failure — after a pass they are dead.
+  if (srcTerminal && edge.sourcePort === 'error' && srcState.status === 'passed') return true;
+
+  // Conditional edge whose condition evaluated false never fires.
+  if (srcTerminal && edge.condition && !evaluateEdgeCondition(edge, context)) return true;
+
   const srcNode = nodeMap.get(edge.source);
   if (srcNode?.config.nodeType !== 'decision') return false;
-  const srcState = context.nodeStates.get(edge.source);
   if (srcState?.status !== 'passed') return false;
   // The decision executor stores the selected port in the node state output
   return typeof srcState.output === 'string' && edge.sourcePort !== srcState.output;
+}
+
+/**
+ * Innermost active loop frame whose body contains `nodeId` (frames are
+ * pushed outermost-first, so scan from the end).
+ */
+function loopContextForNode(nodeId: string, context: ExecutionContext) {
+  const stack = context.loopStack ?? [];
+  for (let i = stack.length - 1; i >= 0; i--) {
+    if (stack[i].bodyIds.has(nodeId)) return stack[i].ctx;
+  }
+  return undefined;
 }
 
 /**
@@ -359,6 +406,7 @@ function handleLoop(
   nodeMap: Map<string, WorkflowNode>,
   loopCounters: Map<string, number>,
   activeLoopBodies: Map<string, Set<string>>,
+  requeueCounts: Map<string, number>,
 ): void {
   const config = node.config as LoopConfig;
   const maxIter = config.maxIterations ?? MAX_LOOP_ITERATIONS;
@@ -371,18 +419,43 @@ function handleLoop(
   const shouldContinue = evaluateLoopCondition(config, counter, context);
 
   if (shouldContinue && counter < maxIter) {
-    context.loopContext = {
+    const loopCtx = {
       index: counter,
       item: getLoopItem(config, counter, context),
       collection: getLoopCollection(config, context),
     };
+    context.loopContext = loopCtx;
+    // Expose the current item under the user-configured variable name — the
+    // builder UI offers `itemVariable` and body nodes reference it via
+    // {{variables.<name>}}.
+    if (config.loopType === 'for-each' && config.itemVariable) {
+      context.variables.set(config.itemVariable, loopCtx.item);
+    }
 
     emit({ type: 'loop_iteration', nodeId: node.id, index: counter });
     loopCounters.set(node.id, counter + 1);
 
     const bodyNodeIds = collectBodyNodes(bodyEdges, outgoing, doneEdges.map((e) => e.target));
+
+    // Register/refresh this loop's frame so body nodes resolve {{loop.*}}
+    // against the right loop even when loops nest or run in parallel.
+    const stack = (context.loopStack ??= []);
+    const frame = stack.find((f) => f.loopId === node.id);
+    if (frame) {
+      frame.ctx = loopCtx;
+      frame.bodyIds = bodyNodeIds;
+    } else {
+      stack.push({ loopId: node.id, bodyIds: bodyNodeIds, ctx: loopCtx });
+    }
+
     for (const id of bodyNodeIds) {
       context.nodeStates.delete(id);
+      // Reset per-node bookkeeping too: an inner loop must restart from
+      // iteration 0 on each outer iteration, and body nodes get a fresh
+      // stall budget.
+      loopCounters.delete(id);
+      activeLoopBodies.delete(id);
+      requeueCounts.delete(id);
     }
 
     for (const edge of bodyEdges) {
@@ -409,6 +482,11 @@ function handleLoop(
   } else {
     context.loopContext = undefined;
     activeLoopBodies.delete(node.id);
+    // Loop finished — drop its frame so nodes after it resolve {{loop.*}}
+    // against the enclosing loop (if any) instead of this one.
+    if (context.loopStack) {
+      context.loopStack = context.loopStack.filter((f) => f.loopId !== node.id);
+    }
     for (const edge of doneEdges) {
       emit({ type: 'edge_traversed', edgeId: edge.id, source: edge.source, target: edge.target });
       if (!queueSet.has(edge.target)) {

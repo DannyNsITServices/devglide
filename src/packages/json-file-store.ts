@@ -98,7 +98,10 @@ export abstract class JsonFileStore<T extends BaseEntity> {
         await fs.access(dest);
         // dest already exists — skip
       } catch {
-        await fs.rename(src, dest);
+        // Two concurrent first-writes for the same project can race this
+        // access/rename pair — losing the race just means the other call
+        // already moved the file, so ignore the failed rename.
+        try { await fs.rename(src, dest); } catch { /* already migrated */ }
       }
     }
     // Remove legacy dir if now empty
@@ -168,6 +171,21 @@ export abstract class JsonFileStore<T extends BaseEntity> {
         await fs.unlink(path.join(this.getGlobalDir(), `${id}.json`));
         return true;
       } catch {
+        // No active project (stdio MCP mode): get() can find entities in any
+        // project dir, so delete() must be able to remove them there too.
+        if (!projectDir) {
+          const located = await this.locateExisting(id);
+          if (located?.scope === 'project' && located.projectId) {
+            try {
+              await fs.unlink(path.join(this.getDirForProject(located.projectId), `${id}.json`));
+              return true;
+            } catch { /* fall through */ }
+            try {
+              await fs.unlink(path.join(this.baseDir, located.projectId, `${id}.json`));
+              return true;
+            } catch { /* fall through */ }
+          }
+        }
         return false;
       }
     });
@@ -197,6 +215,39 @@ export abstract class JsonFileStore<T extends BaseEntity> {
   }
 
   // ── Scope resolution ──────────────────────────────────────────────────
+
+  /**
+   * Locate the scope (and owning project) an existing entity lives in.
+   * Unlike resolveExistingScope, this also searches all project dirs when
+   * no active project is set (stdio MCP mode) so updates/deletes act on the
+   * owning file instead of creating a shadowed global duplicate.
+   */
+  protected async locateExisting(id: string): Promise<{ scope: 'project' | 'global'; projectId?: string } | undefined> {
+    const scope = await this.resolveExistingScope(id);
+    if (scope) return { scope, projectId: scope === 'project' ? getActiveProject()?.id : undefined };
+
+    const featureName = path.basename(this.baseDir);
+    // New project dirs: ~/.devglide/projects/{projectId}/{feature}/
+    let projectIds: string[] = [];
+    try { projectIds = await fs.readdir(PROJECTS_DIR); } catch { /* none */ }
+    for (const projectId of projectIds) {
+      try {
+        await fs.access(path.join(PROJECTS_DIR, projectId, featureName, `${id}.json`));
+        return { scope: 'project', projectId };
+      } catch { /* keep looking */ }
+    }
+    // Legacy project dirs: baseDir/{projectId}/
+    let names: string[] = [];
+    try { names = await fs.readdir(this.baseDir); } catch { /* none */ }
+    for (const name of names) {
+      if (name.endsWith('.json')) continue;
+      try {
+        await fs.access(path.join(this.baseDir, name, `${id}.json`));
+        return { scope: 'project', projectId: name };
+      } catch { /* keep looking */ }
+    }
+    return undefined;
+  }
 
   protected async resolveExistingScope(id: string): Promise<'project' | 'global' | undefined> {
     this.assertSafeId(id);

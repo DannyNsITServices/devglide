@@ -78,6 +78,15 @@ describe('parseTargetTokens', () => {
     expect(registry.parseTargetTokens('@claude-7 and @claude-7 again')).toEqual(['claude-7']);
   });
 
+  it('ignores mid-word @ (emails must not become mentions)', () => {
+    expect(registry.parseTargetTokens('ping admin@example.com about the outage')).toEqual([]);
+    expect(registry.parseTargetTokens('contact a@b and c@d please')).toEqual([]);
+  });
+
+  it('still extracts a mention at start or after brackets', () => {
+    expect(registry.parseTargetTokens('(@claude-7) take this')).toEqual(['claude-7']);
+  });
+
   it('merges explicit to param for user senders', () => {
     expect(registry.parseTargetTokens('@codex-14 review', 'claude-7', 'user')).toEqual(['claude-7', 'codex-14']);
   });

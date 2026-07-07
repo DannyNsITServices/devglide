@@ -26,11 +26,28 @@ function evaluateExpression(expr: string): boolean {
   return evaluateComparison(expr);
 }
 
+/**
+ * Index of `op` in `expr` outside quoted regions — a plain indexOf misparses
+ * expressions whose interpolated operand values contain operator characters
+ * (e.g. left operand "x != y" shifting the split point).
+ */
+function indexOfOutsideQuotes(expr: string, op: string): number {
+  let inSingle = false;
+  let inDouble = false;
+  for (let i = 0; i <= expr.length - op.length; i++) {
+    const ch = expr[i];
+    if (ch === '"' && !inSingle) { inDouble = !inDouble; continue; }
+    if (ch === "'" && !inDouble) { inSingle = !inSingle; continue; }
+    if (!inSingle && !inDouble && expr.startsWith(op, i)) return i;
+  }
+  return -1;
+}
+
 function evaluateComparison(expr: string): boolean {
   const operators = ['!=', '==', '>=', '<=', '>', '<', ' contains ', ' matches '] as const;
 
   for (const op of operators) {
-    const idx = expr.indexOf(op);
+    const idx = indexOfOutsideQuotes(expr, op);
     if (idx === -1) continue;
 
     const left = expr.slice(0, idx).trim();

@@ -16,7 +16,11 @@ export function safeLogPath(targetPath: string): string {
   const resolved = path.isAbsolute(targetPath)
     ? path.resolve(targetPath)
     : path.resolve(LOG_ROOT, targetPath);
-  if (!resolved.startsWith(LOG_ROOT + path.sep)) {
+  // Windows paths are case-insensitive — fold both sides so a valid absolute
+  // path with a different drive-letter/directory case is not rejected. The
+  // containment check itself stays (fails closed on real traversal).
+  const fold = (p: string) => (process.platform === 'win32' ? p.toLowerCase() : p);
+  if (!fold(resolved).startsWith(fold(LOG_ROOT + path.sep))) {
     throw new Error('Path traversal denied');
   }
   const ext = path.extname(resolved).toLowerCase();

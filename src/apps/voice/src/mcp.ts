@@ -4,6 +4,7 @@ import { transcribe } from "./transcribe.js";
 import { stats } from "./services/stats.js";
 import { historyStore } from "./services/history-store.js";
 import { mimeFromFilename } from "./utils/mime.js";
+import { isValidLanguage, validateAudioBase64 } from "./utils/validate.js";
 import { configStore } from "./services/config-store.js";
 import { speak, stop as ttsStop } from "./services/tts.js";
 
@@ -76,6 +77,14 @@ export function createVoiceMcpServer() {
     async ({ audioBase64, filename, language, prompt, mode }) => {
       const startTime = Date.now();
       try {
+        // Same guards as the REST route: size/charset for the payload, and a
+        // strict language tag — the local whisper provider passes language
+        // into a shell command.
+        const b64Error = validateAudioBase64(audioBase64);
+        if (b64Error) throw new Error(b64Error);
+        if (language !== undefined && !isValidLanguage(language)) {
+          throw new Error(`Invalid language value "${language}". Use BCP 47 code (e.g. "en", "en-US") or "auto".`);
+        }
         const name = filename || "audio.webm";
         const buffer = Buffer.from(audioBase64, "base64");
         const file = new File([buffer], name, {

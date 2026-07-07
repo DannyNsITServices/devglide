@@ -13,8 +13,9 @@
  * since Linux audio binaries aren't typically available in WSL.
  */
 
-import { unlinkSync, readFileSync, existsSync } from "fs";
-import { join } from "path";
+import { unlinkSync, readFileSync, existsSync, mkdirSync, rmdirSync } from "fs";
+import { join, dirname } from "path";
+import { randomBytes } from "crypto";
 import { tmpdir } from "os";
 import { platform } from "os";
 import { spawn, execSync, spawnSync, type ChildProcess } from "child_process";
@@ -31,6 +32,12 @@ let _sessionId = 0;
 function safeUnlink(path: string | null): void {
   if (!path) return;
   try { unlinkSync(path); } catch { /* already gone */ }
+  // Each generation gets its own subdirectory under devglide-tts — remove it
+  // once its file is gone (rmdirSync only succeeds when empty).
+  try {
+    const dir = dirname(path);
+    if (dirname(dir).endsWith("devglide-tts")) rmdirSync(dir);
+  } catch { /* not empty or already gone */ }
 }
 
 /** Track a temp file as belonging to a TTS session. */
@@ -305,8 +312,12 @@ async function generateEdgeTts(
     const tts = new _MsEdgeTTS();
     await tts.setMetadata(voice, _OUTPUT_FORMAT!.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
 
-    // Always write to native temp — playMp3() handles Windows path conversion
-    const outDir = tmpdir();
+    // msedge-tts writes a CONSTANT filename (audio.mp3) into the directory it
+    // is given. Chunked playback generates chunk i+1 while chunk i plays, so
+    // every generation must get its own directory or it overwrites the file
+    // currently being played. Native temp — playMp3() handles Windows paths.
+    const outDir = join(tmpdir(), "devglide-tts", randomBytes(6).toString("hex"));
+    mkdirSync(outDir, { recursive: true });
 
     // Race against a timeout — msedge-tts can hang on bad config.
     // Scale timeout with text length: 15s base + 1s per 40 chars (≈ per sentence).
@@ -606,14 +617,17 @@ export async function speak(text: string): Promise<void> {
       _activeProcess = playMp3(playPath);
       console.error(`[voice:tts] playMp3 started, process=${_activeProcess?.pid ?? 'null'}`);
       if (_activeProcess) {
+        // Safety net: clean up if the exit event never fires. Cleared on exit
+        // so a long MP3 (>2 min, e.g. the single-shot fallback for long text)
+        // is not deleted mid-playback.
+        const safetyTimer = setTimeout(() => { cleanupSessionFiles(mySession); }, 120_000);
+        safetyTimer.unref?.();
         _activeProcess.on("exit", (code) => {
           console.error(`[voice:tts] playback exited code=${code}`);
+          clearTimeout(safetyTimer);
           cleanupSessionFiles(mySession);
           _activeProcess = null;
         });
-        // Safety: clean up this session's files after 2 minutes even if exit
-        // never fires (no-op if they were already cleaned up)
-        setTimeout(() => { cleanupSessionFiles(mySession); }, 120_000);
       } else {
         // Playback didn't start — clean up immediately
         cleanupSessionFiles(mySession);
