@@ -55,7 +55,8 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
           echo "RELEASE_BRANCH=release/v${VERSION}" >> "$GITHUB_ENV"
-          # main is protected (requires a PR), so commit to a release branch and merge via PR.
+          # Never touch main directly: commit the bump to a release branch; a PR
+          # into develop is opened below, and develop is promoted to main manually.
           git switch -c "release/v${VERSION}"
           git add package.json
           git commit -m "release: v${VERSION}"
@@ -71,13 +72,15 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Push release branch and tag, open auto-merge PR
+      - name: Push release branch and tag, open auto-merge PR into develop
         if: ${{ inputs.dry-run != true }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_BRANCH: develop
         run: |
           git push origin "${RELEASE_BRANCH}"
           git push origin --tags
           # gh CLI is not installed on the self-hosted runner — open the PR + enable
-          # auto-merge via the GitHub API (Node global fetch) instead.
+          # auto-merge via the GitHub API (Node global fetch) instead. The PR targets
+          # develop; main only receives the bump via the manual develop -> main merge.
           node .github/scripts/open-release-pr.mjs
