@@ -40,7 +40,13 @@ function mapIssue(row: IssueLikeRow | undefined): Record<string, unknown> | unde
 // GET /api/issues
 issuesRouter.get("/", asyncHandler(async (req: Request, res: Response) => {
     const qp = listIssuesQuerySchema.safeParse(req.query);
-    const { featureId, columnId, priority, type } = qp.success ? qp.data : {};
+    if (!qp.success) {
+      // Silently dropping the filters here would return every issue of every
+      // feature for a malformed query — fail loudly like the other handlers.
+      badRequest(res, qp.error.issues[0]?.message ?? "Invalid query");
+      return;
+    }
+    const { featureId, columnId, priority, type } = qp.data;
     const db = getDb(req.projectId);
 
     const conditions: string[] = [];
@@ -222,8 +228,21 @@ issuesRouter.post("/reorder", asyncHandler(async (req: Request, res: Response) =
 
     const txn = db.transaction(() => {
       // Verify issue exists BEFORE shifting
-      const existing = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(issueId);
-      if (!existing) return null;
+      const existing = db.prepare(`SELECT * FROM "Issue" WHERE "id" = ?`).get(issueId) as
+        | { projectId: string }
+        | undefined;
+      if (!existing) return { error: "issue" as const };
+
+      // The target column must exist and belong to the issue's feature —
+      // otherwise the issue's columnId points into another board while its
+      // projectId stays put, making it invisible on every board (same check
+      // PATCH /:id performs).
+      const col = db.prepare(`SELECT "projectId" FROM "Column" WHERE "id" = ?`).get(newColumnId) as
+        | { projectId: string }
+        | undefined;
+      if (!col || col.projectId !== existing.projectId) {
+        return { error: "column" as const };
+      }
 
       // Shift existing issues in target column
       db.prepare(
@@ -235,12 +254,16 @@ issuesRouter.post("/reorder", asyncHandler(async (req: Request, res: Response) =
         `UPDATE "Issue" SET "columnId" = ?, "order" = ?, "updatedAt" = ? WHERE "id" = ?`
       ).run(newColumnId, newOrder, now, issueId);
 
-      return existing;
+      return { error: null };
     });
 
     const result = txn();
-    if (!result) {
+    if (result.error === "issue") {
       notFound(res, "Issue not found");
+      return;
+    }
+    if (result.error === "column") {
+      badRequest(res, "Provided newColumnId does not belong to the issue's feature.");
       return;
     }
 

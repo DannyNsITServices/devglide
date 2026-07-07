@@ -177,19 +177,22 @@ export function createDocumentationMcpServer(): McpServer {
       content: z.string().describe('JSON string with the fields to update'),
     },
     async ({ id, content }) => {
-      const existing = await store.get(id);
-      if (!existing) return errorResult('Entry not found');
-
       let updates: Record<string, unknown>;
       try {
         updates = JSON.parse(content);
       } catch {
         return errorResult('Invalid JSON in content field');
       }
+      // Never let a payload change identity or type
+      delete updates.id;
+      delete updates.type;
+      delete updates.projectId;
 
-      const merged = { ...existing, ...updates, id, type: existing.type };
       try {
-        const entry = await store.save(merged as any);
+        // Atomic read-merge-write inside the store lock — a separate
+        // get()+save() here loses concurrent field updates.
+        const entry = await store.update(id, updates as Parameters<typeof store.update>[1]);
+        if (!entry) return errorResult('Entry not found');
         return jsonResult(entry);
       } catch (err) {
         return errorResult(`Validation failed: ${(err as Error).message}`);

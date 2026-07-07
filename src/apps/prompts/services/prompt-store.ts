@@ -115,39 +115,6 @@ export class PromptStore extends JsonFileStore<Prompt> {
   }
 
   /**
-   * Locate the scope (and owning project) an existing entity lives in.
-   * Unlike resolveExistingScope, this also searches all project dirs when
-   * no active project is set (stdio MCP mode) so updates write in place
-   * instead of creating a shadowed global duplicate.
-   */
-  private async locateExisting(id: string): Promise<{ scope: 'project' | 'global'; projectId?: string } | undefined> {
-    const scope = await this.resolveExistingScope(id);
-    if (scope) return { scope, projectId: scope === 'project' ? getActiveProject()?.id : undefined };
-
-    const featureName = path.basename(this.baseDir);
-    // New project dirs: ~/.devglide/projects/{projectId}/{feature}/
-    let projectIds: string[] = [];
-    try { projectIds = await fs.readdir(PROJECTS_DIR); } catch { /* none */ }
-    for (const projectId of projectIds) {
-      try {
-        await fs.access(path.join(PROJECTS_DIR, projectId, featureName, `${id}.json`));
-        return { scope: 'project', projectId };
-      } catch { /* keep looking */ }
-    }
-    // Legacy project dirs: baseDir/{projectId}/
-    let names: string[] = [];
-    try { names = await fs.readdir(this.baseDir); } catch { /* none */ }
-    for (const name of names) {
-      if (name.endsWith('.json')) continue;
-      try {
-        await fs.access(path.join(this.baseDir, name, `${id}.json`));
-        return { scope: 'project', projectId: name };
-      } catch { /* keep looking */ }
-    }
-    return undefined;
-  }
-
-  /**
    * Atomically fetch, merge, and write — eliminates TOCTOU race in callers.
    * undefined = keep existing, null = clear field, value = update.
    */

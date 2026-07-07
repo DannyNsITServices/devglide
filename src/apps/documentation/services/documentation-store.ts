@@ -137,18 +137,54 @@ export class DocumentationStore extends JsonFileStore<DocEntry> {
       } as DocEntry;
 
       let scope = inputScope;
+      let scopeProjectId = getActiveProject()?.id;
       if (!scope && isUpdate) {
-        scope = await this.resolveExistingScope(input.id!);
+        // locateExisting (not resolveExistingScope) so a stdio MCP process
+        // with no active project updates the owning project's copy in place
+        // instead of writing a global duplicate that the stale project copy
+        // then shadows.
+        const located = await this.locateExisting(input.id!);
+        if (located) {
+          scope = located.scope;
+          scopeProjectId = located.projectId ?? scopeProjectId;
+        }
       }
       scope = scope ?? (getActiveProject() ? 'project' : 'global');
 
-      const activeProjectId = getActiveProject()?.id;
       // Record the owning project on project-scoped entries so
       // getCompiledContext can filter out other projects' overrides.
-      entry.projectId = scope === 'project' && activeProjectId ? activeProjectId : undefined;
+      entry.projectId = scope === 'project' && scopeProjectId ? scopeProjectId : undefined;
 
-      await this.writeEntity(entry, scope, activeProjectId);
+      await this.writeEntity(entry, scope, scopeProjectId);
       return entry;
+    });
+  }
+
+  /**
+   * Atomically fetch, merge, and write — eliminates the get→merge→save TOCTOU
+   * race in callers. undefined = keep existing, null = clear field.
+   */
+  async update(
+    id: string,
+    fields: { [K in keyof Omit<DocEntry, 'id' | 'createdAt' | 'updatedAt' | 'projectId'>]?: DocEntry[K] | null },
+  ): Promise<DocEntry | null> {
+    return this.withLock(id, async () => {
+      const existing = await this.get(id);
+      if (!existing) return null;
+
+      const merged: DocEntry = { ...existing, updatedAt: new Date().toISOString() };
+      for (const [key, value] of Object.entries(fields)) {
+        if (value === undefined) continue;
+        (merged as unknown as Record<string, unknown>)[key] = value === null ? undefined : value;
+      }
+      this.validateEntry(merged as unknown as Record<string, unknown>);
+
+      const located = await this.locateExisting(id);
+      const scope = located?.scope ?? (getActiveProject() ? 'project' : 'global');
+      const scopeProjectId = located?.projectId ?? getActiveProject()?.id;
+      merged.projectId = scope === 'project' && scopeProjectId ? scopeProjectId : undefined;
+      await this.writeEntity(merged, scope, scopeProjectId);
+      return merged;
     });
   }
 

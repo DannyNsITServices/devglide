@@ -750,10 +750,13 @@ export async function send(from: string, body: string, to?: string, projectId?: 
   if (plan.recipients.length > 0) {
     expectedDeliveryCount = plan.recipients.length;
   } else if (plan.fallbackBroadcast) {
-    // Count broadcast targets (Option B fallback)
+    // Count broadcast targets (Option B fallback). Exclude detached
+    // participants — deliverToPty skips them, and counting them reports
+    // deliveries that never happened (e.g. restored-but-unreclaimed agents
+    // after a server restart).
     expectedDeliveryCount = 0;
     for (const p of participants.values()) {
-      if (p.name !== from && p.paneId && p.projectId === resolvedSenderProjectId) {
+      if (p.name !== from && p.paneId && !p.detached && p.projectId === resolvedSenderProjectId) {
         expectedDeliveryCount++;
       }
     }
@@ -784,8 +787,9 @@ export async function send(from: string, body: string, to?: string, projectId?: 
     }
   } else if (plan.fallbackBroadcast) {
     // Option B: unaddressed user/system messages still broadcast
+    // (skip detached participants — matches the count above and deliverToPty)
     for (const p of participants.values()) {
-      if (p.name !== from && p.paneId && p.projectId === resolvedSenderProjectId) {
+      if (p.name !== from && p.paneId && !p.detached && p.projectId === resolvedSenderProjectId) {
         await deliverToPty(p.name, resolvedSenderProjectId, msg);
       }
     }
@@ -822,12 +826,15 @@ export function parseTargetTokens(body: string, to?: string, senderKind?: 'user'
     if (normalized && !tokens.includes(normalized)) tokens.push(normalized);
   }
 
-  // Scan body for all @mentions
-  const regex = /@(\S+)/g;
+  // Scan body for all @mentions. The @ must start a word (start of string or
+  // after whitespace/bracket) — a mid-word @ is an email/decorator/code token
+  // ("admin@example.com", "npm i @types/node"), and treating it as a mention
+  // both mistargets delivery and suppresses the unaddressed-broadcast
+  // fallback. Token charset matches participant-name derivation.
+  const regex = /(?:^|[\s([{<])@([\w-]+)/g;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(body)) !== null) {
-    // Strip trailing punctuation (handles "@claude-7," or "@all:")
-    const token = match[1].replace(/[,.:;!?]+$/, '');
+    const token = match[1];
     if (token && !tokens.includes(token)) tokens.push(token);
   }
 
@@ -937,7 +944,18 @@ function deliverToPty(targetName: string, projectId: string | null, msg: ChatMes
       }
 
       const header = formatPtyHeader(targetName, msg);
-      let formatted = `${header} @${msg.from}: ${msg.body}`;
+      // Sanitize the body before it reaches another agent's terminal:
+      // - \r would submit attacker-chosen partial input immediately on
+      //   line-based CLIs, defeating the deliberate delayed-submit design
+      // - ANSI escapes pass through to the recipient's TUI
+      // - a line matching the injected-header pattern would forge the
+      //   server-controlled authority header ("Assigned by: pipe")
+      const sanitizedBody = stripAnsi(msg.body)
+        .replace(/\r\n?/g, '\n')
+        .split('\n')
+        .map((line) => (isChatInjectedOutput(line) ? `> ${line}` : line))
+        .join('\n');
+      let formatted = `${header} @${msg.from}: ${sanitizedBody}`;
 
       // Write with retry — if the initial write fails, retry once after a short delay
       let writeOk = false;
@@ -1047,7 +1065,10 @@ export function getParticipantByPaneId(paneId: string, projectId?: string | null
 /** Clear chat history for the active project and notify dashboard clients. */
 export function clearHistory(projectId?: string | null): void {
   const pid = resolveProjectId(projectId);
-  clearMessages(pid);
+  // Preserve the persistence files of pipes that are still running — their
+  // event logs are the crash-recovery source of truth.
+  const running = new Set(pipeStore.listActivePipes(pid).map((p) => p.pipeId));
+  clearMessages(pid, running);
   emitToProject('chat:cleared', {}, pid);
 }
 

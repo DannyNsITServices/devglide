@@ -45,6 +45,7 @@ import {
   chatServerSessions,
   registerChatMcpHttpSession,
   unregisterChatMcpHttpSession,
+  isNameTrackedByAnotherSession,
 } from './routers/chat.js';
 import { router as documentationRouter, createDocumentationMcpServer } from './routers/documentation.js';
 import * as chatRegistry from './apps/chat/services/chat-registry.js';
@@ -57,7 +58,7 @@ import * as chatRegistry from './apps/chat/services/chat-registry.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '..');
-const PORT = parseInt(process.env.PORT || '7000', 10);
+const PORT = parseInt(process.env.DEVGLIDE_PORT || process.env.PORT || '7000', 10);
 
 // ---------------------------------------------------------------------------
 // Server sniffer — captures server-side console output to disk
@@ -121,6 +122,15 @@ const jsonLarge = express.json({ limit: '25mb' });
 app.use((req, res, next) => {
   const isVoiceUpload = req.path.startsWith('/api/voice/transcribe');
   (isVoiceUpload ? jsonLarge : jsonDefault)(req, res, next);
+});
+
+// ---------------------------------------------------------------------------
+// Health check — used by the CLI to verify a daemon actually bound the port
+// ---------------------------------------------------------------------------
+
+const SERVER_STARTED_AT = new Date().toISOString();
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, pid: process.pid, startedAt: SERVER_STARTED_AT });
 });
 
 // ---------------------------------------------------------------------------
@@ -271,7 +281,13 @@ mountMcpHttp(app, createChatMcpServer, '/mcp/chat', {
     if (entries) {
       // Detach instead of leave — alias stays reserved for reclaim on rejoin.
       // Full removal happens only on pane closure or explicit chat_leave.
-      for (const entry of entries) chatRegistry.detach(entry.name, entry.projectId);
+      // Skip participants that a NEWER live session has since reclaimed
+      // (e.g. CLI restarted in the same pane, old session TTL-reaped later) —
+      // detaching them would fail their running pipes and eject a live agent.
+      for (const entry of entries) {
+        if (isNameTrackedByAnotherSession(server, entry.name, entry.projectId)) continue;
+        chatRegistry.detach(entry.name, entry.projectId);
+      }
       chatServerSessions.delete(server);
     }
     unregisterChatMcpHttpSession(server, sessionId);
@@ -326,6 +342,14 @@ async function bootstrap() {
   if (stored) setActiveProject(stored);
 
   // Start listening
+  httpServer.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`[devglide] port :${PORT} is already in use — is another devglide server running?`);
+    } else {
+      console.error('[devglide] server failed to listen:', err);
+    }
+    process.exit(1);
+  });
   httpServer.listen(PORT, () => {
     console.log(`[devglide] unified server listening on http://localhost:${PORT}`);
   });

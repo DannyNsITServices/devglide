@@ -11,6 +11,7 @@ import type {
   TranscribeOptions,
   TranscriptionResult,
 } from "./types.js";
+import { isValidLanguage } from "../utils/validate.js";
 
 interface LocalWhisperSegment {
   speech?: string;
@@ -75,6 +76,7 @@ const BUILD_TOOLS_HINT =
   "  Windows:  winget install Kitware.CMake\n" +
   "            winget install Microsoft.VisualStudio.2022.BuildTools --override \"--add Microsoft.VisualStudio.Workload.VCTools\"\n" +
   "  macOS:    xcode-select --install\n" +
+  "            brew install cmake   (Command Line Tools do NOT include CMake)\n" +
   "  Linux:    sudo apt install build-essential cmake\n" +
   "\n" +
   "Step 2 — Compile whisper.cpp (from project root):\n" +
@@ -212,22 +214,44 @@ function extractZip(zipPath: string, destDir: string, files: string[]): void {
   });
 }
 
+/** Check whether cmake is available on PATH. */
+function cmakeAvailable(): boolean {
+  try {
+    execSync("cmake --version", { stdio: "pipe", timeout: 10_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Attempt to build whisper.cpp from source using CMake. */
 function buildFromSource(whisperCppPath: string): boolean {
+  if (!cmakeAvailable()) {
+    console.warn(
+      "[devglide-voice] CMake not found on PATH — cannot build whisper.cpp.\n" +
+      "  macOS:    brew install cmake   (xcode-select --install alone is not enough)\n" +
+      "  Windows:  winget install Kitware.CMake\n" +
+      "  Linux:    sudo apt install cmake"
+    );
+    return false;
+  }
+
   try {
     console.log("[devglide-voice] Building whisper.cpp from source…");
 
     const cmakeCache = join(whisperCppPath, "build", "CMakeCache.txt");
     if (!existsSync(cmakeCache)) {
       console.log("[devglide-voice] Configuring CMake build…");
-      execSync("cmake -B build", { cwd: whisperCppPath, stdio: "pipe", timeout: 60_000 });
+      execSync("cmake -B build", { cwd: whisperCppPath, stdio: "pipe", timeout: 180_000 });
     }
 
-    console.log("[devglide-voice] Compiling (this may take a few minutes)…");
+    // First build compiles all of ggml (incl. Metal on macOS) — routinely
+    // exceeds 5 minutes on laptops, so allow 15.
+    console.log("[devglide-voice] Compiling (this may take several minutes)…");
     execSync("cmake --build build --config Release", {
       cwd: whisperCppPath,
       stdio: "pipe",
-      timeout: 300_000,
+      timeout: 900_000,
     });
 
     if (whisperCliExists(whisperCppPath)) {
@@ -337,10 +361,19 @@ export class LocalWhisperProvider implements TranscriptionProvider {
     let nodeWhisper: LocalWhisperFn;
     try {
       nodeWhisper = await loadLocalWhisper();
-    } catch {
+    } catch (err: unknown) {
+      const cause = err instanceof Error ? err.message : String(err);
       throw new Error(
-        "Local whisper provider requires the 'nodejs-whisper' package. Install it with: pnpm add nodejs-whisper"
+        `Failed to load the 'nodejs-whisper' package: ${cause}\n` +
+        "If the package is missing, install it with: pnpm add nodejs-whisper"
       );
+    }
+
+    // Defense in depth: nodejs-whisper interpolates the language flag into a
+    // shell command without escaping — never let a non-tag value through even
+    // if an entry point forgot to validate.
+    if (options.language !== undefined && !isValidLanguage(options.language)) {
+      throw new Error(`Invalid language value ${JSON.stringify(options.language)}`);
     }
 
     // Verify FFmpeg is available before attempting transcription

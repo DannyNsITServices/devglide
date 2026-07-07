@@ -1,8 +1,6 @@
-import fs from 'fs/promises';
-import path from 'path';
 import type { VocabularyEntry, VocabularyEntrySummary } from '../types.js';
 import { getActiveProject } from '../../../project-context.js';
-import { PROJECTS_DIR, VOCABULARY_DIR } from '../../../packages/paths.js';
+import { VOCABULARY_DIR } from '../../../packages/paths.js';
 import { JsonFileStore } from '../../../packages/json-file-store.js';
 
 /**
@@ -103,42 +101,41 @@ export class VocabularyStore extends JsonFileStore<VocabularyEntry> {
       }
       scope = scope ?? (getActiveProject() ? 'project' : 'global');
 
+      // Stamp the owning project on project-scoped entries — without it the
+      // getCompiledContext(projectId) filter cannot exclude other projects'
+      // terms (they persist with projectId undefined).
+      entry.projectId = scope === 'project' && scopeProjectId ? scopeProjectId : undefined;
+
       await this.writeEntity(entry, scope, scopeProjectId);
       return entry;
     });
   }
 
   /**
-   * Locate the scope (and owning project) an existing entity lives in.
-   * Unlike resolveExistingScope, this also searches all project dirs when
-   * no active project is set (stdio MCP mode) so updates write in place
-   * instead of creating a shadowed global duplicate.
+   * Atomically fetch, merge, and write — eliminates the get→merge→save TOCTOU
+   * race in callers. undefined = keep existing, null = clear field.
    */
-  private async locateExisting(id: string): Promise<{ scope: 'project' | 'global'; projectId?: string } | undefined> {
-    const scope = await this.resolveExistingScope(id);
-    if (scope) return { scope, projectId: scope === 'project' ? getActiveProject()?.id : undefined };
+  async update(
+    id: string,
+    fields: { [K in keyof Omit<VocabularyEntry, 'id' | 'createdAt' | 'updatedAt'>]?: VocabularyEntry[K] | null },
+  ): Promise<VocabularyEntry | null> {
+    return this.withLock(id, async () => {
+      const existing = await this.get(id);
+      if (!existing) return null;
 
-    const featureName = path.basename(this.baseDir);
-    // New project dirs: ~/.devglide/projects/{projectId}/{feature}/
-    let projectIds: string[] = [];
-    try { projectIds = await fs.readdir(PROJECTS_DIR); } catch { /* none */ }
-    for (const projectId of projectIds) {
-      try {
-        await fs.access(path.join(PROJECTS_DIR, projectId, featureName, `${id}.json`));
-        return { scope: 'project', projectId };
-      } catch { /* keep looking */ }
-    }
-    // Legacy project dirs: baseDir/{projectId}/
-    let names: string[] = [];
-    try { names = await fs.readdir(this.baseDir); } catch { /* none */ }
-    for (const name of names) {
-      if (name.endsWith('.json')) continue;
-      try {
-        await fs.access(path.join(this.baseDir, name, `${id}.json`));
-        return { scope: 'project', projectId: name };
-      } catch { /* keep looking */ }
-    }
-    return undefined;
+      const merged: VocabularyEntry = { ...existing, updatedAt: new Date().toISOString() };
+      for (const [key, value] of Object.entries(fields)) {
+        if (value === undefined) continue;
+        (merged as unknown as Record<string, unknown>)[key] = value === null ? undefined : value;
+      }
+
+      const located = await this.locateExisting(id);
+      const scope = located?.scope ?? (getActiveProject() ? 'project' : 'global');
+      const scopeProjectId = located?.projectId ?? getActiveProject()?.id;
+      merged.projectId = scope === 'project' && scopeProjectId ? scopeProjectId : undefined;
+      await this.writeEntity(merged, scope, scopeProjectId);
+      return merged;
+    });
   }
 
   async getCompiledContext(projectId?: string): Promise<string> {

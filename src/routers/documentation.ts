@@ -145,17 +145,20 @@ router.put('/entries/:id', asyncHandler(async (req: Request, res: Response) => {
     badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
     return;
   }
-  const existing = await store.get(params.data.id);
-  if (!existing) { notFound(res, 'Entry not found'); return; }
-
   const parsed = updateEntrySchema.safeParse(req.body);
   if (!parsed.success) {
     badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
     return;
   }
 
-  const merged = { ...existing, ...parsed.data.content, id: params.data.id, type: existing.type };
-  const entry = await store.save(merged as any);
+  // Atomic read-merge-write inside the store lock — a separate get()+save()
+  // here loses concurrent field updates. Identity/type stay immutable.
+  const updates = { ...parsed.data.content } as Record<string, unknown>;
+  delete updates.id;
+  delete updates.type;
+  delete updates.projectId;
+  const entry = await store.update(params.data.id, updates as Parameters<typeof store.update>[1]);
+  if (!entry) { notFound(res, 'Entry not found'); return; }
   res.json(entry);
 }));
 

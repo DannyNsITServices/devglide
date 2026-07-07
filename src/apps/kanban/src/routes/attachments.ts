@@ -55,8 +55,21 @@ const attachmentIdParamSchema = z.object({
   id: z.string().min(1, "attachment id is required"),
 });
 
+/** Run the multer middleware and map its errors to client-error responses. */
+function uploadSingleFile(req: Request, res: Response, next: (err?: unknown) => void): void {
+  upload.single("file")(req, res, (err: unknown) => {
+    if (err instanceof multer.MulterError) {
+      // Client errors (oversized file, unexpected field) — not server 500s
+      const status = err.code === "LIMIT_FILE_SIZE" ? 413 : 400;
+      res.status(status).json({ error: err.message });
+      return;
+    }
+    next(err);
+  });
+}
+
 // POST /api/attachments
-attachmentsRouter.post("/", upload.single("file"), asyncHandler(async (req: Request, res: Response) => {
+attachmentsRouter.post("/", uploadSingleFile, asyncHandler(async (req: Request, res: Response) => {
     const file = req.file;
     if (!file) {
       badRequest(res, "No file uploaded");

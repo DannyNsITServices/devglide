@@ -344,10 +344,11 @@ describe('pipe-store lease expiry enforcement', () => {
   });
 
   it('isLeaseExpired returns true when past deadline', () => {
-    createLinearPipe();
+    // Pin the timeout explicitly — the check must not depend on DEFAULT_STAGE_TIMEOUT_MS.
+    pipeStore.createPipe('pipe-1', 'linear', ['alice', 'bob', 'carol'], 'test prompt', 'proj-1', { stageTimeoutMs: 60_000 });
     const result = pipeStore.grantLease('pipe-1', 'alice', 'proj-1');
-    const farFuture = Date.now() + 10 * 60 * 1000;
-    expect(pipeStore.isLeaseExpired(result.lease!, farFuture)).toBe(true);
+    const pastDeadline = Date.now() + 2 * 60_000;
+    expect(pipeStore.isLeaseExpired(result.lease!, pastDeadline)).toBe(true);
   });
 
   it('submitStage accepts submission with active lease', () => {

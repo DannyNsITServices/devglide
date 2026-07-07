@@ -20,7 +20,10 @@ const servers = [
   "documentation",
 ];
 
-const external = ["better-sqlite3", "node-pty"];
+// nodejs-whisper must stay external: it is CJS code referencing __dirname
+// (undefined in ESM bundle scope) and resolves its bundled whisper.cpp tree
+// relative to its own install location — inlining it breaks both.
+const external = ["better-sqlite3", "node-pty", "nodejs-whisper"];
 
 // CJS packages bundled into ESM need a real require() for Node built-ins
 const banner = `import { createRequire as __bundleCR } from "module"; const require = __bundleCR(import.meta.url);`;

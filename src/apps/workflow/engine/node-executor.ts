@@ -45,14 +45,19 @@ export async function executeNode(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     state.retryCount = attempt;
 
+    let timedOut = false;
     try {
       result = await withTimeout(executor(resolvedConfig, context, emit), timeout);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      timedOut = err instanceof NodeTimeoutError;
       result = { status: 'failed', error: message };
     }
 
-    if (result.status === 'passed' || attempt >= maxRetries) break;
+    // A timeout only rejects the race — the underlying executor keeps
+    // running. Retrying would start a SECOND concurrent instance of the same
+    // side effects (e.g. two deploy scripts), so timeouts are terminal.
+    if (result.status === 'passed' || timedOut || attempt >= maxRetries) break;
 
     if (attempt < maxRetries) {
       await sleep(retryDelay);
@@ -78,9 +83,11 @@ export async function executeNode(
   return result;
 }
 
+class NodeTimeoutError extends Error {}
+
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`Node timed out after ${ms}ms`)), ms);
+    const timer = setTimeout(() => reject(new NodeTimeoutError(`Node timed out after ${ms}ms`)), ms);
     promise.then(
       (val) => { clearTimeout(timer); resolve(val); },
       (err) => { clearTimeout(timer); reject(err); },

@@ -277,6 +277,16 @@ router.post('/panes/:id/run', asyncHandler(async (req: Request, res: Response) =
   }
   const { command, timeout } = parsed.data;
 
+  // Same project-ownership guard as DELETE — without it any project could
+  // inject commands into another project's terminal.
+  const paneInfo = getPaneInfo(paneId);
+  if (!paneInfo) {
+    return notFound(res, 'Pane not found');
+  }
+  if (!isPaneOwnedByProject(paneInfo, getActiveProject()?.id || null)) {
+    return forbidden(res, 'Pane does not belong to active project');
+  }
+
   const entry = globalPtys.get(paneId);
   if (!entry) {
     return notFound(res, 'Pane not found');
@@ -343,6 +353,17 @@ router.get('/panes/:id/scrollback', (req: Request, res: Response) => {
     return badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
   }
   const paneId = params.data.id;
+
+  // Same project-ownership guard as DELETE — scrollback discloses another
+  // project's terminal output otherwise.
+  const paneInfo = getPaneInfo(paneId);
+  if (!paneInfo) {
+    return notFound(res, 'Pane not found');
+  }
+  if (!isPaneOwnedByProject(paneInfo, getActiveProject()?.id || null)) {
+    return forbidden(res, 'Pane does not belong to active project');
+  }
+
   const entry = globalPtys.get(paneId);
 
   if (!entry) {
