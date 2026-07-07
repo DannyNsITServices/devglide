@@ -76,8 +76,18 @@ export const decisionExecutor: ExecutorFunction = async (
     }
 
     if (!selectedPort && cfg.ports.length > 0) {
-      const defaultPort = cfg.ports.find((p) => !p.condition) ?? cfg.ports[cfg.ports.length - 1];
-      selectedPort = defaultPort.id;
+      const defaultPort = cfg.ports.find((p) => !p.condition);
+      if (defaultPort) {
+        selectedPort = defaultPort.id;
+      } else {
+        // No port matched and every port has a condition — executing an
+        // arbitrary branch whose condition just evaluated false is worse
+        // than failing (e.g. exit code 2 must not route down the '1' port).
+        return {
+          status: 'failed',
+          error: 'Decision matched no port and no unconditional default port exists',
+        };
+      }
     }
 
     return {

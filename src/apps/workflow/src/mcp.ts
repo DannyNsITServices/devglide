@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { WorkflowStore } from '../services/workflow-store.js';
+import { validateWorkflowGraph } from '../services/workflow-validator.js';
 import { getActiveProject } from '../../../project-context.js';
 import type { Workflow, WorkflowNode, WorkflowEdge, VariableDefinition } from '../types.js';
 import { jsonResult, errorResult, createDevglideMcpServer } from '../../../packages/mcp-utils/src/index.js';
@@ -142,6 +143,14 @@ export function createWorkflowMcpServer(): McpServer {
         } catch {
           return errorResult('Invalid JSON for tags');
         }
+      }
+
+      // Same graph validation the REST create route enforces — an invalid
+      // graph saved here (cycle, missing trigger, disconnected node) runs
+      // unvalidated later because POST /workflows/:id/run trusts the store.
+      const graphValidation = validateWorkflowGraph(parsedNodes, parsedEdges);
+      if (!graphValidation.valid) {
+        return errorResult(`Invalid workflow graph: ${graphValidation.errors.join('; ')}`);
       }
 
       const workflow = await store.save({

@@ -96,7 +96,32 @@ export function mountMcpHttp(
   }, 5 * 60 * 1000);
   ttlTimer.unref();
 
-  app.post(path, async (req: McpHttpRequest, res: ServerResponse) => {
+  // Express does not await async handlers — a rejection from
+  // transport.handleRequest would surface as a process-level
+  // unhandledRejection instead of a 500. Funnel through this guard.
+  const guard =
+    (fn: (req: McpHttpRequest, res: ServerResponse) => Promise<void>) =>
+    async (req: McpHttpRequest, res: ServerResponse) => {
+      try {
+        await fn(req, res);
+      } catch (err) {
+        console.error("[mcp-http] handler error:", err instanceof Error ? err.message : err);
+        if (!res.headersSent) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              error: { code: -32603, message: "Internal error" },
+              id: null,
+            })
+          );
+        } else {
+          try { res.end(); } catch { /* socket already gone */ }
+        }
+      }
+    };
+
+  app.post(path, guard(async (req: McpHttpRequest, res: ServerResponse) => {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
     if (sessionId && sessions.has(sessionId)) {
@@ -136,9 +161,9 @@ export function mountMcpHttp(
         id: null,
       })
     );
-  });
+  }));
 
-  app.get(path, async (req: McpHttpRequest, res: ServerResponse) => {
+  app.get(path, guard(async (req: McpHttpRequest, res: ServerResponse) => {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
     if (!sessionId || !sessions.has(sessionId)) {
       res.writeHead(400, { "Content-Type": "application/json" });
@@ -154,9 +179,9 @@ export function mountMcpHttp(
     const getSession = sessions.get(sessionId)!;
     getSession.lastAccessed = Date.now();
     await getSession.transport.handleRequest(req, res);
-  });
+  }));
 
-  app.delete(path, async (req: McpHttpRequest, res: ServerResponse) => {
+  app.delete(path, guard(async (req: McpHttpRequest, res: ServerResponse) => {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
     if (!sessionId || !sessions.has(sessionId)) {
       res.writeHead(400, { "Content-Type": "application/json" });
@@ -172,7 +197,7 @@ export function mountMcpHttp(
     const delSession = sessions.get(sessionId)!;
     delSession.lastAccessed = Date.now();
     await delSession.transport.handleRequest(req, res);
-  });
+  }));
 }
 
 /**

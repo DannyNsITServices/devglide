@@ -72,6 +72,22 @@ export function registerChatMcpHttpSession(sessionId: string, server: McpServer)
   getServerState(server);
 }
 
+/**
+ * True when a DIFFERENT live MCP session currently tracks the same
+ * participant. Used by onSessionClose: a stale session closing (TTL reap,
+ * late clean close) must not detach a participant that has since been
+ * reclaimed under a new session — that would fail its running pipes and
+ * eject a live agent.
+ */
+export function isNameTrackedByAnotherSession(server: McpServer, name: string, projectId: string | null): boolean {
+  for (const other of chatMcpServersBySessionId.values()) {
+    if (other === server) continue;
+    const entry = chatMcpServerStates.get(other)?.sessionEntry;
+    if (entry && entry.name === name && entry.projectId === projectId) return true;
+  }
+  return false;
+}
+
 export function unregisterChatMcpHttpSession(server: McpServer, sessionId?: string): void {
   if (sessionId) {
     if (chatMcpServersBySessionId.get(sessionId) === server) chatMcpServersBySessionId.delete(sessionId);
@@ -479,7 +495,11 @@ export function createChatMcpServer(): McpServer {
     async () => {
       // Use REST API for consistent behavior — direct registry calls can miss
       // participants when sessionProjectId is null (before join or after restart).
-      const res = await chatApi('/members');
+      // Forward the session's project like every other tool — the router
+      // otherwise falls back to the dashboard's ACTIVE project, which may not
+      // be the project this agent joined from.
+      const pid = getSessionProjectId();
+      const res = await chatApi(pid ? `/members?projectId=${encodeURIComponent(pid)}` : '/members');
       if (!res.ok) return errorResult('Failed to fetch members');
       return jsonResult(res.data);
     },

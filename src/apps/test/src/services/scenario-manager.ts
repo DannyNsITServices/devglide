@@ -102,11 +102,16 @@ export class ScenarioManager {
   listResults(projectPath?: string | null): ScenarioResult[] {
     if (!projectPath) return [];
     const all = Array.from(this.results.values());
-    const prefix = projectPath;
     const basename = path.basename(projectPath);
     return all.filter((r) => {
       if (!r.target) return false;
-      return r.target.startsWith(prefix) || r.target === basename;
+      // Path-boundary-aware match: a bare prefix would leak results from a
+      // sibling project whose path merely starts with this one (app vs app-v2).
+      return (
+        r.target === projectPath ||
+        r.target.startsWith(projectPath + path.sep) ||
+        r.target === basename
+      );
     });
   }
 
@@ -249,7 +254,9 @@ export class ScenarioManager {
     if (!projectPath) return 0;
     let count = 0;
     for (const [target, scenarios] of this.scenariosByTarget) {
-      if (target.startsWith(projectPath)) count += scenarios.length;
+      if (target === projectPath || target.startsWith(projectPath + path.sep)) {
+        count += scenarios.length;
+      }
     }
     return count;
   }

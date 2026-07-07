@@ -117,9 +117,6 @@ router.put('/entries/:id', asyncHandler(async (req: Request, res: Response) => {
     badRequest(res, params.error.issues[0]?.message ?? 'Invalid input');
     return;
   }
-  const existing = await store.get(params.data.id);
-  if (!existing) { notFound(res, 'Entry not found'); return; }
-
   const parsed = updateEntrySchema.safeParse(req.body);
   if (!parsed.success) {
     badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid input');
@@ -128,15 +125,10 @@ router.put('/entries/:id', asyncHandler(async (req: Request, res: Response) => {
 
   const { term, definition, aliases, category, tags } = parsed.data;
 
-  const entry = await store.save({
-    id: params.data.id,
-    term: term ?? existing.term,
-    definition: definition ?? existing.definition,
-    aliases: aliases ?? existing.aliases,
-    category: category ?? existing.category,
-    tags: tags ?? existing.tags,
-    projectId: existing.projectId,
-  });
+  // Atomic read-merge-write inside the store lock — a separate get()+save()
+  // here loses concurrent field updates.
+  const entry = await store.update(params.data.id, { term, definition, aliases, category, tags });
+  if (!entry) { notFound(res, 'Entry not found'); return; }
 
   res.json(entry);
 }));

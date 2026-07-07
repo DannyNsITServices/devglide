@@ -156,5 +156,11 @@ broken on some Windows 11 builds (stuck in `playState 9`).
 
 The local STT provider uses whisper.cpp via the `nodejs-whisper` package:
 - **Windows:** Prebuilt `whisper-cli` binary is auto-downloaded from GitHub releases (v1.8.3).
-- **macOS/Linux:** Built from source via CMake (requires build tools).
+- **macOS/Linux:** Built from source via CMake. On macOS, Xcode Command Line
+  Tools alone are not enough — CMake must be installed separately
+  (`brew install cmake`).
 - **All platforms:** Requires FFmpeg on PATH for audio conversion.
+- **Bundling:** `nodejs-whisper` must stay in the esbuild `external` list in
+  `scripts/build-mcp.mjs` (and in root `package.json` dependencies so the
+  bundle can resolve it). Inlining it breaks `__dirname` resolution and the
+  path to its bundled whisper.cpp tree.

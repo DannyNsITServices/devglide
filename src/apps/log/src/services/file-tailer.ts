@@ -93,23 +93,31 @@ export class FileTailer {
       return;
     }
 
+    // Reserve the slot before the awaits below — concurrent chokidar `add`
+    // events (initial directory scan) would otherwise all pass the cap check
+    // before any of them increments the count.
+    this.watchedCount++;
+    let reserved = true;
+    const release = () => { if (reserved) { reserved = false; this.watchedCount--; } };
+
     try {
       const stat = await fsp.stat(filePath);
       if (stat.size > MAX_FILE_SIZE) {
         console.log(`[file-tailer] Skipping large file: ${filePath} (${(stat.size / 1024 / 1024).toFixed(1)}MB)`);
+        release();
         return;
       }
 
       // Peek at first line — skip if it looks like a DevGlide JSONL file
       if (stat.size > 0 && (await this.isDevGlideJsonl(filePath))) {
         console.log(`[file-tailer] Skipping DevGlide JSONL file: ${filePath}`);
+        release();
         return;
       }
 
       // Start from end of file — only tail new content
       this.offsets.set(filePath, stat.size);
       this.partials.set(filePath, "");
-      this.watchedCount++;
 
       const sessionId = fileSessionId(filePath);
       const targetPath = filetailTargetPath(this.filetailDir!, filePath);
@@ -130,6 +138,7 @@ export class FileTailer {
 
       console.log(`[file-tailer] Tailing: ${filePath}`);
     } catch (err) {
+      release();
       console.error(`[file-tailer] Failed to add ${filePath}:`, (err as Error).message);
     }
   }
@@ -236,6 +245,7 @@ export class FileTailer {
     if (this.offsets.has(filePath)) {
       this.offsets.delete(filePath);
       this.partials.delete(filePath);
+      this.changeQueues.delete(filePath);
       this.watchedCount--;
       console.log(`[file-tailer] Removed: ${filePath}`);
     }

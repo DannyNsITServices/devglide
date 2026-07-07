@@ -24,6 +24,8 @@ function getMessagesPath(projectId?: string | null): string | null {
 }
 
 function getPipeMessagesPath(pipeId: string, projectId?: string | null): string | null {
+  // Same traversal guard as getPipeEventsPath — the id is joined into a path.
+  if (!/^[\w-]+$/.test(pipeId)) return null;
   const dir = getChatDir(projectId);
   if (!dir) return null;
   const pipesDir = join(dir, 'pipes');
@@ -39,6 +41,9 @@ function getPipeEventsLogPath(projectId?: string | null): string | null {
 }
 
 function getPipeEventsPath(pipeId: string, projectId?: string | null): string | null {
+  // The id is joined into a filesystem path — allow only word chars and
+  // dashes (no separators, no dots) so it cannot traverse out of pipes/.
+  if (!/^[\w-]+$/.test(pipeId)) return null;
   const dir = getChatDir(projectId);
   if (!dir) return null;
   const pipesDir = join(dir, 'pipes');
@@ -228,7 +233,7 @@ export function loadParticipants(projectId?: string | null): PersistedParticipan
 }
 
 
-export function clearMessages(projectId?: string | null): void {
+export function clearMessages(projectId?: string | null, keepPipeIds?: ReadonlySet<string>): void {
   const filePath = getMessagesPath(projectId);
   if (filePath && existsSync(filePath)) {
     writeFileSync(filePath, '');
@@ -237,15 +242,18 @@ export function clearMessages(projectId?: string | null): void {
   if (pipeEventsPath && existsSync(pipeEventsPath)) {
     unlinkSync(pipeEventsPath);
   }
-  // Also clear per-pipe JSONL files
+  // Also clear per-pipe JSONL files — EXCEPT those of pipes the caller marks
+  // as still running: their .events.jsonl is the crash-recovery source, and
+  // deleting it mid-run silently drops the pipe on the next restart.
   const dir = getChatDir(projectId);
   if (dir) {
     const pipesDir = join(dir, 'pipes');
     if (existsSync(pipesDir)) {
       for (const file of readdirSync(pipesDir)) {
-        if (file.endsWith('.jsonl')) {
-          unlinkSync(join(pipesDir, file));
-        }
+        if (!file.endsWith('.jsonl')) continue;
+        const pipeId = file.replace(/\.events\.jsonl$|\.jsonl$/, '');
+        if (keepPipeIds?.has(pipeId)) continue;
+        unlinkSync(join(pipesDir, file));
       }
     }
   }

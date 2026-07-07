@@ -262,16 +262,23 @@ export function appendVersionedEntry(
   type: string,
   content: string
 ): VersionedEntryRow | undefined {
-  const maxVersion = db
-    .prepare(
-      `SELECT MAX("version") AS maxVer FROM "VersionedEntry" WHERE "issueId" = ? AND "type" = ?`
-    )
-    .get(issueId, type) as { maxVer: number | null } | undefined;
-  const version = (maxVersion?.maxVer ?? 0) + 1;
+  // MAX+1 and INSERT must be one transaction — the HTTP server and a stdio
+  // MCP process share this WAL database, and separate implicit transactions
+  // can hand both writers the same version number. IMMEDIATE takes the write
+  // lock at BEGIN so the SELECT already sees a stable MAX.
   const id = generateId();
-  db.prepare(
-    `INSERT INTO "VersionedEntry" ("id", "issueId", "type", "version", "content") VALUES (?, ?, ?, ?, ?)`
-  ).run(id, issueId, type, version, content);
+  const txn = db.transaction(() => {
+    const maxVersion = db
+      .prepare(
+        `SELECT MAX("version") AS maxVer FROM "VersionedEntry" WHERE "issueId" = ? AND "type" = ?`
+      )
+      .get(issueId, type) as { maxVer: number | null } | undefined;
+    const version = (maxVersion?.maxVer ?? 0) + 1;
+    db.prepare(
+      `INSERT INTO "VersionedEntry" ("id", "issueId", "type", "version", "content") VALUES (?, ?, ?, ?, ?)`
+    ).run(id, issueId, type, version, content);
+  });
+  txn.immediate();
   return db.prepare(`SELECT * FROM "VersionedEntry" WHERE "id" = ?`).get(id) as VersionedEntryRow | undefined;
 }
 

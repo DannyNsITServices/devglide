@@ -220,6 +220,18 @@ export interface ExecutionContext {
   startedAt: string;
   cancelled: boolean;
   loopContext?: LoopContext;
+  /**
+   * Active loop frames, outermost first. The runner sets `loopContext` per
+   * executing node from the innermost frame whose body contains that node —
+   * a single shared slot is clobbered by nested/parallel loops.
+   */
+  loopStack?: Array<{ loopId: string; bodyIds: Set<string>; ctx: LoopContext }>;
+  /**
+   * The run's root cancel token. Sub-workflows must receive this (not the
+   * parent's context) so external cancellation reaches them while the parent
+   * loop is parked awaiting the sub-workflow node.
+   */
+  cancelToken?: { cancelled: boolean };
   /** Snapshot of active project captured at workflow start — immune to mid-run changes */
   project?: { id: string; name: string; path: string };
   /** Injected service providers — decouples executors from app singletons */

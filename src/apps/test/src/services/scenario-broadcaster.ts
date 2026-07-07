@@ -45,16 +45,23 @@ export class ScenarioBroadcaster {
 
   /**
    * Broadcast a scenario payload to all SSE clients for a target key.
-   * Returns true if at least one connected client received the payload.
+   * Returns true only if the payload was written to at least one client whose
+   * socket is still writable — the caller drops the queued copy on `true`, so
+   * counting a dead-but-not-yet-removed connection would lose the scenario.
    */
   broadcast(key: string, scenario: unknown): boolean {
     const clients = this.clients.get(key);
     if (!clients || clients.size === 0) return false;
     const payload = `data: ${JSON.stringify(scenario)}\n\n`;
+    let delivered = false;
     for (const res of clients) {
-      try { res.write(payload); } catch { /* cleaned up on close */ }
+      if (res.writableEnded || res.destroyed) continue;
+      try {
+        res.write(payload);
+        delivered = true;
+      } catch { /* cleaned up on close */ }
     }
-    return true;
+    return delivered;
   }
 
   shutdown(): void {

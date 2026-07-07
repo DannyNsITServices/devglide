@@ -280,27 +280,70 @@ function runMcpServer(name) {
 
 // --- Unified server ---
 
-function startServer(foreground = false) {
+/** Probe the health endpoint. Returns the health JSON, or null if nothing answers. */
+async function probeHealth() {
+  try {
+    const res = await fetch(`http://127.0.0.1:${SERVER_PORT}/api/health`, {
+      signal: AbortSignal.timeout(1500),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/** Print the last lines of the server log to help diagnose a failed start. */
+function printLogTail(lines = 15) {
+  try {
+    const logFile = resolve(logDir, "server.log");
+    const content = readFileSync(logFile, "utf8").trimEnd().split("\n");
+    const tail = content.slice(-lines);
+    if (tail.length) {
+      console.error(`\n  Last ${tail.length} log lines (${logFile}):`);
+      for (const line of tail) console.error(`    ${line}`);
+    }
+  } catch { /* no log yet */ }
+}
+
+async function startServer(foreground = false) {
   const { running, pid } = getStatus("server");
   if (running) {
     console.log(`  server already running (pid ${pid})`);
     return;
   }
 
-  const tsxBin = resolve(root, "node_modules/.bin/tsx");
-  if (!existsSync(tsxBin)) {
+  // Preflight: the pid file may be stale while a *different* process still
+  // holds the port (e.g. a server started from another working copy).
+  // Starting on top of it would exit with EADDRINUSE after we already
+  // reported success — detect and refuse instead.
+  const existing = await probeHealth();
+  if (existing) {
+    console.error(
+      `  port :${SERVER_PORT} is already served by another devglide process` +
+      (existing.pid ? ` (pid ${existing.pid})` : "") +
+      ` not tracked by this CLI.`
+    );
+    console.error(`  Stop it first (devglide stop, or kill the pid above), then retry.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Spawn tsx via its JS entry with the current node binary — no shell.
+  // shell:true combined with detached:true silently discards fd-redirected
+  // stdio on Windows (cmd.exe attaches to a fresh console), which made the
+  // daemon log permanently empty and startup failures undiagnosable.
+  const tsxCli = resolve(root, "node_modules/tsx/dist/cli.mjs");
+  if (!existsSync(tsxCli)) {
     console.error("tsx not found. Run 'pnpm install' first.");
     process.exit(1);
   }
 
   if (foreground) {
-    // Quote tsxBin so a path with spaces survives shell:true (needed on Windows
-    // to resolve the extensionless `.bin/tsx` launcher).
-    const child = spawn(`"${tsxBin}"`, ["src/server.ts"], {
+    const child = spawn(process.execPath, [tsxCli, "src/server.ts"], {
       cwd: root,
       stdio: "inherit",
       env: { ...process.env, PORT: String(SERVER_PORT) },
-      shell: true,
     });
     child.on("exit", (code) => process.exit(code ?? 1));
     return;
@@ -309,18 +352,38 @@ function startServer(foreground = false) {
   // Background daemon
   const logFile = resolve(logDir, "server.log");
   const out = openSync(logFile, "a");
-  // Quote tsxBin so a path with spaces survives shell:true.
-  const child = spawn(`"${tsxBin}"`, ["src/server.ts"], {
+  const child = spawn(process.execPath, [tsxCli, "src/server.ts"], {
     cwd: root,
     stdio: ["ignore", out, out],
     env: { ...process.env, PORT: String(SERVER_PORT) },
     detached: true,
-    shell: true,
   });
   savePid("server", child.pid);
   child.unref();
   closeSync(out);
-  console.log(`  server started on :${SERVER_PORT} (pid ${child.pid})`);
+
+  // Verify the daemon actually came up before claiming success: the child
+  // must stay alive AND the health endpoint must answer.
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    if (!isRunning(child.pid)) {
+      removePid("server");
+      console.error(`  server failed to start — process exited during startup.`);
+      printLogTail();
+      process.exitCode = 1;
+      return;
+    }
+    if (await probeHealth()) {
+      console.log(`  server started on :${SERVER_PORT} (pid ${child.pid})`);
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+
+  removePid("server");
+  console.error(`  server did not become ready on :${SERVER_PORT} within 15s.`);
+  printLogTail();
+  process.exitCode = 1;
 }
 
 function killTree(pid, signal) {
@@ -676,7 +739,7 @@ ${Object.keys(mcpServers).map((name) => `    ${name}`).join("\n")}
 
 switch (command) {
   case "dev":
-    startServer(true);
+    startServer(true).catch((err) => { console.error(err); process.exitCode = 1; });
     break;
 
   case "start":
@@ -684,7 +747,7 @@ switch (command) {
     if (args[0] === "stop") {
       stopServer();
     } else {
-      startServer(command === "dev");
+      startServer(command === "dev").catch((err) => { console.error(err); process.exitCode = 1; });
     }
     break;
 
@@ -697,8 +760,8 @@ switch (command) {
     // starting the new one, otherwise startServer can hit EADDRINUSE.
     (async () => {
       await stopServer();
-      startServer(false);
-    })();
+      await startServer(false);
+    })().catch((err) => { console.error(err); process.exitCode = 1; });
     break;
 
   case "status":

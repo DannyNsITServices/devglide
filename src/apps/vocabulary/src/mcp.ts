@@ -124,32 +124,30 @@ export function createVocabularyMcpServer(): McpServer {
       tags: z.string().optional().describe('JSON array of tag strings'),
     },
     async ({ id, term, definition, aliases, category, tags }) => {
-      const existing = await store.get(id);
-      if (!existing) return errorResult('Entry not found');
-
-      let parsedAliases: string[] | undefined = existing.aliases;
+      let parsedAliases: string[] | undefined;
       if (aliases) {
         const parsed = parseStringArray(aliases);
         if (!parsed) return errorResult('aliases must be a JSON array of strings');
         parsedAliases = parsed;
       }
 
-      let parsedTags: string[] = existing.tags;
+      let parsedTags: string[] | undefined;
       if (tags) {
         const parsed = parseStringArray(tags);
         if (!parsed) return errorResult('tags must be a JSON array of strings');
         parsedTags = parsed;
       }
 
-      const updated = await store.save({
-        id,
-        term: term ?? existing.term,
-        definition: definition ?? existing.definition,
+      // Atomic read-merge-write inside the store lock — a separate
+      // get()+save() here loses concurrent field updates.
+      const updated = await store.update(id, {
+        term,
+        definition,
         aliases: parsedAliases,
-        category: category ?? existing.category,
+        category,
         tags: parsedTags,
-        projectId: existing.projectId,
       });
+      if (!updated) return errorResult('Entry not found');
 
       return jsonResult(updated);
     },
