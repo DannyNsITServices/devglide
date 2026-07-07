@@ -1,14 +1,20 @@
 #!/usr/bin/env node
-// Open a release PR to main and enable auto-merge — without the gh CLI, which is not
+// Open a release PR and enable auto-merge — without the gh CLI, which is not
 // installed on the self-hosted runner. Uses the REST API to create the PR and the GraphQL
 // API to enable auto-merge. Relies only on Node's global fetch (Node >= 22).
 //
+// The PR targets BASE_BRANCH (default: develop) — the version bump lands on develop
+// first and reaches main through the normal develop -> main promotion, never by a
+// direct push or PR to main.
+//
 // Required env: GH_TOKEN, GITHUB_REPOSITORY (owner/repo), VERSION, RELEASE_BRANCH.
+// Optional env: BASE_BRANCH (default "develop").
 
 const token = process.env.GH_TOKEN;
 const repo = process.env.GITHUB_REPOSITORY;
 const version = process.env.VERSION;
 const branch = process.env.RELEASE_BRANCH;
+const baseBranch = process.env.BASE_BRANCH || 'develop';
 
 for (const [k, v] of Object.entries({ GH_TOKEN: token, GITHUB_REPOSITORY: repo, VERSION: version, RELEASE_BRANCH: branch })) {
   if (!v) {
@@ -45,12 +51,13 @@ async function graphql(query, variables) {
 
 const prBody =
   `Automated version bump for v${version}. Tag \`v${version}\` and the npm publish already ` +
-  `completed; merging this lands the bumped package.json on main.`;
+  `completed; merging this lands the bumped package.json on \`${baseBranch}\`, from where it ` +
+  `is promoted to main through the regular ${baseBranch} -> main merge.`;
 
 // Create the PR — or reuse an existing one for this branch (idempotent on re-run).
 let { status, body } = await rest(`/repos/${owner}/${name}/pulls`, {
   method: 'POST',
-  body: JSON.stringify({ title: `release: v${version}`, head: branch, base: 'main', body: prBody }),
+  body: JSON.stringify({ title: `release: v${version}`, head: branch, base: baseBranch, body: prBody }),
 });
 
 let pr;
