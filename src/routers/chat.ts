@@ -21,6 +21,7 @@ import {
   hasChatMcpHttpSession,
   registerChatMcpHttpSession,
   unregisterChatMcpHttpSession,
+  isNameTrackedByAnotherSession,
 } from '../apps/chat/src/mcp.js';
 
 export {
@@ -30,6 +31,7 @@ export {
   hasChatMcpHttpSession,
   registerChatMcpHttpSession,
   unregisterChatMcpHttpSession,
+  isNameTrackedByAnotherSession,
 };
 
 export const router: Router = Router();
