@@ -66,25 +66,44 @@ const FFMPEG_INSTALL_HINT =
   "  macOS:    brew install ffmpeg\n" +
   "  Linux:    sudo apt install ffmpeg  (or your distro's package manager)";
 
-const BUILD_TOOLS_HINT =
-  "The local whisper provider uses nodejs-whisper which needs whisper.cpp.\n" +
-  "Prebuilt binary download was attempted but failed.\n" +
-  "\n" +
-  "To compile manually:\n" +
-  "\n" +
-  "Step 1 — Install build tools (if not already installed):\n" +
-  "  Windows:  winget install Kitware.CMake\n" +
-  "            winget install Microsoft.VisualStudio.2022.BuildTools --override \"--add Microsoft.VisualStudio.Workload.VCTools\"\n" +
-  "  macOS:    xcode-select --install\n" +
-  "            brew install cmake   (Command Line Tools do NOT include CMake)\n" +
-  "  Linux:    sudo apt install build-essential cmake\n" +
-  "\n" +
-  "Step 2 — Compile whisper.cpp (from project root):\n" +
-  "  cd node_modules/nodejs-whisper/cpp/whisper.cpp\n" +
-  "  cmake -B build\n" +
-  "  cmake --build build --config Release\n" +
-  "\n" +
-  "Then restart the server.";
+/**
+ * Platform-aware guidance for when the whisper-cli binary could not be
+ * provisioned. Prebuilt binaries only exist for Windows — on macOS/Linux the
+ * only automatic path is a CMake source build, so the hint must not claim a
+ * download was attempted there.
+ */
+export function buildToolsHint(platform: NodeJS.Platform = process.platform): string {
+  const attempted =
+    platform === "win32"
+      ? "Prebuilt binary download was attempted but failed."
+      : "Building whisper.cpp from source was attempted but failed (no prebuilt binaries are published for this platform).";
+
+  const installTools =
+    platform === "win32"
+      ? "  Windows:  winget install Kitware.CMake\n" +
+        "            winget install Microsoft.VisualStudio.2022.BuildTools --override \"--add Microsoft.VisualStudio.Workload.VCTools\"\n"
+      : platform === "darwin"
+        ? "  macOS:    xcode-select --install\n" +
+          "            brew install cmake   (Command Line Tools do NOT include CMake)\n"
+        : "  Linux:    sudo apt install build-essential cmake\n";
+
+  return (
+    "The local whisper provider uses nodejs-whisper which needs whisper.cpp.\n" +
+    `${attempted}\n` +
+    "\n" +
+    "To compile manually:\n" +
+    "\n" +
+    "Step 1 — Install build tools (if not already installed):\n" +
+    installTools +
+    "\n" +
+    "Step 2 — Compile whisper.cpp (from project root):\n" +
+    "  cd node_modules/nodejs-whisper/cpp/whisper.cpp\n" +
+    "  cmake -B build\n" +
+    "  cmake --build build --config Release\n" +
+    "\n" +
+    "Then restart the server."
+  );
+}
 
 // --- Prebuilt whisper.cpp binary download ---
 
@@ -224,16 +243,24 @@ function cmakeAvailable(): boolean {
   }
 }
 
+/** Outcome of an attempt to provision the whisper-cli binary. */
+type WhisperBinaryStatus = { ok: true } | { ok: false; reason: string };
+
+/** Keep only the tail of long build output — compiler errors are at the end. */
+function truncateBuildOutput(text: string, maxChars = 1500): string {
+  return text.length <= maxChars ? text : `…${text.slice(-maxChars)}`;
+}
+
 /** Attempt to build whisper.cpp from source using CMake. */
-function buildFromSource(whisperCppPath: string): boolean {
+function buildFromSource(whisperCppPath: string): WhisperBinaryStatus {
   if (!cmakeAvailable()) {
-    console.warn(
-      "[devglide-voice] CMake not found on PATH — cannot build whisper.cpp.\n" +
+    const reason =
+      "CMake not found on PATH — cannot build whisper.cpp.\n" +
       "  macOS:    brew install cmake   (xcode-select --install alone is not enough)\n" +
       "  Windows:  winget install Kitware.CMake\n" +
-      "  Linux:    sudo apt install cmake"
-    );
-    return false;
+      "  Linux:    sudo apt install cmake";
+    console.warn(`[devglide-voice] ${reason}`);
+    return { ok: false, reason };
   }
 
   try {
@@ -256,15 +283,18 @@ function buildFromSource(whisperCppPath: string): boolean {
 
     if (whisperCliExists(whisperCppPath)) {
       console.log("[devglide-voice] whisper.cpp built successfully.");
-      return true;
+      return { ok: true };
     }
 
-    console.warn("[devglide-voice] Build completed but whisper-cli not found.");
-    return false;
+    const reason = "CMake build completed but whisper-cli was not found in the build output.";
+    console.warn(`[devglide-voice] ${reason}`);
+    return { ok: false, reason };
   } catch (err: unknown) {
+    // execSync errors already carry the command's stderr in their message
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[devglide-voice] CMake build failed: ${msg}`);
-    return false;
+    const reason = `CMake build failed: ${truncateBuildOutput(msg)}`;
+    console.warn(`[devglide-voice] ${reason}`);
+    return { ok: false, reason };
   }
 }
 
@@ -275,13 +305,14 @@ function buildFromSource(whisperCppPath: string): boolean {
  * 3. Fall back to building from source via CMake (macOS/Linux have compilers
  *    readily available; Windows will reach this if the prebuilt download fails).
  */
-async function ensureWhisperBinary(): Promise<boolean> {
+async function ensureWhisperBinary(): Promise<WhisperBinaryStatus> {
   const whisperCppPath = getWhisperCppPath();
 
   // Already available — nothing to do
-  if (whisperCliExists(whisperCppPath)) return true;
+  if (whisperCliExists(whisperCppPath)) return { ok: true };
 
   // Step 1: Try prebuilt binary (Windows only — no official macOS/Linux binaries)
+  let downloadFailure: string | undefined;
   const asset = getPrebuiltAsset();
   if (asset) {
     console.log(`[devglide-voice] whisper-cli not found — downloading prebuilt binary (${WHISPER_CPP_RELEASE_VERSION})…`);
@@ -312,13 +343,15 @@ async function ensureWhisperBinary(): Promise<boolean> {
 
       if (whisperCliExists(whisperCppPath)) {
         console.log("[devglide-voice] Prebuilt whisper-cli installed successfully.");
-        return true;
+        return { ok: true };
       }
 
-      console.warn("[devglide-voice] Prebuilt binary extracted but not found — falling back to CMake build.");
+      downloadFailure = "Prebuilt binary extracted but whisper-cli was not found.";
+      console.warn(`[devglide-voice] ${downloadFailure} Falling back to CMake build…`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[devglide-voice] Failed to download prebuilt binary: ${msg}`);
+      downloadFailure = `Failed to download prebuilt binary: ${msg}`;
+      console.warn(`[devglide-voice] ${downloadFailure}`);
       console.warn("[devglide-voice] Falling back to CMake build…");
     } finally {
       try { unlinkSync(tmpZip); } catch { /* ignore */ }
@@ -326,7 +359,12 @@ async function ensureWhisperBinary(): Promise<boolean> {
   }
 
   // Step 2: Build from source via CMake
-  return buildFromSource(whisperCppPath);
+  const built = buildFromSource(whisperCppPath);
+  if (built.ok) return built;
+  return {
+    ok: false,
+    reason: [downloadFailure, built.reason].filter(Boolean).join("\n"),
+  };
 }
 
 /** Check whether ffmpeg is available on PATH. */
@@ -382,8 +420,17 @@ export class LocalWhisperProvider implements TranscriptionProvider {
       throw new Error(ffmpeg.error!);
     }
 
-    // Ensure whisper-cli binary is available (download prebuilt if possible)
-    await ensureWhisperBinary();
+    // Ensure whisper-cli binary is available (download prebuilt if possible).
+    // Fail fast with the real provisioning error — nodejs-whisper checks the
+    // same executable locations and would otherwise fail with a generic
+    // "whisper-cli executable not found" that hides the actual cause.
+    const binary = await ensureWhisperBinary();
+    if (!binary.ok) {
+      throw new Error(
+        `Local whisper transcription failed — whisper-cli is not available.\n` +
+        `${binary.reason}\n\n${buildToolsHint()}`
+      );
+    }
 
     // Write audio buffer to a temp file (nodejs-whisper needs a file path).
     // Sanitize the caller-supplied filename (strip path components, null bytes,
@@ -426,7 +473,7 @@ export class LocalWhisperProvider implements TranscriptionProvider {
         // Detect whisper binary / build tool issues and provide actionable guidance
         if (/whisper.*not found|executable not found|ENOENT|cmake|build|compile/i.test(msg)) {
           throw new Error(
-            `Local whisper transcription failed: ${msg}\n\n${BUILD_TOOLS_HINT}`
+            `Local whisper transcription failed: ${msg}\n\n${buildToolsHint()}`
           );
         }
         throw err;
