@@ -9,6 +9,7 @@ import { homedir } from "os";
 
 import { getClaudeMdContent, injectSection, removeSection } from "./claude-md-template.js";
 import { removeDevglideSectionsFromToml } from "./codex-config.js";
+import { runDoctor } from "./doctor.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -581,6 +582,9 @@ function runSetup() {
       console.log(`  ✓ DevGlide instructions already up to date in ${geminiMdPath}`);
     }
   }
+
+  // Report voice/local-whisper environment dependencies (non-fatal)
+  runDoctor();
 
   console.log("\n  Setup complete!\n");
 }
