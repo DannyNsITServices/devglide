@@ -81,7 +81,7 @@ Describe what to test in natural language and scenarios are generated automatica
 - \`voice_analytics\` — get aggregated transcription analytics
 - \`voice_status\` — check transcription service status and statistics
 - **STT providers:** openai, groq, local (whisper.cpp), whisper-cpp, faster-whisper, vllm, local-ai
-- **Local whisper:** On Windows, prebuilt whisper-cli is auto-downloaded from GitHub releases. On macOS/Linux, built from source via CMake.
+- **Local whisper:** A whisper-cli already on PATH (e.g. `brew install whisper-cpp`) is adopted automatically. On Windows, prebuilt whisper-cli is auto-downloaded from GitHub releases. Otherwise built from source via CMake.
 - **TTS engine:** msedge-tts (Microsoft Edge Read Aloud). Long text is automatically split into sentence chunks with pipelined generation + playback.
 - **TTS config:** \`voice\`, \`edgeRate\`, \`edgePitch\`, \`volume\`, \`chunkThreshold\`, \`fallbackRate\`, \`enabled\` — configurable via dashboard.
 - **TTS fallback chain:** If msedge-tts fails → PowerShell SAPI (Windows/WSL), \`say\` (macOS), espeak-ng/spd-say (Linux).
