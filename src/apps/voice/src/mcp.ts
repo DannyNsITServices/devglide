@@ -22,7 +22,7 @@ export function createVoiceMcpServer() {
         "- Supports vocabulary biasing via `prompt` parameter to improve accuracy for developer terminology.",
         "- Two modes: `raw` (default) returns transcription as-is, `cleanup` applies AI post-processing to remove filler words and fix grammar.",
         "- Providers: openai, groq, local (whisper.cpp), whisper-cpp, faster-whisper, vllm, local-ai.",
-        "- Local whisper: on Windows prebuilt binary is auto-downloaded; on macOS/Linux built from source via CMake.",
+        "- Local whisper: whisper-cli on PATH (e.g. brew install whisper-cpp) is adopted automatically; on Windows prebuilt binary is auto-downloaded; otherwise built from source via CMake.",
         "",
         "### Text-to-speech (TTS)",
         "- Use `voice_speak` to speak text aloud. Fire-and-forget — cancels any previous speech.",
