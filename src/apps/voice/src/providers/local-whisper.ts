@@ -1,4 +1,4 @@
-import { writeFileSync, readFileSync, unlinkSync, mkdirSync, existsSync, createWriteStream } from "fs";
+import { writeFileSync, readFileSync, unlinkSync, mkdirSync, existsSync, createWriteStream, copyFileSync } from "fs";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import { join, resolve, dirname } from "path";
@@ -83,7 +83,9 @@ export function buildToolsHint(platform: NodeJS.Platform = process.platform): st
       ? "  Windows:  winget install Kitware.CMake\n" +
         "            winget install Microsoft.VisualStudio.2022.BuildTools --override \"--add Microsoft.VisualStudio.Workload.VCTools\"\n"
       : platform === "darwin"
-        ? "  macOS:    xcode-select --install\n" +
+        ? "  macOS (no compile needed):  brew install whisper-cpp   (then retry — the binary is adopted automatically)\n" +
+          "  macOS (compile from source):\n" +
+          "            xcode-select --install\n" +
           "            brew install cmake   (Command Line Tools do NOT include CMake)\n"
         : "  Linux:    sudo apt install build-essential cmake\n";
 
@@ -208,6 +210,47 @@ function whisperCliExists(whisperCppPath: string): boolean {
   return candidates.some((p) => existsSync(p));
 }
 
+/** Find a whisper-cli binary on PATH (e.g. installed via `brew install whisper-cpp`). */
+function findSystemWhisperCli(): string | null {
+  const lookup = process.platform === "win32" ? "where whisper-cli" : "command -v whisper-cli";
+  try {
+    const first = execSync(lookup, { stdio: "pipe", timeout: 10_000 })
+      .toString()
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)[0];
+    return first && existsSync(first) ? first : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Copy a system-installed whisper-cli into the location nodejs-whisper
+ * expects, so users who ran e.g. `brew install whisper-cpp` skip the CMake
+ * source build entirely. Exported for tests.
+ */
+export function adoptSystemWhisperCli(
+  whisperCppPath: string,
+  findBinary: () => string | null = findSystemWhisperCli
+): boolean {
+  const source = findBinary();
+  if (!source) return false;
+
+  const exeName = process.platform === "win32" ? "whisper-cli.exe" : "whisper-cli";
+  const targetDir = join(whisperCppPath, "build", "bin");
+  try {
+    mkdirSync(targetDir, { recursive: true });
+    copyFileSync(source, join(targetDir, exeName));
+    console.log(`[devglide-voice] Adopted system whisper-cli from ${source}`);
+    return true;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[devglide-voice] Found system whisper-cli at ${source} but failed to adopt it: ${msg}`);
+    return false;
+  }
+}
+
 /** Download a file from `url` to `dest`. Uses `fetch` (Node 18+). */
 async function downloadFile(url: string, dest: string): Promise<void> {
   const res = await fetch(url, { redirect: "follow" });
@@ -311,6 +354,11 @@ async function ensureWhisperBinary(): Promise<WhisperBinaryStatus> {
   // Already available — nothing to do
   if (whisperCliExists(whisperCppPath)) return { ok: true };
 
+  // Step 0: Adopt a system-installed whisper-cli (e.g. `brew install whisper-cpp`)
+  if (adoptSystemWhisperCli(whisperCppPath) && whisperCliExists(whisperCppPath)) {
+    return { ok: true };
+  }
+
   // Step 1: Try prebuilt binary (Windows only — no official macOS/Linux binaries)
   let downloadFailure: string | undefined;
   const asset = getPrebuiltAsset();
@@ -336,7 +384,6 @@ async function ensureWhisperBinary(): Promise<WhisperBinaryStatus> {
         const src = join(extractDir, file);
         const dest = join(targetDir, file.split("/").pop()!);
         if (existsSync(src)) {
-          const { copyFileSync } = await import("fs");
           copyFileSync(src, dest);
         }
       }

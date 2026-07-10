@@ -13,6 +13,11 @@ describe('buildToolsHint', () => {
     expect(hint).not.toContain('winget');
   });
 
+  it('darwin: offers brew whisper-cpp as the no-compile path', () => {
+    const hint = buildToolsHint('darwin');
+    expect(hint).toContain('brew install whisper-cpp');
+  });
+
   it('win32: mentions the prebuilt download attempt and Windows build tools', () => {
     const hint = buildToolsHint('win32');
     expect(hint).toContain('Prebuilt binary download');
